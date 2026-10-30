@@ -1,0 +1,57 @@
+{
+  "name": "mfeflow",
+  "version": "0.0.0",
+  "description": "React micro-frontend boilerplate and platform kit: scaffold Module Federation apps à la carte, self-host a registry with one-command rollback. Early, not usable yet.",
+  "keywords": [
+    "micro-frontend",
+    "micro-frontends",
+    "mfe",
+    "module-federation",
+    "module-federation-2",
+    "react",
+    "rsbuild",
+    "rspack",
+    "cli",
+    "scaffolding",
+    "boilerplate"
+  ],
+  "homepage": "https://mfeflow.dev",
+  "bugs": "https://github.com/mfeflow/mfeflow/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfeflow/mfeflow.git",
+    "directory": "packages/cli"
+  },
+  "license": "MIT",
+  "author": "Sanjeev Sharma <speedsharma.ai@gmail.com>",
+  "type": "module",
+  "bin": {
+    "mfeflow": "./bin/mfeflow.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "rslib build",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@rslib/core": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

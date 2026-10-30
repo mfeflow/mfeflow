@@ -1,0 +1,53 @@
+{
+  "name": "@mfeflow/contracts",
+  "version": "0.0.0",
+  "description": "JSON schemas and types for mfeflow.json, mfe.json and the remote registry. Early, not usable yet.",
+  "keywords": [
+    "micro-frontend",
+    "micro-frontends",
+    "mfe",
+    "module-federation",
+    "module-federation-2",
+    "react",
+    "rsbuild",
+    "rspack",
+    "cli",
+    "scaffolding",
+    "boilerplate"
+  ],
+  "homepage": "https://mfeflow.dev",
+  "bugs": "https://github.com/mfeflow/mfeflow/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfeflow/mfeflow.git",
+    "directory": "packages/contracts"
+  },
+  "license": "MIT",
+  "author": "Sanjeev Sharma <speedsharma.ai@gmail.com>",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "rslib build",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@rslib/core": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

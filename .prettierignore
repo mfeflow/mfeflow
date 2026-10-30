@@ -1,0 +1,6 @@
+dist
+doc_build
+coverage
+.turbo
+pnpm-lock.yaml
+CHANGELOG.md
