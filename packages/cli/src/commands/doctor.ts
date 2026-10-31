@@ -1,9 +1,9 @@
-import { findProjectRoot, type PlanBuilder } from '@mfeflow/core';
+import { findProjectRoot, type MfeflowProject, type PlanBuilder } from '@mfeflow/core';
 import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals, type Globals } from '../args';
 import { COMPAT_CHECKS, DOCTOR_CHECKS, VALIDATE_CHECKS } from '../checks';
 import type { Check, Finding } from '../findings';
-import { registryEntryFiles } from '../glue';
+import { freePort, REMOTE_PORT, registryEntryFiles } from '../glue';
 import { inspectProject, type ProjectView } from '../inspect';
 import { chooseLocal } from '../local';
 import type { ReportResult } from '../output';
@@ -39,13 +39,29 @@ function withVersion(source: string): string {
   return `${JSON.stringify(next, null, indent)}\n`;
 }
 
+interface Fixes {
+  count: number;
+  /** The project with any port a fix had to assign. */
+  project: MfeflowProject;
+}
+
+function withPorts(project: MfeflowProject, ports: Record<string, number>): MfeflowProject['apps'] {
+  return Object.fromEntries(
+    Object.entries(project.apps).map(([name, app]) => {
+      const port = ports[name];
+      return [name, port === undefined ? app : { ...app, port }];
+    }),
+  );
+}
+
 async function plannedFixes(
   rt: Runtime,
   view: ProjectView,
   findings: readonly Finding[],
   builder: PlanBuilder,
-): Promise<number> {
+): Promise<Fixes> {
   let count = 0;
+  const assigned: Record<string, number> = {};
   const missingEnvs = new Map<string, string[]>();
   for (const f of findings.filter((x) => x.fixable)) {
     if (f.code === 'MFEFLOW_E111' && f.path !== undefined) {
@@ -58,7 +74,11 @@ async function plannedFixes(
     }
   }
   for (const [name, envs] of missingEnvs) {
-    const port = view.apps.find((a) => a.name === name)?.port ?? 0;
+    let port = view.project.apps[name]?.port;
+    if (port === undefined) {
+      port = freePort({ apps: withPorts(view.project, assigned) }, REMOTE_PORT);
+      assigned[name] = port;
+    }
     // oxlint-disable-next-line no-await-in-loop -- one remote at a time
     for (const file of await registryEntryFiles(rt.roots, { name, port }, envs)) {
       // oxlint-disable-next-line no-await-in-loop -- as above
@@ -66,7 +86,7 @@ async function plannedFixes(
       count += 1;
     }
   }
-  return count;
+  return { count, project: { ...view.project, apps: withPorts(view.project, assigned) } };
 }
 
 async function fixAll(
@@ -78,14 +98,14 @@ async function fixAll(
   const { checkout } = chooseLocal(view.project, view.root, globals.cwd, undefined);
   const builder = createBuilder(view.root, checkout);
   await builder.captureProject();
-  const count = await plannedFixes(rt, view, findings, builder);
+  const { count, project } = await plannedFixes(rt, view, findings, builder);
   if (count === 0) return 0;
   const outcome = await writePlan({
     rt,
     globals: { ...globals, install: false },
     root: view.root,
     plan: builder.build(),
-    project: view.project,
+    project,
   });
   return outcome.dryRun ? 0 : count;
 }

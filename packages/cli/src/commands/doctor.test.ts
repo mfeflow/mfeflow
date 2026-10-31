@@ -129,6 +129,26 @@ describe('mfeflow doctor', () => {
     expect(dev).toContain('"manifestUrl": "http://localhost:4311/mf-manifest.json"');
   });
 
+  it('--fix gives a remote with no port the next free one instead of writing localhost:0', async () => {
+    const root = await project();
+    await editJson(path.join(root, 'mfeflow.json'), (doc) => {
+      delete (doc.apps as Record<string, { port?: number }>).cart!.port;
+    });
+    await fs.rm(path.join(root, 'registry/envs/dev/cart.json'));
+    const fixed = await run(root, 'doctor', '--fix', '--yes');
+    expect(fixed.result.summary.fixed).toBe(1);
+    const saved = JSON.parse(await fs.readFile(path.join(root, 'mfeflow.json'), 'utf8')) as {
+      apps: Record<string, { port?: number }>;
+    };
+    const used = ['shell', 'catalog'].map((name) => saved.apps[name]?.port);
+    const port = saved.apps.cart?.port;
+    expect(port).toBeGreaterThan(0);
+    expect(used).not.toContain(port);
+    const dev = await fs.readFile(path.join(root, 'registry/envs/dev/cart.json'), 'utf8');
+    expect(dev).toContain(`"manifestUrl": "http://localhost:${String(port)}/mf-manifest.json"`);
+    expect(dev).not.toContain('localhost:0');
+  });
+
   it('warns about a registry entry without a remote', async () => {
     const root = await project();
     await fs.writeFile(
