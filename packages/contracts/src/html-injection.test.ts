@@ -202,6 +202,19 @@ describe('injectIntoHead', () => {
     expect(() => injectIntoHead('<head', '<i></i>')).toThrow(/no <head>/);
   });
 
+  it('keeps offsets on the original when lowercasing would change its length', () => {
+    // 'İ'.toLowerCase() is two UTF-16 units, which shifted every later index.
+    const html = '<head><title>İİİ</title><META charset="utf-8"><title>x</title></head>';
+    expect(injectIntoHead(html, '<i></i>')).toBe(
+      '<head><title>İİİ</title><META charset="utf-8"><i></i><title>x</title></head>',
+    );
+    expect(injectIntoHead('<HEAD>İ<meta>', '<i></i>')).toBe('<HEAD><i></i>İ<meta>');
+    // A control character that only differs from "<" in bit 5 is not a tag start.
+    expect(injectIntoHead('<head>\u001Cmeta charset>', '<i></i>')).toBe(
+      '<head><i></i>\u001Cmeta charset>',
+    );
+  });
+
   it('stays fast on a hostile page', () => {
     const start = Date.now();
     injectIntoHead(`<head ${' '.repeat(50_000)}>`, '<i></i>');

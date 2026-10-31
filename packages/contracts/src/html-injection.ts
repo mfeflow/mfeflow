@@ -85,26 +85,46 @@ function tagEnd(html: string, from: number): number {
   return close === -1 ? -1 : close + 1;
 }
 
+/** `code` equals `lower`, or is its uppercase ASCII letter. */
+function sameChar(code: number, lower: number): boolean {
+  return code === lower || (lower >= 97 && lower <= 122 && code === lower - 32);
+}
+
+/**
+ * Index of `needle` (lowercase ASCII) in `html[from, to)`, ignoring ASCII case.
+ * Indexes stay on `html` itself: `toLowerCase()` can change a string's length (U+0130),
+ * which would shift every offset taken from a lowercased copy.
+ */
+function indexOfCI(html: string, needle: string, from: number, to = html.length): number {
+  const last = to - needle.length;
+  for (let at = from; at <= last; at++) {
+    let i = 0;
+    while (i < needle.length && sameChar(html.charCodeAt(at + i), needle.charCodeAt(i))) i++;
+    if (i === needle.length) return at;
+  }
+  return -1;
+}
+
 /** End of the opening `<head>` tag, found with a linear scan (no backtracking). */
-function headEnd(lower: string): number {
-  let at = lower.indexOf('<head');
+function headEnd(html: string): number {
+  let at = indexOfCI(html, '<head', 0);
   while (at !== -1) {
-    const next = lower.charAt(at + 5);
-    if (next === '>' || /\s/.test(next)) return tagEnd(lower, at);
-    at = lower.indexOf('<head', at + 5);
+    const next = html.charAt(at + 5);
+    if (next === '>' || /\s/.test(next)) return tagEnd(html, at);
+    at = indexOfCI(html, '<head', at + 5);
   }
   return -1;
 }
 
 /** End of the `<meta charset>` (or `http-equiv` content-type) tag inside the head, or -1. */
-function charsetEnd(lower: string, from: number): number {
-  const stop = lower.indexOf('</head', from);
-  for (let at = lower.indexOf('<meta', from); at !== -1;) {
+function charsetEnd(html: string, from: number): number {
+  const stop = indexOfCI(html, '</head', from);
+  for (let at = indexOfCI(html, '<meta', from); at !== -1;) {
     if (stop !== -1 && at > stop) break;
-    const end = tagEnd(lower, at);
+    const end = tagEnd(html, at);
     if (end === -1) break;
-    if (lower.slice(at, end).includes('charset')) return end;
-    at = lower.indexOf('<meta', end);
+    if (indexOfCI(html, 'charset', at, end) !== -1) return end;
+    at = indexOfCI(html, '<meta', end);
   }
   return -1;
 }
@@ -116,10 +136,9 @@ function charsetEnd(lower: string, from: number): number {
  * Throws if the page has no head.
  */
 export function injectIntoHead(html: string, snippet: string): string {
-  const lower = html.toLowerCase();
-  const open = headEnd(lower);
+  const open = headEnd(html);
   if (open === -1) throw new Error('@mfeflow/contracts: the HTML has no <head> to inject into');
-  const charset = charsetEnd(lower, open);
+  const charset = charsetEnd(html, open);
   const end = charset === -1 ? open : charset;
   return html.slice(0, end) + snippet + html.slice(end);
 }
