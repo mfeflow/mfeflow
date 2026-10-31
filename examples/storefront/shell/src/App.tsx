@@ -1,12 +1,63 @@
+import { loadRemote } from '@module-federation/enhanced/runtime';
 import { useEffect, useState, type MouseEvent } from 'react';
+import { AnalyticsProvider, useConsent } from '@mfeflow/analytics/react';
 import { useLanguage, useMfeTranslation } from '@mfeflow/i18n/react';
 import { composeProviders, DevOverlay, RemoteBoundary, withProps } from '@mfeflow/runtime';
+import { getTracer } from '@mfeflow/telemetry';
 import { ThemeProvider, useTheme } from '@mfeflow/theme/react';
 import { themes } from './themes';
 
 const Providers = composeProviders([
   withProps(ThemeProvider, { themes, defaultTheme: 'light', followSystem: false }),
 ]);
+
+const tracer = getTracer('shell');
+
+type CheckStock = (sku: string) => Promise<number>;
+
+/** The catalog remote's stock module, loaded once. */
+let stock: Promise<CheckStock | undefined> | undefined;
+
+function loadStock(): Promise<CheckStock | undefined> {
+  stock ??= loadRemote<{ checkStock: CheckStock }>('catalog/stock').then((mod) => mod?.checkStock);
+  return stock;
+}
+
+function ConsentButtons() {
+  const { decided, acceptAll, rejectAll } = useConsent();
+  if (decided) return null;
+  return (
+    <span>
+      <button type="button" data-testid="consent-accept" onClick={acceptAll}>
+        Accept
+      </button>
+      <button type="button" data-testid="consent-reject" onClick={rejectAll}>
+        Reject
+      </button>
+    </span>
+  );
+}
+
+function StockButton() {
+  const [count, setCount] = useState<number | undefined>();
+  const onClick = async () => {
+    const checkStock = await loadStock();
+    if (!checkStock) return;
+    // The span starts after the module is loaded, so the fetch inside the callback is its child.
+    await tracer.startActiveSpan('shell.check_stock_click', async (span) => {
+      try {
+        setCount(await checkStock('1'));
+      } finally {
+        span.end();
+      }
+    });
+  };
+  return (
+    <button type="button" data-testid="check-stock" onClick={() => void onClick()}>
+      {count === undefined ? 'Check stock' : `${String(count)} in stock`}
+    </button>
+  );
+}
 
 // Shell messages ship with the shell (initI18n resources), so the loader is never called.
 const noLoad = () => Promise.resolve({});
@@ -69,6 +120,8 @@ function Header({ go }: { go: (e: MouseEvent<HTMLAnchorElement>) => void }) {
           ))}
         </select>
       </label>
+      <StockButton />
+      <ConsentButtons />
       <RemoteBoundary id="cart/MiniCart" timeoutMs={4000} />
     </header>
   );
@@ -77,16 +130,18 @@ function Header({ go }: { go: (e: MouseEvent<HTMLAnchorElement>) => void }) {
 export function App() {
   const [path, go] = usePath();
   return (
-    <Providers>
-      <Header go={go} />
-      <main>
-        {path.startsWith('/cart') ? (
-          <RemoteBoundary id="cart/App" loading={<p>…</p>} />
-        ) : (
-          <RemoteBoundary id="catalog/App" loading={<p>…</p>} />
-        )}
-      </main>
-      <DevOverlay enabled={process.env.NODE_ENV !== 'production'} />
-    </Providers>
+    <AnalyticsProvider>
+      <Providers>
+        <Header go={go} />
+        <main>
+          {path.startsWith('/cart') ? (
+            <RemoteBoundary id="cart/App" loading={<p>…</p>} />
+          ) : (
+            <RemoteBoundary id="catalog/App" loading={<p>…</p>} />
+          )}
+        </main>
+        <DevOverlay enabled={process.env.NODE_ENV !== 'production'} />
+      </Providers>
+    </AnalyticsProvider>
   );
 }

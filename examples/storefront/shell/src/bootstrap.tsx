@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { initI18n } from '@mfeflow/i18n';
 import {
@@ -8,6 +9,7 @@ import {
   reportRemoteError,
 } from '@mfeflow/runtime';
 import { App } from './App';
+import { startPlatform } from './platform';
 import { languages, shellMessages } from './languages';
 import './styles.css';
 
@@ -31,7 +33,14 @@ export async function main(): Promise<void> {
     reportRemoteError('storefront', 'registry', error);
   }
   const el = document.getElementById('root');
-  if (el) createRoot(el).render(<App />);
+  if (el)
+    createRoot(el).render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+  // After first render: analytics and telemetry never delay it.
+  void startPlatform();
   // Off the critical path; resolves once the check is installed, for tests that need to call it.
   if (DEV || assertRequested()) globalThis.mfeflowAssertReady = import('./assert').then(() => {});
 }

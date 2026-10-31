@@ -9,9 +9,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@mfeflow/analytics": "workspace:*",
     "@mfeflow/i18n": "workspace:*",
     "@mfeflow/runtime": "workspace:*",
     "@mfeflow/storage": "workspace:*",
+    "@mfeflow/telemetry": "workspace:*",
     "@mfeflow/theme": "workspace:*",
     "i18next": "catalog:",
     "react": "catalog:",

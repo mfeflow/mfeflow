@@ -1,14 +1,17 @@
 import { useMemo } from 'react';
+import { useTrackOnMount } from '@mfeflow/analytics/react';
 import { useMfeTranslation } from '@mfeflow/i18n/react';
 import { createStorage } from '@mfeflow/storage';
 import { useStoredState } from '@mfeflow/storage/react';
 import { cssVar } from '@mfeflow/theme';
+import { tracker } from '../analytics';
 import { loadMessages } from '../i18n/load';
 
 const ids = ['1', '2', '3'];
 
 export default function CatalogApp() {
   const { t, ready } = useMfeTranslation('catalog', loadMessages);
+  useTrackOnMount(tracker, 'catalog_viewed');
   const storage = useMemo(() => createStorage('catalog'), []);
   const [lastViewed, setLastViewed] = useStoredState<string | null>(storage, 'lastViewed', null);
   if (!ready) return <p>…</p>;

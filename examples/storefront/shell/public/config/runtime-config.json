@@ -1,0 +1,7 @@
+{
+  "environment": "e2e",
+  "gtmId": "",
+  "otlpEndpoint": "/otlp/v1/traces",
+  "traceSampleRatio": 1,
+  "propagateTraceHeaderCorsUrls": []
+}

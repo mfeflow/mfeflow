@@ -1,5 +1,5 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
-import { StrictMode } from 'react';
+import { StrictMode, useEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createRecordingProvider,
@@ -89,6 +89,32 @@ describe('AnalyticsProvider', () => {
     expect(named('cart_opened')).toHaveLength(1);
     expect(document.querySelectorAll('script[src*="gtm.js"]')).toHaveLength(1);
     Reflect.deleteProperty(globalThis, 'dataLayer');
+  });
+});
+
+describe('what StrictMode does to effects', () => {
+  it('runs a plain effect twice, which is why useTrackOnMount keeps a guard', () => {
+    function Plain() {
+      const tracker = useTracker('cart');
+      useEffect(() => {
+        tracker.track('cart_opened');
+      }, [tracker]);
+      return null;
+    }
+    render(
+      <StrictMode>
+        <AnalyticsProvider pageViews={false}>
+          <Plain />
+          <Remote name="catalog" event="catalog_opened" />
+        </AnalyticsProvider>
+      </StrictMode>,
+    );
+    expect(
+      types('track').filter((c) => (c as { event: string }).event === 'cart_opened'),
+    ).toHaveLength(2);
+    expect(
+      types('track').filter((c) => (c as { event: string }).event === 'catalog_opened'),
+    ).toHaveLength(1);
   });
 });
 
