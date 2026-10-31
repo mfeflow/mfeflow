@@ -72,6 +72,10 @@ for arktype.
   value per environment; `pnpm check:runtime-config` fails until each file passes the schema.
 - Running it again changes nothing. `--dry-run` prints the diff.
 
+Features add their own runtime keys the same way: [`analytics-gtm`](./analytics-gtm) adds `gtmId` and
+[`telemetry-otel`](./telemetry-otel) adds `otlpEndpoint`, `traceSampleRatio` and `propagateTraceHeaderCorsUrls`, to the
+schema and to every environment file, whichever of the two features was added first.
+
 ## `PUBLIC_*` variables
 
 Rsbuild inlines every `PUBLIC_*` variable at build time. Use them only for values that are the same everywhere
