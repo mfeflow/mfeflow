@@ -47,8 +47,9 @@ export const COMMANDS: readonly Command[] = [
   },
   {
     name: 'add',
-    summary: 'add a remote, a shell or features to this project',
-    usage: 'mfeflow add remote <name> | mfeflow add shell <name> | mfeflow add <feature...>',
+    summary: 'add a remote, a shell, features or a typed env key to this project',
+    usage:
+      'mfeflow add remote <name> | mfeflow add shell <name> | mfeflow add <feature...> | mfeflow add env-key <KEY> --scope server|runtime --schema <expr>',
     args: ADD_ARGS,
     examples: [
       'mfeflow add remote checkout',
@@ -57,6 +58,9 @@ export const COMMANDS: readonly Command[] = [
       'mfeflow add git-hooks',
       'mfeflow add @someone/analytics-segment --yes',
       'mfeflow add url-factory --dry-run',
+      'mfeflow add env-t3 --option env-t3.validator=valibot',
+      'mfeflow add env-key API_ORIGIN --scope server --schema "z.url()"',
+      'mfeflow add env-key GTM_ID --scope runtime --schema "z.string().min(1)" --app shell',
     ],
     run: runAdd,
   },

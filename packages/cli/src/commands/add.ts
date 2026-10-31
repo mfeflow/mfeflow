@@ -20,6 +20,7 @@ import {
   type FeatureOptions,
 } from '../options';
 import { planReport, type AddResult } from '../output';
+import { addEnvKey } from './env-key';
 import { chooseLocal } from '../local';
 import { createBuilder } from '../pipeline';
 import { loadPreset } from '../preset';
@@ -36,6 +37,26 @@ export const ADD_ARGS = {
     type: 'string',
     description: 'A feature option, repeatable: --option feature.key=value',
     valueHint: 'f.k=v',
+  },
+  scope: {
+    type: 'string',
+    description: 'add env-key: server (env.ts, .env.example) or runtime (runtime-config files)',
+    valueHint: 'server|runtime',
+  },
+  schema: {
+    type: 'string',
+    description: 'add env-key: the validator expression, like "z.url()"',
+    valueHint: 'expr',
+  },
+  value: {
+    type: 'string',
+    description: 'add env-key: the placeholder written to .env.example or the config files',
+    valueHint: 'text',
+  },
+  app: {
+    type: 'string',
+    description: 'add env-key: one app, or root (default: every app; runtime: every shell)',
+    valueHint: 'name',
   },
   ...GLOBAL_ARGS,
 } as const satisfies ArgsDef;
@@ -351,6 +372,7 @@ export async function runAdd(
   const positional = Array.isArray(args._) ? args._.map(String) : [];
   const [first, ...rest] = positional;
   if (first === 'remote' || first === 'shell') return addApp(rt, globals, args, first, rest[0]);
+  if (first === 'env-key') return addEnvKey(rt, globals, args, rest[0]);
   const preset = globals.preset
     ? await loadPreset(globals.preset, { cwd: globals.cwd, fetch: rt.fetch })
     : {};

@@ -223,15 +223,31 @@ describe('dotenvKeys', () => {
 });
 
 describe('addTurboEnv', () => {
-  const turbo = '{\n  "tasks": {}\n}\n';
+  const turbo = '{\n  "tasks": {\n    "build": { "dependsOn": ["^build"] }\n  }\n}\n';
 
-  it('adds globalEnv, appends to it, and is idempotent', () => {
+  it('adds globalEnv in place, leaving the rest of the file as it was', () => {
     const once = addTurboEnv(turbo, 'turbo.json', 'API_ORIGIN');
-    expect(JSON.parse(once)).toEqual({ tasks: {}, globalEnv: ['API_ORIGIN'] });
+    expect(once).toBe(
+      '{\n  "tasks": {\n    "build": { "dependsOn": ["^build"] }\n  },\n  "globalEnv": ["API_ORIGIN"]\n}\n',
+    );
     const twice = addTurboEnv(once, 'turbo.json', 'OTHER');
-    expect(parseJsonObject('turbo.json', twice).globalEnv).toEqual(['API_ORIGIN', 'OTHER']);
+    expect(twice).toContain('"globalEnv": ["API_ORIGIN", "OTHER"]');
+    expect(twice.startsWith(turbo.slice(0, -3))).toBe(true);
     expect(addTurboEnv(twice, 'turbo.json', 'OTHER')).toBe(twice);
-    expect(twice.endsWith('\n')).toBe(true);
+  });
+
+  it('works on an empty object and keeps a tab indent', () => {
+    expect(addTurboEnv('{}\n', 'turbo.json', 'A')).toBe('{\n  "globalEnv": ["A"]\n}\n');
+    expect(addTurboEnv('{\n\t"a": 1\n}', 'turbo.json', 'A')).toBe(
+      '{\n\t"a": 1,\n\t"globalEnv": ["A"]\n}',
+    );
+  });
+
+  it('breaks the list into lines once it no longer fits in 100 columns', () => {
+    const keys = Array.from({ length: 9 }, (_, i) => `SOME_LONG_VARIABLE_NAME_${String(i)}`);
+    const out = keys.reduce((source, key) => addTurboEnv(source, 'turbo.json', key), '{}\n');
+    expect(out).toContain('"globalEnv": [\n    "SOME_LONG_VARIABLE_NAME_0",');
+    expect(parseJsonObject('turbo.json', out).globalEnv).toEqual(keys);
   });
 
   it('fails with E208 on invalid JSON', () => {

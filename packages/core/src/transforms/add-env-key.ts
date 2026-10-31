@@ -1,7 +1,7 @@
 import { isIdentifier, isObjectProperty, isStringLiteral, type ObjectProperty } from '@babel/types';
 import type { AddEnvKeyOp, Literal } from '@mfeflow/contracts';
 import { MfeflowError } from '../errors';
-import { editJsonObject } from '../json';
+import { editJsonObject, indentOf, parseJsonObject } from '../json';
 import {
   appendItem,
   applyEdits,
@@ -147,16 +147,33 @@ export function dotenvKeys(source: string): string[] {
   });
 }
 
+const WIDTH = 100;
+
+/** A JSON string list the way Prettier prints it: on one line while it fits, else one item per line. */
+function renderList(keys: readonly string[], indent: string): string {
+  const inline = `[${keys.map((k) => JSON.stringify(k)).join(', ')}]`;
+  if (indent.length + `"globalEnv": ${inline},`.length <= WIDTH) return inline;
+  const items = keys.map((k) => `${indent}${indent}${JSON.stringify(k)}`).join(',\n');
+  return `[\n${items}\n${indent}]`;
+}
+
 /**
  * Lists a server key under `globalEnv` in turbo.json. Turborepo hides variables it was not
  * told about from tasks and replays a cached build without running it, so a key missing here
- * would never reach `env.ts` and a missing value would not fail a cached build.
+ * would never reach `env.ts` and a missing value would not fail a cached build. Edited as text,
+ * in Prettier's layout, so the rest of the file keeps its formatting.
  */
 export function addTurboEnv(source: string, file: string, key: string): string {
-  return editJsonObject(file, source, (turbo) => {
-    const listed: unknown[] = Array.isArray(turbo.globalEnv) ? turbo.globalEnv : [];
-    if (listed.includes(key)) return false;
-    turbo.globalEnv = [...listed, key];
-    return true;
-  });
+  const turbo = parseJsonObject(file, source);
+  const listed: unknown[] = Array.isArray(turbo.globalEnv) ? turbo.globalEnv : [];
+  if (listed.includes(key)) return source;
+  const step = indentOf(source);
+  const indent = typeof step === 'number' ? ' '.repeat(step) : step;
+  const property = `"globalEnv": ${renderList([...listed.map(String), key], indent)}`;
+  const existing = /"globalEnv"\s*:\s*\[[^\]]*\]/.exec(source);
+  if (existing) return source.replace(existing[0], () => property);
+  const close = source.lastIndexOf('}');
+  const before = source.slice(0, close).trimEnd();
+  const comma = before.endsWith('{') ? '' : ',';
+  return `${before}${comma}\n${indent}${property}\n${source.slice(close)}`;
 }

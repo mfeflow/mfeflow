@@ -24,5 +24,5 @@ export const DOCTOR_CHECKS: readonly Check[] = [
   compat,
   drift,
   runtimePlugins,
-  envChecks,
+  ...envChecks,
 ];

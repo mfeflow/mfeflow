@@ -65,6 +65,18 @@ describe('validateResult', () => {
     ).toEqual([]);
     expect(
       validateResult({
+        ...init,
+        command: 'add',
+        kind: 'env-key',
+        added: ['API_ORIGIN'],
+        skipped: [],
+        apps: undefined,
+        scope: undefined,
+        next: undefined,
+      }),
+    ).toEqual([]);
+    expect(
+      validateResult({
         ok: true,
         command: 'features',
         search: null,

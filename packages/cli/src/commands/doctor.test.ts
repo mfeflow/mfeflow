@@ -50,16 +50,36 @@ describe('the singleton list', () => {
 });
 
 describe('mfeflow doctor', () => {
-  it('passes on a fresh project and skips the env checks', async () => {
+  it('passes on a fresh project, env checks included', async () => {
     const root = await project();
     const { code, result } = await run(root, 'doctor');
     expect(code).toBe(0);
     expect(result.ok).toBe(true);
     expect(result.findings).toEqual([]);
-    const env = result.checks.find((c) => c.id === 'env.schema');
-    expect(env?.status).toBe('skipped');
-    expect(env?.skipped).toContain('env-t3');
+    const env = result.checks.filter((c) => c.id.startsWith('env.'));
+    expect(env.map((c) => [c.id, c.status])).toEqual([
+      ['env.example', 'pass'],
+      ['env.runtime-config', 'pass'],
+      ['env.public-prefix', 'pass'],
+      ['env.turbo', 'pass'],
+    ]);
     expect(result.checks.map((c) => c.id)).toContain('plugins.imports');
+  });
+
+  it('skips the env checks when env-t3 is not installed', async () => {
+    const cwd = await tempDir();
+    dirs.push(cwd);
+    const features = '--features=lint-oxlint';
+    expect(
+      await main(['init', 'app', '--yes', '--no-install', features, '--cwd', cwd], testRuntime()),
+    ).toBe(0);
+    const { result } = await run(path.join(cwd, 'app'), 'doctor');
+    const env = result.checks.filter((c) => c.id.startsWith('env.'));
+    expect(env).toHaveLength(4);
+    for (const check of env) {
+      expect(check.status).toBe('skipped');
+      expect(check.skipped).toContain('env-t3');
+    }
   });
 
   it('prints one line per check, then findings with fix and docs link', async () => {
@@ -272,15 +292,6 @@ describe('mfeflow doctor', () => {
     ]);
   });
 
-  it('runs the env check once env-t3 is recorded', async () => {
-    const root = await project();
-    await editJson(path.join(root, 'mfeflow.json'), (doc) => {
-      (doc.features as Record<string, unknown>)['env-t3'] = { version: '0.1.0' };
-    });
-    const { result } = await run(root, 'doctor');
-    expect(result.checks.find((c) => c.id === 'env.schema')?.status).toBe('pass');
-  });
-
   it('reports a linked checkout that is not built', async () => {
     const root = await project();
     const checkout = path.join(root, '..', 'checkout');
@@ -439,5 +450,142 @@ describe('doctor with a project linked through symlinked folders', () => {
         );
       }
     }
+  });
+});
+
+/** Findings of the env checks; the files these tests overwrite also show up as drift (E117). */
+const envFindings = (result: ReportResult) =>
+  result.findings.filter((f) => f.check.startsWith('env.'));
+
+describe('the env-t3 checks', () => {
+  const ENV_TS = (keys: string) => `import { createEnv } from '@t3-oss/env-core';
+import { z } from 'zod';
+
+export const env = createEnv({
+  server: {
+${keys}
+  },
+  runtimeEnv: process.env,
+});
+`;
+
+  it('warns when a required key is missing from .env.example, or .env.example has a stale one', async () => {
+    const root = await project();
+    await fs.writeFile(
+      path.join(root, 'apps/cart/env.ts'),
+      ENV_TS('    API_ORIGIN: z.url(),\n    LOG_LEVEL: z.string().optional(),'),
+    );
+    await fs.writeFile(path.join(root, 'apps/cart/.env.example'), 'OLD_KEY=1\n');
+    const { code, result } = await run(root, 'doctor');
+    expect(code).toBe(0);
+    const messages = result.findings.filter((f) => f.code === 'MFEFLOW_E118').map((f) => f.message);
+    expect(messages).toHaveLength(2);
+    expect(messages.join('\n')).toContain('API_ORIGIN is in apps/cart/env.ts but not in');
+    expect(messages.join('\n')).toContain('OLD_KEY is in apps/cart/.env.example but not in');
+    expect(messages.join('\n')).not.toContain('LOG_LEVEL');
+    expect(envFindings(result).every((f) => f.severity === 'warning')).toBe(true);
+    expect(envFindings(result)[0]?.docs).toBe('https://mfeflow.dev/errors/E118');
+  });
+
+  it('reports a missing .env.example only when a key needs one, and an env.ts it cannot read', async () => {
+    const root = await project();
+    await fs.rm(path.join(root, 'apps/cart/.env.example'));
+    expect(codes((await run(root, 'doctor')).result).filter((c) => c !== 'MFEFLOW_E117')).toEqual(
+      [],
+    );
+    await fs.writeFile(path.join(root, 'apps/cart/env.ts'), ENV_TS('    API_ORIGIN: z.url(),'));
+    expect(codes((await run(root, 'doctor')).result).filter((c) => c !== 'MFEFLOW_E117')).toContain(
+      'MFEFLOW_E118',
+    );
+    await fs.writeFile(path.join(root, 'apps/cart/env.ts'), 'export const env = {');
+    await fs.writeFile(path.join(root, 'apps/catalog/env.ts'), 'export const env = {};\n');
+    expect(
+      codes((await run(root, 'doctor')).result).filter((c) => c !== 'MFEFLOW_E117'),
+    ).not.toContain('MFEFLOW_E118');
+  });
+
+  it('errors on a runtime-config file with a missing key, bad JSON or a non-object, and warns on an unknown key', async () => {
+    const root = await project();
+    const config = (name: string) => path.join(root, 'apps/shell/public/config', name);
+    await fs.writeFile(config('runtime-config.prod.json'), '{}');
+    await fs.writeFile(config('runtime-config.staging.json'), '{ nope');
+    await fs.writeFile(config('runtime-config.dev.json'), '[]');
+    await fs.writeFile(config('runtime-config.json'), '{"environment":"dev","extra":1}');
+    const { code, result } = await run(root, 'doctor');
+    expect(code).toBe(3);
+    const found = result.findings.filter((f) => f.code === 'MFEFLOW_E119');
+    expect(found.map((f) => [f.severity, f.message.split(': ')[1]])).toEqual([
+      ['error', 'apps/shell/public/config/runtime-config.dev.json is not a JSON object'],
+      [
+        'warning',
+        'apps/shell/public/config/runtime-config.json has extra, which the schema does not',
+      ],
+      ['error', expect.stringContaining('runtime-config.prod.json is missing environment')],
+      ['error', expect.stringContaining('runtime-config.staging.json is not valid JSON')],
+    ]);
+  });
+
+  it('does not require a key the schema marks optional, and flags a schema it cannot find', async () => {
+    const root = await project();
+    const schema = path.join(root, 'apps/shell/src/config/schema.ts');
+    await fs.writeFile(
+      schema,
+      "import { z } from 'zod';\nexport const runtimeConfigSchema = z.object({\n  environment: z.string(),\n  flag: z.boolean().optional(),\n});\n",
+    );
+    expect(codes((await run(root, 'doctor')).result).filter((c) => c !== 'MFEFLOW_E117')).toEqual(
+      [],
+    );
+    await fs.writeFile(schema, 'export const other = 1;\n');
+    expect(codes((await run(root, 'doctor')).result).filter((c) => c !== 'MFEFLOW_E117')).toEqual([
+      'MFEFLOW_E119',
+    ]);
+    await fs.writeFile(schema, 'export const runtimeConfigSchema = {');
+    expect(codes((await run(root, 'doctor')).result).filter((c) => c !== 'MFEFLOW_E117')).toEqual([
+      'MFEFLOW_E119',
+    ]);
+  });
+
+  it('warns on a PUBLIC_ variable anywhere in an app but not on the two constants', async () => {
+    const root = await project();
+    await fs.writeFile(
+      path.join(root, 'apps/cart/src/api/endpoints.ts'),
+      'export const a = process.env.PUBLIC_API_URL;\nexport const n = process.env.PUBLIC_APP_NAME;\nexport const v = process.env.PUBLIC_BUILD_VERSION;\n',
+    );
+    await fs.appendFile(path.join(root, 'apps/shell/.env.example'), 'PUBLIC_GTM_ID=GTM-1\n');
+    const { code, result } = await run(root, 'doctor');
+    expect(code).toBe(0);
+    const messages = result.findings.filter((f) => f.code === 'MFEFLOW_E120').map((f) => f.message);
+    expect(messages.toSorted()).toEqual([
+      expect.stringContaining('PUBLIC_API_URL in apps/cart/src/api/endpoints.ts'),
+      expect.stringContaining('PUBLIC_GTM_ID in apps/shell/.env.example'),
+    ]);
+  });
+
+  it('warns when a required server key is missing from turbo.json, and is satisfied by globalEnv or a task env', async () => {
+    const root = await project();
+    await fs.writeFile(path.join(root, 'apps/cart/env.ts'), ENV_TS('    API_ORIGIN: z.url(),'));
+    await fs.writeFile(path.join(root, 'apps/cart/.env.example'), 'API_ORIGIN=\n');
+    const turbo = path.join(root, 'turbo.json');
+    const missing = envFindings((await run(root, 'doctor')).result);
+    expect(missing.map((f) => [f.code, f.path])).toEqual([['MFEFLOW_E121', 'turbo.json']]);
+    await editJson(turbo, (doc) => {
+      doc.globalEnv = ['API_ORIGIN'];
+    });
+    expect(envFindings((await run(root, 'doctor')).result)).toEqual([]);
+    await editJson(turbo, (doc) => {
+      delete doc.globalEnv;
+      doc.tasks = { build: { env: ['API_ORIGIN'] } };
+    });
+    expect(envFindings((await run(root, 'doctor')).result)).toEqual([]);
+  });
+
+  it('skips the turbo check without a turbo.json or with one that is not JSON', async () => {
+    const root = await project();
+    await fs.rm(path.join(root, 'turbo.json'));
+    let check = (await run(root, 'doctor')).result.checks.find((c) => c.id === 'env.turbo');
+    expect(check?.skipped).toContain('no turbo.json');
+    await fs.writeFile(path.join(root, 'turbo.json'), '{ nope');
+    check = (await run(root, 'doctor')).result.checks.find((c) => c.id === 'env.turbo');
+    expect(check?.skipped).toContain('not valid JSON');
   });
 });
