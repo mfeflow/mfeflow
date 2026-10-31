@@ -16,6 +16,7 @@ describe('readGlobals', () => {
       install: true,
       verbose: false,
       local: undefined,
+      canPrompt: false,
     });
   });
 
@@ -44,6 +45,15 @@ describe('readGlobals', () => {
       local: '/mf',
     });
     expect(globals.cwd).toBe(path.resolve(cwd, '../other'));
+  });
+
+  it('can prompt only with a terminal, and neither --yes nor --json', () => {
+    const can = (args: Record<string, unknown>, interactive: boolean) =>
+      readGlobals(args, {}, cwd, interactive).canPrompt;
+    expect(can({}, true)).toBe(true);
+    expect(can({}, false)).toBe(false);
+    expect(can({ yes: true }, true)).toBe(false);
+    expect(can({ json: true }, true)).toBe(false);
   });
 
   it('takes --local from MFEFLOW_LOCAL, and the flag wins', () => {

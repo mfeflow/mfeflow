@@ -59,7 +59,7 @@ async function nameFrom(
   what: string,
 ): Promise<string> {
   if (given !== undefined) return given;
-  if (rt.io.interactive && !globals.yes && !globals.json) {
+  if (globals.canPrompt) {
     return rt.prompter.text({ message: `Name of the new ${what}` });
   }
   throw new MfeflowError('E107', `add ${what} needs a name: mfeflow add ${what} <name>`);
@@ -81,7 +81,7 @@ async function addAppParts(
   name: string,
 ): Promise<LoadedFeature> {
   const names = ['core', ...Object.keys(project.features).filter((n) => n !== 'core')];
-  const canPrompt = rt.io.interactive && !globals.yes && !globals.json;
+  const { canPrompt } = globals;
   const loadedAll = await Promise.all(
     names.map((feature) =>
       loadAny(feature, {
@@ -271,7 +271,7 @@ async function addFeatures(
   const root = await findProjectRoot(globals.cwd);
   const chosen = chooseLocal(await loadProject(root), root, globals.cwd, local);
   const { project } = chosen;
-  const canPrompt = rt.io.interactive && !globals.yes && !globals.json;
+  const { canPrompt } = globals;
   let names = [...new Set(requested)];
   if (names.length === 0 && canPrompt) {
     const choices = OPTIONAL_FEATURES.filter((n) => !(n in project.features));
@@ -347,7 +347,7 @@ export async function runAdd(
   raw: readonly string[],
 ): Promise<AddResult> {
   assertKnownFlags(raw, ADD_ARGS);
-  const globals = readGlobals(args, rt.io.env, rt.io.cwd);
+  const globals = readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive);
   const positional = Array.isArray(args._) ? args._.map(String) : [];
   const [first, ...rest] = positional;
   if (first === 'remote' || first === 'shell') return addApp(rt, globals, args, first, rest[0]);

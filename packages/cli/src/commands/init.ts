@@ -13,6 +13,7 @@ import {
   readGlobals,
   repeated,
   splitList,
+  text,
   assertKnownFlags,
   GLOBAL_ARGS,
   type Globals,
@@ -142,13 +143,9 @@ export async function resolveInitOptions(
   raw: readonly string[],
   preset: Preset,
 ): Promise<InitOptions> {
-  const flag = (key: string): string | undefined => {
-    const value = args[key];
-    return typeof value === 'string' && value !== '' ? value : undefined;
-  };
-  only('package-manager', flag('package-manager') ?? preset.packageManager, 'pnpm');
-  only('topology', flag('topology') ?? preset.topology, 'monorepo');
-  const canPrompt = rt.io.interactive && !globals.yes && !globals.json;
+  only('package-manager', text(args, 'package-manager') ?? preset.packageManager, 'pnpm');
+  only('topology', text(args, 'topology') ?? preset.topology, 'monorepo');
+  const { canPrompt } = globals;
   const { prompter } = rt;
 
   const given = typeof args.dir === 'string' && args.dir !== '' ? args.dir : undefined;
@@ -158,7 +155,7 @@ export async function resolveInitOptions(
       ? await prompter.text({ message: 'Where should the project go?', initialValue: DEFAULT_DIR })
       : DEFAULT_DIR);
 
-  const scopeFlag = flag('scope') ?? preset.scope;
+  const scopeFlag = text(args, 'scope') ?? preset.scope;
   const scope =
     scopeFlag ??
     (canPrompt
@@ -172,7 +169,7 @@ export async function resolveInitOptions(
     throw new MfeflowError('E107', `--scope "${scope}" must look like @my-org`);
   }
 
-  const remotesFlag = splitList(flag('remotes')) ?? preset.remotes;
+  const remotesFlag = splitList(text(args, 'remotes')) ?? preset.remotes;
   const remotes =
     remotesFlag ??
     (canPrompt
@@ -185,7 +182,7 @@ export async function resolveInitOptions(
       : DEFAULT_REMOTES);
   checkRemotes(remotes);
 
-  const featuresFlag = splitList(flag('features')) ?? preset.features;
+  const featuresFlag = splitList(text(args, 'features')) ?? preset.features;
   const features = checkFeatures(
     featuresFlag ??
       (canPrompt
@@ -254,7 +251,7 @@ export async function runInit(
   raw: readonly string[],
 ): Promise<InitResult> {
   assertKnownFlags(raw, INIT_ARGS);
-  const globals = readGlobals(args, rt.io.env, rt.io.cwd);
+  const globals = readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive);
   const preset = globals.preset
     ? await loadPreset(globals.preset, { cwd: globals.cwd, fetch: rt.fetch })
     : {};

@@ -36,6 +36,8 @@ export interface Globals {
   install: boolean;
   verbose: boolean;
   local: string | undefined;
+  /** A person is at a terminal and has not opted out with --yes or --json. */
+  canPrompt: boolean;
 }
 
 type Parsed = Record<string, unknown>;
@@ -49,17 +51,21 @@ export function readGlobals(
   args: Parsed,
   env: Readonly<Record<string, string | undefined>>,
   cwd: string,
+  interactive = false,
 ): Globals {
   const folder = text(args, 'cwd');
+  const yes = args.yes === true;
+  const json = args.json === true;
   return {
-    yes: args.yes === true,
+    yes,
     preset: text(args, 'preset'),
-    json: args.json === true,
+    json,
     dryRun: args['dry-run'] === true,
     cwd: folder === undefined ? cwd : path.resolve(cwd, folder),
     install: args.install !== false,
     verbose: args.verbose === true,
     local: text(args, 'local') ?? (env.MFEFLOW_LOCAL === '' ? undefined : env.MFEFLOW_LOCAL),
+    canPrompt: interactive && !yes && !json,
   };
 }
 

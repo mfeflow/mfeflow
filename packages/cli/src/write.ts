@@ -143,8 +143,7 @@ export async function writePlan(request: WriteRequest): Promise<WriteOutcome> {
     if (await exists(root)) await applyPlan(plan, { root, project, dryRun: true });
     return { dryRun: true, shown, written: [], installed: false, diff: renderDiff(shown) };
   }
-  const canPrompt = rt.io.interactive && !globals.yes && !globals.json;
-  if (canPrompt && !(await rt.prompter.confirm({ message: 'Write these changes?' }))) {
+  if (globals.canPrompt && !(await rt.prompter.confirm({ message: 'Write these changes?' }))) {
     throw new Cancelled();
   }
   const installing = globals.install && plan.dependencies.length > 0;
