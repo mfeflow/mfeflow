@@ -103,8 +103,8 @@ jobs:
       - run: pnpm build
       - name: Set a throwaway version (not committed)
         run: node scripts/release-plan.mjs ci-version "0.0.0-ci.${{ github.run_id }}"
-      - run: node scripts/release-plan.mjs pack release
-      - run: node scripts/release-plan.mjs publish release --dry-run --tag ci-dry-run
+      - run: node scripts/release-plan.mjs pack release --tag ci-dry-run
+      - run: node scripts/release-plan.mjs publish release --dry-run
 
   ci-ok:
     name: ci-ok

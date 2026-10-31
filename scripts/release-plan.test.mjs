@@ -436,6 +436,7 @@ describe('the workflows', () => {
     const text = readWorkflow('ci.yml');
     expect(text).toContain('publish-check:');
     expect(text).toMatch(/--dry-run/);
+    expect(text).toContain('release-plan.mjs pack release --tag ci-dry-run');
     expect(text).toMatch(/node-version: '?24/);
   });
 

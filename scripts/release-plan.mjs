@@ -3,7 +3,8 @@
 // Needs only Node builtins, so the publish job can run it without installing anything.
 //
 //   node scripts/release-plan.mjs plan                       is there a version missing from npm?
-//   node scripts/release-plan.mjs pack <dir>                 pnpm pack every public package, write the manifest
+//   node scripts/release-plan.mjs pack <dir> [--tag <t>]     pnpm pack every public package, write the manifest
+//                                                            (--tag skips the release policy: for the CI dry run)
 //   node scripts/release-plan.mjs verify <dir>               check hashes, prerelease policy and npm version
 //   node scripts/release-plan.mjs publish <dir> [--dry-run] [--tag <t>]
 //   node scripts/release-plan.mjs tags <dir>                 git tags for a release, one per line
@@ -240,11 +241,13 @@ function cmdPlan(repo) {
   setOutput('release', missing.length > 0 ? 'true' : 'false');
 }
 
-function cmdPack(repo, outDir) {
+function cmdPack(repo, outDir, flags) {
+  const forcedTag = flags[flags.indexOf('--tag') + 1];
   const packages = publicPackages(repo);
   const versions = packages.map((p) => ({ name: p.manifest.name, version: p.manifest.version }));
   const preTag = preTagOf(repo);
-  const distTag = distTagFor(versions[0].version, preTag);
+  const distTag =
+    flags.includes('--tag') && forcedTag ? forcedTag : distTagFor(versions[0].version, preTag);
   fs.rmSync(outDir, { recursive: true, force: true });
   const files = packAll(packages, outDir, repo);
   const tarballs = new Map();
@@ -259,7 +262,7 @@ function cmdPack(repo, outDir) {
   for (const name of order)
     if (!tarballs.has(name)) throw new Error(`no tarball packed for ${name}`);
   const manifest = buildManifest({ packages: versions, order, distTag, tarballs });
-  const problems = policyProblems(manifest);
+  const problems = flags.includes('--tag') ? [] : policyProblems(manifest);
   if (problems.length > 0) throw new Error(problems.join('\n'));
   fs.writeFileSync(path.join(outDir, MANIFEST_FILE), `${JSON.stringify(manifest, null, 2)}\n`);
   console.log(
@@ -316,7 +319,7 @@ function main(argv) {
     case 'plan':
       return cmdPlan(repo);
     case 'pack':
-      return cmdPack(repo, path.resolve(rest[0]));
+      return cmdPack(repo, path.resolve(rest[0]), rest.slice(1));
     case 'verify':
       return cmdVerify(rest[0]);
     case 'publish':
