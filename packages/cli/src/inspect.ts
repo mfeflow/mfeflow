@@ -119,7 +119,7 @@ async function subfolders(dir: string): Promise<string[]> {
     return (await fs.readdir(dir, { withFileTypes: true }))
       .filter((e) => e.isDirectory() && e.name !== 'node_modules')
       .map((e) => e.name)
-      .toSorted();
+      .toSorted((a, b) => a.localeCompare(b));
   } catch (error) {
     if (hasErrno(error, 'ENOENT') || hasErrno(error, 'ENOTDIR')) return [];
     throw error;
@@ -203,7 +203,9 @@ async function readRegistry(root: string): Promise<{
     const entries: Record<string, Read<RegistryEntry>> = {};
     const dir = path.join(envsDir, env);
     // oxlint-disable-next-line no-await-in-loop -- a few folders
-    const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.json')).toSorted();
+    const files = (await fs.readdir(dir))
+      .filter((f) => f.endsWith('.json'))
+      .toSorted((a, b) => a.localeCompare(b));
     for (const file of files) {
       // oxlint-disable-next-line no-await-in-loop -- a few files
       const read = await readJson(path.join(dir, file));

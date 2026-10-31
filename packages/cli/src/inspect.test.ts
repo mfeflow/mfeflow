@@ -98,4 +98,9 @@ describe('expandGlobs', () => {
       'other/ui',
     ]);
   });
+
+  it('lists folders in a stable, human order', async () => {
+    const root = await folders('apps/Zed', 'apps/alpha', 'apps/Beta');
+    expect(await expandGlobs(root, ['apps/*'])).toEqual(['apps/alpha', 'apps/Beta', 'apps/Zed']);
+  });
 });
