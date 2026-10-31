@@ -1,0 +1,65 @@
+{
+  "name": "@mfeflow/rsbuild",
+  "version": "0.0.0",
+  "description": "Rsbuild presets for Module Federation 2.0 micro-frontends: createShellConfig and createRemoteConfig with shared singletons, external runtime, manifests, types and error reporting set up.",
+  "keywords": [
+    "micro-frontend",
+    "mfe",
+    "module-federation",
+    "module-federation-2",
+    "rsbuild",
+    "rspack",
+    "preset",
+    "react"
+  ],
+  "homepage": "https://mfeflow.dev",
+  "bugs": "https://github.com/mfeflow/mfeflow/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfeflow/mfeflow.git",
+    "directory": "packages/rsbuild"
+  },
+  "license": "MIT",
+  "author": "Sanjeev Sharma <speedsharma.ai@gmail.com>",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "rslib build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@module-federation/rsbuild-plugin": "catalog:",
+    "@rsbuild/plugin-react": "catalog:"
+  },
+  "peerDependencies": {
+    "@rsbuild/core": "^2.0.0"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "catalog:",
+    "@rslib/core": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:"
+  },
+  "mfeflow": {
+    "bucket": "config"
+  }
+}

@@ -1,0 +1,153 @@
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import type { RsbuildConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+import { pluginModuleFederation } from '@module-federation/rsbuild-plugin';
+import { resolvableFrom, sharedSingletons, type SharedConfig } from './shared.js';
+
+export {
+  DEFAULT_SINGLETONS,
+  resolvableFrom,
+  sharedSingletons,
+  type SharedConfig,
+} from './shared.js';
+
+const NAME = /^[a-z][a-z0-9_]*$/;
+
+function checkName(name: string): void {
+  if (!NAME.test(name)) {
+    throw new Error(
+      `@mfeflow/rsbuild: "${name}" is not a valid Module Federation name (lowercase letters, digits, _)`,
+    );
+  }
+}
+
+export interface RemoteOptions {
+  /** Module Federation name, e.g. `cart`. */
+  name: string;
+  /** `{ './App': './src/exposed/App.tsx' }`. */
+  exposes: Readonly<Record<string, string>>;
+  port?: number;
+  /** Extra packages to share as singletons. */
+  shared?: readonly string[];
+  /** Generate types for the shell (`@mf-types.zip`). Default true. */
+  types?: boolean;
+  /** App directory. Default `process.cwd()`. */
+  cwd?: string;
+}
+
+export interface FederationOptions {
+  name: string;
+  exposes?: Record<string, string>;
+  remotes?: Record<string, string>;
+  shared: Record<string, SharedConfig>;
+  manifest: boolean;
+  dts:
+    | false
+    | {
+        generateTypes: boolean;
+        consumeTypes: false | { typesOnBuild: true; abortOnError: boolean };
+      };
+  runtimePlugins?: string[];
+  experiments: { externalRuntime?: true; provideExternalRuntime?: true };
+}
+
+/** Module Federation options for a remote. Exported for tests and custom setups. */
+export function remoteFederationOptions(
+  o: RemoteOptions,
+  canResolve: (s: string) => boolean,
+): FederationOptions {
+  checkName(o.name);
+  if (Object.keys(o.exposes).length === 0)
+    throw new Error(`@mfeflow/rsbuild: remote "${o.name}" exposes nothing`);
+  return {
+    name: o.name,
+    exposes: { ...o.exposes },
+    shared: sharedSingletons(canResolve, o.shared),
+    manifest: true,
+    dts: o.types === false ? false : { generateTypes: true, consumeTypes: false },
+    // The shell provides the Module Federation runtime; remotes do not bundle their own (spike: 119 KB → 54 KB entry).
+    experiments: { externalRuntime: true },
+  };
+}
+
+/** Rsbuild config for a remote. `rsbuild.config.ts`: `export default createRemoteConfig({ name, exposes })`. */
+export function createRemoteConfig(o: RemoteOptions): RsbuildConfig {
+  const cwd = o.cwd ?? process.cwd();
+  return {
+    plugins: [
+      pluginReact(),
+      pluginModuleFederation(remoteFederationOptions(o, resolvableFrom(cwd))),
+    ],
+    source: { entry: { index: './src/index.ts' } },
+    // Assets resolve relative to wherever the remote entry was loaded from (versioned CDN paths).
+    output: { assetPrefix: 'auto' },
+    server: o.port === undefined ? {} : { port: o.port },
+  };
+}
+
+export interface ShellOptions {
+  name: string;
+  port?: number;
+  shared?: readonly string[];
+  /**
+   * Remotes whose types the shell typechecks against, as `{ cart: 'https://…/mf-manifest.json' }`.
+   * Used only when `MFEFLOW_TYPES=1` is set (types-only builds); normal builds
+   * register remotes at runtime from the registry index.
+   */
+  typesFrom?: Readonly<Record<string, string>>;
+  /** More Module Federation runtime plugins (absolute paths). Must not import shared modules. */
+  runtimePlugins?: readonly string[];
+  cwd?: string;
+  env?: Readonly<Record<string, string | undefined>>;
+}
+
+/** Module Federation options for a shell. Exported for tests and custom setups. */
+export function shellFederationOptions(
+  o: ShellOptions,
+  canResolve: (s: string) => boolean,
+  resolvePath: (s: string) => string,
+): FederationOptions {
+  checkName(o.name);
+  const typesBuild = (o.env ?? process.env).MFEFLOW_TYPES === '1' && o.typesFrom !== undefined;
+  const remotes: Record<string, string> = {};
+  if (typesBuild) {
+    for (const [remote, url] of Object.entries(o.typesFrom ?? {})) {
+      checkName(remote);
+      remotes[remote] = `${remote}@${url}`;
+    }
+  }
+  return {
+    name: o.name,
+    remotes,
+    shared: sharedSingletons(canResolve, o.shared),
+    manifest: true,
+    // Production builds skip remote types unless typesOnBuild is set (dts-plugin 2.9.2).
+    dts: typesBuild
+      ? { generateTypes: false, consumeTypes: { typesOnBuild: true, abortOnError: true } }
+      : false,
+    runtimePlugins: [
+      ...(canResolve('@mfeflow/runtime/plugins/report')
+        ? [resolvePath('@mfeflow/runtime/plugins/report')]
+        : []),
+      ...(o.runtimePlugins ?? []),
+    ],
+    experiments: { provideExternalRuntime: true },
+  };
+}
+
+/** Rsbuild config for the shell (host). */
+export function createShellConfig(o: ShellOptions): RsbuildConfig {
+  const cwd = o.cwd ?? process.cwd();
+  const require = createRequire(path.join(cwd, 'package.json'));
+  return {
+    plugins: [
+      pluginReact(),
+      pluginModuleFederation(
+        shellFederationOptions(o, resolvableFrom(cwd), (s) => require.resolve(s)),
+      ),
+    ],
+    source: { entry: { index: './src/index.ts' } },
+    server: { historyApiFallback: true, ...(o.port === undefined ? {} : { port: o.port }) },
+  };
+}
