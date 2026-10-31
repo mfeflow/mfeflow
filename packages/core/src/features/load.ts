@@ -124,5 +124,5 @@ export async function listLocalFeatures(
         : dir,
     ),
   );
-  return checked.filter((d) => d !== undefined).toSorted();
+  return checked.filter((d) => d !== undefined).toSorted((a, b) => a.localeCompare(b));
 }
