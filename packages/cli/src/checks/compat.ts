@@ -2,9 +2,9 @@ import semver from 'semver';
 import { finding, type Check, type Finding } from '../findings';
 import { versionIn, type AppView, type ProjectView } from '../inspect';
 import { SINGLETON_PACKAGES } from '../singletons';
-import { comparable } from './singletons';
+import { comparable, unresolved } from './singletons';
 
-/** Does `shellVersion` satisfy what the remote asks for? Unknown versions pass: nothing to compare. */
+/** Does `shellVersion` satisfy what the remote asks for? Unknown or unresolved versions pass: nothing to compare. */
 function fits(range: string, shellVersion: string | undefined): boolean {
   if (shellVersion === undefined) return true;
   const have = comparable(shellVersion);
@@ -19,7 +19,9 @@ async function compatFor(shell: AppView, remote: AppView): Promise<Finding[]> {
   for (const [name, range] of Object.entries(platform)) {
     // oxlint-disable-next-line no-await-in-loop -- a few packages
     const have = await versionIn(shell, name);
-    if (!fits(range, have)) {
+    if (have !== undefined && comparable(have) === undefined) {
+      out.push(unresolved('compat', 'E302', name, [`${shell.name} ${have}`]));
+    } else if (!fits(range, have)) {
       out.push(
         finding(
           'compat',
@@ -34,6 +36,11 @@ async function compatFor(shell: AppView, remote: AppView): Promise<Finding[]> {
     // oxlint-disable-next-line no-await-in-loop -- a few packages
     const [theirs, mine] = [await versionIn(remote, name), await versionIn(shell, name)];
     const want = theirs === undefined ? undefined : comparable(theirs);
+    const open = [
+      ...(theirs !== undefined && want === undefined ? [`${remote.name} ${theirs}`] : []),
+      ...(mine !== undefined && comparable(mine) === undefined ? [`${shell.name} ${mine}`] : []),
+    ];
+    if (open.length > 0) out.push(unresolved('compat', 'E302', name, open));
     if (want === undefined || mine === undefined) continue;
     // Module Federation asks for ^<the remote's installed version> and the shell provides its own.
     if (!fits(`^${want}`, mine) && !(name in platform)) {
@@ -70,6 +77,7 @@ export const compat: Check = {
         out.push(...(await compatFor(shell, remote)));
       }
     }
-    return { findings: out };
+    const seen = new Set<string>();
+    return { findings: out.filter((f) => !seen.has(f.message) && Boolean(seen.add(f.message))) };
   },
 };

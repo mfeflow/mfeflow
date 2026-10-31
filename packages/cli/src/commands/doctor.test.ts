@@ -178,6 +178,34 @@ describe('mfeflow doctor', () => {
     expect(single?.message).toContain('shell 19.3.1');
   });
 
+  it.each(['link:../react', 'workspace:*', 'catalog:missing', 'latest'])(
+    'warns, and does not crash, when react is %s and nothing is installed',
+    async (spec) => {
+      const root = await project();
+      await editJson(path.join(root, 'apps/shell/package.json'), (doc) => {
+        (doc.dependencies as Record<string, string>).react = spec;
+      });
+      const { code, result } = await run(root, 'doctor');
+      expect(code).toBe(0);
+      const warned = result.findings.filter((f) => f.code === 'MFEFLOW_E301');
+      expect(warned).toHaveLength(1);
+      expect(warned[0]).toMatchObject({ severity: 'warning' });
+      expect(warned[0]?.message).toContain(`shell ${spec}`);
+      expect(warned[0]?.message).toContain('until install');
+    },
+  );
+
+  it('uses the installed version when the declared spec names none', async () => {
+    const root = await project();
+    await editJson(path.join(root, 'apps/shell/package.json'), (doc) => {
+      (doc.dependencies as Record<string, string>).react = 'link:../react';
+    });
+    await install(path.join(root, 'apps/shell'), 'react', '19.3.1');
+    await install(path.join(root, 'apps/cart'), 'react', '19.3.1');
+    const { result } = await run(root, 'doctor');
+    expect(codes(result)).not.toContain('MFEFLOW_E301');
+  });
+
   it('exits with the lowest range when errors span several', async () => {
     const root = await project();
     await install(path.join(root, 'apps/shell'), 'react', '19.3.1');
@@ -327,5 +355,19 @@ describe('mfeflow check-compat', () => {
       doc.platform = { react: '^18' };
     });
     expect(codes((await run(root, 'check-compat')).result)).toEqual(['MFEFLOW_E302']);
+  });
+
+  it('warns, and does not crash, when the shell or a remote has an unresolved react', async () => {
+    const root = await project();
+    await editJson(path.join(root, 'apps/shell/package.json'), (doc) => {
+      (doc.dependencies as Record<string, string>).react = 'workspace:*';
+    });
+    await editJson(path.join(root, 'apps/cart/mfe.json'), (doc) => {
+      doc.platform = { react: '^18' };
+    });
+    const { code, result } = await run(root, 'check-compat');
+    expect(code).toBe(0);
+    expect(result.findings).toMatchObject([{ code: 'MFEFLOW_E302', severity: 'warning' }]);
+    expect(result.findings[0]?.message).toContain('until install');
   });
 });
