@@ -163,6 +163,12 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
         ? { ...declared, schema: sanitizeSchema(declared.schema, manifest.name) }
         : declared;
     for (const place of placesFor(transform.target, project)) {
+      if (transform.op === 'add-workflow-step') {
+        const where = joinPosix(place.dir, transform.file);
+        builder.warn(
+          `${manifest.name} edits the CI workflow ${where} (adds step "${transform.step.name}")`,
+        );
+      }
       const files = transform.op === 'add-env-key' ? envKeyFiles(transform) : [transform.file];
       for (const rel of files) {
         const file = joinPosix(place.dir, rel);

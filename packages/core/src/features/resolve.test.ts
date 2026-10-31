@@ -347,6 +347,43 @@ const env = (schema: string): LoadedFeature => ({
   trust: 'third-party',
 });
 
+const withStep = (trust: LoadedFeature['trust']): LoadedFeature => ({
+  manifest: {
+    name: trust === 'first-party' ? 'ci-extra' : '@acme/x',
+    version: '1',
+    transforms: [
+      {
+        op: 'add-workflow-step',
+        file: '.github/workflows/ci.yml',
+        job: 'build',
+        step: { name: 'Check', run: 'pnpm check' },
+      },
+    ],
+  },
+  trust,
+});
+
+describe('workflow steps', () => {
+  const workflow = `jobs:\n  build:\n    steps:\n      - name: Install\n        run: pnpm install\n`;
+  it('flags a first-party CI change in the plan summary', async () => {
+    const builder = new PlanBuilder(reader({ ...tree, '.github/workflows/ci.yml': workflow }));
+    await resolveFeature({ feature: withStep('first-party'), project, builder });
+    const plan = builder.build();
+    expect(plan.warnings).toEqual([
+      'ci-extra edits the CI workflow .github/workflows/ci.yml (adds step "Check")',
+    ]);
+    expect(summarize(plan)).toContain('Warning: ci-extra edits the CI workflow');
+  });
+
+  it('refuses a third-party CI change at resolve time even if the loader was bypassed', async () => {
+    const builder = new PlanBuilder(reader({ ...tree, '.github/workflows/ci.yml': workflow }));
+    const error = await rejection(
+      resolveFeature({ feature: withStep('third-party'), project, builder }),
+    );
+    expect(error.code).toBe('MFEFLOW_E203');
+  });
+});
+
 describe('third-party features at resolve time', () => {
   it('substitutes {{options}} and never evaluates template syntax', async () => {
     Reflect.deleteProperty(globalThis, 'pwned');

