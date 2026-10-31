@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AddEnvKeyOp } from '@mfeflow/contracts';
 import { parseJsonObject } from '../json';
 import { thrown } from '../testing';
-import { addEnvKey, envKeyFiles } from './add-env-key';
+import { addEnvKey, addTurboEnv, dotenvKeys, envKeyFiles, schemaKeys } from './add-env-key';
 
 const op = (extra: Partial<AddEnvKeyOp> = {}): AddEnvKeyOp => ({
   op: 'add-env-key',
@@ -159,5 +159,82 @@ describe('envKeyFiles', () => {
     expect(run(runtime, 'src/config/schema.ts')).toBe(
       `export const runtimeConfigSchema = z.object({\n  API: z.string(),\n  GTM_ID: z.string().min(1)});\n`,
     );
+  });
+});
+
+describe('schema text that is not code', () => {
+  it('fails with E208 instead of writing a file that does not parse', () => {
+    const env = 'export const env = createEnv({\n  server: {},\n});\n';
+    const bad = thrown(() => run(env, 'env.ts', { scope: 'server', schema: 'z.string(' }));
+    expect(bad.code).toBe('MFEFLOW_E208');
+    expect(bad.message).toContain('GTM_ID');
+  });
+});
+
+describe('schemaKeys', () => {
+  const env = `export const env = createEnv({
+  server: {
+    API_ORIGIN: z.url(),
+    NODE_ENV: z.enum(['a']).optional(),
+    'QUOTED-KEY': z.string().default('x'),
+    ...spread,
+  },
+});
+`;
+
+  it('lists server keys with whether a missing value is accepted', () => {
+    expect(schemaKeys(env, 'env.ts', 'server')).toEqual([
+      { name: 'API_ORIGIN', optional: false },
+      { name: 'NODE_ENV', optional: true },
+      { name: 'QUOTED-KEY', optional: true },
+    ]);
+  });
+
+  it('lists runtime keys of z.object, v.object, type() and a plain object', () => {
+    for (const init of [
+      'z.object({ a: z.string(), b: z.string().optional() })',
+      'v.object({ a: v.string(), b: v.optional(v.string()) })',
+      "type({ a: 'string', b: 'string | undefined' })",
+      '{ a: z.string(), b: z.nullish() }',
+    ]) {
+      expect(
+        schemaKeys(`export const runtimeConfigSchema = ${init};`, 'schema.ts', 'runtime'),
+      ).toEqual([
+        { name: 'a', optional: false },
+        { name: 'b', optional: true },
+      ]);
+    }
+    expect(schemaKeys('export const cfg = { a: 1 };', 'schema.ts', 'runtime', 'cfg')).toEqual([
+      { name: 'a', optional: false },
+    ]);
+  });
+
+  it('returns undefined when the file has no such object', () => {
+    expect(schemaKeys('export const x = 1;', 'env.ts', 'server')).toBeUndefined();
+    expect(schemaKeys('export const x = 1;', 'schema.ts', 'runtime')).toBeUndefined();
+  });
+});
+
+describe('dotenvKeys', () => {
+  it('reads variable names, skipping comments, blanks and export prefixes', () => {
+    expect(dotenvKeys('# A=1\n\nB=2\nexport C = 3\n  D=\nnot a line\n')).toEqual(['B', 'C', 'D']);
+    expect(dotenvKeys('')).toEqual([]);
+  });
+});
+
+describe('addTurboEnv', () => {
+  const turbo = '{\n  "tasks": {}\n}\n';
+
+  it('adds globalEnv, appends to it, and is idempotent', () => {
+    const once = addTurboEnv(turbo, 'turbo.json', 'API_ORIGIN');
+    expect(JSON.parse(once)).toEqual({ tasks: {}, globalEnv: ['API_ORIGIN'] });
+    const twice = addTurboEnv(once, 'turbo.json', 'OTHER');
+    expect(parseJsonObject('turbo.json', twice).globalEnv).toEqual(['API_ORIGIN', 'OTHER']);
+    expect(addTurboEnv(twice, 'turbo.json', 'OTHER')).toBe(twice);
+    expect(twice.endsWith('\n')).toBe(true);
+  });
+
+  it('fails with E208 on invalid JSON', () => {
+    expect(thrown(() => addTurboEnv('{', 'turbo.json', 'A')).code).toBe('MFEFLOW_E208');
   });
 });

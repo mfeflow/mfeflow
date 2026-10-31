@@ -10,7 +10,7 @@ import { inOrder } from '../sequence';
 import type { PlanBuilder } from '../plan';
 import type { MfeflowProject } from '../project';
 import { renderTemplate, substitute, type TemplateData } from '../templates';
-import { applyTransform } from '../transforms';
+import { addTurboEnv, applyTransform } from '../transforms';
 import { envKeyFiles } from '../transforms/add-env-key';
 import type { LoadedFeature } from './load';
 import { assertPlainScript, assertThirdPartyTransform } from './policy';
@@ -26,6 +26,8 @@ export interface ResolveInput {
   /** Features added in the same command, which count as installed for `requires` and `conflicts`. */
   alsoAdding?: readonly string[];
 }
+
+const TURBO_FILE = 'turbo.json';
 
 interface Place {
   name: string;
@@ -199,6 +201,14 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
       }
       if (transform.op === 'add-env-key') {
         builder.addEnvKey(joinPosix(place.dir, transform.file), transform.key);
+        if (trusted && transform.scope === 'server') {
+          const { key } = transform;
+          steps.push(async () => {
+            if (await builder.exists(TURBO_FILE)) {
+              await builder.patch(TURBO_FILE, (source) => addTurboEnv(source, TURBO_FILE, key));
+            }
+          });
+        }
       }
     }
   }

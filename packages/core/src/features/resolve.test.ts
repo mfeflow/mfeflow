@@ -220,6 +220,18 @@ describe('resolveFeature', () => {
     expect(strict.changes.map((c) => c.path)).toContain('apps/shell/a-both.txt');
   });
 
+  it('lists a server key in turbo.json when the project has one', async () => {
+    const files = { ...tree, 'turbo.json': '{\n  "tasks": {}\n}\n' };
+    const builder = new PlanBuilder(reader(files));
+    await resolveFeature({ feature: local(analytics, assets), project, builder });
+    const turbo = builder.build().changes.find((c) => c.path === 'turbo.json');
+    expect(JSON.parse(turbo?.after ?? '{}')).toEqual({ tasks: {}, globalEnv: ['GTM_ID'] });
+
+    const noTurbo = new PlanBuilder(reader());
+    await resolveFeature({ feature: local(analytics, assets), project, builder: noTurbo });
+    expect(noTurbo.build().changes.map((c) => c.path)).not.toContain('turbo.json');
+  });
+
   it('gives templates the dev server port of the app', async () => {
     const builder = new PlanBuilder(reader());
     const feature = local(

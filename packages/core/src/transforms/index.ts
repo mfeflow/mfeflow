@@ -1,14 +1,26 @@
 import type { TransformOp } from '@mfeflow/contracts';
 import { MfeflowError } from '../errors';
 import { addBootStep } from './add-boot-step';
-import { addEnvKey } from './add-env-key';
+import { addEnvKey, addTurboEnv, dotenvKeys, schemaKeys, type SchemaKey } from './add-env-key';
 import { addImport } from './add-import';
 import { addRoute } from './add-route';
 import { addShared } from './add-shared';
 import { addWorkflowStep } from './add-workflow-step';
 import { wrapProvider } from './wrap-provider';
 
-export { addBootStep, addEnvKey, addImport, addRoute, addShared, addWorkflowStep, wrapProvider };
+export {
+  addBootStep,
+  addEnvKey,
+  addImport,
+  addRoute,
+  addShared,
+  addTurboEnv,
+  addWorkflowStep,
+  dotenvKeys,
+  schemaKeys,
+  wrapProvider,
+  type SchemaKey,
+};
 
 /**
  * Runs one built-in op on a file's source and returns the new source. Pure, and

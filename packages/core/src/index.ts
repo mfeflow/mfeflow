@@ -54,7 +54,7 @@ export {
   type InstallStep,
 } from './apply';
 export { renderTemplate, substitute, type TemplateData } from './templates';
-export { applyTransform } from './transforms';
+export { applyTransform, dotenvKeys, schemaKeys, type SchemaKey } from './transforms';
 export {
   fetchRemoteText,
   isProtectedPath,
