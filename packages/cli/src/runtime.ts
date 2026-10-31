@@ -12,7 +12,8 @@ export interface Runtime {
   system: System;
   fetch: FetchLike;
   roots: AssetRoots;
-  dev: DevHost;
+  /** Processes, signals and file watching for `mfeflow dev`. Defaults to the real ones. */
+  dev?: DevHost;
 }
 
 export function realRuntime(io: Io = processIo()): Runtime {

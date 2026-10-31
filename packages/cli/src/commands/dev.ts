@@ -6,7 +6,7 @@ import { assertKnownFlags, GLOBAL_ARGS, readGlobals, repeated, splitList } from 
 import { assertAllowed, devIndex, parseOverrides, serializeIndex } from '../devregistry';
 import { inspectProject, readText, type AppView, type ProjectView } from '../inspect';
 import type { DevApp, DevResult } from '../output';
-import type { DevProcess } from '../proc';
+import { realDevHost, type DevHost, type DevProcess } from '../proc';
 import type { Runtime } from '../runtime';
 
 export const DEV_ARGS = {
@@ -56,15 +56,15 @@ class Session {
   private readonly color: boolean;
 
   constructor(
-    private readonly rt: Runtime,
+    private readonly host: DevHost,
+    io: Pick<Runtime['io'], 'env' | 'interactive'>,
     private readonly out: (text: string) => void,
     private readonly registryFile: string,
     private readonly names: readonly string[],
   ) {
     this.width = Math.max(...names.map((n) => n.length), 4);
     this.color =
-      rt.io.env.NO_COLOR === undefined &&
-      (rt.io.interactive || rt.io.env.FORCE_COLOR !== undefined);
+      io.env.NO_COLOR === undefined && (io.interactive || io.env.FORCE_COLOR !== undefined);
   }
 
   get hasFailed(): boolean {
@@ -104,7 +104,7 @@ class Session {
   }
 
   start(app: AppView, packageManager: string): void {
-    const child = this.rt.dev.spawn({
+    const child = this.host.spawn({
       command: packageManager,
       args: ['run', 'dev'],
       cwd: app.dir,
@@ -155,18 +155,10 @@ function describe(app: AppView, packageManager: string): DevApp {
   };
 }
 
-async function busyPorts(
-  rt: Runtime,
-  apps: readonly AppView[],
-  skip: ReadonlySet<string>,
-): Promise<AppView[]> {
+async function busyPorts(host: DevHost, apps: readonly AppView[]): Promise<AppView[]> {
   const checked = await Promise.all(
     apps.map(async (app) =>
-      app.port === undefined || skip.has(app.name)
-        ? undefined
-        : (await rt.dev.portFree(app.port))
-          ? undefined
-          : app,
+      app.port === undefined ? undefined : (await host.portFree(app.port)) ? undefined : app,
     ),
   );
   return checked.filter((a) => a !== undefined);
@@ -190,6 +182,7 @@ export async function runDev(
 ): Promise<DevResult> {
   assertKnownFlags(raw, DEV_ARGS);
   const globals = readGlobals(args, rt.io.env, rt.io.cwd);
+  const host = rt.dev ?? realDevHost();
   const root = await findProjectRoot(globals.cwd);
   let view = await inspectProject(root);
   const { packageManager } = view.project;
@@ -260,9 +253,9 @@ export async function runDev(
     return { ...base, dryRun: true, interrupted: false };
   }
 
-  assertPortsFree(await busyPorts(rt, first, new Set()));
+  assertPortsFree(await busyPorts(host, first));
   await writeIfChanged(registryFile, serializeIndex(devIndex(view, overrides)));
-  const session = new Session(rt, out, registryFile, known);
+  const session = new Session(host, rt.io, out, registryFile, known);
   let busy = Promise.resolve();
   const reload = (): void => {
     busy = busy.then(async () => {
@@ -292,7 +285,7 @@ export async function runDev(
         }
       }
       const fresh = now.filter((a) => !session.has(a.name));
-      const stuck = await busyPorts(rt, fresh, new Set());
+      const stuck = await busyPorts(host, fresh);
       for (const app of fresh) {
         if (stuck.includes(app)) {
           out(`mfeflow: not starting ${app.name}: port ${String(app.port)} is in use`);
@@ -306,12 +299,12 @@ export async function runDev(
     });
   };
 
-  const stopWatching = rt.dev.watch(
+  const stopWatching = host.watch(
     [path.join(root, 'mfeflow.json'), path.join(root, 'registry', 'envs', 'dev')],
     reload,
   );
   let interrupted = false;
-  const stopListening = rt.dev.onInterrupt(() => {
+  const stopListening = host.onInterrupt(() => {
     if (interrupted) return;
     interrupted = true;
     out('\nmfeflow: stopping…');
