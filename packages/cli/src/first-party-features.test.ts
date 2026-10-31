@@ -402,6 +402,22 @@ describe('telemetry-otel', () => {
     });
   });
 
+  it('loads the runtime config through one shared loader, with no copy per feature', async () => {
+    await add('env-t3', 'analytics-gtm', 'telemetry-otel');
+    const tree = await readTree(project);
+    expect(tree).not.toHaveProperty(['apps/shell/src/analytics/runtime-config.ts']);
+    expect(tree).not.toHaveProperty(['apps/shell/src/telemetry/runtime-config.ts']);
+    for (const file of [
+      'apps/shell/src/analytics/init.ts',
+      'apps/shell/src/telemetry/init.ts',
+      'apps/shell/src/config/runtime.ts',
+    ]) {
+      expect(tree[file], file).toContain('fetchRuntimeConfig');
+      expect(tree[file], file).toContain("from '@mfeflow/runtime'");
+    }
+    expect(tree['apps/shell/src/config/runtime.ts']).not.toContain('await fetch(');
+  });
+
   it('shares runtime-config.json with analytics-gtm', async () => {
     await add('analytics-gtm', 'telemetry-otel');
     expect(await runtimeKeys('apps/shell/public/config/runtime-config.json')).toEqual([

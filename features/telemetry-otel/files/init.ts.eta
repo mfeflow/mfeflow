@@ -1,5 +1,5 @@
 import { initTelemetry } from '@mfeflow/telemetry';
-import { runtimeConfig } from './runtime-config';
+import { fetchRuntimeConfig } from '@mfeflow/runtime';
 
 // The shell's rsbuild preset replaces this with the version in package.json at build time.
 declare const __MFEFLOW_APP_VERSION__: string | undefined;
@@ -13,7 +13,11 @@ const strings = (value: unknown): string[] =>
  * never on the path to first render.
  */
 export async function startTelemetry(): Promise<void> {
-  const config = await runtimeConfig();
+  const config = await fetchRuntimeConfig().catch((error: unknown) => {
+    console.warn('[telemetry] the runtime config did not load, so telemetry stays off', error);
+    return undefined;
+  });
+  if (config === undefined) return;
   const { otlpEndpoint, traceSampleRatio, environment } = config;
   if (typeof otlpEndpoint !== 'string' || otlpEndpoint === '') return;
   try {

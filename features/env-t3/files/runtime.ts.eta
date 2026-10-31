@@ -1,4 +1,4 @@
-import { reportRemoteError } from '@mfeflow/runtime';
+import { fetchRuntimeConfig, reportRemoteError } from '@mfeflow/runtime';
 import type { runtimeConfigSchema } from './schema';
 
 export type RuntimeConfig = NonNullable<
@@ -17,13 +17,13 @@ export function getRuntimeConfig(): RuntimeConfig {
   return config as RuntimeConfig;
 }
 
-/** Fetches the runtime config once at boot. A failure is reported and leaves the config unset. */
-export async function loadRuntimeConfig(url = '/config/runtime-config.json'): Promise<void> {
+/**
+ * Fetches the runtime config once at boot, through the loader analytics and telemetry share, so the
+ * file is requested once. A failure is reported and leaves the config unset.
+ */
+export async function loadRuntimeConfig(url?: string): Promise<void> {
   try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`${url} answered ${String(response.status)}`);
-    const config: unknown = await response.json();
-    Reflect.set(globalThis, KEY, config);
+    await fetchRuntimeConfig(url);
   } catch (error) {
     reportRemoteError('<%= it.app.name %>', 'runtime-config', error);
   }

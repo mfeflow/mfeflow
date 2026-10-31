@@ -5,11 +5,6 @@
   "requires": ["core", "tsconfig"],
   "files": [
     {
-      "to": "src/telemetry/runtime-config.ts",
-      "target": "shell",
-      "from": "files/runtime-config.ts"
-    },
-    {
       "to": "src/telemetry/init.ts",
       "target": "shell",
       "from": "files/init.ts.eta",

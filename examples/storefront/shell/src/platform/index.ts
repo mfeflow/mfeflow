@@ -1,7 +1,7 @@
 import { initAnalytics } from '@mfeflow/analytics';
 import { createGtmProvider } from '@mfeflow/analytics/gtm';
 import { initTelemetry } from '@mfeflow/telemetry';
-import { runtimeConfig } from './runtime-config';
+import { fetchRuntimeConfig } from '@mfeflow/runtime';
 
 const strings = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
@@ -12,7 +12,13 @@ const strings = (value: unknown): string[] =>
  * the one-app baseline call this same function, so the cost comparison stays fair.
  */
 export async function startPlatform(): Promise<void> {
-  const config = await runtimeConfig();
+  const config = await fetchRuntimeConfig().catch((error: unknown) => {
+    console.warn(
+      '[platform] the runtime config did not load, so analytics and telemetry stay off',
+      error,
+    );
+    return {};
+  });
   const { gtmId, otlpEndpoint, traceSampleRatio, environment } = config;
   if (typeof gtmId === 'string' && gtmId !== '') {
     try {
