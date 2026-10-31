@@ -1,5 +1,5 @@
 // Generates a project with this checkout (`mfeflow init --local`), installs and builds it, boots
-// `mfeflow dev`, fetches the shell and both remotes, adds a third remote while it runs and waits for the
+// `mfeflow dev`, fetches the shell, its runtime config and both remotes, adds a third remote while it runs and waits for the
 // shell to list it (no restart), then sends Ctrl+C and checks every dev server is gone.
 // Needs `pnpm build` to have run in this repo.
 // Usage: node scripts/smoke.mjs   (SMOKE_DIR=/some/folder keeps the project there)
@@ -96,6 +96,18 @@ try {
   const html = await waitFor(SHELL, (body) => body.includes('__MFE_REGISTRY__'), 'shell');
   for (const [name, origin] of Object.entries(REMOTES)) await checkRemote(html, name, origin);
   console.log('ok  shell: the registry lists catalog and cart');
+  const runtimeConfig = JSON.parse(
+    await waitFor(
+      `${SHELL}/config/runtime-config.json`,
+      (body) => body.includes('environment'),
+      'runtime config',
+    ),
+  );
+  if (runtimeConfig.environment !== 'dev')
+    throw new Error(
+      `the dev server served the ${runtimeConfig.environment} runtime config, not dev`,
+    );
+  console.log('ok  shell: /config/runtime-config.json is the dev file');
 
   step(
     'add remote while dev runs',

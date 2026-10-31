@@ -76,6 +76,22 @@ export const ERROR_CATALOGUE = {
     title: 'A copied file changed since mfeflow wrote it',
     fix: 'Nothing is wrong if you changed it on purpose. `mfeflow upgrade` will show a diff before touching it.',
   },
+  E118: {
+    title: '.env.example does not match the keys in env.ts',
+    fix: 'List every key of the `server` schema in .env.example (`mfeflow add env-key KEY --scope server --schema "…"` keeps them together) and remove the ones env.ts no longer has.',
+  },
+  E119: {
+    title: 'A runtime-config file does not match the runtime-config schema',
+    fix: 'Give every runtime-config.<env>.json the keys of src/config/schema.ts and nothing else, then run `pnpm check:runtime-config` to validate the values.',
+  },
+  E120: {
+    title: 'A PUBLIC_ variable would be baked into the bundle',
+    fix: 'PUBLIC_* values are inlined at build time, so one build could no longer run in every environment. Put per-environment values in runtime-config.<env>.json instead (`mfeflow add env-key KEY --scope runtime --schema "…"`). PUBLIC_APP_NAME and PUBLIC_BUILD_VERSION are fine.',
+  },
+  E121: {
+    title: 'A server env key is not listed in turbo.json',
+    fix: 'Add the key to "globalEnv" in turbo.json. Turborepo hides unlisted variables from tasks and replays a cached build without running env.ts, so a missing value would not fail the build.',
+  },
   E201: {
     title: 'Feature not found',
     fix: 'List what is available with `mfeflow features`, or check the spelling.',

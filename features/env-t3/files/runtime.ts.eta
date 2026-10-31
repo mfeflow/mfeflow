@@ -1,0 +1,30 @@
+import { reportRemoteError } from '@mfeflow/runtime';
+import type { runtimeConfigSchema } from './schema';
+
+export type RuntimeConfig = NonNullable<
+  (typeof runtimeConfigSchema)['~standard']['types']
+>['output'];
+
+const KEY = '__MFE_RUNTIME_CONFIG__';
+
+/** The config the shell loaded. Typed from the schema; nothing is validated here, `pnpm check:runtime-config` does that before deploy. */
+export function getRuntimeConfig(): RuntimeConfig {
+  const config: unknown = Reflect.get(globalThis, KEY);
+  if (config === undefined) {
+    throw new Error('getRuntimeConfig() was called before the shell loaded the runtime config');
+  }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the deploy check validated this file against the schema
+  return config as RuntimeConfig;
+}
+
+/** Fetches the runtime config once at boot. A failure is reported and leaves the config unset. */
+export async function loadRuntimeConfig(url = '/config/runtime-config.json'): Promise<void> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`${url} answered ${String(response.status)}`);
+    const config: unknown = await response.json();
+    Reflect.set(globalThis, KEY, config);
+  } catch (error) {
+    reportRemoteError('<%= it.app.name %>', 'runtime-config', error);
+  }
+}

@@ -31,6 +31,15 @@ describe('createRangeRewriter', () => {
     expect(rewrite('@mfeflow/runtime', PLACEHOLDER_RANGE)).toBe('^0.3.1');
   });
 
+  it('rewrites the mfeflow CLI like the @mfeflow packages, so a project can run it in CI', async () => {
+    expect(createRangeRewriter('0.3.1')('mfeflow', PLACEHOLDER_RANGE)).toBe('^0.3.1');
+    const root = await checkout({ mfeflow: { built: true } });
+    expect(createRangeRewriter('0.3.1', root)('mfeflow', PLACEHOLDER_RANGE)).toMatch(
+      /^link:.*\/packages\/mfeflow$/,
+    );
+    expect(createRangeRewriter('0.3.1')('mfeflow-other', PLACEHOLDER_RANGE)).toBeUndefined();
+  });
+
   it('leaves every other dependency and range alone', () => {
     const rewrite = createRangeRewriter('0.3.1');
     expect(rewrite('react', PLACEHOLDER_RANGE)).toBeUndefined();

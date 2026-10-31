@@ -6,7 +6,7 @@ remotes answering on `pnpm dev`.
 One run is three timed steps, with the pnpm store already warm:
 
 1. `create-mfeflow my-app --yes --no-install --local <checkout>` with the pinned fixture (`fixture.json`: shell,
-   `catalog`, `cart`, `lint-oxlint`, `url-factory`). `--no-install` only so the install is timed on its own;
+   `catalog`, `cart`, `lint-oxlint`, `url-factory`, `env-t3`, `testing`). `--no-install` only so the install is timed on its own;
    `create-mfeflow` without it runs the same install.
 2. `pnpm install`.
 3. `pnpm dev` until `http://localhost:4300/` serves the dev registry and each remote's `mf-manifest.json` and entry

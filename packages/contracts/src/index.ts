@@ -53,6 +53,7 @@ export {
   type AddRouteOp,
   type AddSharedOp,
   type AddWorkflowStepOp,
+  type FeatureCondition,
   type FeatureDependency,
   type FeatureFile,
   type FeatureManifest,

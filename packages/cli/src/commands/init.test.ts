@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -30,6 +31,7 @@ describe('mfeflow init', () => {
     const rt = testRuntime();
     expect(await main(['init', 'app', '--yes', '--no-install', '--cwd', cwd], rt)).toBe(0);
     const tree = await readTree(path.join(cwd, 'app'));
+    expect(tree).not.toHaveProperty(['apps/shell/public/config/runtime-config.json']);
     expect(Object.keys(tree)).toEqual(
       expect.arrayContaining([
         'package.json',
@@ -38,13 +40,16 @@ describe('mfeflow init', () => {
         'mfeflow.json',
         'AGENTS.md',
         'apps/shell/src/index.ts',
-        'apps/shell/public/config/runtime-config.json',
+        'apps/shell/public/config/runtime-config.dev.json',
         'apps/catalog/src/exposed/App.tsx',
         'apps/cart/mfe.json',
         'registry/envs/dev/catalog.json',
         'registry/envs/prod/cart.json',
         '.oxlintrc.json',
         'apps/cart/src/api/endpoints.ts',
+        'apps/cart/env.ts',
+        'apps/shell/src/config/schema.ts',
+        'vitest.config.ts',
       ]),
     );
     expect(tree).not.toHaveProperty(['lefthook.yml']);
@@ -55,6 +60,8 @@ describe('mfeflow init', () => {
       'tsconfig',
       'lint-oxlint',
       'url-factory',
+      'env-t3',
+      'testing',
     ]);
     expect(project.apps.cart).toEqual({ kind: 'remote', path: 'apps/cart', port: 4312 });
     expect(validateMfeflowProject(project)).toEqual([]);
@@ -84,6 +91,30 @@ describe('mfeflow init', () => {
     expect(declared.filter((name) => name !== '')).toEqual(
       [...new Set(declared)].filter((n) => n !== ''),
     );
+  });
+
+  it('keeps every .env.example tracked by git while ignoring .env and .env.*', async () => {
+    const cwd = await workspace();
+    expect(await main(['init', 'app', '--yes', '--no-install', '--cwd', cwd], testRuntime())).toBe(
+      0,
+    );
+    const project = path.join(cwd, 'app');
+    execFileSync('git', ['init', '-q'], { cwd: project });
+    const ignored = (file: string) => {
+      try {
+        execFileSync('git', ['check-ignore', '-q', '--no-index', file], { cwd: project });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    for (const file of ['.env.example', 'apps/shell/.env.example', 'apps/cart/.env.example']) {
+      expect(await fs.stat(path.join(project, file)).then(() => true), file).toBe(true);
+      expect(ignored(file), file).toBe(false);
+    }
+    for (const file of ['.env', '.env.local', 'apps/shell/.env', 'apps/cart/.env.production']) {
+      expect(ignored(file), file).toBe(true);
+    }
   });
 
   it('installs with the package manager, from the project folder, when asked to', async () => {
@@ -164,6 +195,8 @@ describe('mfeflow init', () => {
       'tsconfig',
       'lint-oxlint',
       'url-factory',
+      'env-t3',
+      'testing',
     ]);
   });
 

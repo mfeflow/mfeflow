@@ -1,0 +1,26 @@
+{
+  "name": "ci-github",
+  "version": "0.1.0",
+  "description": "GitHub Actions workflow for pull requests: lint, typecheck, test, build, doctor, validate, check-compat, budget, runtime-config check and the Playwright smoke test. Opt-in.",
+  "requires": ["core"],
+  "files": [
+    {
+      "to": ".github/workflows/ci.yml",
+      "target": "root",
+      "from": "files/ci.yml"
+    },
+    {
+      "to": "docs/ci.md",
+      "target": "root",
+      "from": "files/ci.md"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "mfeflow",
+      "range": "latest",
+      "target": "root",
+      "dev": true
+    }
+  ]
+}

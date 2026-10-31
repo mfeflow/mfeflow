@@ -30,7 +30,7 @@ async function devRegistryOf(
 ): Promise<{ root: string; script: string; config: ShellConfig }> {
   const cwd = await tempDir();
   dirs.push(cwd);
-  await fs.writeFile(path.join(cwd, 'preset.json'), JSON.stringify({ remotes }));
+  await fs.writeFile(path.join(cwd, 'preset.json'), JSON.stringify({ remotes, features: [] }));
   const code = await main(
     ['init', 'app', '--yes', '--no-install', '--preset', 'preset.json', '--cwd', cwd],
     testRuntime(),

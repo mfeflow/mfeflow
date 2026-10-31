@@ -1,0 +1,202 @@
+{
+  "name": "testing",
+  "version": "0.1.0",
+  "description": "Vitest, Testing Library, jsdom and MSW in every app with @mfeflow/testing, and a Playwright smoke test that opens the shell and checks each remote renders.",
+  "requires": ["core", "tsconfig"],
+  "files": [
+    {
+      "to": "vitest.config.ts",
+      "target": "shell",
+      "from": "files/vitest.config.ts"
+    },
+    {
+      "to": "src/test/setup.ts",
+      "target": "shell",
+      "from": "files/setup.ts"
+    },
+    {
+      "to": "src/mocks/handlers.ts",
+      "target": "shell",
+      "from": "files/handlers.ts"
+    },
+    {
+      "to": "src/mocks/server.ts",
+      "target": "shell",
+      "from": "files/server.ts"
+    },
+    {
+      "to": "src/mocks/handlers.test.ts",
+      "target": "shell",
+      "from": "files/sample-handlers-test.ts"
+    },
+    {
+      "to": "src/pages/Home.test.tsx",
+      "target": "shell",
+      "from": "files/sample-shell-test.tsx"
+    },
+    {
+      "to": "vitest.config.ts",
+      "target": "remotes",
+      "from": "files/vitest.config.ts"
+    },
+    {
+      "to": "src/test/setup.ts",
+      "target": "remotes",
+      "from": "files/setup.ts"
+    },
+    {
+      "to": "src/mocks/handlers.ts",
+      "target": "remotes",
+      "from": "files/handlers.ts"
+    },
+    {
+      "to": "src/mocks/server.ts",
+      "target": "remotes",
+      "from": "files/server.ts"
+    },
+    {
+      "to": "src/mocks/handlers.test.ts",
+      "target": "remotes",
+      "from": "files/sample-handlers-test.ts"
+    },
+    {
+      "to": "src/exposed/App.test.tsx",
+      "target": "remotes",
+      "from": "files/sample-remote-test.tsx"
+    },
+    {
+      "to": "vitest.config.ts",
+      "target": "root",
+      "from": "files/root-vitest.config.ts"
+    },
+    {
+      "to": "playwright.config.ts",
+      "target": "root",
+      "from": "files/playwright.config.ts"
+    },
+    {
+      "to": "e2e/smoke.spec.ts",
+      "target": "root",
+      "from": "files/sample-smoke-e2e.ts"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "vitest",
+      "range": "5.0.5",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "jsdom",
+      "range": "30.1.3",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "@testing-library/react",
+      "range": "16.3.3",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "@testing-library/dom",
+      "range": "10.4.2",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "msw",
+      "range": "3.0.3",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "@mfeflow/testing",
+      "range": "latest",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "vitest",
+      "range": "5.0.5",
+      "target": "remotes",
+      "dev": true
+    },
+    {
+      "name": "jsdom",
+      "range": "30.1.3",
+      "target": "remotes",
+      "dev": true
+    },
+    {
+      "name": "@testing-library/react",
+      "range": "16.3.3",
+      "target": "remotes",
+      "dev": true
+    },
+    {
+      "name": "@testing-library/dom",
+      "range": "10.4.2",
+      "target": "remotes",
+      "dev": true
+    },
+    {
+      "name": "msw",
+      "range": "3.0.3",
+      "target": "remotes",
+      "dev": true
+    },
+    {
+      "name": "@mfeflow/testing",
+      "range": "latest",
+      "target": "remotes",
+      "dev": true
+    },
+    {
+      "name": "vitest",
+      "range": "5.0.5",
+      "target": "root",
+      "dev": true
+    },
+    {
+      "name": "@playwright/test",
+      "range": "1.64.1",
+      "target": "root",
+      "dev": true
+    },
+    {
+      "name": "@types/node",
+      "range": "26.6.6",
+      "target": "root",
+      "dev": true
+    }
+  ],
+  "scripts": [
+    {
+      "name": "test",
+      "command": "vitest run",
+      "target": "shell"
+    },
+    {
+      "name": "test",
+      "command": "vitest run",
+      "target": "remotes"
+    },
+    {
+      "name": "test",
+      "command": "vitest run",
+      "target": "root"
+    },
+    {
+      "name": "test:e2e",
+      "command": "playwright test",
+      "target": "root"
+    },
+    {
+      "name": "typecheck:tooling",
+      "command": "tsc --noEmit",
+      "target": "root"
+    }
+  ]
+}

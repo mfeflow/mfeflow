@@ -1,11 +1,16 @@
-import { isSafeRelativePath, type FeatureFile, type FeatureManifest } from '@mfeflow/contracts';
+import {
+  isSafeRelativePath,
+  type FeatureCondition,
+  type FeatureFile,
+  type FeatureManifest,
+} from '@mfeflow/contracts';
 import { MfeflowError } from '../errors';
 import { joinPosix } from '../paths';
 import { inOrder } from '../sequence';
 import type { PlanBuilder } from '../plan';
 import type { MfeflowProject } from '../project';
 import { renderTemplate, substitute, type TemplateData } from '../templates';
-import { applyTransform } from '../transforms';
+import { addTurboEnv, applyTransform } from '../transforms';
 import { envKeyFiles } from '../transforms/add-env-key';
 import type { LoadedFeature } from './load';
 import { assertPlainScript, assertThirdPartyTransform } from './policy';
@@ -21,6 +26,10 @@ export interface ResolveInput {
   /** Features added in the same command, which count as installed for `requires` and `conflicts`. */
   alsoAdding?: readonly string[];
 }
+
+const TURBO_FILE = 'turbo.json';
+/** `app:shell` is the app called shell, where plain `shell` is every shell. */
+const EXACT_APP = 'app:';
 
 interface Place {
   name: string;
@@ -40,7 +49,9 @@ function placesFor(target: string | undefined, project: MfeflowProject): Place[]
   if (where === 'root') return [{ name: 'root', dir: '', kind: 'root' }];
   if (where === 'shell') return apps.filter((a) => a.kind === 'shell');
   if (where === 'remotes') return apps.filter((a) => a.kind === 'remote');
-  const app = apps.find((a) => a.name === where);
+  const app = apps.find(
+    (a) => a.name === (where.startsWith(EXACT_APP) ? where.slice(EXACT_APP.length) : where),
+  );
   if (!app)
     throw new MfeflowError(
       'E208',
@@ -82,6 +93,11 @@ export function resolveOptions(
     out[prompt.name] = value;
   }
   return out;
+}
+
+/** True when the part has no condition, or every option it names has the value it asks for. */
+function applies(part: { when?: FeatureCondition }, options: Record<string, unknown>): boolean {
+  return Object.entries(part.when ?? {}).every(([name, value]) => options[name] === value);
 }
 
 /** `relative` is the path inside the target app; `file` is the project path it ends up at. */
@@ -138,7 +154,7 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
 
   const steps: (() => Promise<void>)[] = [];
 
-  for (const file of manifest.files ?? []) {
+  for (const file of (manifest.files ?? []).filter((f) => applies(f, options))) {
     for (const place of placesFor(file.target, project)) {
       const to = joinPosix(place.dir, file.to);
       assertWritable(to, file.to, trusted);
@@ -146,14 +162,14 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     }
   }
 
-  for (const dep of manifest.dependencies ?? []) {
+  for (const dep of (manifest.dependencies ?? []).filter((d) => applies(d, options))) {
     for (const place of placesFor(dep.target, project)) {
       const pkg = joinPosix(place.dir, 'package.json');
       steps.push(() => builder.addDependency(pkg, dep.name, dep.range, dep.dev));
     }
   }
 
-  for (const script of manifest.scripts ?? []) {
+  for (const script of (manifest.scripts ?? []).filter((x) => applies(x, options))) {
     for (const place of placesFor(script.target, project)) {
       const pkg = joinPosix(place.dir, 'package.json');
       if (!trusted) assertPlainScript(script.name, manifest.name);
@@ -161,7 +177,7 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     }
   }
 
-  for (const declared of manifest.transforms ?? []) {
+  for (const declared of (manifest.transforms ?? []).filter((t) => applies(t, options))) {
     if (!trusted) assertThirdPartyTransform(declared, manifest.name);
     const transform =
       !trusted && declared.op === 'add-env-key'
@@ -189,6 +205,14 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
       }
       if (transform.op === 'add-env-key') {
         builder.addEnvKey(joinPosix(place.dir, transform.file), transform.key);
+        if (trusted && transform.scope === 'server') {
+          const { key } = transform;
+          steps.push(async () => {
+            if (await builder.exists(TURBO_FILE)) {
+              await builder.patch(TURBO_FILE, (source) => addTurboEnv(source, TURBO_FILE, key));
+            }
+          });
+        }
       }
     }
   }

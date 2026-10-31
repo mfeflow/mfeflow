@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AddEnvKeyOp } from '@mfeflow/contracts';
 import { parseJsonObject } from '../json';
 import { thrown } from '../testing';
-import { addEnvKey, envKeyFiles } from './add-env-key';
+import { addEnvKey, addTurboEnv, dotenvKeys, envKeyFiles, schemaKeys } from './add-env-key';
 
 const op = (extra: Partial<AddEnvKeyOp> = {}): AddEnvKeyOp => ({
   op: 'add-env-key',
@@ -61,6 +61,12 @@ export const env = createEnv({
       '# A=1\nA="two words"\n',
     );
     expect(run('', '.env.example', { key: 'A', value: null })).toBe('A=\n');
+  });
+
+  it('sees a key that is already set with an export prefix or spaces around the =', () => {
+    for (const line of ['export API_ORIGIN=x\n', 'API_ORIGIN = x\n', '  export  API_ORIGIN =\n']) {
+      expect(run(line, '.env.example', { scope: 'server', key: 'API_ORIGIN' }), line).toBe(line);
+    }
   });
 });
 
@@ -159,5 +165,148 @@ describe('envKeyFiles', () => {
     expect(run(runtime, 'src/config/schema.ts')).toBe(
       `export const runtimeConfigSchema = z.object({\n  API: z.string(),\n  GTM_ID: z.string().min(1)});\n`,
     );
+  });
+});
+
+describe('schema text that is not code', () => {
+  it('fails with E208 instead of writing a file that does not parse', () => {
+    const env = 'export const env = createEnv({\n  server: {},\n});\n';
+    const bad = thrown(() => run(env, 'env.ts', { scope: 'server', schema: 'z.string(' }));
+    expect(bad.code).toBe('MFEFLOW_E208');
+    expect(bad.message).toContain('GTM_ID');
+  });
+});
+
+describe('schemaKeys', () => {
+  const env = `export const env = createEnv({
+  server: {
+    API_ORIGIN: z.url(),
+    NODE_ENV: z.enum(['a']).optional(),
+    'QUOTED-KEY': z.string().default('x'),
+    ...spread,
+  },
+});
+`;
+
+  it('lists server keys with whether a missing value is accepted', () => {
+    expect(schemaKeys(env, 'env.ts', 'server')).toEqual([
+      { name: 'API_ORIGIN', optional: false },
+      { name: 'NODE_ENV', optional: true },
+      { name: 'QUOTED-KEY', optional: true },
+    ]);
+  });
+
+  it('lists runtime keys of z.object, v.object, type() and a plain object', () => {
+    for (const init of [
+      'z.object({ a: z.string(), b: z.string().optional() })',
+      'v.object({ a: v.string(), b: v.optional(v.string()) })',
+      "type({ a: 'string', 'b?': 'string' })",
+      '{ a: z.string(), b: z.nullish() }',
+    ]) {
+      expect(
+        schemaKeys(`export const runtimeConfigSchema = ${init};`, 'schema.ts', 'runtime'),
+      ).toEqual([
+        { name: 'a', optional: false },
+        { name: 'b', optional: true },
+      ]);
+    }
+    expect(schemaKeys('export const cfg = { a: 1 };', 'schema.ts', 'runtime', 'cfg')).toEqual([
+      { name: 'a', optional: false },
+    ]);
+  });
+
+  const optionalOf = (value: string) => {
+    const keys = schemaKeys(
+      `export const env = createEnv({ server: { K: ${value} } });`,
+      'env.ts',
+      'server',
+    );
+    return keys?.[0]?.optional;
+  };
+
+  it.each([
+    ['z.string().optional()', true],
+    ['z.string().nullish()', true],
+    ["z.string().default('x')", true],
+    ["z.string().catch('x')", true],
+    ['z.optional(z.string())', true],
+    ['v.optional(v.string())', true],
+    ['v.nullish(v.string())', true],
+    ["v.fallback(v.string(), 'x')", true],
+    ['v.exactOptional(v.string())', true],
+    ['optional(string())', true],
+    ['z.string().optional() as z.ZodString', true],
+    ["z.enum(['default', 'strict'])", false],
+    ["z.enum(['optional', 'nullish'])", false],
+    ["z.string().describe('may be undefined')", false],
+    ["z.string().describe('has a default')", false],
+    ["z.literal('optional')", false],
+    ["z.string().refine((v) => v !== 'default')", false],
+    ['v.pipe(v.string(), v.url())', false],
+    ['z.string().optional().min(1)', false],
+    ['z.string()', false],
+  ])('reads optionality of %s from the outermost call: %s', (value, optional) => {
+    expect(optionalOf(value)).toBe(optional);
+  });
+
+  it("reads an arktype 'key?' as an optional key named without the question mark", () => {
+    const source = `export const runtimeConfigSchema = type({ a: 'string', 'b?': 'string', "c?": 'number', d: 'string | undefined', 'e-f?': 'string' });`;
+    expect(schemaKeys(source, 'schema.ts', 'runtime')).toEqual([
+      { name: 'a', optional: false },
+      { name: 'b', optional: true },
+      { name: 'c', optional: true },
+      { name: 'd', optional: false },
+      { name: 'e-f', optional: true },
+    ]);
+  });
+
+  it("does not add an arktype key that exists as 'key?'", () => {
+    const source = `export const runtimeConfigSchema = type({\n  'GTM_ID?': 'string',\n});\n`;
+    expect(run(source, 'schema.ts', { schema: "'string'" })).toBe(source);
+  });
+
+  it('returns undefined when the file has no such object', () => {
+    expect(schemaKeys('export const x = 1;', 'env.ts', 'server')).toBeUndefined();
+    expect(schemaKeys('export const x = 1;', 'schema.ts', 'runtime')).toBeUndefined();
+  });
+});
+
+describe('dotenvKeys', () => {
+  it('reads variable names, skipping comments, blanks and export prefixes', () => {
+    expect(dotenvKeys('# A=1\n\nB=2\nexport C = 3\n  D=\nnot a line\n')).toEqual(['B', 'C', 'D']);
+    expect(dotenvKeys('')).toEqual([]);
+  });
+});
+
+describe('addTurboEnv', () => {
+  const turbo = '{\n  "tasks": {\n    "build": { "dependsOn": ["^build"] }\n  }\n}\n';
+
+  it('adds globalEnv in place, leaving the rest of the file as it was', () => {
+    const once = addTurboEnv(turbo, 'turbo.json', 'API_ORIGIN');
+    expect(once).toBe(
+      '{\n  "tasks": {\n    "build": { "dependsOn": ["^build"] }\n  },\n  "globalEnv": ["API_ORIGIN"]\n}\n',
+    );
+    const twice = addTurboEnv(once, 'turbo.json', 'OTHER');
+    expect(twice).toContain('"globalEnv": ["API_ORIGIN", "OTHER"]');
+    expect(twice.startsWith(turbo.slice(0, -3))).toBe(true);
+    expect(addTurboEnv(twice, 'turbo.json', 'OTHER')).toBe(twice);
+  });
+
+  it('works on an empty object and keeps a tab indent', () => {
+    expect(addTurboEnv('{}\n', 'turbo.json', 'A')).toBe('{\n  "globalEnv": ["A"]\n}\n');
+    expect(addTurboEnv('{\n\t"a": 1\n}', 'turbo.json', 'A')).toBe(
+      '{\n\t"a": 1,\n\t"globalEnv": ["A"]\n}',
+    );
+  });
+
+  it('breaks the list into lines once it no longer fits in 100 columns', () => {
+    const keys = Array.from({ length: 9 }, (_, i) => `SOME_LONG_VARIABLE_NAME_${String(i)}`);
+    const out = keys.reduce((source, key) => addTurboEnv(source, 'turbo.json', key), '{}\n');
+    expect(out).toContain('"globalEnv": [\n    "SOME_LONG_VARIABLE_NAME_0",');
+    expect(parseJsonObject('turbo.json', out).globalEnv).toEqual(keys);
+  });
+
+  it('fails with E208 on invalid JSON', () => {
+    expect(thrown(() => addTurboEnv('{', 'turbo.json', 'A')).code).toBe('MFEFLOW_E208');
   });
 });

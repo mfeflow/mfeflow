@@ -40,7 +40,7 @@ export interface InitResult extends WriteReport {
 
 export interface AddResult extends WriteReport {
   command: 'add';
-  kind: 'remote' | 'shell' | 'feature';
+  kind: 'remote' | 'shell' | 'feature' | 'env-key';
   /** What was added: an app name, or feature names. */
   added: string[];
   /** Features that were already part of the project. */
@@ -330,8 +330,8 @@ export function validateResult(value: unknown): Issue[] {
       break;
     case 'add':
       checkWrite(c, value);
-      if (!['remote', 'shell', 'feature'].includes(String(value.kind))) {
-        c.add('kind', 'must be remote, shell or feature');
+      if (!['remote', 'shell', 'feature', 'env-key'].includes(String(value.kind))) {
+        c.add('kind', 'must be remote, shell, feature or env-key');
       }
       c.texts(value, 'added', '');
       c.texts(value, 'skipped', '');

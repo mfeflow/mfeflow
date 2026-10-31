@@ -1,4 +1,4 @@
 {
   "remotes": ["catalog", "cart"],
-  "features": ["lint-oxlint", "url-factory"]
+  "features": ["lint-oxlint", "url-factory", "env-t3", "testing"]
 }

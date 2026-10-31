@@ -43,7 +43,21 @@ describe('mfeflow init --local --yes --no-install', () => {
         'package.json',
         'pnpm-workspace.yaml',
         'turbo.json',
+        '.env.example',
+        'env.ts',
+        'playwright.config.ts',
+        'scripts/check-runtime-config.ts',
+        'tsconfig.json',
+        'vitest.config.ts',
+        'e2e/smoke.spec.ts',
         ...['shell', 'catalog', 'cart'].flatMap((app) => [
+          `apps/${app}/.env.example`,
+          `apps/${app}/env.ts`,
+          `apps/${app}/vitest.config.ts`,
+          `apps/${app}/src/mocks/handlers.ts`,
+          `apps/${app}/src/mocks/handlers.test.ts`,
+          `apps/${app}/src/mocks/server.ts`,
+          `apps/${app}/src/test/setup.ts`,
           `apps/${app}/mfe.json`,
           `apps/${app}/package.json`,
           `apps/${app}/rsbuild.config.ts`,
@@ -53,7 +67,12 @@ describe('mfeflow init --local --yes --no-install', () => {
           `apps/${app}/src/env.d.ts`,
           `apps/${app}/src/index.ts`,
         ]),
-        'apps/shell/public/config/runtime-config.json',
+        'apps/shell/public/config/runtime-config.dev.json',
+        'apps/shell/public/config/runtime-config.staging.json',
+        'apps/shell/public/config/runtime-config.prod.json',
+        'apps/shell/src/config/runtime.ts',
+        'apps/shell/src/config/schema.ts',
+        'apps/shell/src/pages/Home.test.tsx',
         'apps/shell/src/App.tsx',
         'apps/shell/src/pages/Home.tsx',
         'apps/shell/src/remotes/cart.tsx',
@@ -61,6 +80,8 @@ describe('mfeflow init --local --yes --no-install', () => {
         'apps/shell/src/remotes/route-table.tsx',
         'apps/catalog/src/exposed/App.tsx',
         'apps/cart/src/exposed/App.tsx',
+        'apps/catalog/src/exposed/App.test.tsx',
+        'apps/cart/src/exposed/App.test.tsx',
         ...['dev', 'staging', 'prod'].flatMap((env) => [
           `registry/envs/${env}/.gitkeep`,
           `registry/envs/${env}/catalog.json`,
@@ -86,6 +107,8 @@ describe('mfeflow init --local --yes --no-install', () => {
       'tsconfig',
       'lint-oxlint',
       'url-factory',
+      'env-t3',
+      'testing',
     ]);
     expect(await findDiverged(root, project)).toEqual([]);
 
@@ -120,6 +143,7 @@ describe('mfeflow init --local --yes --no-install', () => {
       dev: 'rsbuild dev',
       build: 'rsbuild build',
       typecheck: 'tsc --noEmit',
+      test: 'vitest run',
     });
     const workspace = await fs.readFile(path.join(root, 'pnpm-workspace.yaml'), 'utf8');
     expect(workspace).toContain('react: 19.3.1');

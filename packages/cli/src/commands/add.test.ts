@@ -64,7 +64,14 @@ describe('mfeflow add remote', () => {
     );
     const saved = await load();
     expect(saved.apps.checkout).toEqual({ kind: 'remote', path: 'apps/checkout', port: 4313 });
-    expect(Object.keys(saved.features)).toEqual(['core', 'tsconfig', 'lint-oxlint', 'url-factory']);
+    expect(Object.keys(saved.features)).toEqual([
+      'core',
+      'tsconfig',
+      'lint-oxlint',
+      'url-factory',
+      'env-t3',
+      'testing',
+    ]);
     expect(saved.files?.['apps/checkout/src/exposed/App.tsx']).toMatch(/^sha256-/);
     expect(rt.io.out.join('\n')).toContain('Added checkout (remote).');
     expect(rt.system.installs).toEqual([]);

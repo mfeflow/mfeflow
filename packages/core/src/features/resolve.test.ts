@@ -157,6 +157,81 @@ describe('resolveFeature', () => {
     expect(renderDiff(plan)).toContain('+++ b/apps/shell/src/platform/consent.ts');
   });
 
+  it('applies a part with a when only if every option it names matches', async () => {
+    const choose: FeatureManifest = {
+      name: 'validators',
+      version: '1.0.0',
+      prompts: [
+        { name: 'validator', type: 'select', choices: ['zod', 'valibot'], default: 'zod' },
+        { name: 'strict', type: 'boolean', default: false },
+      ],
+      files: [
+        { to: 'a-zod.txt', target: 'shell', content: 'z', when: { validator: 'zod' } },
+        { to: 'a-valibot.txt', target: 'shell', content: 'v', when: { validator: 'valibot' } },
+        {
+          to: 'a-both.txt',
+          target: 'shell',
+          content: 'b',
+          when: { validator: 'zod', strict: true },
+        },
+        { to: 'a-always.txt', target: 'shell', content: 'a' },
+      ],
+      dependencies: [
+        { name: 'zod', range: '4.0.0', target: 'shell', when: { validator: 'zod' } },
+        { name: 'valibot', range: '1.0.0', target: 'shell', when: { validator: 'valibot' } },
+      ],
+      scripts: [
+        { name: 'check', command: 'zod-check', target: 'shell', when: { validator: 'zod' } },
+        { name: 'check-v', command: 'v-check', target: 'shell', when: { validator: 'valibot' } },
+      ],
+      transforms: [
+        {
+          op: 'add-import',
+          file: 'src/bootstrap.tsx',
+          target: 'shell',
+          from: 'valibot',
+          named: ['x'],
+          when: { validator: 'valibot' },
+        },
+      ],
+    };
+    const run = async (options: Record<string, unknown>) => {
+      const builder = new PlanBuilder(reader());
+      await resolveFeature({ feature: local(choose), project, builder, options });
+      return builder.build();
+    };
+    const zod = await run({});
+    expect(zod.changes.map((c) => c.path)).toEqual([
+      'apps/shell/a-always.txt',
+      'apps/shell/a-zod.txt',
+      'apps/shell/package.json',
+    ]);
+    expect(zod.dependencies.map((d) => d.name)).toEqual(['zod']);
+    expect(zod.scripts.map((s) => s.name)).toEqual(['check']);
+    const valibot = await run({ validator: 'valibot', strict: true });
+    expect(valibot.changes.map((c) => c.path)).toEqual([
+      'apps/shell/a-always.txt',
+      'apps/shell/a-valibot.txt',
+      'apps/shell/package.json',
+      'apps/shell/src/bootstrap.tsx',
+    ]);
+    expect(valibot.dependencies.map((d) => d.name)).toEqual(['valibot']);
+    const strict = await run({ strict: true });
+    expect(strict.changes.map((c) => c.path)).toContain('apps/shell/a-both.txt');
+  });
+
+  it('lists a server key in turbo.json when the project has one', async () => {
+    const files = { ...tree, 'turbo.json': '{\n  "tasks": {}\n}\n' };
+    const builder = new PlanBuilder(reader(files));
+    await resolveFeature({ feature: local(analytics, assets), project, builder });
+    const turbo = builder.build().changes.find((c) => c.path === 'turbo.json');
+    expect(JSON.parse(turbo?.after ?? '{}')).toEqual({ tasks: {}, globalEnv: ['GTM_ID'] });
+
+    const noTurbo = new PlanBuilder(reader());
+    await resolveFeature({ feature: local(analytics, assets), project, builder: noTurbo });
+    expect(noTurbo.build().changes.map((c) => c.path)).not.toContain('turbo.json');
+  });
+
   it('gives templates the dev server port of the app', async () => {
     const builder = new PlanBuilder(reader());
     const feature = local(

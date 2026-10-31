@@ -19,6 +19,7 @@ pnpm dev                                    # shell on :4300, remotes on :4311, 
 | `mfeflow add remote <name>`           | New remote with its registry entries and a route in every shell                      |
 | `mfeflow add shell <name>`            | New shell that routes to every existing remote                                       |
 | `mfeflow add <feature...>`            | Add features, or `@namespace/feature` from a registry in `mfeflow.json`              |
+| `mfeflow add env-key <KEY>`           | Add a typed env key: `--scope server` (env.ts) or `runtime`, with `--schema <expr>`  |
 | `mfeflow features [search]`           | List the features you can add                                                        |
 | `mfeflow dev`                         | Run the shell and every remote, one prefixed log each; follows `add remote`          |
 | `mfeflow doctor`                      | Singletons, compatibility, config health, drift; `--fix` repairs the safe ones       |
@@ -27,8 +28,8 @@ pnpm dev                                    # shell on :4300, remotes on :4311, 
 | `mfeflow budget`                      | Built first-load JS of the shell and each remote against the cost-model budget       |
 | `mfeflow --version`, `mfeflow --help` | Version, and help with examples (`mfeflow <command> --help` for one command)         |
 
-Features that ship with it: `core` and `tsconfig` (always), `lint-oxlint` and `url-factory` (default),
-`git-hooks` (opt-in). `init` takes `--scope`, `--remotes a,b`, `--features a,b` and
+Features that ship with it: `core` and `tsconfig` (always), `lint-oxlint`, `url-factory`, `env-t3` and `testing`
+(default), `ci-github` and `git-hooks` (opt-in). `init` takes `--scope`, `--remotes a,b`, `--features a,b` and
 `--option feature.key=value`; every prompt has a flag.
 
 ## dev, doctor and the CI checks
@@ -56,7 +57,10 @@ when there are no errors, else with the lowest exit code among the errors' range
 | remote ranges fit the shell           | E302           |                               |
 | copied files match their hash         | E117 (warning) |                               |
 | runtime plugins import nothing shared | E303           |                               |
-| env files match the schema            | decision 0020  | skipped until `env-t3` exists |
+| `.env.example` matches `env.ts`       | E118 (warning) | skipped until `env-t3` exists |
+| runtime-config files match the schema | E119           |                               |
+| no `PUBLIC_*` variable but constants  | E120 (warning) |                               |
+| server keys listed in `turbo.json`    | E121 (warning) |                               |
 
 `validate` runs the schema and registry checks, `check-compat` the compatibility check, `budget` reads the build output
 (`dist/`): each remote's entry against `budget.remoteKb` (10), a route against `mfe.json` `budgets.initialJsKb`, and the

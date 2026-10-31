@@ -6,6 +6,10 @@ import { MfeflowError, type MfeflowProject } from '@mfeflow/core';
 export const PLACEHOLDER_RANGE = 'latest';
 
 const PREFIX = '@mfeflow/';
+const CLI = 'mfeflow';
+
+/** The packages mfeflow publishes: everything under `@mfeflow/`, and the CLI itself. */
+const isOwn = (name: string) => name === CLI || name.startsWith(PREFIX);
 
 function posix(file: string): string {
   return file.split(path.sep).join('/');
@@ -37,7 +41,7 @@ function readName(dir: string): { name: string; built: boolean } | undefined {
   return { name: pkg.name, built: !needsBuild || fs.existsSync(path.join(dir, 'dist')) };
 }
 
-/** The `@mfeflow/*` packages of a checkout, by name. */
+/** The `@mfeflow/*` packages of a checkout, and the `mfeflow` CLI, by name. */
 export function scanCheckout(checkout: string): Map<string, LocalPackage> {
   const packages = path.join(checkout, 'packages');
   if (!fs.existsSync(packages)) {
@@ -48,13 +52,13 @@ export function scanCheckout(checkout: string): Map<string, LocalPackage> {
     if (!entry.isDirectory()) continue;
     const dir = path.join(packages, entry.name);
     const info = readName(dir);
-    if (info?.name.startsWith(PREFIX)) found.set(info.name, { dir, built: info.built });
+    if (info && isOwn(info.name)) found.set(info.name, { dir, built: info.built });
   }
   return found;
 }
 
 /**
- * Turns the placeholder range of an `@mfeflow/*` dependency into the range the
+ * Turns the placeholder range of an `@mfeflow/*` (or `mfeflow`) dependency into the range the
  * project should install: `link:<checkout>/packages/<name>` with `--local`, else `^<version>`.
  */
 export function createRangeRewriter(
@@ -72,7 +76,7 @@ export function createRangeRewriter(
     }
   }
   return (name, range) => {
-    if (!name.startsWith(PREFIX) || range !== PLACEHOLDER_RANGE) return undefined;
+    if (!isOwn(name) || range !== PLACEHOLDER_RANGE) return undefined;
     if (!packages) return `^${version}`;
     const found = packages.get(name);
     if (!found) throw new MfeflowError('E110', `${name} is not in ${local ?? ''}/packages`);

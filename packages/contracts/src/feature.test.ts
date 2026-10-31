@@ -117,6 +117,44 @@ describe('feature.json', () => {
     ]);
   });
 
+  it('accepts a group, an app name and app:<name> as a target, and rejects app: alone', () => {
+    const files = (target: string) => [{ to: 'a', content: 'x', target }];
+    for (const target of ['root', 'shell', 'remotes', 'cart', 'app:shell', 'app:cart']) {
+      expect(paths({ ...feature, files: files(target) }), target).toEqual([]);
+    }
+    for (const target of ['app:', 'app:Cart', 'app:a-b']) {
+      expect(paths({ ...feature, files: files(target) }), target).toEqual(['files[0].target']);
+    }
+  });
+
+  it('accepts a when on every kind of part and rejects a malformed one', () => {
+    const when = { validator: 'zod', strict: true };
+    expect(
+      validateFeatureManifest({
+        ...feature,
+        files: [{ to: 'a', content: 'x', when }],
+        dependencies: [{ name: 'zod', range: '1.0.0', when }],
+        scripts: [{ name: 'a', command: 'b', when }],
+        transforms: [{ op: 'add-import', file: 'a.ts', from: 'x', when }],
+      }),
+    ).toEqual([]);
+    expect(
+      paths({
+        ...feature,
+        files: [{ to: 'a', content: 'x', when: {} }],
+        dependencies: [{ name: 'zod', range: '1.0.0', when: 'zod' }],
+        scripts: [{ name: 'a', command: 'b', when: { 'not valid': 'x', ok: 3 } }],
+        transforms: [{ op: 'add-import', file: 'a.ts', from: 'x', when: { v: null } }],
+      }),
+    ).toEqual([
+      'files[0].when',
+      'dependencies[0].when',
+      'scripts[0].when',
+      'scripts[0].when.ok',
+      'transforms[0].when.v',
+    ]);
+  });
+
   it('rejects an unknown op and names the built-in ones', () => {
     const issues = validateFeatureManifest({
       ...feature,

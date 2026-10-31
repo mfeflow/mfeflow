@@ -100,4 +100,27 @@ describe('@mfeflow/oxlint-config', () => {
       .map((line) => line.replace(/^.*?([\w.-]+):(\d+):\d+:.*$/, '$1:$2'));
     expect(flagged.toSorted((a, b) => a.localeCompare(b))).toEqual(['x.ts:1', 'x.ts:2']);
   }, 60_000);
+
+  it('allows only CSS and the ./env check as side-effect imports', () => {
+    const dir = path.join(tmp, 'unassigned');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, '.oxlintrc.json'),
+      JSON.stringify({ extends: ['../../oxlintrc.json'] }),
+    );
+    fs.writeFileSync(
+      path.join(dir, 'x.ts'),
+      "import './env';\nimport './styles.css';\nimport './polyfill';\nexport {};\n",
+    );
+    const r = spawnSync(
+      process.execPath,
+      [oxlint, '--no-ignore', '-c', path.join(dir, '.oxlintrc.json'), path.join(dir, 'x.ts')],
+      { encoding: 'utf8', cwd: dir },
+    );
+    const flagged = (r.stdout + r.stderr)
+      .split('\n')
+      .filter((line) => line.includes('no-unassigned-import'))
+      .map((line) => line.replace(/^.*?([\w.-]+):(\d+):\d+:.*$/, '$1:$2'));
+    expect(flagged).toEqual(['x.ts:3']);
+  }, 60_000);
 });
