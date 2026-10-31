@@ -85,9 +85,9 @@ export interface InitOptions {
 }
 
 /** `@` plus the folder name made safe for an npm scope. */
-export function scopeFor(dir: string): string {
+export function scopeFor(dir: string, cwd: string = process.cwd()): string {
   const name = path
-    .basename(path.resolve(dir))
+    .basename(path.resolve(cwd, dir))
     .toLowerCase()
     .replaceAll(/[^a-z0-9-._]+/g, '-')
     .replaceAll(/^[^a-z0-9]+|[^a-z0-9]+$/g, '');
@@ -158,10 +158,10 @@ export async function resolveInitOptions(
     (canPrompt
       ? await prompter.text({
           message: 'npm scope for your packages',
-          initialValue: scopeFor(dir),
+          initialValue: scopeFor(dir, globals.cwd),
           validate: (v) => (SCOPE.test(v) ? undefined : 'Use a scope like @my-org'),
         })
-      : scopeFor(dir));
+      : scopeFor(dir, globals.cwd));
   if (!SCOPE.test(scope)) {
     throw new MfeflowError('E107', `--scope "${scope}" must look like @my-org`);
   }

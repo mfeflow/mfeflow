@@ -229,6 +229,18 @@ describe('mfeflow init', () => {
     expect(scopeFor('---')).toBe('@app');
   });
 
+  it('takes the default scope from the --cwd folder when the target is "."', async () => {
+    const cwd = await workspace();
+    const project = path.join(cwd, 'My Shop');
+    await fs.mkdir(project);
+    expect(scopeFor('.', project)).toBe('@my-shop');
+    expect(
+      await main(['init', '.', '--yes', '--no-install', '--cwd', project], testRuntime()),
+    ).toBe(0);
+    const saved = parseProject(await fs.readFile(path.join(project, 'mfeflow.json'), 'utf8'));
+    expect(saved.scope).toBe('@my-shop');
+  });
+
   it('replays a preset, and lets flags override it', async () => {
     const cwd = await workspace();
     await fs.writeFile(
