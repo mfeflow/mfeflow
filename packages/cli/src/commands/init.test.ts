@@ -5,7 +5,7 @@ import { validateMfeflowProject, validateMfeManifest } from '@mfeflow/contracts'
 import { parseProject } from '@mfeflow/core';
 import { main, validateResult, type InitResult } from '..';
 import { REPO, readTree, removeDir, scriptedPrompter, tempDir, testRuntime } from '../testing';
-import { scopeFor } from './init';
+import { assertEmpty, scopeFor } from './init';
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -265,6 +265,28 @@ describe('mfeflow init', () => {
     expect(await main(['init', 'app', '--yes', '--cwd', cwd], rt)).toBe(3);
     expect(rt.io.err.join('\n')).toContain('MFEFLOW_E108');
     expect(await fs.readdir(path.join(cwd, 'app'))).toEqual(['notes.txt']);
+  });
+
+  it('says a file in the way is not a folder (E108)', async () => {
+    const cwd = await workspace();
+    await fs.writeFile(path.join(cwd, 'app'), 'a file');
+    const rt = testRuntime();
+    expect(await main(['init', 'app', '--yes', '--cwd', cwd], rt)).toBe(3);
+    expect(rt.io.err.join('\n')).toContain('MFEFLOW_E108');
+    expect(rt.io.err.join('\n')).toContain('is not a folder');
+    expect(await fs.readFile(path.join(cwd, 'app'), 'utf8')).toBe('a file');
+  });
+
+  it('reads a missing folder as empty, and names any other failure (E106)', async () => {
+    const failing = (code: string) => () =>
+      Promise.reject(Object.assign(new Error(`${code}: nope`), { code }));
+    await expect(assertEmpty('/x/new', failing('ENOENT'))).resolves.toBeUndefined();
+    await expect(assertEmpty('/x/file/new', failing('ENOTDIR'))).rejects.toMatchObject({
+      code: 'MFEFLOW_E108',
+    });
+    await expect(assertEmpty('/x/locked', failing('EACCES'))).rejects.toThrow(
+      /could not be read or written.*\/x\/locked.*EACCES/s,
+    );
   });
 
   it.each([

@@ -1,7 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
+  hasErrno,
   inOrder,
+  messageOf,
   MfeflowError,
   resolveFeature,
   type LoadedFeature,
@@ -196,12 +198,23 @@ export async function resolveInitOptions(
   return { dir, scope, remotes, features, featureOptions };
 }
 
-async function assertEmpty(root: string): Promise<void> {
+export async function assertEmpty(
+  root: string,
+  readdir: (dir: string) => Promise<string[]> = fs.readdir,
+): Promise<void> {
   let entries: string[];
   try {
-    entries = await fs.readdir(root);
-  } catch {
-    return;
+    entries = await readdir(root);
+  } catch (error) {
+    if (hasErrno(error, 'ENOENT')) return;
+    if (hasErrno(error, 'ENOTDIR')) {
+      throw new MfeflowError('E108', `${root} is not a folder, or part of its path is a file`, {
+        cause: error,
+      });
+    }
+    throw new MfeflowError('E106', `could not look inside ${root} (${messageOf(error)})`, {
+      cause: error,
+    });
   }
   if (entries.length > 0) {
     const shown = entries.slice(0, 3).join(', ');
