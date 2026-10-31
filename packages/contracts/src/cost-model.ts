@@ -35,7 +35,8 @@ export interface CostVerdict {
   remotes: (CostLine & { name: string })[];
 }
 
-const round1 = (value: number): number => Math.round(value * 10) / 10;
+/** Rounds to one decimal, the precision sizes are judged and shown at. */
+export const round1 = (value: number): number => Math.round(value * 10) / 10;
 
 const line = (actual: number, budget: number): CostLine => ({
   budget,

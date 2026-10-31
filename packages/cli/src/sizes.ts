@@ -1,10 +1,11 @@
 import path from 'node:path';
 import zlib from 'node:zlib';
 import fs from 'node:fs/promises';
+import { assetsFromManifest, round1 } from '@mfeflow/contracts';
 import { readText } from './inspect';
 
-const KB = 1024;
-export const kb = (bytes: number): number => Math.round((bytes / KB) * 10) / 10;
+export const KB = 1024;
+export const kb = (bytes: number): number => round1(bytes / KB);
 
 /** Gzip size at level 6, what a CDN sends. Undefined when the file is not there. */
 export async function gzipBytes(file: string): Promise<number | undefined> {
@@ -48,6 +49,18 @@ export interface RemoteSize {
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 
+const ORIGIN = 'http://dist.invalid';
+const SCRIPT = /\.[cm]?js$/;
+
+/** A file inside dist from the URL `assetsFromManifest` resolved it to. */
+function distPath(url: string): string | undefined {
+  try {
+    return decodeURIComponent(new URL(url).pathname).replace(/^\//, '');
+  } catch {
+    return undefined;
+  }
+}
+
 /** Entry script and each expose's synchronous JS, read from the remote's `mf-manifest.json`. */
 export async function remoteSizes(dist: string): Promise<RemoteSize | undefined> {
   const text = await readText(path.join(dist, 'mf-manifest.json'));
@@ -61,19 +74,33 @@ export async function remoteSizes(dist: string): Promise<RemoteSize | undefined>
   if (!isObj(manifest) || !isObj(manifest.metaData) || !isObj(manifest.metaData.remoteEntry)) {
     return undefined;
   }
-  const { name, path: dir } = manifest.metaData.remoteEntry;
-  if (typeof name !== 'string') return undefined;
-  const entry = path.posix.join(typeof dir === 'string' ? dir : '', name);
+  // Sizes come from the files on disk, whatever the manifest says about where they are served.
+  const local = {
+    ...manifest,
+    metaData: {
+      ...manifest.metaData,
+      publicPath: 'auto',
+      getPublicPath: undefined,
+      globalName: undefined,
+      remoteEntry: { ...manifest.metaData.remoteEntry, type: undefined },
+    },
+  };
+  let assets;
+  try {
+    assets = assetsFromManifest(local, `${ORIGIN}/mf-manifest.json`);
+  } catch {
+    return undefined;
+  }
+  const entry = assets.remoteEntry === undefined ? undefined : distPath(assets.remoteEntry);
+  if (entry === undefined) return undefined;
   const entryBytes = await gzipBytes(path.join(dist, ...entry.split('/')));
   if (entryBytes === undefined) return undefined;
   const exposes: Record<string, number> = {};
-  for (const item of Array.isArray(manifest.exposes) ? manifest.exposes : []) {
-    if (!isObj(item) || typeof item.path !== 'string') continue;
-    const js = isObj(item.assets) && isObj(item.assets.js) ? item.assets.js.sync : [];
-    const files = Array.isArray(js) ? js.filter((f): f is string => typeof f === 'string') : [];
+  for (const [name, urls] of Object.entries(assets.exposes)) {
+    const files = urls.flatMap((url) => distPath(url) ?? []).filter((f) => SCRIPT.test(f));
     // oxlint-disable-next-line no-await-in-loop -- a few exposes
     const bytes = await sumGzip(dist, files);
-    if (bytes !== undefined) exposes[item.path] = bytes;
+    if (bytes !== undefined) exposes[name] = bytes;
   }
   return { entryBytes, exposes };
 }

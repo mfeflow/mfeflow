@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COST_MODEL, judgeCost, splitScripts } from './cost-model';
+import { COST_MODEL, judgeCost, round1, splitScripts } from './cost-model';
 
 const KB = 1024;
 
@@ -76,5 +76,14 @@ describe('splitScripts', () => {
 
   it('is empty for no requests', () => {
     expect(splitScripts([])).toEqual({ shellBytes: 0, remoteBytes: {} });
+  });
+});
+
+describe('round1', () => {
+  it('rounds to one decimal', () => {
+    expect(round1(1.04)).toBe(1);
+    expect(round1(1.05)).toBe(1.1);
+    expect(round1(-0.26)).toBe(-0.3);
+    expect(round1(12)).toBe(12);
   });
 });

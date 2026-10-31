@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { COST_MODEL, type CostModel } from '@mfeflow/contracts';
+import { COST_MODEL, judgeCost, round1, type CostModel } from '@mfeflow/contracts';
 import { findProjectRoot } from '@mfeflow/core';
 import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals } from '../args';
@@ -8,7 +8,7 @@ import { inspectProject, type AppView, type ProjectView } from '../inspect';
 import type { BudgetResult, RemoteBudget, ShellBudget } from '../output';
 import { exitForFindings } from '../report';
 import type { Runtime } from '../runtime';
-import { kb, remoteSizes, shellInitial } from '../sizes';
+import { KB, kb, remoteSizes, shellInitial } from '../sizes';
 
 export const BUDGET_ARGS = {
   dist: {
@@ -45,7 +45,18 @@ async function shellBudget(
   }
   const initialKb = kb(size.bytes);
   const budgetKb = baselineKb === undefined ? null : baselineKb + model.shellKb;
-  const pass = budgetKb === null ? null : initialKb <= budgetKb;
+  const pass =
+    baselineKb === undefined
+      ? null
+      : judgeCost(
+          {
+            shellBytes: size.bytes,
+            monolithBytes: baselineKb * KB,
+            remoteBytes: {},
+            lcpDeltaMs: 0,
+          },
+          model,
+        ).shell.pass;
   if (pass === false) {
     out.push(
       finding(
@@ -78,7 +89,15 @@ async function remoteBudget(
     return undefined;
   }
   const entryKb = kb(size.entryBytes);
-  const pass = entryKb <= model.remoteKb;
+  const pass = judgeCost(
+    {
+      shellBytes: 0,
+      monolithBytes: 0,
+      remoteBytes: { [app.name]: size.entryBytes },
+      lcpDeltaMs: 0,
+    },
+    model,
+  ).remotes.every((r) => r.pass);
   if (!pass) {
     out.push(
       finding(
@@ -94,7 +113,9 @@ async function remoteBudget(
   const exposeNames = Object.keys(size.exposes);
   const expose = exposeNames.includes('./App') ? './App' : exposeNames[0];
   const routes = (own?.routes ?? []).map((route) => {
-    const total = kb(size.entryBytes + (expose === undefined ? 0 : (size.exposes[expose] ?? 0)));
+    const total = round1(
+      (size.entryBytes + (expose === undefined ? 0 : (size.exposes[expose] ?? 0))) / KB,
+    );
     const routePass = budgetKb === null ? null : total <= budgetKb;
     if (routePass === false) {
       out.push(
