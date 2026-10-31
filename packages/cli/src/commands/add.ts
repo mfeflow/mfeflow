@@ -4,7 +4,6 @@ import {
   loadProject,
   MfeflowError,
   resolveFeature,
-  resolveOptions,
   type LoadedFeature,
   type MfeflowProject,
   type Plan,
@@ -326,7 +325,6 @@ async function addFeatures(
   const builder = createBuilder(root, chosen.checkout);
   await inOrder(loaded, async (feature) => {
     const given = await askOptions(rt, feature, options[feature.manifest.name] ?? {}, canPrompt);
-    resolveOptions(feature.manifest, given);
     await resolveFeature({ feature, project, builder, options: given, alsoAdding: adding });
   });
   const plan = builder.build();
