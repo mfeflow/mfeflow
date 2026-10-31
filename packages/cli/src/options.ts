@@ -34,3 +34,18 @@ export function mergeOptions(earlier: FeatureOptions, later: FeatureOptions): Fe
   }
   return out;
 }
+
+/** Options for a feature that is not part of this run are a typo or a stale preset, not something to ignore. */
+export function assertOptionsAreForFeatures(
+  options: FeatureOptions,
+  features: readonly string[],
+): void {
+  for (const feature of Object.keys(options)) {
+    if (!features.includes(feature)) {
+      throw new MfeflowError(
+        'E214',
+        `options given for "${feature}", which is not one of the features in this run (${features.join(', ')})`,
+      );
+    }
+  }
+}

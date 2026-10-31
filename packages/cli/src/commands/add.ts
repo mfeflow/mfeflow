@@ -14,7 +14,12 @@ import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals, repeated, text, type Globals } from '../args';
 import { loadAny, OPTIONAL_FEATURES } from '../catalog';
 import { assertAppName, freePort, partsForApp, remoteGlue, REMOTE_PORT, SHELL_PORT } from '../glue';
-import { mergeOptions, parseFeatureOptions, type FeatureOptions } from '../options';
+import {
+  assertOptionsAreForFeatures,
+  mergeOptions,
+  parseFeatureOptions,
+  type FeatureOptions,
+} from '../options';
 import { planReport, type AddResult } from '../output';
 import { chooseLocal } from '../local';
 import { createBuilder } from '../pipeline';
@@ -304,6 +309,7 @@ async function addFeatures(
     };
   }
 
+  assertOptionsAreForFeatures(options, adding);
   const loaded = await Promise.all(
     adding.map((name) =>
       loadAny(name, { roots: rt.roots, registries: project.registries, fetch: rt.fetch }),

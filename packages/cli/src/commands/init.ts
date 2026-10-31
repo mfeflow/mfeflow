@@ -25,7 +25,12 @@ import {
   OPTIONAL_FEATURES,
 } from '../catalog';
 import { assertAppName, remoteGlue, REMOTE_PORT, SHELL_PORT } from '../glue';
-import { mergeOptions, parseFeatureOptions, type FeatureOptions } from '../options';
+import {
+  assertOptionsAreForFeatures,
+  mergeOptions,
+  parseFeatureOptions,
+  type FeatureOptions,
+} from '../options';
 import { planReport, type InitResult } from '../output';
 import { chooseLocal } from '../local';
 import { createBuilder } from '../pipeline';
@@ -261,6 +266,7 @@ export async function runInit(
   const { project } = chosen;
   const builder = createBuilder(root, chosen.checkout);
   const names = ['core', 'tsconfig', ...options.features];
+  assertOptionsAreForFeatures(options.featureOptions, names);
   const loaded: LoadedFeature[] = await Promise.all(
     names.map((name) => loadAny(name, { roots: rt.roots })),
   );

@@ -334,6 +334,7 @@ describe('mfeflow init', () => {
     ['a badly named remote', ['--remotes', 'My-App'], 2, 'MFEFLOW_E215'],
     ['an unknown feature', ['--features', 'analytics-gtm'], 4, 'MFEFLOW_E201'],
     ['an option nothing declares', ['--option', 'core.nothing=1'], 4, 'MFEFLOW_E214'],
+    ['an option for a feature not in this run', ['--option', 'git-hooks.x=1'], 4, 'MFEFLOW_E214'],
     ['a malformed option', ['--option', 'nothing'], 2, 'MFEFLOW_E107'],
     ['a missing preset', ['--preset', 'nope.json'], 3, 'MFEFLOW_E109'],
   ])('rejects %s without writing anything', async (_name, flags, code, error) => {

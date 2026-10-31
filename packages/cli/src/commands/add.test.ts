@@ -291,6 +291,14 @@ describe('mfeflow add <feature>', () => {
     expect((await add(['git-hooks', '--preset', 'missing.json'])).code).toBe(3);
   });
 
+  it('rejects an option for a feature that is not being added (E214)', async () => {
+    const before = await readTree(project);
+    const { code, rt } = await add(['git-hooks', '--option', 'git-hook.x=1']);
+    expect(code).toBe(4);
+    expect(rt.io.err.join('\n')).toContain('MFEFLOW_E214');
+    expect(await readTree(project)).toEqual(before);
+  });
+
   it('rejects flags it does not know', async () => {
     expect((await add(['git-hooks', '--frobnicate'])).code).toBe(2);
   });
