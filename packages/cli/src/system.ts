@@ -15,10 +15,35 @@ export type Run = (
   options: { cwd: string; onOutput?: (chunk: string) => void },
 ) => Promise<RunResult>;
 
+/**
+ * Variables git sets for hooks (and users set by hand) that point git at one particular
+ * repository. A child that inherits them works on that repository instead of its own folder:
+ * `git init` in a new project, run from a pre-push hook in a worktree, turns the outer
+ * repository bare.
+ */
+const REPO_VARIABLES = [
+  'GIT_DIR',
+  'GIT_WORK_TREE',
+  'GIT_INDEX_FILE',
+  'GIT_COMMON_DIR',
+  'GIT_OBJECT_DIRECTORY',
+  'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+  'GIT_PREFIX',
+  'GIT_NAMESPACE',
+];
+
+/** `env` without the variables that would bind a child's git to another repository. */
+export function isolatedEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const copy = { ...env };
+  for (const name of REPO_VARIABLES) delete copy[name];
+  return copy;
+}
+
 export const run: Run = (command, args, options) =>
   new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
+      env: isolatedEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],
       // pnpm is a .cmd file on Windows and needs a shell; a full path to an executable does not.
       shell: process.platform === 'win32' && !path.isAbsolute(command),

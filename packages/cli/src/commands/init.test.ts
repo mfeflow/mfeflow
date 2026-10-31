@@ -6,6 +6,7 @@ import { validateMfeflowProject, validateMfeManifest } from '@mfeflow/contracts'
 import { parseProject } from '@mfeflow/core';
 import { main, validateResult, type InitResult } from '..';
 import { REPO, readTree, removeDir, scriptedPrompter, tempDir, testRuntime } from '../testing';
+import { isolatedEnv } from '../system';
 import { assertEmpty, scopeFor } from './init';
 
 const dirs: string[] = [];
@@ -99,10 +100,13 @@ describe('mfeflow init', () => {
       0,
     );
     const project = path.join(cwd, 'app');
-    execFileSync('git', ['init', '-q'], { cwd: project });
+    execFileSync('git', ['init', '-q'], { cwd: project, env: isolatedEnv() });
     const ignored = (file: string) => {
       try {
-        execFileSync('git', ['check-ignore', '-q', '--no-index', file], { cwd: project });
+        execFileSync('git', ['check-ignore', '-q', '--no-index', file], {
+          cwd: project,
+          env: isolatedEnv(),
+        });
         return true;
       } catch {
         return false;
