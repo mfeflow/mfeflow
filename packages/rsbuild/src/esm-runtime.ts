@@ -1,0 +1,77 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import type { RsbuildPlugin } from '@rsbuild/core';
+
+const CJS_FILE = /\.cjs$/;
+/** A relative (`./x`, `../x`) or absolute request; anything else is a package specifier. */
+const PATH_REQUEST = /^(?:\.\.?(?:[\\/]|$)|[\\/]|[A-Za-z]:[\\/])/;
+const MF_DIST = /[\\/]@module-federation[\\/][^\\/]+[\\/]dist[\\/]/;
+
+/** True for a CommonJS build inside an `@module-federation/*` package's `dist`. */
+export function isMfCjs(file: string): boolean {
+  return CJS_FILE.test(file) && MF_DIST.test(file);
+}
+
+/** `value` with the first `from` replaced by `to`, taken literally (no `$&` or `$1` expansion). */
+export function swapPath(value: string, from: string, to: string): string {
+  return value.replace(from, () => to);
+}
+
+/**
+ * The ESM twin of a Module Federation `.cjs` file: the same name ending in
+ * `.js` or `.mjs` in the same directory. Throws if there is none, so a new
+ * Module Federation release that drops the twin fails the build instead of
+ * quietly shipping the CommonJS runtime again.
+ */
+export function esmTwin(file: string, exists: (f: string) => boolean = fs.existsSync): string {
+  const twin = [file.replace(/\.cjs$/, '.js'), file.replace(/\.cjs$/, '.mjs')].find((f) =>
+    exists(f),
+  );
+  if (twin === undefined) {
+    throw new Error(
+      `@mfeflow/rsbuild: no ESM build next to ${file}. Set esmRuntime: false to keep the CommonJS runtime.`,
+    );
+  }
+  return twin;
+}
+
+/**
+ * Rspack resolves the Module Federation runtime with `require.resolve`, which
+ * bundles the CommonJS builds of sdk, runtime-core and bundler-runtime. Nothing
+ * in those tree-shakes (spike: shell 34.9 → 29.4 KB gzip, remote entry 13.7 →
+ * 7.7 KB). This plugin points them at their ESM twins.
+ */
+export function pluginMfEsmRuntime(): RsbuildPlugin {
+  return {
+    name: 'mfeflow:mf-esm-runtime',
+    setup(api) {
+      api.modifyRspackConfig((config, { rspack }) => {
+        // A `.cjs` is parsed as `javascript/dynamic` (no `export`). A bare request only resolves to its
+        // `.cjs` after rule matching, so the module keeps that type when swapped; make it accept ESM.
+        config.module ??= {};
+        config.module.rules ??= [];
+        config.module.rules.push({ test: CJS_FILE, include: MF_DIST, type: 'javascript/auto' });
+        config.plugins ??= [];
+        config.plugins.push(
+          new rspack.NormalModuleReplacementPlugin(CJS_FILE, (data) => {
+            const created = data.createData;
+            if (created?.resource !== undefined && isMfCjs(created.resource)) {
+              const cjs = created.resource;
+              const esm = esmTwin(cjs);
+              // The loader-prefixed request and the user request name the module, so they move with the resource.
+              for (const key of ['request', 'userRequest', 'resource'] as const) {
+                const value = created[key];
+                if (typeof value === 'string') created[key] = swapPath(value, cjs, esm);
+              }
+            } else if (PATH_REQUEST.test(data.request)) {
+              // Before resolving, so rule matching sees the ESM file; relative requests are resolved against the importer.
+              // Bare requests are left to the resolved-resource branch above.
+              const target = path.resolve(data.context ?? '', data.request);
+              if (isMfCjs(target)) data.request = esmTwin(target);
+            }
+          }),
+        );
+      });
+    },
+  };
+}

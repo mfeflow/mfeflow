@@ -1,8 +1,11 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import type { RsbuildConfig } from '@rsbuild/core';
+import { parse } from 'es-module-lexer/js';
 import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginModuleFederation } from '@module-federation/rsbuild-plugin';
+import { pluginMfEsmRuntime } from './esm-runtime.js';
 import {
   installedVersionFrom,
   resolvableFrom,
@@ -10,6 +13,7 @@ import {
   type SharedConfig,
 } from './shared.js';
 
+export { esmTwin, isMfCjs, pluginMfEsmRuntime } from './esm-runtime.js';
 export {
   DEFAULT_SINGLETONS,
   installedVersionFrom,
@@ -39,8 +43,21 @@ export interface RemoteOptions {
   shared?: readonly string[];
   /** Generate types for the shell (`@mf-types.zip`). Default true. */
   types?: boolean;
+  /**
+   * Set when this remote loads other remotes. By default remote code for
+   * consuming remotes is stripped from the build (smaller entry).
+   */
+  consumesRemotes?: boolean;
+  /** Swap the CommonJS Module Federation runtime for its ESM build. Default true. */
+  esmRuntime?: boolean;
   /** App directory. Default `process.cwd()`. */
   cwd?: string;
+}
+
+export interface FederationOptimization {
+  disableRemote?: true;
+  disableSnapshot?: true;
+  target?: 'web';
 }
 
 export interface FederationOptions {
@@ -56,7 +73,11 @@ export interface FederationOptions {
         consumeTypes: false | { typesOnBuild: true; abortOnError: boolean };
       };
   runtimePlugins?: string[];
-  experiments: { externalRuntime?: true; provideExternalRuntime?: true };
+  experiments: {
+    externalRuntime?: true;
+    provideExternalRuntime?: true;
+    optimization: FederationOptimization;
+  };
 }
 
 /** Module Federation options for a remote. Exported for tests and custom setups. */
@@ -74,8 +95,14 @@ export function remoteFederationOptions(
     shared: sharedSingletons(canResolve, o.shared, versionOf),
     manifest: true,
     dts: o.types === false ? false : { generateTypes: true, consumeTypes: false },
-    // The shell provides the Module Federation runtime; remotes do not bundle their own (spike: 119 KB → 54 KB entry).
-    experiments: { externalRuntime: true },
+    // The shell provides the Module Federation runtime; remotes do not bundle their own.
+    experiments: {
+      externalRuntime: true,
+      optimization: {
+        target: 'web',
+        ...(o.consumesRemotes === true ? {} : { disableRemote: true as const }),
+      },
+    },
   };
 }
 
@@ -85,6 +112,7 @@ export function createRemoteConfig(o: RemoteOptions): RsbuildConfig {
   return {
     plugins: [
       pluginReact(),
+      ...(o.esmRuntime === false ? [] : [pluginMfEsmRuntime()]),
       pluginModuleFederation(
         remoteFederationOptions(o, resolvableFrom(cwd), installedVersionFrom(cwd)),
       ),
@@ -108,8 +136,33 @@ export interface ShellOptions {
   typesFrom?: Readonly<Record<string, string>>;
   /** More Module Federation runtime plugins (absolute paths). Must not import shared modules. */
   runtimePlugins?: readonly string[];
+  /** Swap the CommonJS Module Federation runtime for its ESM build. Default true. */
+  esmRuntime?: boolean;
+  /**
+   * Ship shared singletons in the initial chunk so the shell needs no async
+   * bootstrap boundary. Default true. With `false` the singletons load
+   * asynchronously, so the entry (`src/index.ts`) must only `import('./bootstrap')`;
+   * a synchronous bootstrap fails at runtime with "Shared module is not available
+   * for eager consumption". `createShellConfig` throws when the entry has no
+   * dynamic `import()`.
+   */
+  eager?: boolean;
+  /**
+   * Keep the manifest/snapshot loader. Default: only in non-production builds,
+   * where dev overrides point at a local remote's manifest. Production shells
+   * register remote entry URLs and need no snapshot code, so the runtime
+   * refuses (and reports `MFE_NO_REMOTE_ENTRY` for) a registry entry that has
+   * only a manifest URL. Pass `snapshot: true` while publishing does not yet
+   * write `remoteEntry`.
+   */
+  snapshot?: boolean;
   cwd?: string;
   env?: Readonly<Record<string, string | undefined>>;
+}
+
+/** Whether the shell keeps the manifest/snapshot loader. */
+export function snapshotEnabled(o: Pick<ShellOptions, 'snapshot' | 'env'>): boolean {
+  return o.snapshot ?? (o.env ?? process.env).NODE_ENV !== 'production';
 }
 
 /** Module Federation options for a shell. Exported for tests and custom setups. */
@@ -120,7 +173,9 @@ export function shellFederationOptions(
   versionOf?: (s: string) => string | undefined,
 ): FederationOptions {
   checkName(o.name);
-  const typesBuild = (o.env ?? process.env).MFEFLOW_TYPES === '1' && o.typesFrom !== undefined;
+  const env = o.env ?? process.env;
+  const typesBuild = env.MFEFLOW_TYPES === '1' && o.typesFrom !== undefined;
+  const snapshot = snapshotEnabled(o);
   const remotes: Record<string, string> = {};
   if (typesBuild) {
     for (const [remote, url] of Object.entries(o.typesFrom ?? {})) {
@@ -131,7 +186,7 @@ export function shellFederationOptions(
   return {
     name: o.name,
     remotes,
-    shared: sharedSingletons(canResolve, o.shared, versionOf),
+    shared: sharedSingletons(canResolve, o.shared, versionOf, o.eager !== false),
     manifest: true,
     // Production builds skip remote types unless typesOnBuild is set (dts-plugin 2.9.2).
     dts: typesBuild
@@ -141,24 +196,74 @@ export function shellFederationOptions(
       ...(canResolve('@mfeflow/runtime/plugins/report')
         ? [resolvePath('@mfeflow/runtime/plugins/report')]
         : []),
+      ...(canResolve('@mfeflow/runtime/plugins/entry-retry')
+        ? [resolvePath('@mfeflow/runtime/plugins/entry-retry')]
+        : []),
       ...(o.runtimePlugins ?? []),
     ],
-    experiments: { provideExternalRuntime: true },
+    experiments: {
+      provideExternalRuntime: true,
+      optimization: { target: 'web', ...(snapshot ? {} : { disableSnapshot: true as const }) },
+    },
   };
+}
+
+const RELATIVE_SPECIFIER = /^\.\.?\//;
+
+/** True when `source` calls `import()` of a relative module, outside comments and strings. */
+function importsRelativeModule(source: string): boolean {
+  try {
+    return parse(source)[0].some(
+      (i) =>
+        i.type === 'dynamic' &&
+        !i.glob &&
+        !i.probablyTypeOnly &&
+        i.specifier !== undefined &&
+        RELATIVE_SPECIFIER.test(i.specifier),
+    );
+  } catch {
+    // Source the lexer cannot read is a syntax error; the bundler reports it with its own location.
+    return true;
+  }
+}
+
+/**
+ * Throws when a shell built with `eager: false` has an entry that never calls
+ * `import()`: its shared singletons would not be ready when the entry runs.
+ * An entry file that does not exist is left for the bundler to report.
+ */
+export function assertAsyncBoundary(
+  entryFile: string,
+  read: (file: string) => string | undefined = (f) =>
+    fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : undefined,
+): void {
+  const source = read(entryFile);
+  if (source === undefined || importsRelativeModule(source)) return;
+  throw new Error(
+    `@mfeflow/rsbuild: eager: false needs an async bootstrap boundary, but ${entryFile} has no import() of a relative module. ` +
+      `Make it \`import('./bootstrap')\` (shared singletons load asynchronously, so a synchronous bootstrap fails with ` +
+      `"Shared module is not available for eager consumption"), or drop eager: false.`,
+  );
 }
 
 /** Rsbuild config for the shell (host). */
 export function createShellConfig(o: ShellOptions): RsbuildConfig {
   const cwd = o.cwd ?? process.cwd();
   const require = createRequire(path.join(cwd, 'package.json'));
+  if (o.eager === false) assertAsyncBoundary(path.join(cwd, 'src/index.ts'));
   return {
     plugins: [
       pluginReact(),
+      ...(o.esmRuntime === false ? [] : [pluginMfEsmRuntime()]),
       pluginModuleFederation(
         shellFederationOptions(o, resolvableFrom(cwd), (s) => require.resolve(s)),
       ),
     ],
-    source: { entry: { index: './src/index.ts' } },
+    // The runtime reads this flag to refuse a remote with no remoteEntry when the manifest loader is gone.
+    source: {
+      entry: { index: './src/index.ts' },
+      define: { __MFEFLOW_SNAPSHOT__: JSON.stringify(snapshotEnabled(o)) },
+    },
     server: { historyApiFallback: true, ...(o.port === undefined ? {} : { port: o.port }) },
   };
 }

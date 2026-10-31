@@ -9,6 +9,13 @@ export {
   validateMfeManifest,
   type MfeManifest,
 } from './mfe-manifest.js';
+export { assetsFromManifest, type RemoteAssets } from './manifest-assets.js';
+export {
+  injectIntoHead,
+  registryInjection,
+  type InjectionOptions,
+  type RouteNeed,
+} from './html-injection.js';
 export {
   isRegistryEntry,
   isRegistryIndex,
@@ -16,6 +23,7 @@ export {
   validateRegistryIndex,
   type RegistryEntry,
   type RegistryIndex,
+  type RegistryIndexRemote,
 } from './registry.js';
 export { isMfeflowProject, validateMfeflowProject, type MfeflowProject } from './project.js';
 

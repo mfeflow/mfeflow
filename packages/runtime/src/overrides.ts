@@ -39,15 +39,21 @@ function isRecordOfStrings(value: unknown): value is Record<string, string> {
  * registry: `?mfe-override=cart@http://localhost:4312/mf-manifest.json`
  * (comma-separate several). Overrides persist for the session;
  * `?mfe-override=reset` clears them. Only allowlisted hosts are accepted.
+ * Needs the manifest loader, so it works in development builds only; when
+ * disabled and the parameter is present it reports that it was ignored.
  */
 export function applyDevOverrides(
   index: RegistryIndex,
   options: DevOverrideOptions,
 ): RegistryIndex {
-  if (!options.enabled) return index;
+  const search = options.search ?? (typeof location === 'undefined' ? '' : location.search);
+  if (!options.enabled) {
+    if (new URLSearchParams(search).has(OVERRIDE_PARAM))
+      reportRemoteError('shell', 'override', new Error('overrides are disabled in this build'));
+    return index;
+  }
   const storage =
     options.storage ?? (typeof sessionStorage === 'undefined' ? undefined : sessionStorage);
-  const search = options.search ?? (typeof location === 'undefined' ? '' : location.search);
   const hosts = options.allowedHosts ?? ['localhost', '127.0.0.1'];
   const param = new URLSearchParams(search).get(OVERRIDE_PARAM);
 
@@ -85,7 +91,10 @@ export function applyDevOverrides(
   const known = new Set(index.remotes.map((r) => r.name));
   const remotes = index.remotes.map((r) => {
     const entry = accepted[r.name];
-    return entry === undefined ? r : { ...r, entry, version: 'override' };
+    if (entry === undefined) return r;
+    // An override points at a manifest, so the remote's own entry URL must not win.
+    const { remoteEntry: _replaced, ...rest } = r;
+    return { ...rest, entry, version: 'override' };
   });
   for (const [name, entry] of Object.entries(accepted)) {
     if (!known.has(name)) remotes.push({ name, entry, version: 'override' });

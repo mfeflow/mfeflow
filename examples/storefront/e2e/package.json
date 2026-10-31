@@ -9,6 +9,7 @@
     "perf": "node perf.ts"
   },
   "devDependencies": {
+    "@mfeflow/contracts": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "lighthouse": "catalog:",

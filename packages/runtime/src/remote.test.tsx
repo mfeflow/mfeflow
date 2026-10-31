@@ -53,6 +53,16 @@ describe('RemoteBoundary', () => {
     expect(seen).toContain('cart');
   });
 
+  it('shows the fallback when the remote entry answers 404', async () => {
+    loadRemote.mockRejectedValue(
+      new Error('Failed to load script http://x/mfe/cart/remoteEntry.js: 404 #RUNTIME-008'),
+    );
+    render(<RemoteBoundary id="cart/App" />);
+    expect((await screen.findByRole('alert')).textContent).toContain('cart is unavailable');
+    expect(globalThis.mfeflowReports?.[0]).toMatchObject({ mfe: 'cart', where: 'load' });
+    expect(globalThis.mfeflowReports?.[0]?.message).toMatch(/404/);
+  });
+
   it('times out slow remotes', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     loadRemote.mockReturnValue(new Promise(() => undefined));

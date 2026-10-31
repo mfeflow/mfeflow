@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { createRsbuild } from '@rsbuild/core';
 import {
   createRemoteConfig,
+  assertAsyncBoundary,
   createShellConfig,
   DEFAULT_SINGLETONS,
   installedVersionFrom,
@@ -13,6 +14,7 @@ import {
   resolvableFrom,
   sharedSingletons,
   shellFederationOptions,
+  snapshotEnabled,
 } from './index.js';
 
 const all = () => true;
@@ -99,12 +101,24 @@ describe('remoteFederationOptions', () => {
       exposes: { './App': './src/App.tsx' },
       manifest: true,
       dts: { generateTypes: true, consumeTypes: false },
-      experiments: { externalRuntime: true },
+      experiments: {
+        externalRuntime: true,
+        optimization: { disableRemote: true, target: 'web' },
+      },
       shared: { react: { singleton: true } },
     });
+    expect(o.shared.react).not.toHaveProperty('eager');
     expect(
       remoteFederationOptions({ name: 'cart', exposes: { './A': 'a' }, types: false }, all).dts,
     ).toBe(false);
+  });
+
+  it('keeps remote support when the remote consumes other remotes', () => {
+    const o = remoteFederationOptions(
+      { name: 'checkout', exposes: { './App': 'a' }, consumesRemotes: true },
+      all,
+    );
+    expect(o.experiments.optimization).toEqual({ target: 'web' });
   });
 
   it('rejects bad names and empty exposes', () => {
@@ -117,13 +131,48 @@ describe('remoteFederationOptions', () => {
   });
 });
 
+const optimization = (env: Record<string, string>, snapshot?: boolean) =>
+  shellFederationOptions(
+    { name: 'shell', env, ...(snapshot === undefined ? {} : { snapshot }) },
+    all,
+    resolvePath,
+  ).experiments.optimization;
+
 describe('shellFederationOptions', () => {
   it('registers no static remotes, provides the runtime and adds the report plugin', () => {
     const o = shellFederationOptions({ name: 'shell', env: {} }, all, resolvePath);
     expect(o.remotes).toEqual({});
     expect(o.dts).toBe(false);
-    expect(o.experiments).toEqual({ provideExternalRuntime: true });
-    expect(o.runtimePlugins).toEqual(['/abs/@mfeflow/runtime/plugins/report']);
+    expect(o.experiments.provideExternalRuntime).toBe(true);
+    expect(o.runtimePlugins).toEqual([
+      '/abs/@mfeflow/runtime/plugins/report',
+      '/abs/@mfeflow/runtime/plugins/entry-retry',
+    ]);
+  });
+
+  it('ships shared singletons eagerly unless told not to', () => {
+    const eager = shellFederationOptions({ name: 'shell', env: {} }, only('react'), resolvePath);
+    expect(eager.shared).toEqual({ react: { singleton: true, eager: true } });
+    const lazy = shellFederationOptions(
+      { name: 'shell', env: {}, eager: false },
+      only('react'),
+      resolvePath,
+    );
+    expect(lazy.shared).toEqual({ react: { singleton: true } });
+  });
+
+  it('targets the web, and drops the snapshot loader in production only', () => {
+    expect(optimization({ NODE_ENV: 'production' })).toEqual({
+      target: 'web',
+      disableSnapshot: true,
+    });
+    expect(optimization({ NODE_ENV: 'development' })).toEqual({ target: 'web' });
+    expect(optimization({})).toEqual({ target: 'web' });
+    expect(optimization({ NODE_ENV: 'production' }, true)).toEqual({ target: 'web' });
+    expect(optimization({ NODE_ENV: 'development' }, false)).toEqual({
+      target: 'web',
+      disableSnapshot: true,
+    });
   });
 
   it('skips the report plugin when @mfeflow/runtime is not installed and keeps custom plugins', () => {
@@ -133,6 +182,9 @@ describe('shellFederationOptions', () => {
       resolvePath,
     );
     expect(o.runtimePlugins).toEqual(['/x.js']);
+    expect(
+      shellFederationOptions({ name: 'shell', env: {} }, only('react'), resolvePath).runtimePlugins,
+    ).toEqual([]);
   });
 
   it('consumes remote types only in types builds', () => {
@@ -153,6 +205,29 @@ describe('shellFederationOptions', () => {
   });
 });
 
+describe('snapshotEnabled and the runtime flag', () => {
+  it('follows NODE_ENV unless the option says otherwise', () => {
+    expect(snapshotEnabled({ env: { NODE_ENV: 'production' } })).toBe(false);
+    expect(snapshotEnabled({ env: { NODE_ENV: 'development' } })).toBe(true);
+    expect(snapshotEnabled({ env: { NODE_ENV: 'production' }, snapshot: true })).toBe(true);
+    expect(snapshotEnabled({ env: {}, snapshot: false })).toBe(false);
+  });
+
+  it('defines the flag the runtime reads in the shell config', () => {
+    const cwd = path.resolve(import.meta.dirname, '..');
+    const define = (env: Record<string, string>, snapshot?: boolean) =>
+      createShellConfig({
+        name: 'shell',
+        cwd,
+        env,
+        ...(snapshot === undefined ? {} : { snapshot }),
+      }).source?.define;
+    expect(define({ NODE_ENV: 'production' })).toEqual({ __MFEFLOW_SNAPSHOT__: 'false' });
+    expect(define({ NODE_ENV: 'production' }, true)).toEqual({ __MFEFLOW_SNAPSHOT__: 'true' });
+    expect(define({ NODE_ENV: 'development' })).toEqual({ __MFEFLOW_SNAPSHOT__: 'true' });
+  });
+});
+
 describe('createShellConfig', () => {
   it('turns on history fallback and the port', () => {
     const config = createShellConfig({
@@ -161,7 +236,78 @@ describe('createShellConfig', () => {
       cwd: path.resolve(import.meta.dirname, '..'),
     });
     expect(config.server).toEqual({ historyApiFallback: true, port: 3000 });
-    expect(config.plugins).toHaveLength(2);
+    expect(config.plugins).toHaveLength(3);
+    expect(
+      createShellConfig({
+        name: 'shell',
+        esmRuntime: false,
+        cwd: path.resolve(import.meta.dirname, '..'),
+      }).plugins,
+    ).toHaveLength(2);
+  });
+});
+
+describe('eager: false', () => {
+  it('needs an entry with a dynamic import', () => {
+    expect(() => {
+      assertAsyncBoundary(
+        '/app/src/index.ts',
+        () => "import { main } from './bootstrap';\nmain();",
+      );
+    }).toThrow(/eager: false needs an async bootstrap boundary.*import\('\.\/bootstrap'\)/s);
+    expect(() => {
+      assertAsyncBoundary('/app/src/index.ts', () => "void import('./bootstrap');");
+    }).not.toThrow();
+    expect(() => {
+      assertAsyncBoundary('/app/src/index.ts', () => undefined);
+    }).not.toThrow();
+  });
+
+  it.each([
+    ['a line comment', "// import('./bootstrap')\nimport './bootstrap';"],
+    ['a block comment', "/* void import('./bootstrap'); */\nimport './bootstrap';"],
+    ['a string', "const hint = \"call import('./bootstrap')\";\nimport './bootstrap';"],
+    ['a template', "const hint = `import('./bootstrap')`;\nimport './bootstrap';"],
+    ['a package import', "void import('react');"],
+    ['a computed import', 'void import(name);'],
+    ['a method named import', "loader.import('./bootstrap');"],
+    ['a template with an expression', 'void import(`./${name}`);'],
+    ['a type position', "type Boot = typeof import('./bootstrap');"],
+  ])('does not take %s for a bootstrap boundary', (_label, source) => {
+    expect(() => {
+      assertAsyncBoundary('/app/src/index.ts', () => source);
+    }).toThrow(/needs an async bootstrap boundary/);
+  });
+
+  it.each([
+    "void import('./bootstrap');",
+    'void import("../bootstrap.js");',
+    "void import (\n  /* lazy */ './bootstrap'\n);",
+    "// not this: import('react')\nvoid import('./bootstrap');",
+    "const s = 'it\\'s';\nvoid import('./bootstrap');",
+    'void import(`./bootstrap`);',
+    "import React from 'react';\nconst el = <App a={1} />;\nvoid import('./bootstrap');",
+    "const n: number = 1;\nvoid import('./bootstrap');",
+  ])('accepts a dynamic import of a relative module: %s', (source) => {
+    expect(() => {
+      assertAsyncBoundary('/app/src/index.ts', () => source);
+    }).not.toThrow();
+  });
+
+  it('leaves source it cannot lex to the bundler to report', () => {
+    expect(() => {
+      assertAsyncBoundary('/app/src/index.ts', () => "void import('./bootstrap");
+    }).not.toThrow();
+  });
+
+  it('is checked by createShellConfig against the real entry file', () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'mfeflow-eager-'));
+    fs.mkdirSync(path.join(cwd, 'src'));
+    fs.writeFileSync(path.join(cwd, 'src/index.ts'), "import './bootstrap';\n");
+    expect(() => createShellConfig({ name: 'shell', cwd, eager: false })).toThrow(/import\(\)/);
+    expect(() => createShellConfig({ name: 'shell', cwd })).not.toThrow();
+    fs.writeFileSync(path.join(cwd, 'src/index.ts'), "void import('./bootstrap');\n");
+    expect(() => createShellConfig({ name: 'shell', cwd, eager: false })).not.toThrow();
   });
 });
 

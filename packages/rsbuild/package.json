@@ -45,7 +45,8 @@
   },
   "dependencies": {
     "@module-federation/rsbuild-plugin": "catalog:",
-    "@rsbuild/plugin-react": "catalog:"
+    "@rsbuild/plugin-react": "catalog:",
+    "es-module-lexer": "catalog:"
   },
   "peerDependencies": {
     "@rsbuild/core": "^2.0.0"

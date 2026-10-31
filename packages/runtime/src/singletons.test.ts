@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { checkSingletons } from './singletons.js';
+import { assertRequested, checkSingletons } from './singletons.js';
 
 afterEach(() => {
   Reflect.deleteProperty(globalThis, '__FEDERATION__');
@@ -30,5 +30,15 @@ describe('checkSingletons', () => {
     expect(checkSingletons(['react'])).toEqual({ missing: ['react'], duplicated: [] });
     Reflect.set(globalThis, '__FEDERATION__', { __SHARE__: 'nope' });
     expect(checkSingletons(['react']).missing).toEqual(['react']);
+  });
+});
+
+describe('assertRequested', () => {
+  it('is on only when the page asks for it', () => {
+    expect(assertRequested('?mfeflow-assert')).toBe(true);
+    expect(assertRequested('?a=1&mfeflow-assert=1')).toBe(true);
+    expect(assertRequested('?a=1')).toBe(false);
+    expect(assertRequested('')).toBe(false);
+    expect(assertRequested()).toBe(false);
   });
 });

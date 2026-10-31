@@ -93,6 +93,39 @@ describe('registry entry', () => {
     expect(paths(validateRegistryEntry({ version: 'v 1' }))).toEqual(['version', 'manifestUrl']);
     expect(validateRegistryEntry([])).toHaveLength(1);
   });
+
+  it('checks the entry script and per-expose files', () => {
+    const files = {
+      remoteEntry: 'https://cdn.example.com/mfe/cart/e.js',
+      exposes: { './App': ['https://cdn.example.com/mfe/cart/a.js'] },
+    };
+    expect(isRegistryEntry({ ...entry, ...files })).toBe(true);
+    expect(
+      paths(
+        validateRegistryEntry({
+          ...entry,
+          remoteEntry: 'e.js',
+          exposes: { App: [], './Other': 'x', './Third': ['https://ok.example.com/a.js', 3] },
+        }),
+      ),
+    ).toEqual(['remoteEntry', 'exposes.App', 'exposes../Other', 'exposes../Third[1]']);
+  });
+
+  it('checks the entry type and global name', () => {
+    expect(isRegistryEntry({ ...entry, type: 'module', entryGlobalName: 'cart_v2' })).toBe(true);
+    expect(paths(validateRegistryEntry({ ...entry, type: 3, entryGlobalName: '' }))).toEqual([
+      'type',
+      'entryGlobalName',
+    ]);
+    expect(
+      paths(validateRegistryEntry({ ...entry, type: 'wasm', entryGlobalName: 'a b' })),
+    ).toEqual(['type', 'entryGlobalName']);
+    expect(paths(validateRegistryEntry({ ...entry, entryGlobalName: 'x"];alert(1);//' }))).toEqual([
+      'entryGlobalName',
+    ]);
+    for (const type of ['var', 'esm', 'commonjs2', 'system'])
+      expect(isRegistryEntry({ ...entry, type })).toBe(true);
+  });
 });
 
 describe('registry index', () => {
@@ -111,6 +144,42 @@ describe('registry index', () => {
 
   it('accepts a valid index', () => {
     expect(isRegistryIndex(index)).toBe(true);
+  });
+
+  it('accepts and checks remoteEntry and per-expose files on remotes', () => {
+    const remote = {
+      name: 'cart',
+      entry: 'https://cdn.example.com/cart/mf-manifest.json',
+      remoteEntry: 'https://cdn.example.com/cart/e.js',
+      exposes: { './App': ['https://cdn.example.com/cart/a.js'] },
+    };
+    expect(isRegistryIndex({ remotes: [remote] })).toBe(true);
+    expect(
+      paths(validateRegistryIndex({ remotes: [{ ...remote, remoteEntry: 'x', exposes: [] }] })),
+    ).toEqual(['remotes[0].remoteEntry', 'remotes[0].exposes']);
+  });
+
+  it('accepts the global names Module Federation produces', () => {
+    const entry = { version: '1.0.0', manifestUrl: 'https://cdn.example.com/cart/m.json' };
+    for (const entryGlobalName of ['cart', 'Cart_v2', 'my-app', '$shell', '_x1'])
+      expect(isRegistryEntry({ ...entry, entryGlobalName })).toBe(true);
+    for (const entryGlobalName of ['1cart', 'a b', 'a.b', '-a'])
+      expect(isRegistryEntry({ ...entry, entryGlobalName })).toBe(false);
+  });
+
+  it('checks the entry type and global name on remotes', () => {
+    const remote = { name: 'cart', entry: 'https://cdn.example.com/cart/m.json' };
+    expect(
+      isRegistryIndex({ remotes: [{ ...remote, type: 'module', entryGlobalName: 'c' }] }),
+    ).toBe(true);
+    expect(paths(validateRegistryIndex({ remotes: [{ ...remote, type: 'a b' }] }))).toEqual([
+      'remotes[0].type',
+    ]);
+    expect(
+      paths(
+        validateRegistryIndex({ remotes: [{ ...remote, type: 'wasm', entryGlobalName: 'a b' }] }),
+      ),
+    ).toEqual(['remotes[0].type', 'remotes[0].entryGlobalName']);
   });
 
   it('catches duplicates, route collisions and bad entries', () => {

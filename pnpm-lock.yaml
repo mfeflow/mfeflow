@@ -212,6 +212,9 @@ catalogs:
     '@vitest/coverage-v8':
       specifier: 5.0.5
       version: 5.0.5
+    es-module-lexer:
+      specifier: 3.0.4
+      version: 3.0.4
     i18next:
       specifier: 26.5.12
       version: 26.5.12
@@ -405,6 +408,9 @@ importers:
 
   examples/storefront/e2e:
     devDependencies:
+      '@mfeflow/contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
@@ -634,6 +640,9 @@ importers:
       '@rsbuild/plugin-react':
         specifier: 'catalog:'
         version: 2.1.1(@rsbuild/core@2.3.0(@module-federation/runtime-tools@2.9.2))(@rspack/core@2.3.0(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))
+      es-module-lexer:
+        specifier: 'catalog:'
+        version: 3.0.4
     devDependencies:
       '@rsbuild/core':
         specifier: 'catalog:'
@@ -661,6 +670,10 @@ importers:
         version: 7.0.2
 
   packages/runtime:
+    dependencies:
+      '@mfeflow/contracts':
+        specifier: workspace:*
+        version: link:../contracts
     devDependencies:
       '@module-federation/enhanced':
         specifier: 'catalog:'
@@ -2492,6 +2505,9 @@ packages:
 
   es-module-lexer@2.3.2:
     resolution: {integrity: sha512-poHGpORABojJJucnV9KbOavETW8lBVnphkW77ER5/BQ5Fz7oXSoCNek7IH3vR5nRjdsEz926ibFYX8KtLQmdyw==}
+
+  es-module-lexer@3.0.4:
+    resolution: {integrity: sha512-BldNY5mwkVu+cQ5Ymn3e6hB9Sx8XHx4ZevWbiUyZbfKxJxYO27Hf0wfzkxIaD5CAJMaGl3YspKELj0ff/7nCMA==}
 
   es-toolkit@1.53.0:
     resolution: {integrity: sha512-3+AYXp9fmJ/UhHBMYj2/U+RaUouMD90SzoItyDOB2Za7W6dB7fQApFGnZPl2MF6K8/Tv1koh1JyirSx/kju6Pw==}
@@ -5398,6 +5414,8 @@ snapshots:
       is-arrayish: 0.2.1
 
   es-module-lexer@2.3.2: {}
+
+  es-module-lexer@3.0.4: {}
 
   es-toolkit@1.53.0: {}
 

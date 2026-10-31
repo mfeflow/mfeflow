@@ -48,3 +48,17 @@ export function checkSingletons(expected: readonly string[]): SingletonCheck {
     duplicated: expected.filter((p) => (loadedVersions.get(p)?.size ?? 0) > 1),
   };
 }
+
+/** Query parameter that turns the singleton check on, e.g. `/catalog?mfeflow-assert`. */
+export const ASSERT_PARAM = 'mfeflow-assert';
+
+/**
+ * Whether the page asked for the singleton check. The check reads the share
+ * scope of every loaded remote, so shells run it only in dev, tests and on
+ * request, never on a normal page load.
+ */
+export function assertRequested(
+  search: string = typeof location === 'undefined' ? '' : location.search,
+): boolean {
+  return new URLSearchParams(search).has(ASSERT_PARAM);
+}
