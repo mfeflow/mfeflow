@@ -1,0 +1,80 @@
+{
+  "name": "@mfeflow/i18n",
+  "version": "0.0.0",
+  "description": "i18n for micro-frontends: one i18next instance owned by the shell, each remote lazy-loads its own namespace from its own deploy, RTL and persisted language.",
+  "keywords": [
+    "micro-frontend",
+    "mfe",
+    "module-federation",
+    "i18n",
+    "i18next",
+    "react-i18next",
+    "rtl",
+    "react"
+  ],
+  "homepage": "https://mfeflow.dev",
+  "bugs": "https://github.com/mfeflow/mfeflow/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfeflow/mfeflow.git",
+    "directory": "packages/i18n"
+  },
+  "license": "MIT",
+  "author": "Sanjeev Sharma <speedsharma.ai@gmail.com>",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "rslib build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mfeflow/storage": "workspace:*"
+  },
+  "peerDependencies": {
+    "i18next": "^26.0.0",
+    "react-i18next": "^17.0.0",
+    "react": "^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@rslib/core": "catalog:",
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "i18next": "catalog:",
+    "jsdom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-i18next": "catalog:",
+    "typescript": "catalog:"
+  },
+  "mfeflow": {
+    "bucket": "singleton"
+  }
+}
