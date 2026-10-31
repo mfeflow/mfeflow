@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AddEnvKeyOp } from '@mfeflow/contracts';
-import { parseJsonObject } from '../json.js';
-import { thrown } from '../testing.js';
-import { addEnvKey, envKeyFiles } from './add-env-key.js';
+import { parseJsonObject } from '../json';
+import { thrown } from '../testing';
+import { addEnvKey, envKeyFiles } from './add-env-key';
 
 const op = (extra: Partial<AddEnvKeyOp> = {}): AddEnvKeyOp => ({
   op: 'add-env-key',

@@ -1,4 +1,4 @@
-import { MfeflowError, messageOf } from './errors.js';
+import { MfeflowError, messageOf } from './errors';
 
 /** A plain object as a record, or an empty one for anything else. */
 export function asRecord(value: unknown): Record<string, unknown> {

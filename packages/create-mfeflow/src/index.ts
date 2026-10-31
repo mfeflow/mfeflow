@@ -1,4 +1,4 @@
-import { readPackageJson } from './version.js';
+import { readPackageJson } from './version';
 
 /** Message shown by `npm create mfeflow@latest` until the scaffolder exists. */
 export function notReadyText(): string {

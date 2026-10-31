@@ -15,7 +15,7 @@ import {
   sharedSingletons,
   shellFederationOptions,
   snapshotEnabled,
-} from './index.js';
+} from '.';
 
 const all = () => true;
 const only =
@@ -281,7 +281,7 @@ describe('eager: false', () => {
 
   it.each([
     "void import('./bootstrap');",
-    'void import("../bootstrap.js");',
+    'void import("../bootstrap");',
     "void import (\n  /* lazy */ './bootstrap'\n);",
     "// not this: import('react')\nvoid import('./bootstrap');",
     "const s = 'it\\'s';\nvoid import('./bootstrap');",

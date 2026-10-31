@@ -1,4 +1,4 @@
-import { readPackageJson } from './version.js';
+import { readPackageJson } from './version';
 
 /** Name and version of this package. */
 export function packageInfo(): { name: string; version: string } {
@@ -13,9 +13,9 @@ export {
   MfeflowError,
   type ErrorCode,
   type MfeflowErrorOptions,
-} from './errors.js';
-export { hashContent } from './hash.js';
-export { realFs, type FsOps } from './fs.js';
+} from './errors';
+export { hashContent } from './hash';
+export { realFs, type FsOps } from './fs';
 export {
   findDiverged,
   findProjectRoot,
@@ -27,7 +27,7 @@ export {
   serializeProject,
   type DivergedFile,
   type MfeflowProject,
-} from './project.js';
+} from './project';
 export {
   emptyPlan,
   PlanBuilder,
@@ -42,16 +42,16 @@ export {
   type PlanFeature,
   type ReadFile,
   type ScriptAdd,
-} from './plan.js';
+} from './plan';
 export {
   applyPlan,
   type ApplyOptions,
   type ApplyResult,
   type InstallContext,
   type InstallStep,
-} from './apply.js';
-export { renderTemplate, substitute, type TemplateData } from './templates.js';
-export { applyTransform } from './transforms/index.js';
+} from './apply';
+export { renderTemplate, substitute, type TemplateData } from './templates';
+export { applyTransform } from './transforms';
 export {
   fetchRemoteText,
   isProtectedPath,
@@ -67,4 +67,4 @@ export {
   type LoadOptions,
   type ResolveInput,
   type Trust,
-} from './features/index.js';
+} from './features';

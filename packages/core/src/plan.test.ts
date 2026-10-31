@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { PlanBuilder, renderDiff, summarize, type ReadFile } from './plan.js';
-import { rejection } from './testing.js';
+import { PlanBuilder, renderDiff, summarize, type ReadFile } from './plan';
+import { rejection } from './testing';
 
 const reader =
   (files: Record<string, string>): ReadFile =>

@@ -1,6 +1,6 @@
 import { ENTRY_TYPES, GLOBAL_NAME, pickRegistryFields } from '@mfeflow/contracts/entry';
 import { registerRemotes } from '@module-federation/enhanced/runtime';
-import { reportRemoteError } from './report.js';
+import { reportRemoteError } from './report';
 
 export interface RegistryRemote {
   /** Module Federation name, e.g. `cart`. */

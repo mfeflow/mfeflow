@@ -1,5 +1,5 @@
-import { reportRemoteError } from './report.js';
-import type { RegistryIndex } from './registry.js';
+import { reportRemoteError } from './report';
+import type { RegistryIndex } from './registry';
 
 export interface DevOverrideOptions {
   /** Must be explicitly true, e.g. `import.meta.env.DEV` or a staging flag. Never on in production. */

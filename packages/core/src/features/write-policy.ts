@@ -1,4 +1,4 @@
-import { MfeflowError } from '../errors.js';
+import { MfeflowError } from '../errors';
 
 /**
  * The form every path rule is checked on. macOS and Windows treat `.GIT`,

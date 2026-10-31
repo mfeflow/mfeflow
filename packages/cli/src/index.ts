@@ -1,4 +1,4 @@
-import { readPackageJson } from './version.js';
+import { readPackageJson } from './version';
 
 export const DOCS_URL = 'https://mfeflow.dev';
 export const REPO_URL = 'https://github.com/mfeflow/mfeflow';

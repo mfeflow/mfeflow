@@ -5,15 +5,10 @@ import {
   type FeatureManifest,
 } from '@mfeflow/contracts';
 import { FEATURE_NAME } from '@mfeflow/contracts';
-import { MfeflowError, messageOf } from '../errors.js';
-import { readIfExists, realFs, type FsOps } from '../fs.js';
-import { fetchRemoteText, type FetchLike } from './remote.js';
-import {
-  assertAllowedKeys,
-  assertKnownOps,
-  assertThirdPartyContent,
-  type Trust,
-} from './policy.js';
+import { MfeflowError, messageOf } from '../errors';
+import { readIfExists, realFs, type FsOps } from '../fs';
+import { fetchRemoteText, type FetchLike } from './remote';
+import { assertAllowedKeys, assertKnownOps, assertThirdPartyContent, type Trust } from './policy';
 
 export interface LoadedFeature {
   manifest: FeatureManifest;

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { assertRequested, checkSingletons } from './singletons.js';
+import { assertRequested, checkSingletons } from './singletons';
 
 afterEach(() => {
   Reflect.deleteProperty(globalThis, '__FEDERATION__');

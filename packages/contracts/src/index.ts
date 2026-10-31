@@ -1,4 +1,4 @@
-export { isSafeRelativePath, type Issue } from './validate.js';
+export { isSafeRelativePath, type Issue } from './validate';
 export {
   ANALYTICS_EVENT,
   EVENT_NAME,
@@ -8,14 +8,14 @@ export {
   ROUTE,
   validateMfeManifest,
   type MfeManifest,
-} from './mfe-manifest.js';
-export { assetsFromManifest, type RemoteAssets } from './manifest-assets.js';
+} from './mfe-manifest';
+export { assetsFromManifest, type RemoteAssets } from './manifest-assets';
 export {
   injectIntoHead,
   registryInjection,
   type InjectionOptions,
   type RouteNeed,
-} from './html-injection.js';
+} from './html-injection';
 export {
   isRegistryEntry,
   isRegistryIndex,
@@ -24,13 +24,13 @@ export {
   type RegistryEntry,
   type RegistryIndex,
   type RegistryIndexRemote,
-} from './registry.js';
+} from './registry';
 export {
   FILE_HASH,
   isMfeflowProject,
   validateMfeflowProject,
   type MfeflowProject,
-} from './project.js';
+} from './project';
 export {
   FEATURE_NAME,
   isFeatureManifest,
@@ -55,7 +55,7 @@ export {
   type TransformOpName,
   type WorkflowStep,
   type WrapProviderOp,
-} from './feature.js';
+} from './feature';
 
 /** Where the JSON Schemas are published, for `$schema` in editors. */
 export const SCHEMA_URLS = {

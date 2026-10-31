@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { registeredRemotes } from './registry.js';
-import { REMOTE_ERROR_EVENT, type RemoteErrorReport } from './report.js';
+import { registeredRemotes } from './registry';
+import { REMOTE_ERROR_EVENT, type RemoteErrorReport } from './report';
 
 export interface DevOverlayProps {
   /** Render nothing unless true (e.g. `import.meta.env.DEV`). */

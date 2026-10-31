@@ -1,5 +1,5 @@
-import { Checker, isObj, isSafeRelativePath, type Issue } from './validate.js';
-import { MFE_NAME } from './mfe-manifest.js';
+import { Checker, isObj, isSafeRelativePath, type Issue } from './validate';
+import { MFE_NAME } from './mfe-manifest';
 
 /** `mfeflow.json`: the CLI's record of a project. */
 export interface MfeflowProject {

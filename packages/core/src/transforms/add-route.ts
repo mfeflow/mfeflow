@@ -1,7 +1,7 @@
 import { isIdentifier, isObjectExpression, isObjectProperty, isStringLiteral } from '@babel/types';
 import type { AddRouteOp } from '@mfeflow/contracts';
-import { MfeflowError } from '../errors.js';
-import { addImport } from './add-import.js';
+import { MfeflowError } from '../errors';
+import { addImport } from './add-import';
 import {
   appendItem,
   applyEdits,
@@ -10,7 +10,7 @@ import {
   findArray,
   parseSource,
   quote,
-} from './ast.js';
+} from './ast';
 
 /** Adds `{ path, Component }` to the routes array. Does nothing if the path is already routed. */
 export function addRoute(source: string, file: string, op: AddRouteOp): string {

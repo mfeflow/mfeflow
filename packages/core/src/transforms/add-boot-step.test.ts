@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { thrown } from '../testing.js';
-import { addBootStep } from './add-boot-step.js';
+import { thrown } from '../testing';
+import { addBootStep } from './add-boot-step';
 
 const bootstrap = `import { createRoot } from 'react-dom/client';
 import { App } from './App';

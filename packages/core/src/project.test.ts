@@ -2,8 +2,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { hashContent } from './hash.js';
-import { emptyPlan, type Plan } from './plan.js';
+import { hashContent } from './hash';
+import { emptyPlan, type Plan } from './plan';
 import {
   findDiverged,
   findProjectRoot,
@@ -13,8 +13,8 @@ import {
   saveProject,
   serializeProject,
   type MfeflowProject,
-} from './project.js';
-import { thrown } from './testing.js';
+} from './project';
+import { thrown } from './testing';
 
 const project: MfeflowProject = {
   version: 1,

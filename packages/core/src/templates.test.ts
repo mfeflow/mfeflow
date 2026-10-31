@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderTemplate, substitute } from './templates.js';
+import { renderTemplate, substitute } from './templates';
 
 describe('renderTemplate (eta)', () => {
   it('renders values and conditionals', () => {

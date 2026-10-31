@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { isSafeRelativePath } from '@mfeflow/contracts';
-import { MfeflowError } from './errors.js';
+import { MfeflowError } from './errors';
 
 /** Absolute path of a project-relative POSIX path, refusing anything that could leave `root`. */
 export function resolveInRoot(root: string, relative: string): string {

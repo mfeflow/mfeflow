@@ -1,4 +1,4 @@
-import { Checker, isObj, type Issue } from './validate.js';
+import { Checker, isObj, type Issue } from './validate';
 
 /** `mfe.json`: who owns a micro-frontend and what it promises. */
 export interface MfeManifest {

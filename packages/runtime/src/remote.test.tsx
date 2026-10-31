@@ -5,8 +5,8 @@ import type { ComponentType } from 'react';
 const loadRemote = vi.fn<(id: string) => Promise<unknown>>();
 vi.mock('@module-federation/enhanced/runtime', () => ({ loadRemote }));
 
-const { RemoteBoundary, clearRemoteCacheForTests, remoteComponent } = await import('./remote.js');
-const { REMOTE_ERROR_EVENT } = await import('./report.js');
+const { RemoteBoundary, clearRemoteCacheForTests, remoteComponent } = await import('./remote');
+const { REMOTE_ERROR_EVENT } = await import('./report');
 
 function Cart() {
   return <p>cart works</p>;

@@ -5,15 +5,15 @@ import type { RsbuildConfig } from '@rsbuild/core';
 import { parse } from 'es-module-lexer/js';
 import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginModuleFederation } from '@module-federation/rsbuild-plugin';
-import { pluginMfEsmRuntime } from './esm-runtime.js';
+import { pluginMfEsmRuntime } from './esm-runtime';
 import {
   installedVersionFrom,
   resolvableFrom,
   sharedSingletons,
   type SharedConfig,
-} from './shared.js';
+} from './shared';
 
-export { esmTwin, isMfCjs, pluginMfEsmRuntime } from './esm-runtime.js';
+export { esmTwin, isMfCjs, pluginMfEsmRuntime } from './esm-runtime';
 export {
   DEFAULT_SINGLETONS,
   installedVersionFrom,
@@ -21,7 +21,7 @@ export {
   resolvableFrom,
   sharedSingletons,
   type SharedConfig,
-} from './shared.js';
+} from './shared';
 
 const NAME = /^[a-z][a-z0-9_]*$/;
 

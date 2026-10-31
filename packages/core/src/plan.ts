@@ -1,9 +1,9 @@
 import { formatPatch, structuredPatch } from 'diff';
 import { isMap, parseDocument } from 'yaml';
-import { MfeflowError } from './errors.js';
-import { asRecord, editJsonObject } from './json.js';
-import type { Trust } from './features/policy.js';
-import { PROJECT_FILE } from './project.js';
+import { MfeflowError } from './errors';
+import { asRecord, editJsonObject } from './json';
+import type { Trust } from './features/policy';
+import { PROJECT_FILE } from './project';
 
 export type ChangeAction = 'create' | 'patch' | 'delete';
 

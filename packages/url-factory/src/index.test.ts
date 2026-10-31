@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { createUrlFactory, defineEndpoints, type PathParams } from './index.js';
+import { createUrlFactory, defineEndpoints, type PathParams } from '.';
 
 const endpoints = defineEndpoints({
   listOrders: { service: 'orders', path: '/v1/orders' },

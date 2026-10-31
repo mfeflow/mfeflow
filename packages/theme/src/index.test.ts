@@ -7,7 +7,7 @@ import {
   noFlashScript,
   resolveTheme,
   themeToCssVars,
-} from './index.js';
+} from '.';
 
 const light = defineTheme('light', { 'color-bg': '#fff', 'color-fg': '#111', radius: '8px' });
 const dark = defineTheme(

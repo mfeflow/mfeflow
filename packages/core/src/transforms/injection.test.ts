@@ -1,8 +1,8 @@
 import { parse } from '@babel/parser';
 import { describe, expect, it } from 'vitest';
-import { thrown } from '../testing.js';
-import { quote } from './ast.js';
-import { applyTransform } from './index.js';
+import { thrown } from '../testing';
+import { quote } from './ast';
+import { applyTransform } from '.';
 
 const providers = `export function Providers({ children }) {\n  return <A>{children}</A>;\n}\n`;
 const boot = `export async function main() {\n  render();\n}\n`;

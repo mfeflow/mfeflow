@@ -1,1 +1,1 @@
-void import('./bootstrap.js');
+void import('./bootstrap');

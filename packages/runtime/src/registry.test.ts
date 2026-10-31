@@ -13,7 +13,7 @@ const {
   REGISTRY_GLOBAL,
   registerRemotesFromIndex,
   registeredRemotes,
-} = await import('./registry.js');
+} = await import('./registry');
 
 const index = {
   shell: 'storefront',

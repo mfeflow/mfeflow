@@ -1,10 +1,10 @@
 import { TRANSFORM_OPS, type FeatureManifest, type TransformOp } from '@mfeflow/contracts';
 import { validRange } from 'semver';
-import { MfeflowError } from '../errors.js';
-import { envKeyFiles } from '../transforms/add-env-key.js';
-import { JSX_ATTRIBUTE } from '../transforms/ast.js';
-import { sanitizeSchema } from './schema-policy.js';
-import { assertThirdPartyPath } from './write-policy.js';
+import { MfeflowError } from '../errors';
+import { envKeyFiles } from '../transforms/add-env-key';
+import { JSX_ATTRIBUTE } from '../transforms/ast';
+import { sanitizeSchema } from './schema-policy';
+import { assertThirdPartyPath } from './write-policy';
 
 /** Where a feature came from decides what it may do. */
 export type Trust = 'first-party' | 'third-party';

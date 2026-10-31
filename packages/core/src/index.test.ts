@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { packageInfo } from './index.js';
+import { packageInfo } from '.';
 
 describe('@mfeflow/core', () => {
   it('reports its name and version', () => {

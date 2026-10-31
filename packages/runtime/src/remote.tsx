@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { loadRemote } from '@module-federation/enhanced/runtime';
-import { reportRemoteError } from './report.js';
+import { reportRemoteError } from './report';
 
 export interface FallbackProps {
   /** Remote name, e.g. `cart`. */

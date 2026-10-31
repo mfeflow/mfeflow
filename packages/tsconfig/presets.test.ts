@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { binPath } from './bin.ts';
+import { binPath } from './bin';
 
 const here = import.meta.dirname;
 const tmp = path.join(here, '__fixture__');

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isFeatureManifest, isSafeRelativePath, validateFeatureManifest } from './index.js';
+import { isFeatureManifest, isSafeRelativePath, validateFeatureManifest } from '.';
 
 const feature = {
   name: '@acme/segment',

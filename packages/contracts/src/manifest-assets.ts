@@ -1,5 +1,5 @@
-import { ENTRY_TYPES, GLOBAL_NAME } from './entry.js';
-import { isObj, isUrl } from './validate.js';
+import { ENTRY_TYPES, GLOBAL_NAME } from './entry';
+import { isObj, isUrl } from './validate';
 
 /** What the registry needs from a built remote's `mf-manifest.json`. */
 export interface RemoteAssets {

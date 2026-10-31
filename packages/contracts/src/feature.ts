@@ -1,5 +1,5 @@
-import { Checker, isObj, isSafeRelativePath, type Issue, type Obj } from './validate.js';
-import { ROUTE } from './mfe-manifest.js';
+import { Checker, isObj, isSafeRelativePath, type Issue, type Obj } from './validate';
+import { ROUTE } from './mfe-manifest';
 
 /** The built-in transform ops. A public, versioned API (decision 0005). */
 export const TRANSFORM_OPS = [

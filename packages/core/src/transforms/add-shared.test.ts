@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { thrown } from '../testing.js';
-import { addShared } from './add-shared.js';
+import { thrown } from '../testing';
+import { addShared } from './add-shared';
 
 const run = (source: string, name: string, list?: string, file = 'singletons.ts') =>
   addShared(source, file, { op: 'add-shared', file, name, ...(list ? { list } : {}) });

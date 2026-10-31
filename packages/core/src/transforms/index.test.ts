@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TransformOp } from '@mfeflow/contracts';
-import { thrown } from '../testing.js';
-import { applyTransform } from './index.js';
+import { thrown } from '../testing';
+import { applyTransform } from '.';
 
 describe('applyTransform', () => {
   it('dispatches each built-in op', () => {

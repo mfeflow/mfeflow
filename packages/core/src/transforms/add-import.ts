@@ -6,15 +6,7 @@ import {
   type File,
 } from '@babel/types';
 import type { AddImportOp } from '@mfeflow/contracts';
-import {
-  applyEdits,
-  assertIdentifier,
-  endOf,
-  indentAt,
-  parseSource,
-  quote,
-  startOf,
-} from './ast.js';
+import { applyEdits, assertIdentifier, endOf, indentAt, parseSource, quote, startOf } from './ast';
 
 /** Puts a statement after the last import, after directives or a `#!` line, or at the top. */
 export function insertStatement(source: string, ast: File, statement: string): string {

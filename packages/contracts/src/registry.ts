@@ -1,6 +1,6 @@
-import { Checker, isObj, isUrl, type Issue, type Obj } from './validate.js';
-import { ENTRY_TYPES, GLOBAL_NAME } from './entry.js';
-import { EXPOSE, MFE_NAME, ROUTE } from './mfe-manifest.js';
+import { Checker, isObj, isUrl, type Issue, type Obj } from './validate';
+import { ENTRY_TYPES, GLOBAL_NAME } from './entry';
+import { EXPOSE, MFE_NAME, ROUTE } from './mfe-manifest';
 
 /** `registry/envs/<env>/<name>.json`: what one remote serves in one environment. */
 export interface RegistryEntry {

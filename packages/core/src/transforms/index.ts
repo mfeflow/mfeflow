@@ -1,12 +1,12 @@
 import type { TransformOp } from '@mfeflow/contracts';
-import { MfeflowError } from '../errors.js';
-import { addBootStep } from './add-boot-step.js';
-import { addEnvKey } from './add-env-key.js';
-import { addImport } from './add-import.js';
-import { addRoute } from './add-route.js';
-import { addShared } from './add-shared.js';
-import { addWorkflowStep } from './add-workflow-step.js';
-import { wrapProvider } from './wrap-provider.js';
+import { MfeflowError } from '../errors';
+import { addBootStep } from './add-boot-step';
+import { addEnvKey } from './add-env-key';
+import { addImport } from './add-import';
+import { addRoute } from './add-route';
+import { addShared } from './add-shared';
+import { addWorkflowStep } from './add-workflow-step';
+import { wrapProvider } from './wrap-provider';
 
 export { addBootStep, addEnvKey, addImport, addRoute, addShared, addWorkflowStep, wrapProvider };
 

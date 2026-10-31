@@ -4,8 +4,8 @@ export {
   parseFeature,
   type LoadedFeature,
   type LoadOptions,
-} from './load.js';
-export { fetchRemoteText, registryUrl, type FetchLike, type FetchResponse } from './remote.js';
-export { resolveFeature, resolveOptions, type ResolveInput } from './resolve.js';
-export { type Trust } from './policy.js';
-export { isProtectedPath } from './write-policy.js';
+} from './load';
+export { fetchRemoteText, registryUrl, type FetchLike, type FetchResponse } from './remote';
+export { resolveFeature, resolveOptions, type ResolveInput } from './resolve';
+export { type Trust } from './policy';
+export { isProtectedPath } from './write-policy';

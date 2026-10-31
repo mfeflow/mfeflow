@@ -1,7 +1,7 @@
 import { act, cleanup, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { defineTheme } from './index.js';
-import { ThemeProvider, useTheme } from './react.js';
+import { defineTheme } from '.';
+import { ThemeProvider, useTheme } from './react';
 
 const light = defineTheme('light', { 'color-bg': '#fff' });
 const dark = defineTheme('dark', { 'color-bg': '#000' }, { colorScheme: 'dark' });

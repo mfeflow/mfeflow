@@ -1,7 +1,7 @@
 import { act, cleanup, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { initI18n, resetI18nForTests, type NamespaceLoader } from './index.js';
-import { useLanguage, useMfeTranslation } from './react.js';
+import { initI18n, resetI18nForTests, type NamespaceLoader } from '.';
+import { useLanguage, useMfeTranslation } from './react';
 
 const languages = [
   { code: 'en', label: 'English' },

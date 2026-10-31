@@ -1,13 +1,7 @@
 import { createContext, useContext, useLayoutEffect, useMemo, type ReactNode } from 'react';
 import { createStorage, type MfeStorage } from '@mfeflow/storage';
 import { useStoredState } from '@mfeflow/storage/react';
-import {
-  applyTheme,
-  resolveTheme,
-  THEME_STORAGE_KEY,
-  THEME_STORAGE_MFE,
-  type Theme,
-} from './index.js';
+import { applyTheme, resolveTheme, THEME_STORAGE_KEY, THEME_STORAGE_MFE, type Theme } from '.';
 
 export interface ThemeContextValue {
   theme: Theme;

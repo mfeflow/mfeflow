@@ -23,7 +23,7 @@ import {
   type Node,
   type ObjectExpression,
 } from '@babel/types';
-import { MfeflowError, messageOf } from '../errors.js';
+import { MfeflowError, messageOf } from '../errors';
 import type { Literal } from '@mfeflow/contracts';
 
 /** An edit to the source text: replace `[start, end)` with `text`. Insert with start === end. */

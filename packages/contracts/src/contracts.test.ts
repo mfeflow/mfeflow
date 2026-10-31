@@ -9,7 +9,7 @@ import {
   validateMfeManifest,
   validateRegistryEntry,
   validateRegistryIndex,
-} from './index.js';
+} from '.';
 
 const cart = {
   name: 'cart',

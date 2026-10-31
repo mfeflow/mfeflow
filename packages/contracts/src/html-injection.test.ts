@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { injectIntoHead, registryInjection } from './html-injection.js';
-import type { RegistryIndex } from './registry.js';
+import { injectIntoHead, registryInjection } from './html-injection';
+import type { RegistryIndex } from './registry';
 
 const index: RegistryIndex = {
   remotes: [
