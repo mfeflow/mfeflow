@@ -1,4 +1,16 @@
-import { isIdentifier, isObjectProperty, isStringLiteral, type ObjectProperty } from '@babel/types';
+import {
+  isCallExpression,
+  isIdentifier,
+  isMemberExpression,
+  isObjectProperty,
+  isParenthesizedExpression,
+  isStringLiteral,
+  isTSAsExpression,
+  isTSNonNullExpression,
+  isTSSatisfiesExpression,
+  type Node,
+  type ObjectProperty,
+} from '@babel/types';
 import type { AddEnvKeyOp, Literal } from '@mfeflow/contracts';
 import { MfeflowError } from '../errors';
 import { editJsonObject, indentOf, parseJsonObject } from '../json';
@@ -8,10 +20,8 @@ import {
   assertIdentifier,
   findObject,
   findServerSchema,
-  endOf,
   literalSource,
   parseSource,
-  startOf,
 } from './ast';
 
 const IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
@@ -42,9 +52,16 @@ function addToDotenv(source: string, op: AddEnvKeyOp): string {
   return `${source}${lead}${op.key}=${rendered}\n`;
 }
 
-function keyName(property: ObjectProperty): string | undefined {
+/** The key as written, so an arktype `'name?'` keeps its question mark. */
+function rawKey(property: ObjectProperty): string | undefined {
   if (isIdentifier(property.key)) return property.key.name;
   return isStringLiteral(property.key) ? property.key.value : undefined;
+}
+
+/** The key without arktype's optional marker. */
+function keyName(property: ObjectProperty): string | undefined {
+  const raw = rawKey(property);
+  return raw?.endsWith('?') ? raw.slice(0, -1) : raw;
 }
 
 function addToSchema(source: string, file: string, op: AddEnvKeyOp): string {
@@ -109,11 +126,39 @@ export function addEnvKey(source: string, file: string, op: AddEnvKeyOp): string
 
 export interface SchemaKey {
   name: string;
-  /** The schema accepts a missing value: it mentions optional, nullish, default or undefined. */
+  /** The key may be missing: an arktype `'key?'`, or a Zod or Valibot schema whose outermost call is optional, nullish, default, catch, fallback or exactOptional. */
   optional: boolean;
 }
 
-const OPTIONAL = /optional|nullish|default|undefined/;
+/** Zod and Valibot calls that accept a missing value: `.optional()` and `v.optional(…)` alike. */
+const OPTIONAL_CALLS = new Set([
+  'optional',
+  'nullish',
+  'default',
+  'catch',
+  'fallback',
+  'exactOptional',
+]);
+
+function unwrap(node: Node): Node {
+  return isTSAsExpression(node) ||
+    isTSSatisfiesExpression(node) ||
+    isTSNonNullExpression(node) ||
+    isParenthesizedExpression(node)
+    ? unwrap(node.expression)
+    : node;
+}
+
+/** Whether the outermost call of a Zod or Valibot schema accepts a missing value. */
+function acceptsMissing(value: Node): boolean {
+  const node = unwrap(value);
+  if (!isCallExpression(node)) return false;
+  const { callee } = node;
+  if (isIdentifier(callee)) return OPTIONAL_CALLS.has(callee.name);
+  return isMemberExpression(callee) && isIdentifier(callee.property) && !callee.computed
+    ? OPTIONAL_CALLS.has(callee.property.name)
+    : false;
+}
 
 /**
  * The keys of the `server` schema (`env.ts`) or of the runtime-config schema object,
@@ -132,7 +177,7 @@ export function schemaKeys(
   return target.properties.flatMap((p) => {
     const name = isObjectProperty(p) ? keyName(p) : undefined;
     if (!isObjectProperty(p) || name === undefined) return [];
-    return [{ name, optional: OPTIONAL.test(source.slice(startOf(p.value), endOf(p.value))) }];
+    return [{ name, optional: rawKey(p) !== name || acceptsMissing(p.value) }];
   });
 }
 

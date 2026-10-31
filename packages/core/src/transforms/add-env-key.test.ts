@@ -200,7 +200,7 @@ describe('schemaKeys', () => {
     for (const init of [
       'z.object({ a: z.string(), b: z.string().optional() })',
       'v.object({ a: v.string(), b: v.optional(v.string()) })',
-      "type({ a: 'string', b: 'string | undefined' })",
+      "type({ a: 'string', 'b?': 'string' })",
       '{ a: z.string(), b: z.nullish() }',
     ]) {
       expect(
@@ -213,6 +213,56 @@ describe('schemaKeys', () => {
     expect(schemaKeys('export const cfg = { a: 1 };', 'schema.ts', 'runtime', 'cfg')).toEqual([
       { name: 'a', optional: false },
     ]);
+  });
+
+  const optionalOf = (value: string) => {
+    const keys = schemaKeys(
+      `export const env = createEnv({ server: { K: ${value} } });`,
+      'env.ts',
+      'server',
+    );
+    return keys?.[0]?.optional;
+  };
+
+  it.each([
+    ['z.string().optional()', true],
+    ['z.string().nullish()', true],
+    ["z.string().default('x')", true],
+    ["z.string().catch('x')", true],
+    ['z.optional(z.string())', true],
+    ['v.optional(v.string())', true],
+    ['v.nullish(v.string())', true],
+    ["v.fallback(v.string(), 'x')", true],
+    ['v.exactOptional(v.string())', true],
+    ['optional(string())', true],
+    ['z.string().optional() as z.ZodString', true],
+    ["z.enum(['default', 'strict'])", false],
+    ["z.enum(['optional', 'nullish'])", false],
+    ["z.string().describe('may be undefined')", false],
+    ["z.string().describe('has a default')", false],
+    ["z.literal('optional')", false],
+    ["z.string().refine((v) => v !== 'default')", false],
+    ['v.pipe(v.string(), v.url())', false],
+    ['z.string().optional().min(1)', false],
+    ['z.string()', false],
+  ])('reads optionality of %s from the outermost call: %s', (value, optional) => {
+    expect(optionalOf(value)).toBe(optional);
+  });
+
+  it("reads an arktype 'key?' as an optional key named without the question mark", () => {
+    const source = `export const runtimeConfigSchema = type({ a: 'string', 'b?': 'string', "c?": 'number', d: 'string | undefined', 'e-f?': 'string' });`;
+    expect(schemaKeys(source, 'schema.ts', 'runtime')).toEqual([
+      { name: 'a', optional: false },
+      { name: 'b', optional: true },
+      { name: 'c', optional: true },
+      { name: 'd', optional: false },
+      { name: 'e-f', optional: true },
+    ]);
+  });
+
+  it("does not add an arktype key that exists as 'key?'", () => {
+    const source = `export const runtimeConfigSchema = type({\n  'GTM_ID?': 'string',\n});\n`;
+    expect(run(source, 'schema.ts', { schema: "'string'" })).toBe(source);
   });
 
   it('returns undefined when the file has no such object', () => {
