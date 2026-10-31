@@ -1,11 +1,11 @@
 {
-  "measured": "2026-10-31T15:57:11.998Z",
+  "measured": "2026-10-31T18:15:09.507Z",
   "what": "create-mfeflow my-app --yes --local, pnpm install (warm store), first pnpm dev until the shell and every remote entry answer",
   "fixture": {
     "remotes": ["catalog", "cart"],
-    "features": ["lint-oxlint", "url-factory"]
+    "features": ["lint-oxlint", "url-factory", "env-t3", "testing"]
   },
-  "commit": "93dae56",
+  "commit": "d1f5e27",
   "machine": {
     "os": "Darwin 25.5.0",
     "arch": "arm64",
@@ -15,43 +15,43 @@
   "pnpm": "12.16.1",
   "runs": [
     {
-      "createMs": 164.3476669999999,
-      "installMs": 297.7322079999999,
-      "devMs": 5919.911625,
-      "totalMs": 6381.991499999999
+      "createMs": 221.67654100000004,
+      "installMs": 494.76129200000014,
+      "devMs": 4604.7294170000005,
+      "totalMs": 5321.16725
     },
     {
-      "createMs": 161.8430840000001,
-      "installMs": 323.0256249999984,
-      "devMs": 5070.352167000001,
-      "totalMs": 5555.220875999999
+      "createMs": 204.45091599999978,
+      "installMs": 494.06854199999907,
+      "devMs": 4713.187125,
+      "totalMs": 5411.706582999999
     },
     {
-      "createMs": 162.57837500000096,
-      "installMs": 329.6247500000027,
-      "devMs": 4311.741249999999,
-      "totalMs": 4803.944375000003
+      "createMs": 208.22125000000233,
+      "installMs": 498.61849999999686,
+      "devMs": 4939.694875000001,
+      "totalMs": 5646.534625
     },
     {
-      "createMs": 193.6163749999978,
-      "installMs": 455.36362499999814,
-      "devMs": 4544.082792000001,
-      "totalMs": 5193.062791999997
+      "createMs": 213.95604200000162,
+      "installMs": 470.66154200000165,
+      "devMs": 4265.552540999997,
+      "totalMs": 4950.170125000001
     },
     {
-      "createMs": 179.89887499999895,
-      "installMs": 349.3151249999937,
-      "devMs": 4407.125708,
-      "totalMs": 4936.339707999992
+      "createMs": 200.61445799999638,
+      "installMs": 479.96429199999693,
+      "devMs": 4530.787250000001,
+      "totalMs": 5211.3659999999945
     }
   ],
   "medianMs": {
-    "createMs": 164,
-    "installMs": 330,
-    "devMs": 4544,
-    "totalMs": 5193
+    "createMs": 208,
+    "installMs": 494,
+    "devMs": 4605,
+    "totalMs": 5321
   },
-  "medianTotalOfRuns": 5193,
+  "medianTotalOfRuns": 5321,
   "targetMs": 60000,
   "pass": true
 }
