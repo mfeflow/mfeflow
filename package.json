@@ -2,14 +2,14 @@
   "name": "mfeflow-monorepo",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@12.17.0",
+  "packageManager": "pnpm@12.16.1",
   "engines": {
     "node": ">=22.12"
   },
   "scripts": {
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
-    "lint": "eslint .",
+    "lint": "oxlint --type-aware --deny-warnings",
     "test": "vitest run --coverage",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -22,16 +22,14 @@
     "@changesets/cli": "catalog:",
     "@commitlint/cli": "catalog:",
     "@commitlint/config-conventional": "catalog:",
-    "@eslint/js": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
-    "eslint": "catalog:",
-    "globals": "catalog:",
     "lefthook": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
     "prettier": "catalog:",
     "turbo": "catalog:",
     "typescript": "catalog:",
-    "typescript-eslint": "catalog:",
     "vitest": "catalog:"
   }
 }
