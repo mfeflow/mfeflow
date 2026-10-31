@@ -1,0 +1,4 @@
+{
+  "remotes": ["catalog", "cart"],
+  "features": ["lint-oxlint", "url-factory"]
+}
