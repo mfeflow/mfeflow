@@ -362,6 +362,17 @@ describe('analytics-gtm', () => {
     const tree = await readTree(project);
     expect(tree['apps/shell/src/analytics/init.test.ts']).toContain('startAnalytics');
     expect(tree['apps/cart/src/analytics.test.ts']).toContain('cart_viewed');
+    expect(tree['apps/shell/src/analytics/ConsentBanner.test.tsx']).toContain('Accept analytics');
+  });
+
+  it('writes a consent banner whose buttons grant only what they say', async () => {
+    await add('analytics-gtm');
+    const banner = await read('apps/shell/src/analytics/ConsentBanner.tsx');
+    expect(banner).toContain('Accept analytics');
+    expect(banner).toContain('Accept analytics and advertising');
+    expect(banner).toContain('Reject');
+    expect(banner).not.toContain('acceptAll');
+    expect(banner).toContain('Advertising cookies are optional');
   });
 });
 

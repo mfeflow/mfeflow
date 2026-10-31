@@ -121,10 +121,10 @@ export function analyticsCases(): void {
     const granted = (await readLayer(page)).filter((e) => e.args[1] === 'update');
     expect(granted).toHaveLength(1);
     expect(granted[0]?.args[2]).toEqual({
-      ad_storage: 'granted',
       analytics_storage: 'granted',
-      ad_user_data: 'granted',
-      ad_personalization: 'granted',
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
     });
 
     await page.reload();

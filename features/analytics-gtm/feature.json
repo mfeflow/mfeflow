@@ -33,6 +33,14 @@
       }
     },
     {
+      "to": "src/analytics/ConsentBanner.test.tsx",
+      "target": "shell",
+      "from": "files/consent-banner-test.tsx",
+      "when": {
+        "feature:testing": true
+      }
+    },
+    {
       "to": "src/analytics.ts",
       "target": "remotes",
       "from": "files/remote-analytics.ts.eta",

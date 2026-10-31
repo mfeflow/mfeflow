@@ -24,12 +24,23 @@ function loadStock(): Promise<CheckStock | undefined> {
 }
 
 function ConsentButtons() {
-  const { decided, acceptAll, rejectAll } = useConsent();
+  const { decided, update, rejectAll } = useConsent();
   if (decided) return null;
   return (
     <span>
-      <button type="button" data-testid="consent-accept" onClick={acceptAll}>
-        Accept
+      <button
+        type="button"
+        data-testid="consent-accept"
+        onClick={() => {
+          update({
+            analytics_storage: 'granted',
+            ad_storage: 'denied',
+            ad_user_data: 'denied',
+            ad_personalization: 'denied',
+          });
+        }}
+      >
+        Accept analytics
       </button>
       <button type="button" data-testid="consent-reject" onClick={rejectAll}>
         Reject

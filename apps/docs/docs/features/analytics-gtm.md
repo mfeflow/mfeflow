@@ -17,12 +17,12 @@ An empty `gtmId` (the default) keeps analytics off: no script is loaded and ever
 
 ## What you get
 
-| File                                         | What it is for                                                                                                      |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `apps/shell/src/analytics/init.ts`           | The boot step. Reads `gtmId` from the runtime config and starts the GTM provider. It does not hold up first render. |
-| `apps/shell/src/analytics/Analytics.tsx`     | Wraps the shell's `App`: page views on route changes, and the consent banner.                                       |
-| `apps/shell/src/analytics/ConsentBanner.tsx` | A minimal, unstyled banner on `useConsent()`. It is yours: restyle it or replace it.                                |
-| `apps/<remote>/src/analytics.ts`             | The remote's events (declaration merging) and its tracker.                                                          |
+| File                                         | What it is for                                                                                                              |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `apps/shell/src/analytics/init.ts`           | The boot step. Reads `gtmId` from the runtime config and starts the GTM provider. It does not hold up first render.         |
+| `apps/shell/src/analytics/Analytics.tsx`     | Wraps the shell's `App`: page views on route changes, and the consent banner.                                               |
+| `apps/shell/src/analytics/ConsentBanner.tsx` | A minimal, unstyled banner on `useConsent()`: Accept analytics, Accept analytics and advertising, Reject. Yours to restyle. |
+| `apps/<remote>/src/analytics.ts`             | The remote's events (declaration merging) and its tracker.                                                                  |
 
 `@mfeflow/analytics` is a singleton: the shell starts it, remotes only use it. A remote that is opened on its own
 (`pnpm dev` in its folder) has no shell, so its events wait for analytics to start and are dropped.
@@ -51,6 +51,10 @@ dataLayer = [
 
 The visitor's choice is stored in `localStorage` (`mfeflow:consent`) and sent as a consent update right after the
 defaults on the next visit, still before `gtm.js` is requested.
+
+The generated banner grants only what its button says: **Accept analytics** grants `analytics_storage` and keeps the
+three `ad_*` signals denied; the `ad_*` signals are granted only by **Accept analytics and advertising**. Whatever you
+change, keep the wording in line with what the button grants.
 
 ```tsx
 import { useConsent } from '@mfeflow/analytics/react';
