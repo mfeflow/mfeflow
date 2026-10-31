@@ -110,6 +110,14 @@ describe('registry entry', () => {
       ),
     ).toEqual(['remoteEntry', 'exposes.App', 'exposes../Other', 'exposes../Third[1]']);
   });
+
+  it('checks the entry type and global name', () => {
+    expect(isRegistryEntry({ ...entry, type: 'module', entryGlobalName: 'cart_v2' })).toBe(true);
+    expect(paths(validateRegistryEntry({ ...entry, type: 3, entryGlobalName: '' }))).toEqual([
+      'type',
+      'entryGlobalName',
+    ]);
+  });
 });
 
 describe('registry index', () => {
@@ -141,6 +149,16 @@ describe('registry index', () => {
     expect(
       paths(validateRegistryIndex({ remotes: [{ ...remote, remoteEntry: 'x', exposes: [] }] })),
     ).toEqual(['remotes[0].remoteEntry', 'remotes[0].exposes']);
+  });
+
+  it('checks the entry type and global name on remotes', () => {
+    const remote = { name: 'cart', entry: 'https://cdn.example.com/cart/m.json' };
+    expect(
+      isRegistryIndex({ remotes: [{ ...remote, type: 'module', entryGlobalName: 'c' }] }),
+    ).toBe(true);
+    expect(paths(validateRegistryIndex({ remotes: [{ ...remote, type: 'a b' }] }))).toEqual([
+      'remotes[0].type',
+    ]);
   });
 
   it('catches duplicates, route collisions and bad entries', () => {

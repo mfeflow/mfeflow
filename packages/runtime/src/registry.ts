@@ -11,6 +11,10 @@ export interface RegistryRemote {
    * production, so the shell fetches no manifest and ships no snapshot code.
    */
   remoteEntry?: string;
+  /** How `remoteEntry` loads (`module` for ESM). Passed to Module Federation with it. */
+  type?: string;
+  /** The global `remoteEntry` defines when it differs from `name`. */
+  entryGlobalName?: string;
   version?: string;
   routes?: string[];
   owner?: string;
@@ -35,6 +39,8 @@ function isRemote(value: unknown): value is RegistryRemote {
   if (typeof value.name !== 'string' || !NAME.test(value.name) || typeof value.entry !== 'string')
     return false;
   if ('remoteEntry' in value && typeof value.remoteEntry !== 'string') return false;
+  if ('type' in value && typeof value.type !== 'string') return false;
+  if ('entryGlobalName' in value && typeof value.entryGlobalName !== 'string') return false;
   if ('version' in value && typeof value.version !== 'string') return false;
   if ('owner' in value && typeof value.owner !== 'string') return false;
   if ('routes' in value && !isStringArray(value.routes)) return false;
@@ -96,6 +102,16 @@ export async function loadRegistryIndex(
   return body;
 }
 
+function toMfRemote(r: RegistryRemote) {
+  if (r.remoteEntry === undefined) return { name: r.name, entry: r.entry };
+  return {
+    name: r.name,
+    entry: r.remoteEntry,
+    ...(r.type === undefined ? {} : { type: r.type }),
+    ...(r.entryGlobalName === undefined ? {} : { entryGlobalName: r.entryGlobalName }),
+  };
+}
+
 let registered: RegistryRemote[] = [];
 
 /** Remotes registered by the last `registerRemotesFromIndex` call (for the dev overlay). */
@@ -137,7 +153,7 @@ export function registerRemotesFromIndex(
     }
     ok.push(remote);
   }
-  registerRemotes(ok.map((r) => ({ name: r.name, entry: r.remoteEntry ?? r.entry })));
+  registerRemotes(ok.map(toMfRemote));
   registered = [...ok];
   return ok.map((r) => r.name);
 }

@@ -7,6 +7,10 @@ export interface RegistryEntry {
   manifestUrl: string;
   /** The remote's entry script, read from `mf-manifest.json` at publish time. Production shells register this, not the manifest. */
   remoteEntry?: string;
+  /** How `remoteEntry` loads (`module` for ESM). Needed by shells that register it directly. */
+  type?: string;
+  /** The global `remoteEntry` defines when it differs from the remote's name. */
+  entryGlobalName?: string;
   /** Per expose (`./App`), the JS and CSS files it needs before it renders. The edge turns these into preload hints. */
   exposes?: Record<string, string[]>;
   previous?: string;
@@ -28,6 +32,10 @@ export interface RegistryIndexRemote {
   entry: string;
   /** Entry script URL; shells register it in place of `entry` when present. */
   remoteEntry?: string;
+  /** How `remoteEntry` loads (`module` for ESM). */
+  type?: string;
+  /** The global `remoteEntry` defines when it differs from `name`. */
+  entryGlobalName?: string;
   /** Per expose, the files to preload. Not inlined into the shell's HTML. */
   exposes?: Record<string, string[]>;
   version?: string;
@@ -41,6 +49,16 @@ function checkRemoteFiles(c: Checker, obj: Obj, at: string): void {
   const entry = c.string(obj, 'remoteEntry', at, { required: false });
   if (entry !== undefined && !isUrl(entry))
     c.add(at ? `${at}.remoteEntry` : 'remoteEntry', 'must be an http(s) URL');
+  c.string(obj, 'type', at, {
+    required: false,
+    pattern: /^\S+$/,
+    hint: 'must be a non-empty entry type like "module"',
+  });
+  c.string(obj, 'entryGlobalName', at, {
+    required: false,
+    pattern: /^\S+$/,
+    hint: 'must be a non-empty global name',
+  });
   const exposes = c.object(obj, 'exposes', at, false);
   if (!exposes) return;
   const base = at ? `${at}.exposes` : 'exposes';

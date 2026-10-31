@@ -128,6 +128,34 @@ describe('registerRemotesFromIndex', () => {
     ]);
   });
 
+  it('passes the entry type and global name with a remoteEntry, and nothing extra with a manifest', () => {
+    registerRemotesFromIndex({
+      remotes: [
+        {
+          name: 'esm',
+          entry: 'https://cdn.example.com/esm/m.json',
+          remoteEntry: 'https://cdn.example.com/esm/e.mjs',
+          type: 'module',
+          entryGlobalName: 'esm_global',
+        },
+        { name: 'plain', entry: 'https://cdn.example.com/plain/m.json', type: 'module' },
+      ],
+    });
+    expect(registerRemotes).toHaveBeenCalledWith([
+      {
+        name: 'esm',
+        entry: 'https://cdn.example.com/esm/e.mjs',
+        type: 'module',
+        entryGlobalName: 'esm_global',
+      },
+      { name: 'plain', entry: 'https://cdn.example.com/plain/m.json' },
+    ]);
+    expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', type: 1 }] })).toBe(false);
+    expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', entryGlobalName: 1 }] })).toBe(
+      false,
+    );
+  });
+
   it('registers remoteEntry URLs in place of manifests and checks the origin of the URL it registers', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const names = registerRemotesFromIndex(

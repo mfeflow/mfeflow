@@ -69,6 +69,22 @@ describe('registryInjection', () => {
     expect(registryInjection(index, []).includes('<link')).toBe(false);
   });
 
+  it('inlines the entry type and global name only when the registry has them', () => {
+    const html = registryInjection(
+      {
+        remotes: [
+          { name: 'a', entry: 'https://x.test/a.json', type: 'module', entryGlobalName: 'ag' },
+          { name: 'b', entry: 'https://x.test/b.json' },
+        ],
+      },
+      [],
+    );
+    expect(html).toContain(
+      '{"name":"a","entry":"https://x.test/a.json","type":"module","entryGlobalName":"ag"}',
+    );
+    expect(html).toContain('{"name":"b","entry":"https://x.test/b.json"}');
+  });
+
   it('cannot be broken out of by a hostile registry value', () => {
     const html = registryInjection(
       {

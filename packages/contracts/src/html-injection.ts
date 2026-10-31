@@ -32,10 +32,12 @@ function attribute(value: string): string {
  */
 export function registryInjection(index: RegistryIndex, needs: readonly RouteNeed[]): string {
   const inline = {
-    remotes: index.remotes.map(({ name, entry, remoteEntry }) => ({
+    remotes: index.remotes.map(({ name, entry, remoteEntry, type, entryGlobalName }) => ({
       name,
       entry,
       ...(remoteEntry === undefined ? {} : { remoteEntry }),
+      ...(type === undefined ? {} : { type }),
+      ...(entryGlobalName === undefined ? {} : { entryGlobalName }),
     })),
   };
   let html = `<script>window.__MFE_REGISTRY__=${jsonForScript(inline)}</script>`;
