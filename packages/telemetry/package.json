@@ -1,0 +1,71 @@
+{
+  "name": "@mfeflow/telemetry",
+  "version": "0.0.0",
+  "description": "Telemetry for micro-frontends behind one provider interface: a tracer per remote tagged with mfe.name, error reporting wired to remote failures, and an OpenTelemetry web provider loaded after first render.",
+  "keywords": [
+    "micro-frontend",
+    "mfe",
+    "module-federation",
+    "opentelemetry",
+    "tracing",
+    "web-vitals"
+  ],
+  "homepage": "https://mfeflow.dev",
+  "bugs": "https://github.com/mfeflow/mfeflow/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfeflow/mfeflow.git",
+    "directory": "packages/telemetry"
+  },
+  "license": "MIT",
+  "author": "Sanjeev Sharma <speedsharma.ai@gmail.com>",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./otel": {
+      "types": "./dist/otel.d.ts",
+      "import": "./dist/otel.js",
+      "default": "./dist/otel.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "rslib build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "catalog:",
+    "@opentelemetry/core": "catalog:",
+    "@opentelemetry/exporter-trace-otlp-http": "catalog:",
+    "@opentelemetry/instrumentation": "catalog:",
+    "@opentelemetry/instrumentation-fetch": "catalog:",
+    "@opentelemetry/resources": "catalog:",
+    "@opentelemetry/sdk-trace": "catalog:",
+    "@opentelemetry/semantic-conventions": "catalog:",
+    "web-vitals": "catalog:"
+  },
+  "devDependencies": {
+    "@rsbuild/plugin-react": "catalog:",
+    "@rslib/core": "catalog:",
+    "@types/node": "catalog:",
+    "jsdom": "catalog:",
+    "typescript": "catalog:"
+  },
+  "mfeflow": {
+    "bucket": "singleton"
+  }
+}
