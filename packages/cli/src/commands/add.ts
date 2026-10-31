@@ -314,7 +314,16 @@ async function addFeatures(
     await resolveFeature({ feature, project, builder, options: given, alsoAdding: adding });
   });
   const plan = builder.build();
-  const outcome = await writePlan({ rt, globals, root, plan, project });
+  const outcome = await writePlan({
+    rt,
+    globals,
+    root,
+    plan,
+    project,
+    afterWrite: async () => {
+      if (adding.includes('git-hooks')) await rt.system.gitInit(root);
+    },
+  });
   return finish(rt, globals, root, 'feature', adding, skipped, outcome);
 }
 

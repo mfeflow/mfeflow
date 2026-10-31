@@ -199,6 +199,32 @@ describe('mfeflow add <feature>', () => {
     expect(rt.io.out.join('\n')).toContain('Added git-hooks.');
   });
 
+  it('runs git init for git-hooks, before the install, like init does', async () => {
+    const rt = testRuntime();
+    const events: string[] = [];
+    rt.system.gitInit = (root) => {
+      events.push(`git ${path.basename(root)}`);
+      return Promise.resolve(true);
+    };
+    rt.system.install = () => {
+      events.push('install');
+      return Promise.resolve();
+    };
+    expect((await add(['git-hooks'], rt)).code).toBe(0);
+    expect(events).toEqual(['git app', 'install']);
+  });
+
+  it('runs git init for git-hooks with --no-install too', async () => {
+    const { code, rt } = await add(['git-hooks', '--no-install']);
+    expect(code).toBe(0);
+    expect(rt.system.gitInits).toEqual([project]);
+  });
+
+  it('does not run git init in a dry run', async () => {
+    const { rt } = await add(['git-hooks', '--dry-run']);
+    expect(rt.system.gitInits).toEqual([]);
+  });
+
   it('says so when a feature is already there, and writes nothing', async () => {
     const before = await readTree(project);
     const { code, rt } = await add(['url-factory']);
