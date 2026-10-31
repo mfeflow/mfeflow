@@ -114,6 +114,11 @@ describe('malicious third-party features are rejected', () => {
       'lefthook.yml',
       'package.json',
       'apps/a/.git/hooks/x',
+      '.pnpmfile.mjs',
+      '.PNPMFILE.MJS',
+      'a.txt',
+      'features/evil/feature.json',
+      'src/.hidden',
     ]) {
       expect(third({ files: [{ to, content: 'x' }] }).code).toBe('MFEFLOW_E203');
     }

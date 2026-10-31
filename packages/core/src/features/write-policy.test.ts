@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { thrown } from '../testing.js';
-import { assertWritable, isProtectedPath, policyKey } from './write-policy.js';
+import {
+  assertThirdPartyPath,
+  assertWritable,
+  isProtectedPath,
+  policyKey,
+} from './write-policy.js';
 
 describe('policyKey', () => {
   it('folds case and Unicode composition so lookalike spellings meet the same rule', () => {
@@ -81,5 +86,82 @@ describe('assertWritable for every feature', () => {
     for (const file of ['src/a.ts', '.github/workflows/ci.yml', 'package.json', '.env.example']) {
       expect(() => assertWritable(file)).not.toThrow();
     }
+  });
+});
+
+const thirdPartyCode = (relative: string, joined = relative) =>
+  thrown(() => assertThirdPartyPath(relative, joined)).code;
+
+describe('assertThirdPartyPath', () => {
+  it('allows source, public assets and docs, in any depth', () => {
+    for (const file of ['src/a.ts', 'src/platform/consent.tsx', 'public/logo.svg', 'docs/x.md']) {
+      expect(() => assertThirdPartyPath(file, `apps/shell/${file}`), file).not.toThrow();
+    }
+  });
+
+  it('refuses root-level files and everything outside src, public and docs', () => {
+    for (const file of [
+      'README.md',
+      'a.txt',
+      '.pnpmfile.mjs',
+      '.PNPMFILE.MJS',
+      'rsbuild.config.ts',
+      'index.html',
+      'scripts/postinstall.js',
+      'features/x/feature.json',
+      'srcs/a.ts',
+    ]) {
+      expect(thirdPartyCode(file), file).toBe('MFEFLOW_E203');
+    }
+  });
+
+  it('refuses dot folders and files even under src', () => {
+    for (const file of ['src/.hidden', '.github/workflows/ci.yml', 'src/.husky/pre-commit']) {
+      expect(thirdPartyCode(file), file).toBe('MFEFLOW_E203');
+    }
+  });
+
+  it('refuses package manager config and hook managers under src too', () => {
+    for (const file of [
+      'src/package.json',
+      'src/pnpm-workspace.yaml',
+      'src/lefthook.yml',
+      'src/yarn.lock',
+      'docs/.npmrc',
+    ]) {
+      expect(thirdPartyCode(file), file).toBe('MFEFLOW_E203');
+    }
+  });
+
+  it('refuses files test runners and tools pick up by name', () => {
+    for (const file of [
+      'src/a.test.ts',
+      'src/a.SPEC.tsx',
+      'src/__tests__/a.ts',
+      'src/vitest.config.ts',
+    ]) {
+      expect(thirdPartyCode(file), file).toBe('MFEFLOW_E203');
+    }
+  });
+
+  it('refuses names outside a plain ASCII set, and 8.3 short names', () => {
+    for (const file of [
+      'src/café.ts',
+      'src/a b.ts',
+      'src/．git/x',
+      'src/PNPMFI~1.mjs',
+      'src/a$b.ts',
+    ]) {
+      expect(thirdPartyCode(file), file).toBe('MFEFLOW_E203');
+    }
+  });
+
+  it('refuses the local features folder, wherever the target puts it', () => {
+    expect(thirdPartyCode('docs/a.md', 'features/docs/a.md')).toBe('MFEFLOW_E203');
+    expect(thirdPartyCode('docs/a.md', 'Features/docs/a.md')).toBe('MFEFLOW_E203');
+  });
+
+  it('applies the universal rules first', () => {
+    expect(thirdPartyCode('src/aux.ts')).toBe('MFEFLOW_E105');
   });
 });

@@ -9,7 +9,7 @@ import { applyTransform } from '../transforms/index.js';
 import { envKeyFiles } from '../transforms/add-env-key.js';
 import type { LoadedFeature } from './load.js';
 import { assertPlainScript } from './policy.js';
-import { assertWritable as assertSafeTarget, isProtectedPath } from './write-policy.js';
+import { assertThirdPartyPath, assertWritable as assertSafeTarget } from './write-policy.js';
 
 export interface ResolveInput {
   feature: LoadedFeature;
@@ -80,12 +80,11 @@ export function resolveOptions(
   return out;
 }
 
-function assertWritable(file: string, trusted: boolean): void {
+/** `relative` is the path inside the target app; `file` is the project path it ends up at. */
+function assertWritable(file: string, relative: string, trusted: boolean): void {
   if (!isSafeRelativePath(file)) throw new MfeflowError('E105', `"${file}"`);
-  assertSafeTarget(file);
-  if (!trusted && isProtectedPath(file)) {
-    throw new MfeflowError('E203', `"${file}" is a protected file`);
-  }
+  if (trusted) assertSafeTarget(file);
+  else assertThirdPartyPath(relative, file);
 }
 
 async function contentOf(
@@ -136,7 +135,7 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
   for (const file of manifest.files ?? []) {
     for (const place of placesFor(file.target, project)) {
       const to = joinPosix(place.dir, file.to);
-      assertWritable(to, trusted);
+      assertWritable(to, file.to, trusted);
       steps.push(async () => builder.create(to, await contentOf(file, feature, dataFor(place))));
     }
   }
@@ -164,7 +163,7 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
       const files = transform.op === 'add-env-key' ? envKeyFiles(transform) : [transform.file];
       for (const rel of files) {
         const file = joinPosix(place.dir, rel);
-        assertWritable(file, trusted);
+        assertWritable(file, rel, trusted);
         steps.push(() =>
           editFile(
             builder,

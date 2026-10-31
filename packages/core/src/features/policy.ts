@@ -1,6 +1,7 @@
 import { TRANSFORM_OPS, type FeatureManifest } from '@mfeflow/contracts';
 import { MfeflowError } from '../errors.js';
-import { isProtectedPath } from './write-policy.js';
+import { envKeyFiles } from '../transforms/add-env-key.js';
+import { assertThirdPartyPath } from './write-policy.js';
 
 /** Where a feature came from decides what it may do. */
 export type Trust = 'first-party' | 'third-party';
@@ -88,14 +89,11 @@ export function assertThirdPartyContent(manifest: FeatureManifest, label: string
         `${label}: "${file.to}" reads a local file (from); use inline content`,
       );
     }
-    if (isProtectedPath(file.to)) {
-      throw new MfeflowError('E203', `${label}: "${file.to}" is a protected file`);
-    }
+    assertThirdPartyPath(file.to, file.to);
   }
   for (const t of manifest.transforms ?? []) {
-    if (isProtectedPath(t.file)) {
-      throw new MfeflowError('E203', `${label}: "${t.file}" is a protected file`);
-    }
+    const files = t.op === 'add-env-key' ? envKeyFiles(t) : [t.file];
+    for (const file of files) assertThirdPartyPath(file, file);
   }
   for (const dep of manifest.dependencies ?? []) {
     if (!SAFE_RANGE.test(dep.range)) {

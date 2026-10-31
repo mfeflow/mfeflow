@@ -71,3 +71,40 @@ export function assertWritable(file: string): void {
     if (DEVICE_NAMES.has(base)) refuse(file, 'is a Windows device name');
   }
 }
+
+/** The only top-level folders (inside the target app or the root) a third-party feature writes to. */
+const THIRD_PARTY_FOLDERS = new Set(['src', 'public', 'docs']);
+const PLAIN_SEGMENT = /^[a-z0-9][a-z0-9._-]*$/;
+const WINDOWS_SHORT_NAME = /~[0-9]/;
+/** Files a test runner or a tool config loader would pick up by name. */
+const PICKED_UP_BY_NAME = /\.(test|spec|bench|config)\.[a-z0-9]+$/;
+
+function deny(file: string, why: string): never {
+  throw new MfeflowError('E203', `"${file}" ${why}`);
+}
+
+/**
+ * Where a third-party feature may write: an allowlist, not a list of bad
+ * names. `relative` is the path inside the target; `joined` is the project
+ * path. Only plain ASCII names under `src/`, `public/` or `docs/` pass, so no
+ * dot folder, root file or package manager config can be named.
+ */
+export function assertThirdPartyPath(relative: string, joined: string): void {
+  const key = policyKey(relative);
+  const segments = key.split('/');
+  if (segments.length < 2 || !THIRD_PARTY_FOLDERS.has(segments[0] ?? '')) {
+    deny(relative, 'is outside src/, public/ and docs/, where third-party features may write');
+  }
+  for (const segment of segments) {
+    if (!PLAIN_SEGMENT.test(segment) || WINDOWS_SHORT_NAME.test(segment)) {
+      deny(relative, 'has a name that is not plain lower-case ASCII (letters, digits, . _ -)');
+    }
+  }
+  if (isProtectedPath(relative) || PICKED_UP_BY_NAME.test(key)) {
+    deny(relative, 'is a protected file (package manager, git hook, test or tool config)');
+  }
+  if (policyKey(joined).split('/')[0] === 'features') {
+    deny(joined, 'is in the local features folder, which would later be trusted');
+  }
+  assertWritable(joined);
+}

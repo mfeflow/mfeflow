@@ -308,7 +308,7 @@ describe('resolveFeature', () => {
 
   it('reports a file with neither content nor a readable source as E202', async () => {
     const feature: LoadedFeature = {
-      manifest: { name: 'a', version: '1', files: [{ to: 'a.ts', from: 'x' }] },
+      manifest: { name: 'a', version: '1', files: [{ to: 'src/a.ts', from: 'x' }] },
       trust: 'third-party',
     };
     expect(
@@ -350,7 +350,7 @@ describe('third-party features at resolve time', () => {
     const body = '<%= globalThis.pwned = 1 %> {{ not.substituted }}';
     const builder = new PlanBuilder(reader());
     await resolveFeature({
-      feature: third({ files: [{ to: 'a.txt', content: body }] }),
+      feature: third({ files: [{ to: 'src/a.txt', content: body }] }),
       project,
       builder,
     });
@@ -375,6 +375,41 @@ describe('third-party features at resolve time', () => {
     const builder = new PlanBuilder(reader());
     await resolveFeature({ feature, project, builder });
     expect(summarize(builder.build())).toContain('not run');
+  });
+
+  it('writes only under src, public and docs, even if the loader was bypassed', async () => {
+    const attempts: { to: string; target?: string }[] = [
+      { to: '.pnpmfile.mjs' },
+      { to: '.PnpmFile.mjs', target: 'shell' },
+      { to: 'rsbuild.config.ts', target: 'shell' },
+      { to: 'features/evil/feature.json' },
+      { to: 'src/.husky/pre-commit', target: 'shell' },
+    ];
+    const errors = await Promise.all(
+      attempts.map((attempt) => {
+        const feature: LoadedFeature = {
+          manifest: { name: '@acme/x', version: '1', files: [{ ...attempt, content: 'x' }] },
+          trust: 'third-party',
+        };
+        return rejection(resolveFeature({ feature, project, builder: new PlanBuilder(reader()) }));
+      }),
+    );
+    expect(errors.map((e) => e.code)).toEqual(attempts.map(() => 'MFEFLOW_E203'));
+  });
+
+  it('refuses a transform on a file outside the allowlist at resolve time', async () => {
+    const feature: LoadedFeature = {
+      manifest: {
+        name: '@acme/x',
+        version: '1',
+        transforms: [{ op: 'add-import', file: 'rsbuild.config.ts', target: 'shell', from: 'x' }],
+      },
+      trust: 'third-party',
+    };
+    const builder = new PlanBuilder(reader({ ...tree, 'apps/shell/rsbuild.config.ts': '' }));
+    expect((await rejection(resolveFeature({ feature, project, builder }))).code).toBe(
+      'MFEFLOW_E203',
+    );
   });
 
   it('refuses protected files at resolve time even if the loader was bypassed', async () => {
