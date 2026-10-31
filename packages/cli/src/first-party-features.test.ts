@@ -347,6 +347,15 @@ describe('analytics-gtm', () => {
     ]);
   });
 
+  it('applies features in catalogue order whichever way they are typed', async () => {
+    expect(await add('analytics-gtm', 'env-t3')).toBe(0);
+    expect((await read('apps/shell/src/config/schema.ts')).match(/gtmId:/g)).toHaveLength(1);
+    expect(await runtimeKeys('apps/shell/public/config/runtime-config.prod.json')).toEqual([
+      'environment',
+      'gtmId',
+    ]);
+  });
+
   it('writes a unit test for the shell and each remote when testing is installed', async () => {
     await add('testing');
     await add('analytics-gtm');
