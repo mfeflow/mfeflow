@@ -29,6 +29,16 @@
       {
         "allow": ["**/*.css"]
       }
+    ],
+    "import/extensions": [
+      "error",
+      "never",
+      {
+        "json": "always",
+        "css": "always",
+        "svg": "always",
+        "png": "always"
+      }
     ]
   },
   "ignorePatterns": [
@@ -48,6 +58,12 @@
         "typescript/no-unsafe-member-access": "off",
         "typescript/no-unsafe-argument": "off",
         "typescript/no-unsafe-assignment": "off"
+      }
+    },
+    {
+      "files": ["examples/storefront/e2e/**", "packages/*/bin/**", "scripts/**"],
+      "rules": {
+        "import/extensions": "off"
       }
     }
   ]

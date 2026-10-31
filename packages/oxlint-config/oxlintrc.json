@@ -29,7 +29,25 @@
       {
         "allow": ["**/*.css"]
       }
+    ],
+    "import/extensions": [
+      "error",
+      "never",
+      {
+        "json": "always",
+        "css": "always",
+        "svg": "always",
+        "png": "always"
+      }
     ]
   },
-  "ignorePatterns": ["**/dist/**", "**/doc_build/**", "**/coverage/**", "**/.turbo/**"]
+  "ignorePatterns": ["**/dist/**", "**/doc_build/**", "**/coverage/**", "**/.turbo/**"],
+  "overrides": [
+    {
+      "files": ["**/bin/**", "scripts/**"],
+      "rules": {
+        "import/extensions": "off"
+      }
+    }
+  ]
 }
