@@ -56,7 +56,7 @@ test('remotes keep their own storage and stay in sync inside the cart remote', a
   await expect(page.getByTestId('mini-cart')).toHaveText('2 items');
   await page.getByTestId('nav-catalog').click();
   await page.getByTestId('product-2').getByRole('button').click();
-  const keys = await page.evaluate(() => Object.keys(localStorage).toSorted());
+  const keys = await page.evaluate(() => Object.keys(localStorage));
   expect(keys).toEqual(expect.arrayContaining(['cart:items', 'catalog:lastViewed']));
 });
 
