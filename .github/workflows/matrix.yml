@@ -1,0 +1,98 @@
+name: matrix
+
+on:
+  pull_request:
+    paths:
+      - packages/cli/**
+      - packages/core/**
+      - features/**
+      - templates/**
+      - e2e/matrix/**
+      - .github/workflows/matrix.yml
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      all: ${{ steps.list.outputs.all }}
+      edges: ${{ steps.list.outputs.edges }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+      - id: list
+        run: |
+          echo "all=$(node e2e/matrix/run.ts --list)" >> "$GITHUB_OUTPUT"
+          echo "edges=$(node e2e/matrix/run.ts --list --set edges)" >> "$GITHUB_OUTPUT"
+
+  # Every combination on ubuntu: on pull requests, and every night.
+  ubuntu:
+    name: ubuntu ${{ matrix.combo }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        combo: ${{ fromJSON(needs.plan.outputs.all) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node e2e/matrix/run.ts ${{ matrix.combo }}
+        env:
+          MATRIX_DIR: ${{ runner.temp }}
+
+  # The corners on macOS and Windows, nightly only: enough to catch what is OS specific.
+  other-os:
+    name: ${{ matrix.os }} ${{ matrix.combo }}
+    if: github.event_name != 'pull_request'
+    needs: plan
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+        combo: ${{ fromJSON(needs.plan.outputs.edges) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node e2e/matrix/run.ts ${{ matrix.combo }}
+        env:
+          MATRIX_DIR: ${{ runner.temp }}
