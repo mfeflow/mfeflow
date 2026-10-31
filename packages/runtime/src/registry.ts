@@ -4,8 +4,13 @@ import { reportRemoteError } from './report.js';
 export interface RegistryRemote {
   /** Module Federation name, e.g. `cart`. */
   name: string;
-  /** `mf-manifest.json` (or remote entry) URL of the version to load. */
+  /** `mf-manifest.json` URL of the version to load. Used when `remoteEntry` is absent. */
   entry: string;
+  /**
+   * The remote's entry script. Registered in place of the manifest in
+   * production, so the shell fetches no manifest and ships no snapshot code.
+   */
+  remoteEntry?: string;
   version?: string;
   routes?: string[];
   owner?: string;
@@ -29,6 +34,7 @@ function isRemote(value: unknown): value is RegistryRemote {
   if (!('name' in value) || !('entry' in value)) return false;
   if (typeof value.name !== 'string' || !NAME.test(value.name) || typeof value.entry !== 'string')
     return false;
+  if ('remoteEntry' in value && typeof value.remoteEntry !== 'string') return false;
   if ('version' in value && typeof value.version !== 'string') return false;
   if ('owner' in value && typeof value.owner !== 'string') return false;
   if ('routes' in value && !isStringArray(value.routes)) return false;
@@ -49,23 +55,39 @@ export function isRegistryIndex(value: unknown): value is RegistryIndex {
 export interface LoadRegistryOptions {
   timeoutMs?: number;
   fetch?: typeof fetch;
-  /** Use an index the server or edge inlined as `globalThis.mfeflowRegistry`. Default true. */
+  /** Use an index the server or edge inlined as `window.__MFE_REGISTRY__`. Default true. */
   inline?: boolean;
+  /** Allow the fallback fetch to leave the page's origin. Default false. */
+  allowCrossOrigin?: boolean;
 }
 
-declare global {
-  // Set by an inline <script> the server or CDN edge writes into the shell's HTML,
-  // so the shell can register remotes without waiting for another request.
-  var mfeflowRegistry: unknown;
+/**
+ * Global the server or CDN edge writes into the shell's HTML (see
+ * `registryInjection` in `@mfeflow/contracts`), so the shell registers remotes
+ * without another request.
+ */
+export const REGISTRY_GLOBAL = '__MFE_REGISTRY__';
+
+export const DEFAULT_REGISTRY_URL = '/registry/index.json';
+
+function sameOrigin(url: string): boolean {
+  if (typeof location === 'undefined') return true;
+  return new URL(url, location.href).origin === location.origin;
 }
 
-/** Fetches and validates the registry index. Throws on HTTP errors, timeouts and invalid JSON. */
+/**
+ * Reads the registry index: `window.__MFE_REGISTRY__` when the edge inlined it,
+ * otherwise a same-origin fetch. Throws on HTTP errors, timeouts, invalid JSON
+ * and cross-origin URLs.
+ */
 export async function loadRegistryIndex(
-  url: string,
+  url: string = DEFAULT_REGISTRY_URL,
   options: LoadRegistryOptions = {},
 ): Promise<RegistryIndex> {
-  if (options.inline !== false && isRegistryIndex(globalThis.mfeflowRegistry))
-    return globalThis.mfeflowRegistry;
+  const inlined: unknown = Reflect.get(globalThis, REGISTRY_GLOBAL);
+  if (options.inline !== false && isRegistryIndex(inlined)) return inlined;
+  if (options.allowCrossOrigin !== true && !sameOrigin(url))
+    throw new Error(`registry index ${url}: must be same-origin`);
   const doFetch = options.fetch ?? fetch;
   const res = await doFetch(url, { signal: AbortSignal.timeout(options.timeoutMs ?? 5000) });
   if (!res.ok) throw new Error(`registry index ${url}: HTTP ${String(res.status)}`);
@@ -82,13 +104,17 @@ export function registeredRemotes(): readonly RegistryRemote[] {
 }
 
 export interface RegisterOptions {
-  /** Only remotes whose entry URL starts with one of these origins are registered. */
+  /** Only remotes whose registered URL (`remoteEntry`, else `entry`) is on one of these origins are registered. */
   allowedOrigins?: readonly string[];
 }
 
 /**
- * Registers the index's remotes with Module Federation. Remotes from origins
- * outside `allowedOrigins` are skipped and reported. Returns the registered names.
+ * Registers the index's remotes with Module Federation, by remote entry URL
+ * when the index has one. Call it once the shell's shared scope is set up
+ * (after the app entry runs, never from the build config), so Module Federation
+ * does not load every remote's entry while resolving shared modules.
+ * Remotes from origins outside `allowedOrigins` are skipped and reported.
+ * Returns the registered names.
  */
 export function registerRemotesFromIndex(
   index: RegistryIndex,
@@ -97,11 +123,12 @@ export function registerRemotesFromIndex(
   const allowed = options.allowedOrigins?.map((o) => new URL(o).origin);
   const ok: RegistryRemote[] = [];
   for (const remote of index.remotes) {
+    const url = remote.remoteEntry ?? remote.entry;
     let origin: string;
     try {
-      origin = new URL(remote.entry).origin;
+      origin = new URL(url).origin;
     } catch {
-      reportRemoteError(remote.name, 'registry', new Error(`invalid entry URL "${remote.entry}"`));
+      reportRemoteError(remote.name, 'registry', new Error(`invalid entry URL "${url}"`));
       continue;
     }
     if (allowed && !allowed.includes(origin)) {
@@ -110,7 +137,7 @@ export function registerRemotesFromIndex(
     }
     ok.push(remote);
   }
-  registerRemotes(ok.map((r) => ({ name: r.name, entry: r.entry })));
+  registerRemotes(ok.map((r) => ({ name: r.name, entry: r.remoteEntry ?? r.entry })));
   registered = [...ok];
   return ok.map((r) => r.name);
 }

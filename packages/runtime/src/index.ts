@@ -1,8 +1,10 @@
 export { composeProviders, withProps, type ProviderComponent } from './providers.js';
 export { REMOTE_ERROR_EVENT, reportRemoteError, type RemoteErrorReport } from './report.js';
 export {
+  DEFAULT_REGISTRY_URL,
   isRegistryIndex,
   loadRegistryIndex,
+  REGISTRY_GLOBAL,
   registeredRemotes,
   registerRemotesFromIndex,
   type LoadRegistryOptions,
@@ -18,7 +20,12 @@ export {
   type RemoteBoundaryProps,
   type RemoteOptions,
 } from './remote.js';
-export { checkSingletons, type SingletonCheck } from './singletons.js';
+export {
+  ASSERT_PARAM,
+  assertRequested,
+  checkSingletons,
+  type SingletonCheck,
+} from './singletons.js';
 export {
   applyDevOverrides,
   OVERRIDE_PARAM,

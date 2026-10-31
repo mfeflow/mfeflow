@@ -31,6 +31,11 @@
       "types": "./dist/plugins/report.d.ts",
       "import": "./dist/plugins/report.js",
       "default": "./dist/plugins/report.js"
+    },
+    "./plugins/entry-retry": {
+      "types": "./dist/plugins/entry-retry.d.ts",
+      "import": "./dist/plugins/entry-retry.js",
+      "default": "./dist/plugins/entry-retry.js"
     }
   },
   "files": [

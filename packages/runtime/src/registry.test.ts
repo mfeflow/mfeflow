@@ -3,8 +3,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const registerRemotes = vi.fn();
 vi.mock('@module-federation/enhanced/runtime', () => ({ registerRemotes }));
 
-const { isRegistryIndex, loadRegistryIndex, registerRemotesFromIndex } =
-  await import('./registry.js');
+const {
+  DEFAULT_REGISTRY_URL,
+  isRegistryIndex,
+  loadRegistryIndex,
+  REGISTRY_GLOBAL,
+  registerRemotesFromIndex,
+} = await import('./registry.js');
 
 const index = {
   shell: 'storefront',
@@ -19,6 +24,13 @@ const index = {
     { name: 'catalog', entry: 'https://evil.example.net/catalog/mf-manifest.json' },
   ],
 };
+
+const hang = (_url: string | URL | Request, init?: RequestInit) =>
+  new Promise<Response>((_resolve, reject) => {
+    init?.signal?.addEventListener('abort', () => {
+      reject(new Error('aborted'));
+    });
+  });
 
 afterEach(() => {
   registerRemotes.mockReset();
@@ -36,6 +48,8 @@ describe('isRegistryIndex', () => {
     expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 1 }] })).toBe(false);
     expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', routes: [1] }] })).toBe(false);
     expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', version: 2 }] })).toBe(false);
+    expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', remoteEntry: 2 }] })).toBe(false);
+    expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', remoteEntry: 'y' }] })).toBe(true);
     expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', owner: 2 }] })).toBe(false);
   });
 });
@@ -43,24 +57,45 @@ describe('isRegistryIndex', () => {
 describe('loadRegistryIndex', () => {
   it('fetches and validates', async () => {
     const fetchFn = vi.fn(() => Promise.resolve(new Response(JSON.stringify(index))));
+    await expect(loadRegistryIndex('/registry/prod.json', { fetch: fetchFn })).resolves.toEqual(
+      index,
+    );
+    await expect(loadRegistryIndex(undefined, { fetch: fetchFn })).resolves.toEqual(index);
+    expect(fetchFn.mock.calls.map((c) => (c as unknown[])[0])).toEqual([
+      '/registry/prod.json',
+      DEFAULT_REGISTRY_URL,
+    ]);
+  });
+
+  it('refuses a cross-origin fallback fetch unless allowed', async () => {
+    const fetchFn = vi.fn(() => Promise.resolve(new Response(JSON.stringify(index))));
+    const url = 'https://registry.example.com/prod.json';
+    await expect(loadRegistryIndex(url, { fetch: fetchFn })).rejects.toThrow(/same-origin/);
+    expect(fetchFn).not.toHaveBeenCalled();
     await expect(
-      loadRegistryIndex('https://registry.example.com/prod.json', { fetch: fetchFn }),
+      loadRegistryIndex(url, { fetch: fetchFn, allowCrossOrigin: true }),
     ).resolves.toEqual(index);
+  });
+
+  it('times out a slow registry', async () => {
+    await expect(loadRegistryIndex('/r.json', { fetch: hang, timeoutMs: 20 })).rejects.toThrow(
+      /aborted/,
+    );
   });
 
   it('uses an inlined index without fetching, unless told not to', async () => {
     const fetchFn = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ remotes: [] }))));
-    globalThis.mfeflowRegistry = index;
+    Reflect.set(globalThis, REGISTRY_GLOBAL, index);
     try {
       await expect(loadRegistryIndex('u', { fetch: fetchFn })).resolves.toBe(index);
       expect(fetchFn).not.toHaveBeenCalled();
       await expect(loadRegistryIndex('u', { fetch: fetchFn, inline: false })).resolves.toEqual({
         remotes: [],
       });
-      globalThis.mfeflowRegistry = { remotes: 'broken' };
+      Reflect.set(globalThis, REGISTRY_GLOBAL, { remotes: 'broken' });
       await expect(loadRegistryIndex('u', { fetch: fetchFn })).resolves.toEqual({ remotes: [] });
     } finally {
-      globalThis.mfeflowRegistry = undefined;
+      Reflect.deleteProperty(globalThis, REGISTRY_GLOBAL);
     }
   });
 
@@ -91,6 +126,32 @@ describe('registerRemotesFromIndex', () => {
       ['catalog', 'registry'],
       ['broken', 'registry'],
     ]);
+  });
+
+  it('registers remoteEntry URLs in place of manifests and checks the origin of the URL it registers', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const names = registerRemotesFromIndex(
+      {
+        remotes: [
+          {
+            name: 'cart',
+            entry: 'https://evil.example.net/cart/mf-manifest.json',
+            remoteEntry: 'https://cdn.example.com/mfe/cart/remoteEntry.js',
+          },
+          {
+            name: 'catalog',
+            entry: 'https://cdn.example.com/mfe/catalog/mf-manifest.json',
+            remoteEntry: 'https://evil.example.net/remoteEntry.js',
+          },
+        ],
+      },
+      { allowedOrigins: ['https://cdn.example.com'] },
+    );
+    expect(names).toEqual(['cart']);
+    expect(registerRemotes).toHaveBeenCalledWith([
+      { name: 'cart', entry: 'https://cdn.example.com/mfe/cart/remoteEntry.js' },
+    ]);
+    expect(globalThis.mfeflowReports?.map((r) => r.mfe)).toEqual(['catalog']);
   });
 
   it('registers everything when no allowlist is given', () => {

@@ -32,6 +32,35 @@ describe('applyDevOverrides', () => {
     ).toBe(index);
   });
 
+  it('ignores the override and reports it when overrides are disabled (production)', () => {
+    const search = '?mfe-override=cart@http://localhost:4312/mf-manifest.json';
+    expect(applyDevOverrides(index, { enabled: false, search })).toBe(index);
+    expect(globalThis.mfeflowReports).toEqual([
+      expect.objectContaining({ mfe: 'shell', where: 'override' }),
+    ]);
+    expect(sessionStorage.getItem(OVERRIDE_STORAGE_KEY)).toBeNull();
+    globalThis.mfeflowReports = undefined;
+    applyDevOverrides(index, { enabled: false, search: '' });
+    expect(globalThis.mfeflowReports).toBeUndefined();
+  });
+
+  it('replaces the remote entry URL too, so the override wins', () => {
+    const withEntry = {
+      remotes: [
+        { ...index.remotes[0]!, remoteEntry: 'https://cdn.example.com/cart/remoteEntry.js' },
+      ],
+    };
+    const out = applyDevOverrides(withEntry, {
+      enabled: true,
+      search: '?mfe-override=cart@http://localhost:4312/mf-manifest.json',
+    });
+    expect(out.remotes[0]).toEqual({
+      name: 'cart',
+      entry: 'http://localhost:4312/mf-manifest.json',
+      version: 'override',
+    });
+  });
+
   it('replaces and adds remotes from the query and persists them', () => {
     const out = applyDevOverrides(index, {
       enabled: true,
