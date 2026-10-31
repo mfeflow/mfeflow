@@ -16,7 +16,7 @@
     "ci": "pnpm format:check && pnpm build && pnpm lint && pnpm typecheck && pnpm test",
     "changeset": "changeset",
     "check:pack": "node scripts/check-pack.mjs",
-    "release": "pnpm build && changeset publish",
+    "release": "changeset publish",
     "prepare": "lefthook install",
     "e2e": "pnpm --filter @storefront/e2e test"
   },

@@ -8,8 +8,11 @@ name: release
 # repository and workflow (release.yml) as a trusted publisher of every package, then delete
 # NPM_TOKEN and the NODE_AUTH_TOKEN line below. `id-token: write` and provenance are already set.
 #
-# The 13 public packages are versioned together (the `fixed` group in .changeset/config.json).
+# The public packages are versioned together (the `fixed` group in .changeset/config.json).
 # A new public package must be added to that list, or the pack check fails.
+#
+# The npm token is only set on the changesets step, which runs `changeset publish` (the root
+# `release` script) and nothing else. Install, build and the pack check run before it, without the token.
 
 on:
   push:

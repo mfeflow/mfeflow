@@ -175,3 +175,32 @@ describe('formatBytes', () => {
     expect(formatBytes(3 * 1024 * 1024)).toBe('3.00 MB');
   });
 });
+
+describe('release workflow', () => {
+  const workflow = fs.readFileSync(path.join(repo, '.github/workflows/release.yml'), 'utf8');
+  const steps = workflow.split(/\n {6}- /).slice(1);
+
+  it('runs only changeset publish with the token, so no build script sees it', () => {
+    const root = JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8'));
+    expect(root.scripts.release).toBe('changeset publish');
+  });
+
+  it('gives the npm token to the changesets step alone', () => {
+    const withToken = steps.filter((s) => s.includes('NODE_AUTH_TOKEN'));
+    expect(withToken).toHaveLength(1);
+    expect(withToken[0]).toMatch(/^uses: changesets\/action@/);
+  });
+
+  it('installs, builds and checks the pack before the token step', () => {
+    const order = ['pnpm install', 'pnpm build', 'pnpm check:pack', 'changesets/action'].map((n) =>
+      steps.findIndex((s) => s.includes(n)),
+    );
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it('does not hard-code the package count in the workflow or the README', () => {
+    const readme = fs.readFileSync(path.join(repo, 'README.md'), 'utf8');
+    for (const text of [workflow, readme]) expect(text).not.toMatch(/\b\d+ public packages/);
+  });
+});

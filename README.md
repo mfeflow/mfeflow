@@ -18,7 +18,7 @@ one tracer.
 
 ## Status
 
-The first release is being prepared: all 13 public packages are versioned together and
+The first release is being prepared: every public package is versioned together and
 will start at 0.1.0. Nothing is on npm yet.
 
 What works today, from the repo:
