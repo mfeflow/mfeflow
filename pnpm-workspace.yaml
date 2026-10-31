@@ -8,6 +8,7 @@ catalog:
   '@babel/parser': 8.0.10
   '@babel/types': 8.0.10
   '@changesets/cli': 3.0.3
+  '@clack/prompts': 1.8.1
   '@commitlint/cli': 21.2.4
   '@commitlint/config-conventional': 21.2.4
   '@module-federation/enhanced': 2.9.2
@@ -24,6 +25,7 @@ catalog:
   '@types/react-dom': 19.3.0
   '@types/semver': 7.8.0
   '@vitest/coverage-v8': 5.0.5
+  citty: 0.2.2
   diff: 9.0.0
   es-module-lexer: 3.0.4
   eta: 4.6.0

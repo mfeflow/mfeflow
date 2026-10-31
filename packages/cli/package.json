@@ -1,7 +1,7 @@
 {
   "name": "mfeflow",
   "version": "0.0.0",
-  "description": "React micro-frontend boilerplate and platform kit: scaffold Module Federation apps \u00e0 la carte, self-host a registry with one-command rollback. Early, not usable yet.",
+  "description": "Create and grow a React micro-frontend platform: mfeflow init, add remote, add <feature>.",
   "keywords": [
     "micro-frontend",
     "micro-frontends",
@@ -36,6 +36,7 @@
     }
   },
   "files": [
+    "assets",
     "bin",
     "dist"
   ],
@@ -47,8 +48,14 @@
     "provenance": true
   },
   "scripts": {
-    "build": "rslib build",
+    "build": "node scripts/copy-assets.mjs && rslib build",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@clack/prompts": "catalog:",
+    "@mfeflow/contracts": "workspace:*",
+    "@mfeflow/core": "workspace:*",
+    "citty": "catalog:"
   },
   "devDependencies": {
     "@rslib/core": "catalog:",
