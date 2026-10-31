@@ -64,7 +64,10 @@ test('every platform singleton loads once', async ({ page }) => {
   await open(page, '/catalog?mfeflow-assert');
   await page.getByTestId('nav-cart').click();
   await expect(page.getByTestId('cart')).toBeVisible();
-  const result: unknown = await page.evaluate((): unknown => {
+  await page.waitForFunction(() => Reflect.get(globalThis, 'mfeflowAssertReady') !== undefined);
+  const result: unknown = await page.evaluate(async (): Promise<unknown> => {
+    const ready: unknown = Reflect.get(globalThis, 'mfeflowAssertReady');
+    if (ready instanceof Promise) await ready;
     const check: unknown = Reflect.get(globalThis, 'mfeflowCheckSingletons');
     return typeof check === 'function' ? Reflect.apply(check, undefined, []) : undefined;
   });

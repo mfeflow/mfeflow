@@ -11,6 +11,10 @@ import { App } from './App';
 import { languages, shellMessages } from './languages';
 import './styles.css';
 
+declare global {
+  var mfeflowAssertReady: Promise<void> | undefined;
+}
+
 const DEV = process.env.NODE_ENV !== 'production';
 
 export async function main(): Promise<void> {
@@ -28,5 +32,6 @@ export async function main(): Promise<void> {
   }
   const el = document.getElementById('root');
   if (el) createRoot(el).render(<App />);
-  if (DEV || assertRequested()) void import('./assert');
+  // Off the critical path; resolves once the check is installed, for tests that need to call it.
+  if (DEV || assertRequested()) globalThis.mfeflowAssertReady = import('./assert').then(() => {});
 }
