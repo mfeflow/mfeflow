@@ -7,7 +7,6 @@ export function packageInfo(): { name: string; version: string } {
 }
 
 export {
-  DOCS_BASE,
   ERROR_CATALOGUE,
   hasErrno,
   isMfeflowError,

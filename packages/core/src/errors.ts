@@ -1,4 +1,4 @@
-import { DOCS_URL, SCHEMA_URLS, errorDocsUrl } from '@mfeflow/contracts';
+import { SCHEMA_URLS, errorDocsUrl } from '@mfeflow/contracts';
 
 interface ErrorInfo {
   title: string;
@@ -189,8 +189,6 @@ export const ERROR_CATALOGUE = {
 } as const satisfies Record<string, ErrorInfo>;
 
 export type ErrorCode = keyof typeof ERROR_CATALOGUE;
-
-export const DOCS_BASE = `${DOCS_URL}/errors`;
 
 export interface MfeflowErrorOptions {
   cause?: unknown;

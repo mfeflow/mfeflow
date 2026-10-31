@@ -1,8 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { errorDocsUrl } from '@mfeflow/contracts';
 import { describe, expect, it } from 'vitest';
 import {
-  DOCS_BASE,
   ERROR_CATALOGUE,
   hasErrno,
   isMfeflowError,
@@ -49,7 +49,7 @@ describe('MfeflowError', () => {
     expect(error.name).toBe('MfeflowError');
     expect(error.code).toBe('MFEFLOW_E102');
     expect(error.message).toBe('No mfeflow.json found: looked in /tmp');
-    expect(error.docs).toBe(`${DOCS_BASE}/E102`);
+    expect(error.docs).toBe(errorDocsUrl('E102'));
     expect(error.fix).toBe(ERROR_CATALOGUE.E102.fix);
   });
 
