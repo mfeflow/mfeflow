@@ -11,12 +11,25 @@ function withoutComments(code: string): string {
   return code.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
-/** Module specifiers a source file imports, requires or dynamically imports. */
+const FROM_CLAUSE =
+  /\b(?:import|export)\s+(type\s+(?!from\b))?([\w\s{},*$]*?)\bfrom\s*['"]([^'"]+)['"]/g;
+
+/** `{ type A, type B }`: every specifier is a type, so nothing is imported at run time. */
+function onlyTypes(clause: string): boolean {
+  const named = /^\s*\{([^}]*)\}\s*$/.exec(clause)?.[1];
+  if (named === undefined) return false;
+  const specifiers = named.split(',').filter((part) => part.trim() !== '');
+  return specifiers.length > 0 && specifiers.every((part) => /^\s*type\s+\S/.test(part));
+}
+
+/** Module specifiers a source file imports, requires or dynamically imports at run time: type-only imports are left out. */
 export function importsOf(code: string): string[] {
   const clean = withoutComments(code);
   const found = new Set<string>();
+  for (const m of clean.matchAll(FROM_CLAUSE)) {
+    if (m[1] === undefined && !onlyTypes(m[2] ?? '')) found.add(m[3] ?? '');
+  }
   const patterns = [
-    /\bfrom\s*['"]([^'"]+)['"]/g,
     /\bimport\s*['"]([^'"]+)['"]/g,
     /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
     /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
