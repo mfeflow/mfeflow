@@ -31,16 +31,28 @@ function readNames(dir: string): string[] {
 
 // The shell finds its remotes through the registry. In dev that is registry/envs/dev, which
 // points at each remote's dev server, inlined so the shell needs no registry server.
+// `mfeflow dev` writes the merged registry (apps from mfeflow.json, --remote overrides) to
+// MFEFLOW_DEV_REGISTRY and rewrites it when the project changes; plain `pnpm dev` reads the folder.
+const registryDir = path.resolve(process.cwd(), '../../registry/envs/dev');
+const generated = process.env.MFEFLOW_DEV_REGISTRY;
+
+function readGenerated(file: string): unknown {
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
 function devRegistry(): string {
-  const dir = path.resolve(process.cwd(), '../../registry/envs/dev');
-  const remotes = readNames(dir)
-    .filter((file) => file.endsWith('.json'))
-    .toSorted()
-    .map((file) => {
-      const { manifestUrl, version } = readEntry(path.join(dir, file));
-      return { name: file.slice(0, -'.json'.length), entry: manifestUrl, version };
-    });
-  return `window.__MFE_REGISTRY__=${JSON.stringify({ remotes }).replaceAll('<', '\\u003c')}`;
+  const remotes = generated
+    ? readGenerated(generated)
+    : {
+        remotes: readNames(registryDir)
+          .filter((file) => file.endsWith('.json'))
+          .toSorted()
+          .map((file) => {
+            const { manifestUrl, version } = readEntry(path.join(registryDir, file));
+            return { name: file.slice(0, -'.json'.length), entry: manifestUrl, version };
+          }),
+      };
+  return `window.__MFE_REGISTRY__=${JSON.stringify(remotes).replaceAll('<', '\\u003c')}`;
 }
 
 export default defineConfig(({ command }) =>
@@ -48,6 +60,8 @@ export default defineConfig(({ command }) =>
     // snapshot: registry entries carry a manifest URL until deploys also publish remoteEntry.
     createShellConfig({ name: '<%= it.app.name %>', port: <%= it.app.port %>, snapshot: true }),
     defineConfig({
+      // A new or changed remote restarts the dev server, which reads the registry again.
+      dev: { watchFiles: { paths: generated ?? registryDir, type: 'restart' } },
       html: {
         title: '<%= it.app.name %>',
         tags:

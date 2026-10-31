@@ -5,6 +5,7 @@ export { validateResult } from './output';
 export type {
   AddResult,
   BudgetResult,
+  DevResult,
   CliResult,
   FailureResult,
   FeatureInfo,

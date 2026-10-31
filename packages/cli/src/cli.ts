@@ -11,12 +11,12 @@ import {
   VALIDATE_ARGS,
 } from './commands/doctor';
 import { BUDGET_ARGS, runBudget } from './commands/budget';
+import { DEV_ARGS, runDev } from './commands/dev';
 import { FEATURES_ARGS, runFeatures } from './commands/features';
 import { INIT_ARGS, runInit } from './commands/init';
 import { Cancelled, EXIT, exitCodeFor, reportOf, unexpectedReport, unexpectedText } from './exit';
-import { exitForFindings } from './report';
 import { commandHelp, rootHelp, type CommandHelp } from './help';
-import type { CliResult, FailureResult } from './output';
+import { exitOf, type CliResult, type FailureResult } from './output';
 import { realRuntime, type Runtime } from './runtime';
 import { readPackageJson } from './version';
 
@@ -104,6 +104,21 @@ export const COMMANDS: readonly Command[] = [
     args: BUDGET_ARGS,
     examples: ['mfeflow budget', 'mfeflow budget --json', 'mfeflow budget --dist build'],
     run: runBudget,
+  },
+  {
+    name: 'dev',
+    summary:
+      'run the shell and every remote together, with a dev registry that follows the project',
+    usage: 'mfeflow dev [options]',
+    args: DEV_ARGS,
+    examples: [
+      'mfeflow dev',
+      'mfeflow dev --only shell,catalog',
+      'mfeflow dev --remote checkout=http://localhost:3001',
+      'mfeflow dev --remote checkout=https://dev.example.com --allow-origin https://dev.example.com',
+      'mfeflow dev --dry-run',
+    ],
+    run: runDev,
   },
 ];
 
@@ -196,7 +211,7 @@ export async function main(argv: readonly string[], rt: Runtime = realRuntime())
       { rawArgs: rest },
     );
     if (json && result) rt.io.stdout(JSON.stringify(result, null, 2));
-    return result && 'findings' in result ? exitForFindings(result.findings) : EXIT.ok;
+    return result ? exitOf(result) : EXIT.ok;
   } catch (error) {
     return fail(error, rt, json, verbose);
   }

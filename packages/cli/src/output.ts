@@ -1,8 +1,8 @@
 import type { Issue } from '@mfeflow/contracts';
 import { type Plan } from '@mfeflow/core';
-import type { ErrorReport } from './exit';
+import { EXIT, type ErrorReport } from './exit';
 import type { Finding } from './findings';
-import type { CheckReport, Summary } from './report';
+import { exitForFindings, type CheckReport, type Summary } from './report';
 
 export interface PlanReport {
   features: { name: string; version: string }[];
@@ -115,6 +115,29 @@ export interface BudgetResult {
   findings: Finding[];
 }
 
+export interface DevApp {
+  name: string;
+  kind: 'shell' | 'remote';
+  port: number | null;
+  url: string | null;
+  command: string;
+  /** `overridden`: a server you run yourself, given with --remote. */
+  status: 'started' | 'overridden';
+}
+
+export interface DevResult {
+  ok: boolean;
+  command: 'dev';
+  root: string;
+  /** The generated dev registry the shell reads. */
+  registry: string;
+  apps: DevApp[];
+  overrides: Record<string, string>;
+  dryRun: boolean;
+  /** Stopped with Ctrl+C or a termination signal. */
+  interrupted: boolean;
+}
+
 export interface FailureResult {
   ok: false;
   error: ErrorReport;
@@ -122,7 +145,7 @@ export interface FailureResult {
 }
 
 export type CliResult =
-  InitResult | AddResult | FeaturesResult | ReportResult | BudgetResult | FailureResult;
+  InitResult | AddResult | FeaturesResult | ReportResult | BudgetResult | DevResult | FailureResult;
 
 /** The plan as plain data for `--json`, without file contents. Features are listed once. */
 export function planReport(plan: Plan): PlanReport {
@@ -330,8 +353,32 @@ export function validateResult(value: unknown): Issue[] {
     case 'budget':
       checkBudget(c, value);
       break;
+    case 'dev':
+      c.string(value, 'root', '');
+      c.string(value, 'registry', '');
+      c.boolean(value, 'dryRun', '');
+      c.boolean(value, 'interrupted', '');
+      c.objects(value, 'apps', '', (app, p) => {
+        c.string(app, 'name', p);
+        c.string(app, 'command', p);
+        if (app.status !== 'started' && app.status !== 'overridden') {
+          c.add(`${p}status`, 'must be started or overridden');
+        }
+      });
+      if (!isObj(value.overrides)) c.add('overrides', 'must be an object');
+      break;
     default:
-      c.add('command', 'must be init, add, features, doctor, validate, check-compat or budget');
+      c.add(
+        'command',
+        'must be init, add, features, doctor, validate, check-compat, budget or dev',
+      );
   }
   return c.issues;
+}
+
+/** Exit code for a result that printed normally: findings decide for the checks, Ctrl+C is 130. */
+export function exitOf(result: CliResult): number {
+  if ('findings' in result) return exitForFindings(result.findings);
+  if (result.ok && 'interrupted' in result && result.interrupted) return EXIT.cancelled;
+  return result.ok ? EXIT.ok : EXIT.unexpected;
 }
