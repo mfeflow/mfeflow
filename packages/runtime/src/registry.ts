@@ -49,6 +49,14 @@ export function isRegistryIndex(value: unknown): value is RegistryIndex {
 export interface LoadRegistryOptions {
   timeoutMs?: number;
   fetch?: typeof fetch;
+  /** Use an index the server or edge inlined as `globalThis.mfeflowRegistry`. Default true. */
+  inline?: boolean;
+}
+
+declare global {
+  // Set by an inline <script> the server or CDN edge writes into the shell's HTML,
+  // so the shell can register remotes without waiting for another request.
+  var mfeflowRegistry: unknown;
 }
 
 /** Fetches and validates the registry index. Throws on HTTP errors, timeouts and invalid JSON. */
@@ -56,12 +64,21 @@ export async function loadRegistryIndex(
   url: string,
   options: LoadRegistryOptions = {},
 ): Promise<RegistryIndex> {
+  if (options.inline !== false && isRegistryIndex(globalThis.mfeflowRegistry))
+    return globalThis.mfeflowRegistry;
   const doFetch = options.fetch ?? fetch;
   const res = await doFetch(url, { signal: AbortSignal.timeout(options.timeoutMs ?? 5000) });
   if (!res.ok) throw new Error(`registry index ${url}: HTTP ${String(res.status)}`);
   const body: unknown = await res.json();
   if (!isRegistryIndex(body)) throw new Error(`registry index ${url}: not a valid index`);
   return body;
+}
+
+let registered: RegistryRemote[] = [];
+
+/** Remotes registered by the last `registerRemotesFromIndex` call (for the dev overlay). */
+export function registeredRemotes(): readonly RegistryRemote[] {
+  return registered;
 }
 
 export interface RegisterOptions {
@@ -94,5 +111,6 @@ export function registerRemotesFromIndex(
     ok.push(remote);
   }
   registerRemotes(ok.map((r) => ({ name: r.name, entry: r.entry })));
+  registered = [...ok];
   return ok.map((r) => r.name);
 }

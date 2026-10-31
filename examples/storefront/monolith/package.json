@@ -1,0 +1,30 @@
+{
+  "name": "@storefront/monolith",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rsbuild build",
+    "dev": "rsbuild dev",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mfeflow/i18n": "workspace:*",
+    "@mfeflow/runtime": "workspace:*",
+    "@mfeflow/storage": "workspace:*",
+    "@mfeflow/theme": "workspace:*",
+    "i18next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-i18next": "catalog:"
+  },
+  "devDependencies": {
+    "@mfeflow/tsconfig": "workspace:*",
+    "@rsbuild/core": "catalog:",
+    "@rsbuild/plugin-react": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:"
+  }
+}

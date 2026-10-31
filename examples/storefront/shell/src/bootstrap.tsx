@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { initI18n } from '@mfeflow/i18n';
 import {
+  applyDevOverrides,
   checkSingletons,
   loadRegistryIndex,
   registerRemotesFromIndex,
@@ -28,9 +29,15 @@ declare global {
 async function main(): Promise<void> {
   await initI18n({ languages, defaultLanguage: 'en', resources: shellMessages, detect: false });
   try {
-    const index = await loadRegistryIndex('/registry/index.json');
+    // Dev overrides only on localhost: ?mfe-override=cart@http://localhost:4312/mf-manifest.json
+    const index = applyDevOverrides(await loadRegistryIndex('/registry/index.json'), {
+      enabled: location.hostname === 'localhost',
+    });
+    const overrides = index.remotes
+      .filter((r) => r.version === 'override')
+      .map((r) => new URL(r.entry).origin);
     registerRemotesFromIndex(index, {
-      allowedOrigins: [`${location.protocol}//${location.hostname}:4301`],
+      allowedOrigins: [`${location.protocol}//${location.hostname}:4301`, ...overrides],
     });
   } catch (error) {
     reportRemoteError('storefront', 'registry', error);
