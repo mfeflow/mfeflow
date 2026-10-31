@@ -62,6 +62,12 @@ export const env = createEnv({
     );
     expect(run('', '.env.example', { key: 'A', value: null })).toBe('A=\n');
   });
+
+  it('sees a key that is already set with an export prefix or spaces around the =', () => {
+    for (const line of ['export API_ORIGIN=x\n', 'API_ORIGIN = x\n', '  export  API_ORIGIN =\n']) {
+      expect(run(line, '.env.example', { scope: 'server', key: 'API_ORIGIN' }), line).toBe(line);
+    }
+  });
 });
 
 describe('add-env-key: runtime scope', () => {

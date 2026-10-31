@@ -34,10 +34,7 @@ function addToJson(source: string, file: string, op: AddEnvKeyOp): string {
 }
 
 function addToDotenv(source: string, op: AddEnvKeyOp): string {
-  const exists = source
-    .split('\n')
-    .some((line) => line.trimStart().startsWith(`${op.key}=`) && !line.trimStart().startsWith('#'));
-  if (exists) return source;
+  if (dotenvKeys(source).includes(op.key)) return source;
   const value = placeholder(op);
   const text = value === null ? '' : String(value);
   const rendered = /[\s#"']/.test(text) ? JSON.stringify(text) : text;
