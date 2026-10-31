@@ -236,7 +236,7 @@ function run(command, args, cwd) {
 }
 
 /** Packs every package with one pnpm call and returns each tarball's path by package name. */
-function packAll(packages, out, cwd) {
+export function packAll(packages, out, cwd) {
   fs.mkdirSync(out, { recursive: true });
   run(
     'pnpm',
