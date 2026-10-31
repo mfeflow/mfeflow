@@ -2,24 +2,21 @@ packages:
   - packages/*
   - apps/*
 
-# Versions checked 2026-10-30.
+# Latest stable versions, checked 2026-10-31.
 catalog:
   '@changesets/cli': 3.0.3
   '@commitlint/cli': 21.2.4
   '@commitlint/config-conventional': 21.2.4
-  '@eslint/js': 10.0.1
   '@rslib/core': 1.0.5
   '@rspress/core': 2.0.23
   '@types/node': 26.6.6
   '@vitest/coverage-v8': 5.0.5
-  eslint: 10.14.0
-  globals: 17.13.0
   lefthook: 2.2.2
+  oxlint: 1.90.0
+  oxlint-tsgolint: 7.0.2005
   prettier: 3.9.10
   turbo: 2.11.10
-  # Pinned to 6.x: typescript-eslint 8.72 peers on typescript <6.1.
-  typescript: 6.0.3
-  typescript-eslint: 8.72.1
+  typescript: 7.0.2
   vitest: 5.0.5
 
 minimumReleaseAgeExclude:

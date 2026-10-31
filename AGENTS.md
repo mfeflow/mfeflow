@@ -6,7 +6,9 @@ Guidance for coding agents working in this repo.
 - Before finishing: `pnpm ci` must pass (format, lint, typecheck, test, build).
 - Versions are pinned in the `catalog` in `pnpm-workspace.yaml`; add new
   dependencies there and reference them as `catalog:`.
-- TypeScript stays on 6.x until typescript-eslint supports 7.
+- TypeScript 7 (native compiler). Linting is oxlint with type-aware rules
+  (oxlint-tsgolint); there is no ESLint in this repo.
+- Every dependency is on its latest stable version; Dependabot keeps it there.
 - Commits and PR titles follow Conventional Commits.
 - Any change to a published package needs a changeset (`pnpm changeset`).
 - Tests sit next to the code as `*.test.ts`; coverage must stay at or above 80%.
