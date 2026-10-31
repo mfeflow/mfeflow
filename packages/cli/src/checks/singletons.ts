@@ -33,7 +33,7 @@ export function unresolved(
 export const singletonVersions: Check = {
   id: 'singletons.versions',
   title: 'each singleton (react, react-dom, …) is one version across the apps',
-  async run({ apps }) {
+  async run({ apps, root }) {
     const present = apps.filter((app) => app.present);
     const out: Finding[] = [];
     for (const name of SINGLETON_PACKAGES) {
@@ -41,7 +41,7 @@ export const singletonVersions: Check = {
       const found = await Promise.all(
         present.map(async (app) => ({
           app: app.name,
-          version: await versionIn(app, name),
+          version: await versionIn(app, name, root),
         })),
       );
       const used = found.flatMap((f) => {

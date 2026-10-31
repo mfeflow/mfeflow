@@ -9,6 +9,7 @@ import {
 } from '@mfeflow/contracts';
 import { hasErrno, loadProject, messageOf, type MfeflowProject } from '@mfeflow/core';
 import { parse as parseYaml } from 'yaml';
+import { SINGLETON_PACKAGES } from './singletons';
 
 export const ENVS = ['dev', 'staging', 'prod'] as const;
 
@@ -241,14 +242,18 @@ export async function inspectProject(root: string): Promise<ProjectView> {
 
 /**
  * The version of `name` an app uses: what is installed under node_modules (walking up from
- * the app, as Node does), else the exact version its package.json declares.
+ * the app to the project root, as Node does, never above it), else the version its package.json
+ * declares. Only packages the app declares or the shared list names are looked up.
  */
 export async function versionIn(
   app: Pick<AppView, 'dir' | 'pkg'>,
   name: string,
+  root: string,
 ): Promise<string | undefined> {
+  const declared = app.pkg?.deps[name];
+  if (declared === undefined && !SINGLETON_PACKAGES.includes(name)) return undefined;
   let dir = app.dir;
-  for (;;) {
+  while (!path.relative(root, dir).startsWith('..')) {
     // oxlint-disable-next-line no-await-in-loop -- walks up one folder at a time
     const text = await readText(path.join(dir, 'node_modules', ...name.split('/'), 'package.json'));
     if (text !== undefined) {
@@ -260,8 +265,8 @@ export async function versionIn(
       }
     }
     const parent = path.dirname(dir);
-    if (parent === dir) break;
+    if (parent === dir || dir === root) break;
     dir = parent;
   }
-  return app.pkg?.deps[name];
+  return declared;
 }
