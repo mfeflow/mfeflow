@@ -31,6 +31,8 @@ export interface SharedConfig {
   singleton: true;
   /** `^<installed version>`. Set explicitly because Module Federation otherwise reads the raw spec from package.json, which is `catalog:` or `workspace:*` in pnpm workspaces. */
   requiredVersion?: string;
+  /** Ships the package in the initial chunk instead of an async one (shell only). */
+  eager?: true;
 }
 
 /** `react-dom/client` → `react-dom`, `@mfeflow/theme/react` → `@mfeflow/theme`. */
@@ -89,14 +91,16 @@ export function sharedSingletons(
   canResolve: (specifier: string) => boolean,
   extra: readonly string[] = [],
   versionOf: (specifier: string) => string | undefined = () => undefined,
+  eager = false,
 ): Record<string, SharedConfig> {
   const out: Record<string, SharedConfig> = {};
   const add = (name: string) => {
     const version = versionOf(name);
-    out[name] =
-      version === undefined
-        ? { singleton: true }
-        : { singleton: true, requiredVersion: `^${version}` };
+    out[name] = {
+      singleton: true,
+      ...(version === undefined ? {} : { requiredVersion: `^${version}` }),
+      ...(eager ? { eager: true as const } : {}),
+    };
   };
   for (const name of DEFAULT_SINGLETONS) if (canResolve(name)) add(name);
   for (const name of extra) {

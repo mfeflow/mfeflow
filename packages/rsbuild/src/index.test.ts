@@ -99,12 +99,24 @@ describe('remoteFederationOptions', () => {
       exposes: { './App': './src/App.tsx' },
       manifest: true,
       dts: { generateTypes: true, consumeTypes: false },
-      experiments: { externalRuntime: true },
+      experiments: {
+        externalRuntime: true,
+        optimization: { disableRemote: true, target: 'web' },
+      },
       shared: { react: { singleton: true } },
     });
+    expect(o.shared.react).not.toHaveProperty('eager');
     expect(
       remoteFederationOptions({ name: 'cart', exposes: { './A': 'a' }, types: false }, all).dts,
     ).toBe(false);
+  });
+
+  it('keeps remote support when the remote consumes other remotes', () => {
+    const o = remoteFederationOptions(
+      { name: 'checkout', exposes: { './App': 'a' }, consumesRemotes: true },
+      all,
+    );
+    expect(o.experiments.optimization).toEqual({ target: 'web' });
   });
 
   it('rejects bad names and empty exposes', () => {
@@ -117,13 +129,48 @@ describe('remoteFederationOptions', () => {
   });
 });
 
+const optimization = (env: Record<string, string>, snapshot?: boolean) =>
+  shellFederationOptions(
+    { name: 'shell', env, ...(snapshot === undefined ? {} : { snapshot }) },
+    all,
+    resolvePath,
+  ).experiments.optimization;
+
 describe('shellFederationOptions', () => {
   it('registers no static remotes, provides the runtime and adds the report plugin', () => {
     const o = shellFederationOptions({ name: 'shell', env: {} }, all, resolvePath);
     expect(o.remotes).toEqual({});
     expect(o.dts).toBe(false);
-    expect(o.experiments).toEqual({ provideExternalRuntime: true });
-    expect(o.runtimePlugins).toEqual(['/abs/@mfeflow/runtime/plugins/report']);
+    expect(o.experiments.provideExternalRuntime).toBe(true);
+    expect(o.runtimePlugins).toEqual([
+      '/abs/@mfeflow/runtime/plugins/report',
+      '/abs/@mfeflow/runtime/plugins/entry-retry',
+    ]);
+  });
+
+  it('ships shared singletons eagerly unless told not to', () => {
+    const eager = shellFederationOptions({ name: 'shell', env: {} }, only('react'), resolvePath);
+    expect(eager.shared).toEqual({ react: { singleton: true, eager: true } });
+    const lazy = shellFederationOptions(
+      { name: 'shell', env: {}, eager: false },
+      only('react'),
+      resolvePath,
+    );
+    expect(lazy.shared).toEqual({ react: { singleton: true } });
+  });
+
+  it('targets the web, and drops the snapshot loader in production only', () => {
+    expect(optimization({ NODE_ENV: 'production' })).toEqual({
+      target: 'web',
+      disableSnapshot: true,
+    });
+    expect(optimization({ NODE_ENV: 'development' })).toEqual({ target: 'web' });
+    expect(optimization({})).toEqual({ target: 'web' });
+    expect(optimization({ NODE_ENV: 'production' }, true)).toEqual({ target: 'web' });
+    expect(optimization({ NODE_ENV: 'development' }, false)).toEqual({
+      target: 'web',
+      disableSnapshot: true,
+    });
   });
 
   it('skips the report plugin when @mfeflow/runtime is not installed and keeps custom plugins', () => {
@@ -133,6 +180,9 @@ describe('shellFederationOptions', () => {
       resolvePath,
     );
     expect(o.runtimePlugins).toEqual(['/x.js']);
+    expect(
+      shellFederationOptions({ name: 'shell', env: {} }, only('react'), resolvePath).runtimePlugins,
+    ).toEqual([]);
   });
 
   it('consumes remote types only in types builds', () => {
@@ -161,7 +211,14 @@ describe('createShellConfig', () => {
       cwd: path.resolve(import.meta.dirname, '..'),
     });
     expect(config.server).toEqual({ historyApiFallback: true, port: 3000 });
-    expect(config.plugins).toHaveLength(2);
+    expect(config.plugins).toHaveLength(3);
+    expect(
+      createShellConfig({
+        name: 'shell',
+        esmRuntime: false,
+        cwd: path.resolve(import.meta.dirname, '..'),
+      }).plugins,
+    ).toHaveLength(2);
   });
 });
 
