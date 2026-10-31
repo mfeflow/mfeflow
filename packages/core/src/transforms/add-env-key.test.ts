@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AddEnvKeyOp } from '@mfeflow/contracts';
+import { parseJsonObject } from '../json.js';
 import { thrown } from '../testing.js';
 import { addEnvKey, envKeyFiles } from './add-env-key.js';
 
@@ -115,6 +116,15 @@ export const runtimeConfigSchema = z.object({
     it('is idempotent and never overwrites a value', () => {
       const existing = `{\n  "GTM_ID": "mine"\n}\n`;
       expect(run(existing, 'c.json', { value: 'other' })).toBe(existing);
+    });
+
+    it('adds keys that only exist on Object.prototype, and own keys are what counts as present', () => {
+      for (const key of ['constructor', 'toString', 'hasOwnProperty', '__proto__']) {
+        const out = run('{\n  "a": 1\n}\n', 'c.json', { key });
+        expect(Object.keys(parseJsonObject('c.json', out)), key).toEqual(['a', key]);
+      }
+      const own = '{"constructor":"mine"}\n';
+      expect(run(own, 'c.json', { key: 'constructor', value: 'x' })).toBe(own);
     });
 
     it('fails with E208 on invalid JSON or a non-object', () => {

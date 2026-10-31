@@ -1,6 +1,7 @@
 import { isIdentifier, isObjectProperty, isStringLiteral } from '@babel/types';
 import type { AddEnvKeyOp, Literal } from '@mfeflow/contracts';
-import { MfeflowError, messageOf } from '../errors.js';
+import { MfeflowError } from '../errors.js';
+import { editJsonObject } from '../json.js';
 import {
   appendItem,
   applyEdits,
@@ -17,25 +18,17 @@ function placeholder(op: AddEnvKeyOp): Literal {
   return op.value === undefined ? '' : op.value;
 }
 
-function indentOfJson(source: string): string | number {
-  return /^[ \t]+(?=")/m.exec(source)?.[0] ?? 2;
-}
-
 function addToJson(source: string, file: string, op: AddEnvKeyOp): string {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(source);
-  } catch (error) {
-    throw new MfeflowError('E208', `${file} is not valid JSON (${messageOf(error)})`, {
-      cause: error,
+  return editJsonObject(file, source, (json) => {
+    if (Object.hasOwn(json, op.key)) return false;
+    Object.defineProperty(json, op.key, {
+      value: placeholder(op),
+      enumerable: true,
+      writable: true,
+      configurable: true,
     });
-  }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new MfeflowError('E208', `${file} is not a JSON object`);
-  }
-  if (op.key in parsed) return source;
-  const next = { ...parsed, [op.key]: placeholder(op) };
-  return `${JSON.stringify(next, null, indentOfJson(source))}${source.endsWith('\n') ? '\n' : ''}`;
+    return true;
+  });
 }
 
 function addToDotenv(source: string, op: AddEnvKeyOp): string {
