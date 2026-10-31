@@ -14,7 +14,7 @@ export type ParamsArg<E extends EventName> = AnalyticsEvents[E] extends undefine
   : [params: AnalyticsEvents[E]];
 
 export interface TrackerOptions {
-  /** Version of the remote, sent as `mfe.version`. */
+  /** Version of the remote, sent as `mfe_version`. */
   mfeVersion?: string | undefined;
   /** Every event this remote sends. In development, any other name logs a warning once. */
   events?: readonly EventName[] | undefined;
@@ -28,16 +28,17 @@ export interface Tracker {
 }
 
 /**
- * A tracker for one micro-frontend. Every event it sends carries `mfe: { name, version? }`, which
- * Google Tag Manager reads as the Data Layer Variable `mfe.name`.
+ * A tracker for one micro-frontend. Every event it sends carries `mfe_name` and `mfe_version`
+ * (`null` when unknown). They are flat and always both set: the data layer merges nested objects,
+ * and an object or a missing key would leave the previous remote's value on this remote's event.
  */
 export function createTracker(mfeName: string, options: TrackerOptions = {}): Tracker {
   const known = options.events ? new Set<string>(options.events) : undefined;
-  const mfe = {
-    name: mfeName,
-    ...(options.mfeVersion === undefined ? {} : { version: options.mfeVersion }),
-  };
-  const stamp = (params?: EventParams): EventParams => ({ ...params, mfe });
+  const stamp = (params?: EventParams): EventParams => ({
+    ...params,
+    mfe_name: mfeName,
+    mfe_version: options.mfeVersion ?? null,
+  });
   return {
     mfe: mfeName,
     track(event, ...rest) {

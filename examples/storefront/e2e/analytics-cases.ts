@@ -7,7 +7,7 @@ interface Entry {
   kind: string;
   args: unknown[];
   event?: unknown;
-  mfe?: unknown;
+  mfe_name?: unknown;
   page_path?: unknown;
 }
 
@@ -38,7 +38,7 @@ function readLayer(page: Page): Promise<Entry[]> {
         kind,
         args: kind === '[object Arguments]' ? Object.values(entry) : [],
         event: Reflect.get(entry, 'event'),
-        mfe: Reflect.get(entry, 'mfe'),
+        mfe_name: Reflect.get(entry, 'mfe_name'),
         page_path: Reflect.get(entry, 'page_path'),
       };
     });
@@ -96,8 +96,8 @@ export function analyticsCases(): void {
     expect(events(layer, 'page_view')).toHaveLength(1);
     expect(events(layer, 'catalog_viewed')).toHaveLength(1);
     expect(events(layer, 'mini_cart_viewed')).toHaveLength(1);
-    expect(events(layer, 'catalog_viewed')[0]?.mfe).toEqual({ name: 'catalog' });
-    expect(events(layer, 'mini_cart_viewed')[0]?.mfe).toEqual({ name: 'cart' });
+    expect(events(layer, 'catalog_viewed')[0]?.mfe_name).toBe('catalog');
+    expect(events(layer, 'mini_cart_viewed')[0]?.mfe_name).toBe('cart');
 
     await page.getByTestId('nav-cart').click();
     await expect(page.getByTestId('cart')).toBeVisible();

@@ -24,7 +24,7 @@ import { warnOnce } from './validate';
 const Mounted = createContext(false);
 
 function sendPageView(path: string): void {
-  pageOnce(path, { mfe: { name: 'shell' } });
+  pageOnce(path, { mfe_name: 'shell', mfe_version: null });
 }
 
 export interface AnalyticsProviderProps {

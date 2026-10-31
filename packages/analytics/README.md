@@ -1,6 +1,6 @@
 # @mfeflow/analytics
 
-Analytics for micro-frontends behind one provider interface. The shell starts it once; remotes only send events. Ships a Google Tag Manager provider with Consent Mode v2, a typed event map each remote extends, a tracker that stamps `mfe.name`, and React bindings.
+Analytics for micro-frontends behind one provider interface. The shell starts it once; remotes only send events. Ships a Google Tag Manager provider with Consent Mode v2, a typed event map each remote extends, a tracker that stamps `mfe_name` and `mfe_version`, and React bindings.
 
 ## Install
 

@@ -1,7 +1,7 @@
 {
   "name": "@mfeflow/analytics",
   "version": "0.0.0",
-  "description": "Analytics for micro-frontends behind one provider interface: typed events, a tracker that stamps mfe.name, Consent Mode v2, and a Google Tag Manager provider.",
+  "description": "Analytics for micro-frontends behind one provider interface: typed events, a tracker that stamps mfe_name, Consent Mode v2, and a Google Tag Manager provider.",
   "keywords": [
     "micro-frontend",
     "mfe",

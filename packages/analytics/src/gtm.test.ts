@@ -98,18 +98,18 @@ describe('createGtmProvider', () => {
   it('pushes events as plain objects with the event name', () => {
     const provider = createGtmProvider({ containerId: 'GTM-ABC123' });
     provider.init({});
-    provider.track('add_to_cart', { sku: 'A1', mfe: { name: 'cart' } });
-    expect(layer().at(-1)).toEqual({ sku: 'A1', mfe: { name: 'cart' }, event: 'add_to_cart' });
+    provider.track('add_to_cart', { sku: 'A1', mfe_name: 'cart' });
+    expect(layer().at(-1)).toEqual({ sku: 'A1', mfe_name: 'cart', event: 'add_to_cart' });
   });
 
   it('sends page_view with the path, the full location and the title', async () => {
     document.title = 'Catalog';
     const provider = createGtmProvider({ containerId: 'GTM-ABC123' });
     provider.init({});
-    provider.page('/catalog?utm_source=mail', { mfe: { name: 'shell' } });
+    provider.page('/catalog?utm_source=mail', { mfe_name: 'shell' });
     await vi.waitFor(() => {
       expect(layer().at(-1)).toEqual({
-        mfe: { name: 'shell' },
+        mfe_name: 'shell',
         event: 'page_view',
         page_path: '/catalog?utm_source=mail',
         page_location: `${location.origin}/catalog?utm_source=mail`,

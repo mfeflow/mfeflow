@@ -90,7 +90,7 @@ useTrackOnMount(tracker, 'cart_viewed'); // once per mount, also under StrictMod
 tracker.track('add_to_cart', { sku, qty });
 ```
 
-Every event carries `mfe: { name: 'cart' }`. In GTM that is the Data Layer Variable `mfe.name`.
+Every event carries `mfe_name: 'cart'` and `mfe_version` (`null` when the remote has none). In GTM those are the Data Layer Variables `mfe_name` and `mfe_version`. They are flat and always both present, because the data layer merges nested objects and a key that is missing would keep the previous remote's value.
 
 In development, `events` turns on a validator: a name the tracker did not declare, or one GA4 would reject (letters,
 digits and underscores, starting with a letter, at most 40 characters), logs a warning once. Production builds stay
