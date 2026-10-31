@@ -14,4 +14,4 @@
 '@mfeflow/url-factory': patch
 ---
 
-Every package now ships its README and the MIT LICENSE, with complete npm metadata (keywords, engines, homepage, bugs).
+Every package now ships its README and the MIT LICENSE, with keywords, homepage and bugs in its metadata. `@mfeflow/oxlint-config` and `@mfeflow/tsconfig` declare `engines.node`. Test files and fixtures are no longer published. `@mfeflow/testing` imports `@mfeflow/runtime/providers` (new subpath) instead of the runtime root, so Module Federation is not loaded in test runs, and declares `react-dom` as a peer. `@mfeflow/i18n` lists `react` as a required peer, as its root entry needs it.
