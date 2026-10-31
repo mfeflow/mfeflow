@@ -1,8 +1,18 @@
 import { SCHEMA_URLS, type SchemaName } from './docs';
 import { ENTRY_TYPES, GLOBAL_NAME } from './entry';
-import { FEATURE_NAME, IDENT, PACKAGE, TARGET, TRANSFORM_OPS } from './feature';
+import {
+  ENV_KEY,
+  FEATURE_NAME,
+  IDENT,
+  JOB_ID,
+  PACKAGE,
+  SCRIPT_NAME,
+  TARGET,
+  TRANSFORM_OPS,
+} from './feature';
 import { ANALYTICS_EVENT, EVENT_NAME, EXPOSE, MFE_NAME, ROUTE } from './mfe-manifest';
-import { FILE_HASH, SCOPE } from './project';
+import { CHECKOUT_PATH, FILE_HASH, REGISTRY_NAMESPACE, SCOPE } from './project';
+import { SAFE_RELATIVE_PATH } from './validate';
 import { VERSION } from './registry';
 
 type Json = Record<string, unknown>;
@@ -15,11 +25,7 @@ const strings = (pattern?: RegExp): Json => ({ type: 'array', items: str(pattern
 const literal: Json = { type: ['string', 'number', 'boolean', 'null'] };
 const literalMap: Json = { type: 'object', additionalProperties: literal };
 const url: Json = { type: 'string', format: 'uri', pattern: '^https?://' };
-const relativePath: Json = {
-  type: 'string',
-  minLength: 1,
-  not: { pattern: '(^|/)\\.\\.?(/|$)|\\\\|^/|^[A-Za-z]:' },
-};
+const relativePath: Json = { type: 'string', pattern: SAFE_RELATIVE_PATH.source };
 const exposeFiles: Json = {
   type: 'object',
   propertyNames: str(EXPOSE),
@@ -104,7 +110,7 @@ const transform: Json = {
       function: str(IDENT),
     }),
     op('add-env-key', ['key', 'scope', 'schema'], {
-      key: str(/^[A-Za-z_][A-Za-z0-9_]*$/),
+      key: str(ENV_KEY),
       scope: { enum: ['server', 'runtime'] },
       schema: str(),
       value: literal,
@@ -120,7 +126,7 @@ const transform: Json = {
       routes: str(IDENT),
     }),
     op('add-workflow-step', ['job', 'step'], {
-      job: str(/^[A-Za-z_][A-Za-z0-9_-]*$/),
+      job: str(JOB_ID),
       after: str(),
       step: {
         type: 'object',
@@ -130,7 +136,7 @@ const transform: Json = {
           uses: str(),
           run: str(),
           with: literalMap,
-          env: { type: 'object', additionalProperties: { type: 'string' } },
+          env: literalMap,
           if: str(),
         },
         required: ['name'],
@@ -202,17 +208,21 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
         propertyNames: str(FEATURE_NAME),
         additionalProperties: item({ version: str(), options: { type: 'object' } }, ['version']),
       },
-      files: { type: 'object', additionalProperties: str(FILE_HASH) },
+      files: {
+        type: 'object',
+        propertyNames: relativePath,
+        additionalProperties: str(FILE_HASH),
+      },
       registries: {
         type: 'object',
         propertyNames: {
           type: 'string',
-          pattern: '^@[a-z0-9][a-z0-9-]*$',
+          pattern: REGISTRY_NAMESPACE.source,
           not: { const: '@mfeflow' },
         },
         additionalProperties: { type: 'string', pattern: '^https://.*\\{name\\}' },
       },
-      local: str(),
+      local: str(CHECKOUT_PATH),
       budget: {
         type: 'object',
         properties: Object.fromEntries(
@@ -272,10 +282,7 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
       },
       scripts: {
         type: 'array',
-        items: item({ name: str(/^[A-Za-z0-9:_.-]+$/), command: str(), target, when }, [
-          'name',
-          'command',
-        ]),
+        items: item({ name: str(SCRIPT_NAME), command: str(), target, when }, ['name', 'command']),
       },
       transforms: { type: 'array', items: transform },
       migrations: {

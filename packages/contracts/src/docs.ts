@@ -1,4 +1,4 @@
-/** Where the documentation site lives. Change this and `base` in `apps/docs/rspress.config.ts` together. */
+/** Where the documentation site lives. The Rspress `base`, sitemap and llms.txt origin all derive from it. */
 export const DOCS_URL = 'https://mfeflow.github.io/mfeflow';
 
 /** Where the JSON Schemas are published, for `$schema` in editors. */

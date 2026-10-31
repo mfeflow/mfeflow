@@ -192,6 +192,9 @@ export interface FeatureManifest {
 export const FEATURE_NAME = /^(@[a-z0-9-]+\/)?[a-z][a-z0-9-]*$/;
 export const IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 export const TARGET = /^(root|shell|remotes|(app:)?[a-z][a-z0-9_]*)$/;
+export const ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
+export const JOB_ID = /^[A-Za-z_][A-Za-z0-9_-]*$/;
+export const SCRIPT_NAME = /^[A-Za-z0-9:_.-]+$/;
 export const PACKAGE = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
 
 function isTransformOp(op: string): op is TransformOpName {
@@ -293,7 +296,7 @@ function checkTransform(c: Checker, t: unknown, at: string): void {
       }
       break;
     case 'add-env-key': {
-      c.string(t, 'key', at, { pattern: /^[A-Za-z_][A-Za-z0-9_]*$/, hint: 'must be a plain key' });
+      c.string(t, 'key', at, { pattern: ENV_KEY, hint: 'must be a plain key' });
       const scope = c.string(t, 'scope', at);
       if (scope !== undefined && scope !== 'server' && scope !== 'runtime')
         c.add(`${at}.scope`, 'must be server or runtime');
@@ -317,7 +320,7 @@ function checkTransform(c: Checker, t: unknown, at: string): void {
       ident('routes', false);
       break;
     case 'add-workflow-step': {
-      c.string(t, 'job', at, { pattern: /^[A-Za-z_][A-Za-z0-9_-]*$/, hint: 'must be a job id' });
+      c.string(t, 'job', at, { pattern: JOB_ID, hint: 'must be a job id' });
       c.string(t, 'after', at, { required: false });
       const step = c.object(t, 'step', at);
       if (step) {
@@ -394,7 +397,7 @@ export function validateFeatureManifest(value: unknown): Issue[] {
     checkWhen(c, d, at);
   });
   eachObject(c, value, 'scripts', (s, at) => {
-    c.string(s, 'name', at, { pattern: /^[A-Za-z0-9:_.-]+$/, hint: 'must be a script name' });
+    c.string(s, 'name', at, { pattern: SCRIPT_NAME, hint: 'must be a script name' });
     c.string(s, 'command', at);
     checkTarget(c, s, at);
     checkWhen(c, s, at);

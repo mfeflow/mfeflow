@@ -32,11 +32,18 @@ export interface ProjectBudget {
   baselineKb?: number;
 }
 
+const SEGMENT = String.raw`(?!\.\.?(?:/|$))[^/\\\u0000]+`;
+
+/** The regex form of `isCheckoutPath`, for JSON Schema. */
+export const CHECKOUT_PATH = new RegExp(
+  `^(?:(?![A-Za-z]:)(?:\\.\\.(?:/\\.\\.)*(?:/${SEGMENT})*|${SEGMENT}(?:/${SEGMENT})*)|(?:/|[A-Za-z]:/)${SEGMENT}(?:/${SEGMENT})*)$`,
+);
+
 export const FILE_HASH = /^sha256-[0-9a-f]{64}$/;
-const REGISTRY_NAMESPACE = /^@[a-z0-9][a-z0-9-]*$/;
+export const REGISTRY_NAMESPACE = /^@[a-z0-9][a-z0-9-]*$/;
 
 /** A relative path with forward slashes whose only `..` segments come first, so it may leave the project. */
-function isCheckoutPath(value: string): boolean {
+export function isCheckoutPath(value: string): boolean {
   if (value === '' || value.includes('\\') || value.includes('\0')) return false;
   const absolute = /^(?:\/|[A-Za-z]:\/)/.exec(value);
   if (absolute) {
