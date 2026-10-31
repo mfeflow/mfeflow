@@ -121,27 +121,55 @@ describe('assetsFromManifest', () => {
     ['auto', 'auto', 'https://cdn.example.com/mfe/cart/1.2.0/e.js'],
     ['empty', '', 'https://cdn.example.com/mfe/cart/1.2.0/e.js'],
     ['absolute', 'https://static.example.com/c/', 'https://static.example.com/c/e.js'],
-    ['root-relative', '/static/cart/', '/static/cart/e.js'],
-    ['relative', 'assets/', 'assets/e.js'],
-    ['without a trailing slash', '/static/cart', '/static/carte.js'],
+    ['protocol-relative', '//static.example.com/c/', 'https://static.example.com/c/e.js'],
+    ['root-relative', '/static/cart/', 'https://shop.example.com/static/cart/e.js'],
+    ['relative', 'assets/', 'https://shop.example.com/checkout/assets/e.js'],
+    ['without a trailing slash', '/static/cart', 'https://shop.example.com/static/carte.js'],
   ])('resolves a %s publicPath', (_label, publicPath, expected) => {
     const out = assetsFromManifest(
       { metaData: { publicPath, remoteEntry: { name: 'e.js', path: '' } } },
       url,
+      { pageUrl: 'https://shop.example.com/checkout/' },
     );
     expect(out.remoteEntry).toBe(expected);
   });
 
-  it('leaves a relative publicPath unresolved in the entry and every expose file', () => {
+  it('resolves a relative publicPath against the page in the entry and every expose file', () => {
     const out = assetsFromManifest(
       {
         metaData: { publicPath: '/static/cart/', remoteEntry: { name: 'e.js', path: 'js' } },
         exposes: [{ path: './App', assets: { js: { sync: ['a.js'] }, css: { sync: ['a.css'] } } }],
       },
       url,
+      { pageUrl: 'https://shop.example.com/' },
     );
-    expect(out.remoteEntry).toBe('/static/cart/js/e.js');
-    expect(out.exposes).toEqual({ './App': ['/static/cart/a.css', '/static/cart/a.js'] });
+    expect(out.remoteEntry).toBe('https://shop.example.com/static/cart/js/e.js');
+    expect(out.exposes).toEqual({
+      './App': [
+        'https://shop.example.com/static/cart/a.css',
+        'https://shop.example.com/static/cart/a.js',
+      ],
+    });
+    expect(isRegistryEntry({ version: '1.0.0', manifestUrl: url, ...out })).toBe(true);
+    expect(isRegistryIndex({ remotes: [{ name: 'cart', entry: url, ...out }] })).toBe(true);
+  });
+
+  it('keeps a remote with a relative publicPath manifest-only without a page URL, and says why', () => {
+    const out = assetsFromManifest(
+      { metaData: { publicPath: '/static/cart/', remoteEntry: { name: 'e.js', path: '' } } },
+      url,
+    );
+    expect(out.remoteEntry).toBeUndefined();
+    expect(out.exposes).toEqual({});
+    expect(out.manifestOnly).toMatch(/pageUrl/);
+  });
+
+  it('rejects a page URL that is not http(s)', () => {
+    expect(() =>
+      assetsFromManifest({ metaData: { publicPath: '/s/', remoteEntry: { name: 'e.js' } } }, url, {
+        pageUrl: 'file:///index.html',
+      }),
+    ).toThrow(/page URL/);
   });
 
   it('keeps a remote manifest-only when metaData.getPublicPath is set, and says why', () => {

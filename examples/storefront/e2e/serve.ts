@@ -149,6 +149,7 @@ function registry(): RegistryIndex {
         const assets = assetsFromManifest(
           readJson(path.join(root, name, 'dist', 'mf-manifest.json')),
           manifestUrl,
+          { pageUrl: `${ORIGIN}/` },
         );
         return {
           name,
