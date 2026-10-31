@@ -19,40 +19,62 @@ function attribute(value: string): string {
   return value.replace(/[&"<>]/g, (c) => `&#${String(c.charCodeAt(0))};`);
 }
 
+const ESM_TYPES = new Set(['module', 'esm']);
+
 /**
  * The HTML an edge function or server adds to the shell's `index.html` for one
  * route: the registry as `window.__MFE_REGISTRY__` (so the shell fetches no
- * index) and `<link rel="preload">` hints for the remote entry and the files of
- * each exposed module the route renders.
+ * index) and preload hints for the files each remote the route renders needs.
+ * Everything the runtime reads from the fetched index is inlined, so both
+ * paths register the same remotes; only the per-expose `exposes` file lists
+ * stay out of the page.
  *
- * Hints carry no `crossorigin`, which matches how Module Federation and the
- * remote's chunk loader request scripts; a mismatch downloads the file twice.
- * Nothing here injects a `<script src>` for a remote entry: it needs the
- * shell's runtime first. A remote the registry does not know gets no hints.
+ * Hints match how the browser will request each file, or it downloads twice:
+ * classic scripts and styles are `rel="preload"` without `crossorigin`; the
+ * files of a `module`/`esm` remote are `rel="modulepreload"` (CORS anonymous
+ * by default, as `import()` fetches them); a remote with no `remoteEntry`
+ * (manifest only) gets its manifest as `preload as="fetch" crossorigin`,
+ * matching Module Federation's `fetch()`. Nothing here injects a `<script
+ * src>` for a remote entry: it needs the shell's runtime first. A remote the
+ * registry does not know gets no hints.
  */
 export function registryInjection(index: RegistryIndex, needs: readonly RouteNeed[]): string {
   const inline = {
-    remotes: index.remotes.map(({ name, entry, remoteEntry, type, entryGlobalName }) => ({
-      name,
-      entry,
-      ...(remoteEntry === undefined ? {} : { remoteEntry }),
-      ...(type === undefined ? {} : { type }),
-      ...(entryGlobalName === undefined ? {} : { entryGlobalName }),
-    })),
+    remotes: index.remotes.map(
+      ({ name, entry, remoteEntry, type, entryGlobalName, version, owner, routes }) => ({
+        name,
+        entry,
+        ...(remoteEntry === undefined ? {} : { remoteEntry }),
+        ...(type === undefined ? {} : { type }),
+        ...(entryGlobalName === undefined ? {} : { entryGlobalName }),
+        ...(version === undefined ? {} : { version }),
+        ...(owner === undefined ? {} : { owner }),
+        ...(routes === undefined ? {} : { routes }),
+      }),
+    ),
   };
   let html = `<script>window.__MFE_REGISTRY__=${jsonForScript(inline)}</script>`;
   const seen = new Set<string>();
-  const preload = (href: string, as: 'script' | 'style') => {
-    if (seen.has(href)) return;
-    seen.add(href);
-    html += `<link rel="preload" as="${as}" href="${attribute(href)}">`;
+  const hint = (attrs: string, href: string) => {
+    const tag = `<link ${attrs} href="${attribute(href)}">`;
+    if (seen.has(tag)) return;
+    seen.add(tag);
+    html += tag;
   };
   for (const need of needs) {
     const remote = index.remotes.find((r) => r.name === need.remote);
-    if (remote?.remoteEntry === undefined) continue;
-    preload(remote.remoteEntry, 'script');
+    if (remote === undefined) continue;
+    if (remote.remoteEntry === undefined) {
+      hint('rel="preload" as="fetch" crossorigin', remote.entry);
+      continue;
+    }
+    const esm = remote.type !== undefined && ESM_TYPES.has(remote.type);
+    const script = (href: string) =>
+      hint(esm ? 'rel="modulepreload"' : 'rel="preload" as="script"', href);
+    script(remote.remoteEntry);
     for (const file of remote.exposes?.[need.expose] ?? [])
-      preload(file, /\.css(\?|$)/.test(file) ? 'style' : 'script');
+      if (/\.css(\?|$)/.test(file)) hint('rel="preload" as="style"', file);
+      else script(file);
   }
   return html;
 }

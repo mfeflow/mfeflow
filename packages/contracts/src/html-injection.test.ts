@@ -24,7 +24,7 @@ const index: RegistryIndex = {
 };
 
 describe('registryInjection', () => {
-  it('inlines a trimmed registry and preloads the route’s files without crossorigin', () => {
+  it('inlines the registry without the preload lists and preloads the route’s files without crossorigin', () => {
     const html = registryInjection(index, [
       { remote: 'catalog', expose: './App' },
       { remote: 'cart', expose: './MiniCart' },
@@ -36,6 +36,7 @@ describe('registryInjection', () => {
           name: 'catalog',
           entry: 'https://x.test/mfe/catalog/mf-manifest.json',
           remoteEntry: 'https://x.test/mfe/catalog/e.js',
+          routes: ['/catalog'],
         },
         {
           name: 'cart',
@@ -55,10 +56,9 @@ describe('registryInjection', () => {
     expect(html).not.toContain('crossorigin');
   });
 
-  it('skips unknown remotes, remotes without an entry script, and repeats', () => {
+  it('skips unknown remotes, unknown exposes of known remotes, and repeats', () => {
     const html = registryInjection(index, [
       { remote: 'nope', expose: './App' },
-      { remote: 'legacy', expose: './App' },
       { remote: 'cart', expose: './Other' },
       { remote: 'cart', expose: './MiniCart' },
     ]);
@@ -67,6 +67,69 @@ describe('registryInjection', () => {
       '<link rel="preload" as="script" href="https://x.test/mfe/cart/m.js">',
     ]);
     expect(registryInjection(index, []).includes('<link')).toBe(false);
+  });
+
+  it('preloads the manifest, with credentials matching fetch(), for a remote with no remoteEntry', () => {
+    const html = registryInjection(index, [
+      { remote: 'legacy', expose: './App' },
+      { remote: 'legacy', expose: './Other' },
+    ]);
+    expect(html.match(/<link [^>]*>/g)).toEqual([
+      '<link rel="preload" as="fetch" crossorigin href="https://x.test/mfe/legacy/mf-manifest.json">',
+    ]);
+  });
+
+  it('uses modulepreload for the files of an ESM remote and keeps styles as preload', () => {
+    const esm: RegistryIndex = {
+      remotes: [
+        {
+          name: 'a',
+          entry: 'https://x.test/a/m.json',
+          remoteEntry: 'https://x.test/a/e.mjs',
+          type: 'module',
+          exposes: { './App': ['https://x.test/a/a.css', 'https://x.test/a/a.js'] },
+        },
+        {
+          name: 'b',
+          entry: 'https://x.test/b/m.json',
+          remoteEntry: 'https://x.test/b/e.mjs',
+          type: 'esm',
+        },
+      ],
+    };
+    const html = registryInjection(esm, [
+      { remote: 'a', expose: './App' },
+      { remote: 'b', expose: './App' },
+    ]);
+    expect(html.match(/<link [^>]*>/g)).toEqual([
+      '<link rel="modulepreload" href="https://x.test/a/e.mjs">',
+      '<link rel="preload" as="style" href="https://x.test/a/a.css">',
+      '<link rel="modulepreload" href="https://x.test/a/a.js">',
+      '<link rel="modulepreload" href="https://x.test/b/e.mjs">',
+    ]);
+  });
+
+  it('inlines everything the runtime reads from the fetched index except the preload files', () => {
+    const full: RegistryIndex = {
+      remotes: [
+        {
+          name: 'cart',
+          entry: 'https://x.test/cart/m.json',
+          remoteEntry: 'https://x.test/cart/e.js',
+          type: 'module',
+          entryGlobalName: 'cart_g',
+          version: '1.2.3',
+          owner: 'checkout',
+          routes: ['/cart'],
+          exposes: { './App': ['https://x.test/cart/a.js'] },
+        },
+      ],
+    };
+    const script =
+      /<script>window\.__MFE_REGISTRY__=(.*?)<\/script>/.exec(registryInjection(full, []))?.[1] ??
+      '';
+    const withoutExposes = full.remotes.map(({ exposes: _preloadOnly, ...rest }) => rest);
+    expect(JSON.parse(script)).toEqual({ remotes: withoutExposes });
   });
 
   it('inlines the entry type and global name only when the registry has them', () => {
