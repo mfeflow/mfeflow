@@ -42,7 +42,7 @@ export const ERROR_CATALOGUE = {
   },
   E203: {
     title: 'A third-party feature uses something third-party features may not',
-    fix: 'Third-party features are declarative: files, dependencies, scripts and built-in transform ops. Ask the author to remove it, or do not add this feature.',
+    fix: 'Third-party features are declarative: files under src/, public/ and docs/, registry dependencies, plain script names and the built-in transform ops (not add-workflow-step). Ask the author to remove it, or do not add this feature.',
   },
   E204: {
     title: 'Unknown transform op',
