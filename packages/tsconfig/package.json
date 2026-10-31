@@ -1,0 +1,47 @@
+{
+  "name": "@mfeflow/tsconfig",
+  "version": "0.0.0",
+  "description": "Strict TypeScript 7 presets for mfeflow micro-frontends: base, react-app, react-library and node.",
+  "keywords": [
+    "micro-frontend",
+    "mfe",
+    "tsconfig",
+    "typescript",
+    "typescript-7",
+    "react"
+  ],
+  "homepage": "https://mfeflow.dev",
+  "bugs": "https://github.com/mfeflow/mfeflow/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfeflow/mfeflow.git",
+    "directory": "packages/tsconfig"
+  },
+  "license": "MIT",
+  "author": "Sanjeev Sharma <speedsharma.ai@gmail.com>",
+  "type": "module",
+  "exports": {
+    "./base.json": "./base.json",
+    "./react-app.json": "./react-app.json",
+    "./react-library.json": "./react-library.json",
+    "./node.json": "./node.json"
+  },
+  "files": [
+    "*.json"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "peerDependencies": {
+    "typescript": ">=7.0.0"
+  },
+  "mfeflow": {
+    "bucket": "config"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "react": "catalog:"
+  }
+}

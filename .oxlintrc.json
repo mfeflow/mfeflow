@@ -25,7 +25,13 @@
     "react/exhaustive-deps": "error",
     "react/react-in-jsx-scope": "off"
   },
-  "ignorePatterns": ["**/dist/**", "**/doc_build/**", "**/coverage/**", "**/.turbo/**"],
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/doc_build/**",
+    "**/coverage/**",
+    "**/.turbo/**",
+    "**/__fixture__/**"
+  ],
   "overrides": [
     {
       "files": ["packages/*/bin/*.js"],

@@ -1,0 +1,44 @@
+{
+  "name": "@mfeflow/oxlint-config",
+  "version": "0.0.0",
+  "description": "Type-aware oxlint config for mfeflow micro-frontends: TypeScript 7 rules via oxlint-tsgolint, React, hooks and accessibility.",
+  "keywords": [
+    "micro-frontend",
+    "mfe",
+    "oxlint",
+    "lint",
+    "typescript",
+    "react",
+    "a11y"
+  ],
+  "homepage": "https://mfeflow.dev",
+  "bugs": "https://github.com/mfeflow/mfeflow/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfeflow/mfeflow.git",
+    "directory": "packages/oxlint-config"
+  },
+  "license": "MIT",
+  "author": "Sanjeev Sharma <speedsharma.ai@gmail.com>",
+  "type": "module",
+  "exports": {
+    "./oxlintrc.json": "./oxlintrc.json"
+  },
+  "files": [
+    "oxlintrc.json"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "peerDependencies": {
+    "oxlint": ">=1.90.0",
+    "oxlint-tsgolint": ">=7.0.2005"
+  },
+  "mfeflow": {
+    "bucket": "config"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:"
+  }
+}

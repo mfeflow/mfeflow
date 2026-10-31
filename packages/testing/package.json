@@ -1,0 +1,67 @@
+{
+  "name": "@mfeflow/testing",
+  "version": "0.0.0",
+  "description": "Test helpers for mfeflow micro-frontends: renderWithPlatform wraps components in the same providers the shell uses; resetPlatform clears storage, i18n, theme and reports between tests.",
+  "keywords": [
+    "micro-frontend",
+    "mfe",
+    "testing",
+    "testing-library",
+    "react",
+    "vitest"
+  ],
+  "homepage": "https://mfeflow.dev",
+  "bugs": "https://github.com/mfeflow/mfeflow/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfeflow/mfeflow.git",
+    "directory": "packages/testing"
+  },
+  "license": "MIT",
+  "author": "Sanjeev Sharma <speedsharma.ai@gmail.com>",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "rslib build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mfeflow/runtime": "workspace:*"
+  },
+  "peerDependencies": {
+    "@testing-library/react": "^16.0.0",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@module-federation/enhanced": "catalog:",
+    "@rslib/core": "catalog:",
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "jsdom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:"
+  },
+  "mfeflow": {
+    "bucket": "config"
+  }
+}
