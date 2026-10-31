@@ -50,7 +50,7 @@ function isCheckoutPath(value: string): boolean {
   return rest.every((part) => part !== '' && part !== '.' && part !== '..');
 }
 
-const SCOPE = /^@[a-z0-9][a-z0-9-._]*$/;
+export const SCOPE = /^@[a-z0-9][a-z0-9-._]*$/;
 const FEATURE = /^(@[a-z0-9-]+\/)?[a-z][a-z0-9-]*$/;
 
 export function validateMfeflowProject(value: unknown): Issue[] {

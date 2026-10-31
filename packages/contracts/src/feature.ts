@@ -190,9 +190,9 @@ export interface FeatureManifest {
 }
 
 export const FEATURE_NAME = /^(@[a-z0-9-]+\/)?[a-z][a-z0-9-]*$/;
-const IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
-const TARGET = /^(root|shell|remotes|(app:)?[a-z][a-z0-9_]*)$/;
-const PACKAGE = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
+export const IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+export const TARGET = /^(root|shell|remotes|(app:)?[a-z][a-z0-9_]*)$/;
+export const PACKAGE = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
 
 function isTransformOp(op: string): op is TransformOpName {
   return TRANSFORM_OPS.some((name) => name === op);
