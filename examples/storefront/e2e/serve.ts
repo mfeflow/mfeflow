@@ -11,7 +11,8 @@ import zlib from 'node:zlib';
 import { assetsFromManifest, injectIntoHead, registryInjection } from '@mfeflow/contracts';
 import type { RegistryIndex, RouteNeed } from '@mfeflow/contracts';
 
-const root = path.resolve(import.meta.dirname, '..');
+// SERVE_ROOT points the server at another storefront build (the server's own tests use an empty one).
+const root = process.env.SERVE_ROOT ?? path.resolve(import.meta.dirname, '..');
 const remotes = ['catalog', 'cart'];
 const SHELL_PORT = Number(process.env.SHELL_PORT ?? '4300');
 const MONOLITH_PORT = Number(process.env.MONOLITH_PORT ?? '4302');
@@ -55,6 +56,17 @@ function compress(key: string, body: Buffer): Buffer {
   return out;
 }
 
+/** Whether the client accepts our encoding: listed, and not given `q=0`. */
+function acceptsEncoding(header: string | undefined): boolean {
+  for (const part of (header ?? '').split(',')) {
+    const [name, ...params] = part.trim().toLowerCase().split(';');
+    if (name !== ENCODING) continue;
+    const q = params.map((p) => p.trim()).find((p) => p.startsWith('q='));
+    return q === undefined || Number(q.slice(2)) > 0;
+  }
+  return false;
+}
+
 function send(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -64,16 +76,24 @@ function send(
   variant = '',
 ): void {
   const ext = path.extname(file);
-  const source = fs.readFileSync(file);
-  const body = transform ? Buffer.from(transform(source.toString('utf8'))) : source;
   const headers: Record<string, string> = {
     'Content-Type': types[ext] ?? 'application/octet-stream',
     'Cache-Control': cache,
+    ...(compressible.has(ext) ? { Vary: 'Accept-Encoding' } : {}),
   };
-  const accepts = new RegExp(`\\b${ENCODING}\\b`).test(req.headers['accept-encoding'] ?? '');
-  if (compressible.has(ext) && accepts) {
-    res.writeHead(200, { ...headers, 'Content-Encoding': ENCODING, Vary: 'Accept-Encoding' });
-    res.end(compress(`${file}\0${variant}`, body));
+  const packable = compressible.has(ext) && acceptsEncoding(req.headers['accept-encoding']);
+  const key = `${file}\0${variant}`;
+  const cached = packable ? packed.get(key) : undefined;
+  if (cached) {
+    res.writeHead(200, { ...headers, 'Content-Encoding': ENCODING });
+    res.end(cached);
+    return;
+  }
+  const source = fs.readFileSync(file);
+  const body = transform ? Buffer.from(transform(source.toString('utf8'))) : source;
+  if (packable) {
+    res.writeHead(200, { ...headers, 'Content-Encoding': ENCODING });
+    res.end(compress(key, body));
     return;
   }
   res.writeHead(200, headers);
@@ -114,29 +134,36 @@ function readJson(file: string): unknown {
 
 const indexes = new Map<string, RegistryIndex>();
 
+/** A request that cannot be served right now (a remote is not built); answered with 503 for that request only. */
+class Unavailable extends Error {}
+
 /** The registry for one origin: each remote's entry script and per-expose files, read from its built manifest. */
 function registryFor(origin: string): RegistryIndex {
   const hit = indexes.get(origin);
   if (hit) return hit;
-  const index: RegistryIndex = {
-    shell: 'storefront',
-    env: 'e2e',
-    remotes: remotes.map((name) => {
-      const manifestUrl = `${origin}/mfe/${name}/mf-manifest.json`;
-      const assets = assetsFromManifest(
-        readJson(path.join(root, name, 'dist', 'mf-manifest.json')),
-        manifestUrl,
-      );
-      return {
-        name,
-        entry: manifestUrl,
-        routes: [`/${name}`],
-        ...(MANIFEST_ONLY ? {} : assets),
-      };
-    }),
-  };
-  indexes.set(origin, index);
-  return index;
+  try {
+    const index: RegistryIndex = {
+      shell: 'storefront',
+      env: 'e2e',
+      remotes: remotes.map((name) => {
+        const manifestUrl = `${origin}/mfe/${name}/mf-manifest.json`;
+        const assets = assetsFromManifest(
+          readJson(path.join(root, name, 'dist', 'mf-manifest.json')),
+          manifestUrl,
+        );
+        return {
+          name,
+          entry: manifestUrl,
+          routes: [`/${name}`],
+          ...(MANIFEST_ONLY ? {} : assets),
+        };
+      }),
+    };
+    indexes.set(origin, index);
+    return index;
+  } catch (error) {
+    throw new Unavailable('registry unavailable (is every remote built?)', { cause: error });
+  }
 }
 
 /** What each route renders: the page's remote plus the mini cart in every header. */
@@ -148,12 +175,21 @@ function needsFor(pathname: string): RouteNeed[] {
   ];
 }
 
+// Only plain host[:port] values become part of the registry's URLs and its cache key.
+const HOST = /^[\w.-]+(:\d{1,5})?$/;
+
 function shellHandler(req: http.IncomingMessage, res: http.ServerResponse): void {
   const url = new URL(req.url ?? '/', 'http://x');
-  const origin = `http://${req.headers.host ?? `localhost:${String(SHELL_PORT)}`}`;
+  const host = req.headers.host ?? `localhost:${String(SHELL_PORT)}`;
+  if (!HOST.test(host)) {
+    badRequest(res);
+    return;
+  }
+  const origin = `http://${host}`;
   if (url.pathname === '/registry/index.json') {
+    const body = JSON.stringify(registryFor(origin));
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
-    res.end(JSON.stringify(registryFor(origin)));
+    res.end(body);
     return;
   }
   if (url.pathname.startsWith('/mfe/')) {
@@ -213,8 +249,25 @@ function monolithHandler(req: http.IncomingMessage, res: http.ServerResponse): v
   send(req, res, target, cacheFor(target));
 }
 
-http.createServer(shellHandler).listen(SHELL_PORT);
-http.createServer(monolithHandler).listen(MONOLITH_PORT);
+/** One bad request must never take the server down: log it and answer 503 (a missing build) or 500. */
+function guarded(handler: http.RequestListener): http.RequestListener {
+  return (req, res) => {
+    try {
+      handler(req, res);
+    } catch (error) {
+      console.error(`${req.method ?? 'GET'} ${req.url ?? ''}:`, error);
+      if (res.headersSent) {
+        res.destroy();
+        return;
+      }
+      res.writeHead(error instanceof Unavailable ? 503 : 500);
+      res.end(error instanceof Unavailable ? error.message : 'internal error');
+    }
+  };
+}
+
+http.createServer(guarded(shellHandler)).listen(SHELL_PORT);
+http.createServer(guarded(monolithHandler)).listen(MONOLITH_PORT);
 console.log(
   `storefront http://localhost:${String(SHELL_PORT)} (remotes under /mfe/), monolith http://localhost:${String(MONOLITH_PORT)}; ${ENCODING}, registry + preload injected into the shell`,
 );
