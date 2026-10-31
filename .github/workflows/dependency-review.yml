@@ -1,0 +1,50 @@
+name: Dependency Review
+
+# Scans every PR for newly introduced dependencies that have known CVEs.
+# Blocks the merge if any dependency with severity >= high is added.
+# Free for all public repos — uses GitHub's own advisory database.
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # post a comment with the vulnerability summary
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The action hard-fails when the repo's dependency graph is off
+      # (Settings -> Advanced Security -> Dependency graph). Skip with a
+      # warning instead, so every PR isn't red for a settings reason.
+      - name: Check the dependency graph is on
+        id: graph
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RANGE: ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
+        run: |
+          if gh api "repos/${{ github.repository }}/dependency-graph/compare/$RANGE" --silent 2>/dev/null; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Dependency graph is off for this repository, so dependency review was skipped. Enable it under Settings -> Advanced Security -> Dependency graph."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dependency Review
+        if: steps.graph.outputs.enabled == 'true'
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          # Block PRs that introduce HIGH or CRITICAL vulnerabilities.
+          # Change to 'critical' if you want to allow high-severity through.
+          fail-on-severity: high
+          # Post a summary comment on the PR so reviewers can see at a glance
+          # which packages are flagged without clicking into the action log.
+          comment-summary-in-pr: always

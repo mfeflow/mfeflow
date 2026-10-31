@@ -2,11 +2,11 @@
 
 Part of [mfeflow](https://github.com/mfeflow/mfeflow), the React micro-frontend boilerplate and platform kit.
 
-**Early, built in the open.** `init`, `add` and `features` work; nothing is published to npm yet, so
-until it is, run it from a checkout (see [Try it from a checkout](#try-it-from-a-checkout)).
+Pre-1.0: commands and flags may change in minor versions. To run it from a checkout of the repo, see
+[Try it from a checkout](#try-it-from-a-checkout).
 
 ```sh
-npm create mfeflow@latest my-app -- --yes   # once published
+npm create mfeflow@latest my-app -- --yes
 cd my-app
 pnpm dev                                    # shell on :4300, remotes on :4311, :4312
 ```

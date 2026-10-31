@@ -2,7 +2,13 @@
 
 Part of [mfeflow](https://github.com/mfeflow/mfeflow), the React micro-frontend boilerplate and platform kit.
 
-**Early, built in the open. Nothing here is usable yet.**
+The engine behind the `mfeflow` CLI: loads and saves `mfeflow.json`, plans a change as data with a unified diff, applies it atomically with rollback, and resolves features. Pre-1.0: minor versions may change the API. Most people want the [`mfeflow`](https://www.npmjs.com/package/mfeflow) CLI instead.
+
+```sh
+pnpm add @mfeflow/core
+```
+
+Docs: [mfeflow.dev](https://mfeflow.dev) (coming soon).
 
 MIT licensed.
 
