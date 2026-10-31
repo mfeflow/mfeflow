@@ -90,17 +90,17 @@ MFEFLOW_E108 The target folder is not empty: /work/app already has notes.txt
   https://mfeflow.dev/errors/E108
 ```
 
-| Exit | Meaning                                          |
-| ---- | ------------------------------------------------ |
-| 0    | success                                          |
-| 1    | unexpected error (`--verbose` prints the stack)  |
-| 2    | bad command line: `MFEFLOW_E107`, `MFEFLOW_E215` |
-| 3    | project or config problem: `MFEFLOW_E1xx`        |
-| 4    | feature problem: `MFEFLOW_E2xx`                  |
-| 5    | build or runtime problem: `MFEFLOW_E3xx`         |
-| 6    | registry problem: `MFEFLOW_E4xx`                 |
-| 7    | upgrade problem: `MFEFLOW_E5xx`                  |
-| 130  | cancelled at a prompt; nothing was written       |
+| Exit | Meaning                                                                 |
+| ---- | ----------------------------------------------------------------------- |
+| 0    | success                                                                 |
+| 1    | unexpected error (`--verbose` prints the stack)                         |
+| 2    | bad command line: `MFEFLOW_E107`, `MFEFLOW_E215`                        |
+| 3    | project or config problem: `MFEFLOW_E1xx`                               |
+| 4    | feature problem: `MFEFLOW_E2xx`                                         |
+| 5    | build or runtime problem: `MFEFLOW_E3xx`                                |
+| 6    | registry problem: `MFEFLOW_E4xx`                                        |
+| 7    | upgrade problem: `MFEFLOW_E5xx`                                         |
+| 130  | cancelled at a prompt (nothing was written), or Ctrl+C in `mfeflow dev` |
 
 ## Try it from a checkout
 

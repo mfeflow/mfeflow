@@ -40,17 +40,6 @@ export function combinations(): Combo[] {
   return out;
 }
 
-/** The corners: nothing on, everything on, and each feature alone. Enough to catch OS-specific breakage cheaply. */
-export function edges(): Combo[] {
-  return [
-    make(false, false, false, 1),
-    make(true, true, true, 3),
-    make(true, false, false, 1),
-    make(false, true, false, 3),
-    make(false, false, true, 1),
-  ];
-}
-
 export function find(ids: readonly string[]): Combo[] {
   const all = combinations();
   return ids.map((id) => {

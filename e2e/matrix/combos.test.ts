@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { combinations, edges, featuresOf, find, presetOf, stepsFor } from './combos';
+import { combinations, featuresOf, find, presetOf, stepsFor } from './combos';
 
 describe('combinations', () => {
   it('has all 16 once, with unique ids', () => {
@@ -9,11 +9,6 @@ describe('combinations', () => {
     expect(all.filter((c) => c.remotes === 1)).toHaveLength(8);
     expect(all.map((c) => c.id)).toContain('bare-r1');
     expect(all.map((c) => c.id)).toContain('lint-url-hooks-r3');
-  });
-
-  it('keeps the edges inside the full set', () => {
-    const ids = new Set(combinations().map((c) => c.id));
-    for (const edge of edges()) expect(ids.has(edge.id)).toBe(true);
   });
 });
 

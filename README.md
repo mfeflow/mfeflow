@@ -31,7 +31,7 @@ What works today, from the repo:
 
 Checked in CI: unit tests with coverage, the storefront e2e, a smoke job that generates a project and runs `mfeflow dev`, the
 [feature matrix](.github/workflows/matrix.yml) (every combination of the first-party features, on every pull request that
-touches the CLI, the engine, the features or the templates; nightly on macOS and Windows too) and the
+touches the CLI, the engine, the features or the templates; nightly on macOS and Windows too, pnpm only) and the
 [cost-model perf job](.github/workflows/perf.yml) (LCP at most +300 ms, the shell at most +32 KB of JS and each remote on a
 route at most +10 KB, against the same pages built as one app).
 

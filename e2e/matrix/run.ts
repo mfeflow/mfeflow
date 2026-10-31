@@ -1,28 +1,20 @@
 // Generates each combination of first-party features with `mfeflow init --local`, installs it, builds it,
 // typechecks and lints it, and runs doctor, validate and check-compat on it.
-//   node e2e/matrix/run.ts --list [--set all|edges]   the combinations as JSON (for the CI matrix)
-//   node e2e/matrix/run.ts [id...] [--set edges]      run these (default: all)
+//   node e2e/matrix/run.ts --list     the combination ids as JSON (for the CI matrix)
+//   node e2e/matrix/run.ts [id...]    run these (default: all)
 // MATRIX_DIR picks where projects are generated (default: the OS temp folder); node_modules goes after each.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { combinations, edges, find, presetOf, stepsFor, type Combo } from './combos.ts';
+import { combinations, find, presetOf, stepsFor, type Combo } from './combos.ts';
 
 const repo = path.resolve(import.meta.dirname, '../..');
 const cli = path.join(repo, 'packages/cli/bin/mfeflow.js');
 
-function option(name: string): string | undefined {
-  const at = process.argv.indexOf(name);
-  return at === -1 ? undefined : process.argv[at + 1];
-}
-
 function selection(): Combo[] {
-  const ids = process.argv
-    .slice(2)
-    .filter((a, i, all) => !a.startsWith('--') && all[i - 1] !== '--set');
-  if (ids.length > 0) return find(ids);
-  return option('--set') === 'edges' ? edges() : combinations();
+  const ids = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+  return ids.length > 0 ? find(ids) : combinations();
 }
 
 function run(command: string, args: string[], cwd: string): Promise<number> {
@@ -76,8 +68,7 @@ async function check(combo: Combo, work: string): Promise<string | undefined> {
 }
 
 if (process.argv.includes('--list')) {
-  const list = option('--set') === 'edges' ? edges() : combinations();
-  console.log(JSON.stringify(list.map((c) => c.id)));
+  console.log(JSON.stringify(combinations().map((c) => c.id)));
 } else {
   const base = process.env.MATRIX_DIR ?? os.tmpdir();
   fs.mkdirSync(base, { recursive: true });

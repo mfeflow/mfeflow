@@ -28,7 +28,6 @@ jobs:
       contents: read
     outputs:
       all: ${{ steps.list.outputs.all }}
-      edges: ${{ steps.list.outputs.edges }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -37,9 +36,7 @@ jobs:
         with:
           node-version: lts/*
       - id: list
-        run: |
-          echo "all=$(node e2e/matrix/run.ts --list)" >> "$GITHUB_OUTPUT"
-          echo "edges=$(node e2e/matrix/run.ts --list --set edges)" >> "$GITHUB_OUTPUT"
+        run: echo "all=$(node e2e/matrix/run.ts --list)" >> "$GITHUB_OUTPUT"
 
   # Every combination on ubuntu: on pull requests, and every night.
   ubuntu:
@@ -68,7 +65,7 @@ jobs:
         env:
           MATRIX_DIR: ${{ runner.temp }}
 
-  # The corners on macOS and Windows, nightly only: enough to catch what is OS specific.
+  # The same combinations on macOS and Windows, nightly only.
   other-os:
     name: ${{ matrix.os }} ${{ matrix.combo }}
     if: github.event_name != 'pull_request'
@@ -81,7 +78,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest]
-        combo: ${{ fromJSON(needs.plan.outputs.edges) }}
+        combo: ${{ fromJSON(needs.plan.outputs.all) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
