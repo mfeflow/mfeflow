@@ -14,6 +14,19 @@ one tracer.
 > **Early, built in the open.** Nothing is released yet and the packages on
 > npm, when they appear, will be placeholders until the first real version.
 
+## Status
+
+Nothing is on npm yet.
+
+What works today, from the repo:
+
+- `@mfeflow/contracts`: types and validators for `mfe.json`, `mfeflow.json`, `feature.json` and the registry.
+- `@mfeflow/runtime`, `@mfeflow/rsbuild`, `@mfeflow/storage`, `@mfeflow/theme`, `@mfeflow/i18n`, `@mfeflow/url-factory`: the runtime and build packages, exercised by the storefront example.
+- `@mfeflow/tsconfig`, `@mfeflow/oxlint-config`, `@mfeflow/testing`: shared config and test helpers.
+- `@mfeflow/core` (new): the engine behind the CLI. It loads and saves `mfeflow.json`, plans a change as data with a unified diff, applies it atomically with rollback, edits files with seven built-in transform ops, and resolves features from a local folder or a namespaced registry. Third-party features are declarative only and never run code.
+
+Being built now: the CLI (`init`, `add`, `doctor`, `dev`) on top of the engine, and the first features.
+
 ## What it will do
 
 ```bash
