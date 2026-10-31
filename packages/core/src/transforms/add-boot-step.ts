@@ -67,23 +67,42 @@ export function addBootStep(source: string, file: string, op: AddBootStepOp): st
     throw new MfeflowError('E208', `${name} in ${file} has no step that calls "${anchorName}"`);
   }
 
+  const wantsAwait = op.await !== false;
+  if (wantsAwait && !fn.async) {
+    throw new MfeflowError(
+      'E208',
+      `${name} in ${file} is not async, so it cannot await "${op.call}"; make it async or set "await": false`,
+    );
+  }
+
   const q = detectQuote(withImport, ast);
   const args = (op.args ?? []).map((a) => literalSource(a, q)).join(', ');
-  const statement = `${op.await === false ? '' : 'await '}${op.call}(${args});`;
+  const statement = `${wantsAwait ? 'await ' : ''}${op.call}(${args});`;
   const last = body.body.at(-1);
+  const ownsLine = (offset: number) =>
+    withImport.slice(lineStart(withImport, offset), offset).trim() === '';
 
   if (anchor && !op.after) {
-    const at = lineStart(withImport, startOf(anchor));
+    const start = startOf(anchor);
+    if (!ownsLine(start)) {
+      return applyEdits(withImport, [{ start, end: start, text: `${statement} ` }]);
+    }
+    const at = lineStart(withImport, start);
     return applyEdits(withImport, [
-      { start: at, end: at, text: `${indentAt(withImport, startOf(anchor))}${statement}\n` },
+      { start: at, end: at, text: `${indentAt(withImport, start)}${statement}\n` },
     ]);
   }
   const after = anchor ?? last;
   if (after) {
-    const at = lineEnd(withImport, endOf(after));
-    return applyEdits(withImport, [
-      { start: at, end: at, text: `\n${indentAt(withImport, startOf(after))}${statement}` },
-    ]);
+    const end = endOf(after);
+    const rest = withImport.slice(end, lineEnd(withImport, end)).trim();
+    if (rest !== '' && !rest.startsWith('//')) {
+      return applyEdits(withImport, [{ start: end, end, text: ` ${statement}` }]);
+    }
+    const at = lineEnd(withImport, end);
+    const base = indentAt(withImport, startOf(after));
+    const indent = ownsLine(startOf(after)) ? base : `${base}  `;
+    return applyEdits(withImport, [{ start: at, end: at, text: `\n${indent}${statement}` }]);
   }
   const open = startOf(body) + 1;
   const indent = indentAt(withImport, startOf(body));

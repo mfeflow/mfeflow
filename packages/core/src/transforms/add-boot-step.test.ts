@@ -73,4 +73,70 @@ export async function main(): Promise<void> {
     expect(thrown(() => run('export const main = () => 1;\n')).code).toBe('MFEFLOW_E208');
     expect(thrown(() => run(bootstrap, { before: 'nope' })).code).toBe('MFEFLOW_E208');
   });
+
+  it('refuses to put an await into a function that is not async (E208)', () => {
+    const sync = `export function main() {\n  setup();\n  createRoot(el).render(<App />);\n}\n`;
+    const error = thrown(() => run(sync));
+    expect(error.code).toBe('MFEFLOW_E208');
+    expect(error.message).toContain('async');
+    expect(error.message).toContain('main');
+    const arrow = `export const main = () => {\n  setup();\n};\n`;
+    expect(thrown(() => run(arrow)).code).toBe('MFEFLOW_E208');
+  });
+
+  it('allows a sync step in a sync function, and leaves it alone when the call is there already', () => {
+    const sync = `export function main() {\n  setup();\n}\n`;
+    expect(run(sync, { await: false })).toContain('  setup();\n  initAnalytics();\n}');
+    const done = `export function main() {\n  initAnalytics();\n}\nimport { initAnalytics } from './platform/analytics';\n`;
+    expect(run(done)).toBe(done);
+  });
+
+  describe('bodies that share a line with the braces', () => {
+    const cases: [string, object, string][] = [
+      [
+        'async function main() { createRoot(el).render(<App />); }',
+        {},
+        'async function main() { await initAnalytics(); createRoot(el).render(<App />); }',
+      ],
+      [
+        'async function main() { await setup(); createRoot(el).render(<App />); }',
+        { before: 'setup' },
+        'async function main() { await initAnalytics(); await setup(); createRoot(el).render(<App />); }',
+      ],
+      [
+        'async function main() { await setup(); }',
+        { after: 'setup' },
+        'async function main() { await setup(); await initAnalytics(); }',
+      ],
+      [
+        'async function main() { await setup(); }',
+        {},
+        'async function main() { await setup(); await initAnalytics(); }',
+      ],
+      [
+        'async function main() {\n  await setup(); }',
+        {},
+        'async function main() {\n  await setup(); await initAnalytics(); }',
+      ],
+      [
+        'async function main() { await setup(); /* done */ }',
+        {},
+        'async function main() { await setup(); await initAnalytics(); /* done */ }',
+      ],
+    ];
+
+    it('inserts inside the body, never outside the closing brace', () => {
+      for (const [source, extra, expected] of cases) {
+        const out = run(source, extra).replace(/^import .*\n+/, '');
+        expect(out, source).toBe(expected);
+      }
+    });
+
+    it('stays idempotent and parseable', () => {
+      for (const [source, extra] of cases) {
+        const once = run(source, extra);
+        expect(run(once, extra), source).toBe(once);
+      }
+    });
+  });
 });
