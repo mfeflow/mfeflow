@@ -13,12 +13,13 @@ one tracer.
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/mfeflow/mfeflow/badge)](https://scorecard.dev/viewer/?uri=github.com/mfeflow/mfeflow)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-> **Early, built in the open.** Nothing is released yet and the packages on
-> npm, when they appear, will be placeholders until the first real version.
+> **Early, built in the open.** Nothing is released yet. The first release (0.1.0 of
+> every package) is being prepared.
 
 ## Status
 
-Nothing is on npm yet.
+The first release is being prepared: all 13 public packages are versioned together and
+will start at 0.1.0. Nothing is on npm yet.
 
 What works today, from the repo:
 
