@@ -51,3 +51,4 @@ export {
   type InstallStep,
 } from './apply.js';
 export { renderTemplate, substitute, type TemplateData } from './templates.js';
+export { applyTransform } from './transforms/index.js';

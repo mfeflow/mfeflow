@@ -143,6 +143,9 @@ describe('feature.json', () => {
           { op: 'add-workflow-step', file: 'a', job: 'j', step: { name: 'n', with: 3 } },
           { op: 'add-workflow-step', file: 'a', job: 'j', step: 'no' },
           { op: 'add-import', file: 'a', from: 'x', typeOnly: true },
+          { op: 'add-route', file: 'a', path: '/x', component: 'X', from: 'y', defaultImport: 1 },
+          { op: 'add-boot-step', file: 'a', call: 'f', from: 'x', await: 'yes' },
+          { op: 'add-import', file: 'a', from: 'x', named: ['a'], typeOnly: 'no' },
         ],
       }),
     ).toEqual([
@@ -162,6 +165,9 @@ describe('feature.json', () => {
       'transforms[9].step',
       'transforms[10].step',
       'transforms[11]',
+      'transforms[12].defaultImport',
+      'transforms[13].await',
+      'transforms[14].typeOnly',
     ]);
   });
 

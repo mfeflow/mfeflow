@@ -1,0 +1,19 @@
+import { isStringLiteral } from '@babel/types';
+import type { AddSharedOp } from '@mfeflow/contracts';
+import { MfeflowError } from '../errors.js';
+import { appendItem, applyEdits, detectQuote, findArray, parseSource, quote } from './ast.js';
+
+/** Adds a package to the singletons array. Does nothing if it is already listed. */
+export function addShared(source: string, file: string, op: AddSharedOp): string {
+  const ast = parseSource(source, file);
+  const list = op.list ?? 'singletons';
+  const array = findArray(ast, list);
+  if (!array) throw new MfeflowError('E208', `${file} has no array named "${list}"`);
+  const present = array.elements.some((e) => isStringLiteral(e) && e.value === op.name);
+  if (present) return source;
+  const items = array.elements.filter((e) => e !== null);
+  return applyEdits(
+    source,
+    appendItem(source, array, items, quote(op.name, detectQuote(source, ast))),
+  );
+}

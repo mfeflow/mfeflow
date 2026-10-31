@@ -74,6 +74,8 @@ export interface WrapProviderOp extends TransformBase {
   component: string;
   from: string;
   props?: Record<string, Literal>;
+  /** Import `component` as the default export of `from`. Default: a named import. */
+  defaultImport?: boolean;
   /** The component to wrap the output of. Defaults to `Providers`. */
   function?: string;
 }
@@ -91,6 +93,8 @@ export interface AddBootStepOp extends TransformBase {
   from: string;
   args?: Literal[];
   await?: boolean;
+  /** Import `call` as the default export of `from`. Default: a named import. */
+  defaultImport?: boolean;
   /** Insert before the step calling this function. Default: before the render. */
   before?: string;
   after?: string;
@@ -110,6 +114,8 @@ export interface AddRouteOp extends TransformBase {
   path: string;
   component: string;
   from: string;
+  /** Import `component` as the default export of `from`. Default: a named import. */
+  defaultImport?: boolean;
   /** Name of the routes array. Defaults to `routes`. */
   routes?: string;
 }
@@ -209,6 +215,12 @@ function checkTransform(c: Checker, t: unknown, at: string): void {
   }
   checkPath(c, t, 'file', at);
   checkTarget(c, t, at);
+  if (t.defaultImport !== undefined && typeof t.defaultImport !== 'boolean')
+    c.add(`${at}.defaultImport`, 'must be true or false');
+  if (t.typeOnly !== undefined && typeof t.typeOnly !== 'boolean')
+    c.add(`${at}.typeOnly`, 'must be true or false');
+  if (t.await !== undefined && typeof t.await !== 'boolean')
+    c.add(`${at}.await`, 'must be true or false');
   const ident = (key: string, required = true) =>
     c.string(t, key, at, { required, pattern: IDENT, hint: 'must be a JavaScript identifier' });
   switch (op) {
