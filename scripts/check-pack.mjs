@@ -83,7 +83,7 @@ export function bareImports(source) {
   for (const pattern of IMPORT_PATTERNS)
     for (const match of code.matchAll(pattern)) found.push({ at: match.index, spec: match[1] });
   return found
-    .sort((a, b) => a.at - b.at)
+    .toSorted((a, b) => a.at - b.at)
     .map(({ spec }) => spec)
     .filter((spec) => !spec.startsWith('.') && !spec.startsWith('/') && !spec.startsWith('node:'))
     .filter((spec) => !BUILTINS.has(spec.split('/')[0]))

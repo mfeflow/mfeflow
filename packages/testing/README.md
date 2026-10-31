@@ -5,10 +5,10 @@ Test helpers for mfeflow micro-frontends. `renderWithPlatform` renders a compone
 ## Install
 
 ```sh
-pnpm add -D @mfeflow/testing @testing-library/react
+pnpm add -D @mfeflow/testing @testing-library/react @testing-library/dom react react-dom
 ```
 
-`@testing-library/react` (^16) and `react` (^19) are peer dependencies. Run tests in a DOM environment such as jsdom.
+`@testing-library/react` (^16), `react` and `react-dom` (^19) are peer dependencies; Testing Library also needs `@testing-library/dom`. `renderWithPlatform` imports only `@mfeflow/runtime/providers`, so Module Federation is not loaded in your tests. Run tests in a DOM environment such as jsdom.
 
 ## Usage
 

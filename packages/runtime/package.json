@@ -28,6 +28,11 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./providers": {
+      "types": "./dist/providers.d.ts",
+      "import": "./dist/providers.js",
+      "default": "./dist/providers.js"
+    },
     "./plugins/report": {
       "types": "./dist/plugins/report.d.ts",
       "import": "./dist/plugins/report.js",

@@ -58,11 +58,6 @@
     "react-i18next": "^17.0.0",
     "react": "^19.0.0"
   },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@rsbuild/plugin-react": "catalog:",
     "@rslib/core": "catalog:",

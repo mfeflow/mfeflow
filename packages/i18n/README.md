@@ -8,7 +8,7 @@ Internationalisation for micro-frontends. The shell owns one i18next instance; e
 pnpm add @mfeflow/i18n i18next react-i18next react
 ```
 
-`i18next` (26), `react-i18next` (17) and `react` (19) are peer dependencies. `react` is optional unless you use `@mfeflow/i18n/react`.
+`i18next` (26), `react-i18next` (17) and `react` (19) are peer dependencies. All three are required, even if you only use the root entry: it registers `react-i18next` with the i18next instance.
 
 ## Usage
 

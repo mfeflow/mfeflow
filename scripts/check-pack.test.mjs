@@ -369,7 +369,7 @@ describe('release workflow', () => {
       steps.findIndex((s) => s.includes(n)),
     );
     expect(order.every((i) => i >= 0)).toBe(true);
-    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(order).toEqual(order.toSorted((a, b) => a - b));
   });
 
   it('does not hard-code the package count in the workflow or the README', () => {
