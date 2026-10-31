@@ -8,17 +8,19 @@ one-command rollback, and keep many teams on one React, one tag manager and
 one tracer.
 
 [![ci](https://github.com/mfeflow/mfeflow/actions/workflows/ci.yml/badge.svg)](https://github.com/mfeflow/mfeflow/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/mfeflow)](https://www.npmjs.com/package/mfeflow)
 [![Quality gate](https://sonarcloud.io/api/project_badges/measure?project=mfeflow_mfeflow&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=mfeflow_mfeflow)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=mfeflow_mfeflow&metric=coverage)](https://sonarcloud.io/summary/new_code?id=mfeflow_mfeflow)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/mfeflow/mfeflow/badge)](https://scorecard.dev/viewer/?uri=github.com/mfeflow/mfeflow)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-> **Early, built in the open.** Nothing is released yet and the packages on
-> npm, when they appear, will be placeholders until the first real version.
+> **Early, built in the open.** Nothing is released yet. The first release (0.1.0 of
+> every package) is being prepared.
 
 ## Status
 
-Nothing is on npm yet.
+The first release is being prepared: every public package is versioned together and
+will start at 0.1.0. Nothing is on npm yet. See [versioning and releases](docs/versioning.md) for the version policy and the release flow.
 
 What works today, from the repo:
 

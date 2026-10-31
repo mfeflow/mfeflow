@@ -1,9 +1,27 @@
 {
   "$schema": "https://unpkg.com/@changesets/config/schema.json",
-  "changelog": "@changesets/cli/changelog",
+  "changelog": ["@changesets/changelog-github", { "repo": "mfeflow/mfeflow" }],
   "commit": false,
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@mfeflow/docs"]
+  "fixed": [
+    [
+      "mfeflow",
+      "create-mfeflow",
+      "@mfeflow/core",
+      "@mfeflow/contracts",
+      "@mfeflow/rsbuild",
+      "@mfeflow/runtime",
+      "@mfeflow/url-factory",
+      "@mfeflow/theme",
+      "@mfeflow/i18n",
+      "@mfeflow/storage",
+      "@mfeflow/testing",
+      "@mfeflow/tsconfig",
+      "@mfeflow/oxlint-config"
+    ]
+  ],
+  "ignore": ["@mfeflow/docs"],
+  "privatePackages": { "version": false, "tag": false }
 }

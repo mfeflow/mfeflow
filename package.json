@@ -15,11 +15,13 @@
     "format:check": "prettier --check .",
     "ci": "pnpm format:check && pnpm build && pnpm lint && pnpm typecheck && pnpm test",
     "changeset": "changeset",
-    "release": "pnpm build && changeset publish",
+    "check:pack": "node scripts/check-pack.mjs",
+    "release": "changeset publish",
     "prepare": "lefthook install",
     "e2e": "pnpm --filter @storefront/e2e test"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "catalog:",
     "@changesets/cli": "catalog:",
     "@commitlint/cli": "catalog:",
     "@commitlint/config-conventional": "catalog:",

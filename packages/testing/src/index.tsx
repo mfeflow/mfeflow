@@ -1,6 +1,6 @@
 import { render, type RenderOptions, type RenderResult } from '@testing-library/react';
 import type { ReactElement } from 'react';
-import { composeProviders, type ProviderComponent } from '@mfeflow/runtime';
+import { composeProviders, type ProviderComponent } from '@mfeflow/runtime/providers';
 
 export interface PlatformRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   /** The same list the shell passes to `composeProviders`, e.g. `[withProps(ThemeProvider, {...})]`. */

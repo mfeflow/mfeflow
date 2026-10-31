@@ -9,6 +9,7 @@ packages:
 catalog:
   '@babel/parser': 8.0.10
   '@babel/types': 8.0.10
+  '@changesets/changelog-github': 1.0.1
   '@changesets/cli': 3.0.3
   '@clack/prompts': 1.8.1
   '@commitlint/cli': 21.2.4

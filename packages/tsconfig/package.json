@@ -8,7 +8,9 @@
     "tsconfig",
     "typescript",
     "typescript-7",
-    "react"
+    "react",
+    "module-federation",
+    "rsbuild"
   ],
   "homepage": "https://mfeflow.dev",
   "bugs": "https://github.com/mfeflow/mfeflow/issues",
@@ -43,5 +45,8 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "react": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.12"
   }
 }

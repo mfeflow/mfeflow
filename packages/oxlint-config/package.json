@@ -9,7 +9,9 @@
     "lint",
     "typescript",
     "react",
-    "a11y"
+    "a11y",
+    "module-federation",
+    "rsbuild"
   ],
   "homepage": "https://mfeflow.dev",
   "bugs": "https://github.com/mfeflow/mfeflow/issues",
@@ -40,5 +42,8 @@
   },
   "devDependencies": {
     "@types/node": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.12"
   }
 }

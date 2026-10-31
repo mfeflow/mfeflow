@@ -50,3 +50,12 @@ describe('resetPlatform', () => {
     expect(root.style.getPropertyValue('--mf-x')).toBe('');
   });
 });
+
+describe('runtime import', () => {
+  it('uses the providers subpath, so Module Federation is not pulled into test runs', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(`${import.meta.dirname}/index.tsx`, 'utf8');
+    expect(source).toContain("from '@mfeflow/runtime/providers'");
+    expect(source).not.toMatch(/from '@mfeflow\/runtime'/);
+  });
+});
