@@ -1,4 +1,3 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { AddEnvKeyOp, TransformOp } from '@mfeflow/contracts';
 import {
@@ -6,6 +5,7 @@ import {
   loadProject,
   MfeflowError,
   resolveFeature,
+  runtimeConfigFiles,
   type MfeflowProject,
 } from '@mfeflow/core';
 import { text, type Globals } from '../args';
@@ -16,7 +16,6 @@ import type { Runtime } from '../runtime';
 import { writePlan } from '../write';
 
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const CONFIG_FILE = /^runtime-config(\.[a-z0-9-]+)?\.json$/;
 
 /** Where a server key goes: `--app` names one app or `root`; by default every app. */
 function serverTargets(project: MfeflowProject, app: string | undefined): string[] {
@@ -41,14 +40,7 @@ function runtimeTargets(project: MfeflowProject, app: string | undefined): strin
 
 async function configFilesOf(root: string, dir: string): Promise<string[]> {
   const folder = path.join(root, ...dir.split('/'), 'public', 'config');
-  try {
-    return (await fs.readdir(folder))
-      .filter((name) => CONFIG_FILE.test(name))
-      .toSorted()
-      .map((name) => `public/config/${name}`);
-  } catch {
-    return [];
-  }
+  return (await runtimeConfigFiles(folder)).map((name) => `public/config/${name}`);
 }
 
 interface OpInput {

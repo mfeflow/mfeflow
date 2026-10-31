@@ -77,7 +77,7 @@ async function checkApp(dir: string): Promise<Outcome> {
   }
   const files = fs
     .readdirSync(configDir)
-    .toSorted()
+    .toSorted((a, b) => a.localeCompare(b))
     .filter((name) => {
       const match = ENV_FILE.exec(name);
       return match !== null && (wanted.length === 0 || wanted.includes(match[1] ?? ''));

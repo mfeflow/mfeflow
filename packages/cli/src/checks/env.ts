@@ -1,6 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { dotenvKeys, messageOf, schemaKeys, type SchemaKey } from '@mfeflow/core';
+import {
+  dotenvKeys,
+  messageOf,
+  runtimeConfigFiles,
+  schemaKeys,
+  type SchemaKey,
+} from '@mfeflow/core';
 import { done, finding, type Check, type CheckOutcome, type Finding } from '../findings';
 import { readText, type ProjectView } from '../inspect';
 
@@ -11,7 +17,6 @@ const installed = ({ project }: ProjectView) => 'env-t3' in project.features;
 /** Values that are the same in every environment, so inlining them at build time is fine. */
 const PUBLIC_CONSTANTS = new Set(['PUBLIC_APP_NAME', 'PUBLIC_BUILD_VERSION']);
 const PUBLIC_VAR = /\bPUBLIC_[A-Z0-9_]+\b/g;
-const CONFIG_FILE = /^runtime-config(\.[a-z0-9-]+)?\.json$/;
 const SOURCE_FILE = /\.(?:[cm]?[jt]sx?)$/;
 
 interface Place {
@@ -178,12 +183,9 @@ export const runtimeConfig: Check = {
         ];
       }
       const folder = path.join(place.dir, 'public', 'config');
-      const files = await fs.readdir(folder).catch(() => [] as string[]);
+      const files = await runtimeConfigFiles(folder);
       const found = await Promise.all(
-        files
-          .filter((name) => CONFIG_FILE.test(name))
-          .toSorted()
-          .map((name) => checkConfigFile(place, folder, name, keys)),
+        files.map((name) => checkConfigFile(place, folder, name, keys)),
       );
       return found.flat();
     }),
