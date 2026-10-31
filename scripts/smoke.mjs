@@ -1,5 +1,7 @@
 // Generates a project with this checkout (`mfeflow init --local`), installs and builds it, boots
-// `pnpm dev` and fetches the shell and both remotes. Needs `pnpm build` to have run in this repo.
+// `mfeflow dev`, fetches the shell and both remotes, adds a third remote while it runs and waits for the
+// shell to list it (no restart), then sends Ctrl+C and checks every dev server is gone.
+// Needs `pnpm build` to have run in this repo.
 // Usage: node scripts/smoke.mjs   (SMOKE_DIR=/some/folder keeps the project there)
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -39,32 +41,33 @@ async function waitFor(url, check, what) {
   throw new Error(`${what}: ${url} never became ready (${last})`);
 }
 
-const alive = (pid) => {
-  try {
-    process.kill(-pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-};
+const cli = path.join(repo, 'packages/cli/bin/mfeflow.js');
 
-// turbo forks one dev server per app; the process group takes them all down.
-async function stop(child) {
-  for (const signal of ['SIGTERM', 'SIGKILL']) {
-    try {
-      process.kill(-child.pid, signal);
-    } catch {
-      return;
-    }
-    const deadline = Date.now() + 5000;
-    while (alive(child.pid) && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
-    if (!alive(child.pid)) return;
+async function portClosed(port) {
+  try {
+    await fetch(`http://localhost:${String(port)}/`);
+    return false;
+  } catch {
+    return true;
   }
 }
 
+async function checkRemote(html, name, origin) {
+  if (!html.includes(`${origin}/mf-manifest.json`)) throw new Error(`the shell does not list ${name}`);
+  const manifest = JSON.parse(
+    await waitFor(`${origin}/mf-manifest.json`, (body) => body.includes('metaData'), name),
+  );
+  const { name: file, path: dir } = manifest.metaData.remoteEntry;
+  const entry = await waitFor(
+    `${origin}/${path.posix.join(dir, file)}`,
+    (b) => b.length > 0,
+    `${name} entry`,
+  );
+  console.log(`ok  ${name}: ${manifest.metaData.name} entry ${String(entry.length)} bytes`);
+}
+
 let dev;
+let devExit;
 try {
   step(
     'generate',
@@ -86,27 +89,47 @@ try {
   step('build', 'pnpm', ['build'], project);
 
   console.log('\n==> dev');
-  dev = spawn('pnpm', ['dev'], { cwd: project, stdio: 'inherit', detached: true });
+  dev = spawn(process.execPath, [cli, 'dev'], { cwd: project, stdio: 'inherit' });
+  devExit = new Promise((resolve) => dev.once('exit', (code, signal) => resolve({ code, signal })));
 
   const html = await waitFor(SHELL, (body) => body.includes('__MFE_REGISTRY__'), 'shell');
-  for (const [name, origin] of Object.entries(REMOTES)) {
-    if (!html.includes(`${origin}/mf-manifest.json`))
-      throw new Error(`the shell does not list ${name}`);
-    const manifest = JSON.parse(
-      await waitFor(`${origin}/mf-manifest.json`, (body) => body.includes('metaData'), name),
-    );
-    const { name: file, path: dir } = manifest.metaData.remoteEntry;
-    const entry = await waitFor(
-      `${origin}/${path.posix.join(dir, file)}`,
-      (b) => b.length > 0,
-      `${name} entry`,
-    );
-    console.log(`ok  ${name}: ${manifest.metaData.name} entry ${String(entry.length)} bytes`);
-  }
+  for (const [name, origin] of Object.entries(REMOTES)) await checkRemote(html, name, origin);
   console.log('ok  shell: the registry lists catalog and cart');
+
+  step(
+    'add remote while dev runs',
+    process.execPath,
+    [cli, 'add', 'remote', 'checkout', '--yes', '--local', repo],
+    project,
+  );
+  const checkout = 'http://localhost:4313';
+  const next = await waitFor(
+    SHELL,
+    (body) => body.includes(`${checkout}/mf-manifest.json`),
+    'shell with checkout (no restart of mfeflow dev)',
+  );
+  await checkRemote(next, 'checkout', checkout);
+  console.log('ok  shell: the registry now lists checkout, mfeflow dev was not restarted');
+
+  console.log('\n==> Ctrl+C');
+  dev.kill('SIGINT');
+  const { code } = await Promise.race([
+    devExit,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('mfeflow dev did not stop')), 30_000)),
+  ]);
+  if (code !== 130) throw new Error(`mfeflow dev exited with ${String(code)}, expected 130`);
+  dev = undefined;
+  for (const port of [4300, 4311, 4312, 4313]) {
+    if (!(await portClosed(port))) throw new Error(`port ${String(port)} is still open after Ctrl+C`);
+  }
+  console.log('ok  Ctrl+C stopped the shell and every remote');
   console.log('\nsmoke passed');
 } finally {
-  if (dev) await stop(dev);
+  if (dev) {
+    dev.kill('SIGINT');
+    await Promise.race([devExit, new Promise((resolve) => setTimeout(resolve, 10_000))]);
+    dev.kill('SIGKILL');
+  }
   if (!process.env.SMOKE_DIR) {
     try {
       fs.rmSync(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
