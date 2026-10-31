@@ -52,3 +52,19 @@ export {
 } from './apply.js';
 export { renderTemplate, substitute, type TemplateData } from './templates.js';
 export { applyTransform } from './transforms/index.js';
+export {
+  fetchRemoteText,
+  isProtectedPath,
+  listLocalFeatures,
+  loadFeature,
+  parseFeature,
+  registryUrl,
+  resolveFeature,
+  resolveOptions,
+  type FetchLike,
+  type FetchResponse,
+  type LoadedFeature,
+  type LoadOptions,
+  type ResolveInput,
+  type Trust,
+} from './features/index.js';

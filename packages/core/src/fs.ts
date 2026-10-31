@@ -10,6 +10,8 @@ export interface FsOps {
   rm(file: string, options?: { recursive?: boolean }): Promise<void>;
   /** Returns the first directory it had to create, if any. */
   mkdir(dir: string): Promise<string | undefined>;
+  /** Names of the sub-folders of `dir`. */
+  listDirs(dir: string): Promise<string[]>;
 }
 
 export const realFs: FsOps = {
@@ -18,6 +20,10 @@ export const realFs: FsOps = {
   rename: (from, to) => fs.rename(from, to),
   rm: (file, options) => fs.rm(file, { force: true, ...options }),
   mkdir: (dir) => fs.mkdir(dir, { recursive: true }),
+  listDirs: async (dir) =>
+    (await fs.readdir(dir, { withFileTypes: true }))
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name),
 };
 
 /** File content, or undefined when the file does not exist. */
