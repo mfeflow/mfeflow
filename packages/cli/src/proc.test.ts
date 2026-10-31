@@ -4,7 +4,16 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { killTree, portFree, spawnDev, watchPaths, wrap, type TreeKiller } from './proc';
+import {
+  createReaper,
+  killTree,
+  onInterrupt,
+  portFree,
+  spawnDev,
+  watchPaths,
+  wrap,
+  type TreeKiller,
+} from './proc';
 import net from 'node:net';
 
 const killer = (overrides: Partial<TreeKiller>): TreeKiller => ({
@@ -68,6 +77,43 @@ describe('killTree', () => {
         },
       }),
     );
+  });
+});
+
+describe('onInterrupt', () => {
+  it('listens for SIGINT, SIGTERM and SIGHUP, and stops listening when told to', () => {
+    const source = new EventEmitter();
+    let calls = 0;
+    const stop = onInterrupt(() => {
+      calls += 1;
+    }, source);
+    for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) source.emit(signal);
+    expect(calls).toBe(3);
+    stop();
+    expect(source.eventNames()).toEqual([]);
+  });
+});
+
+describe('createReaper', () => {
+  it('kills what is still tracked when the process exits, and not what was untracked', () => {
+    const proc = new EventEmitter();
+    const killed: number[] = [];
+    const reaper = createReaper(proc, (pid) => killed.push(pid));
+    reaper.track(10);
+    reaper.track(11);
+    reaper.untrack(10);
+    expect(proc.listenerCount('exit')).toBe(1);
+    proc.emit('exit');
+    expect(killed).toEqual([11]);
+  });
+
+  it('adds one exit listener however many children it tracks', () => {
+    const proc = new EventEmitter();
+    const reaper = createReaper(proc, () => undefined);
+    reaper.track(1);
+    reaper.untrack(1);
+    reaper.track(2);
+    expect(proc.listenerCount('exit')).toBe(1);
   });
 });
 

@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -121,6 +121,50 @@ export function wrap(child: ChildProcess, killer: TreeKiller): DevProcess {
   };
 }
 
+export interface ExitSource {
+  on(event: 'exit', listener: () => void): unknown;
+}
+
+export interface Reaper {
+  track(pid: number): void;
+  untrack(pid: number): void;
+}
+
+/**
+ * Last resort for dev servers still running when this process exits (a closed terminal, a
+ * crash): kills what is left, synchronously, because nothing async runs inside an `exit` handler.
+ */
+export function createReaper(proc: ExitSource, killNow: (pid: number) => void): Reaper {
+  const live = new Set<number>();
+  let listening = false;
+  return {
+    track(pid) {
+      if (!listening) {
+        listening = true;
+        proc.on('exit', () => {
+          for (const left of live) killNow(left);
+        });
+      }
+      live.add(pid);
+    },
+    untrack(pid) {
+      live.delete(pid);
+    },
+  };
+}
+
+const reaper = createReaper(process, (pid) => {
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' });
+    return;
+  }
+  try {
+    process.kill(-pid, 'SIGKILL');
+  } catch {
+    // Already gone.
+  }
+});
+
 export const spawnDev: SpawnDev = (spec) => {
   const child = spawn(spec.command, [...spec.args], {
     cwd: spec.cwd,
@@ -131,7 +175,20 @@ export const spawnDev: SpawnDev = (spec) => {
     // pnpm is a .cmd file on Windows and needs a shell.
     shell: process.platform === 'win32' && !path.isAbsolute(spec.command),
   });
-  return wrap(child, realKiller);
+  const proc = wrap(child, realKiller);
+  if (child.pid === undefined) return proc;
+  const { pid } = child;
+  reaper.track(pid);
+  child.once('close', () => {
+    if (!alive(realKiller.kill, pid)) reaper.untrack(pid);
+  });
+  return {
+    ...proc,
+    async stop() {
+      await proc.stop();
+      reaper.untrack(pid);
+    },
+  };
 };
 
 export function portFree(port: number): Promise<boolean> {
@@ -185,11 +242,17 @@ export function watchPaths(paths: readonly string[], listener: () => void): () =
   };
 }
 
-export function onInterrupt(listener: () => void): () => void {
-  const signals = ['SIGINT', 'SIGTERM'] as const;
-  for (const signal of signals) process.on(signal, listener);
+export interface SignalSource {
+  on(signal: NodeJS.Signals, listener: () => void): unknown;
+  off(signal: NodeJS.Signals, listener: () => void): unknown;
+}
+
+/** Ctrl+C, `kill`, and a closed terminal (SIGHUP) all stop the dev servers. */
+export function onInterrupt(listener: () => void, source: SignalSource = process): () => void {
+  const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
+  for (const signal of signals) source.on(signal, listener);
   return () => {
-    for (const signal of signals) process.off(signal, listener);
+    for (const signal of signals) source.off(signal, listener);
   };
 }
 
