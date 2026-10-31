@@ -32,6 +32,22 @@ export const ERROR_CATALOGUE = {
     title: 'A file could not be read or written',
     fix: 'Check that the file exists and that you have permission to change it.',
   },
+  E107: {
+    title: 'A command-line option is missing or not valid',
+    fix: 'Run the command with --help to see the options and examples.',
+  },
+  E108: {
+    title: 'The target folder is not empty',
+    fix: 'Pick a new or empty folder, or move what is in the way.',
+  },
+  E109: {
+    title: 'The preset could not be used',
+    fix: 'Pass a JSON file or an https URL that holds an object of option names and values.',
+  },
+  E110: {
+    title: '--local does not point at a built mfeflow checkout',
+    fix: 'Pass the folder of a mfeflow/mfeflow clone where `pnpm install && pnpm build` has run.',
+  },
   E201: {
     title: 'Feature not found',
     fix: 'List what is available with `mfeflow features`, or check the spelling.',
@@ -87,6 +103,10 @@ export const ERROR_CATALOGUE = {
   E214: {
     title: 'A feature option is invalid',
     fix: 'Pass a value the feature accepts; `mfeflow features <name>` lists the options.',
+  },
+  E215: {
+    title: 'The app name cannot be used',
+    fix: 'Use lowercase words of letters and digits joined by single underscores (order_history), starting with a letter, and a name no app has yet.',
   },
   E401: {
     title: 'Could not fetch from the registry',

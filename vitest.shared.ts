@@ -7,6 +7,7 @@ const root = import.meta.dirname;
  * and coverage maps to the real files. Builds and typecheck still use `dist`.
  */
 export const workspaceAliases = [
+  { find: /^mfeflow$/, replacement: path.join(root, 'packages/cli/src/index') },
   { find: /^@mfeflow\/([a-z-]+)\/react$/, replacement: path.join(root, 'packages/$1/src/react') },
   { find: /^@mfeflow\/([a-z-]+)$/, replacement: path.join(root, 'packages/$1/src/index') },
 ];

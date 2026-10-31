@@ -1,0 +1,30 @@
+{
+  "name": "url-factory",
+  "version": "0.1.0",
+  "description": "Typed endpoint definitions and URL building (@mfeflow/url-factory), src/api/endpoints.ts in every app.",
+  "requires": ["core"],
+  "files": [
+    {
+      "to": "src/api/endpoints.ts",
+      "target": "shell",
+      "from": "files/endpoints.ts"
+    },
+    {
+      "to": "src/api/endpoints.ts",
+      "target": "remotes",
+      "from": "files/endpoints.ts"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@mfeflow/url-factory",
+      "range": "latest",
+      "target": "shell"
+    },
+    {
+      "name": "@mfeflow/url-factory",
+      "range": "latest",
+      "target": "remotes"
+    }
+  ]
+}

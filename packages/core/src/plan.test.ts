@@ -186,6 +186,33 @@ describe('PlanBuilder package.json', () => {
   });
 });
 
+const rewriteRange = (name: string, range: string) =>
+  name.startsWith('@mfeflow/') && range === 'latest' ? 'link:/repo/packages/x' : undefined;
+
+describe('PlanBuilder rewriteRange', () => {
+  const workspace = 'catalog:\n  react: 19.3.1\n';
+  it('writes the rewritten range as is, outside the catalog', async () => {
+    const b = new PlanBuilder(reader({ 'package.json': pkg(), 'pnpm-workspace.yaml': workspace }), {
+      catalog: true,
+      rewriteRange,
+    });
+    await b.addDependency('package.json', '@mfeflow/rsbuild', 'latest');
+    await b.addDependency('package.json', 'react', '19.3.1');
+    const plan = b.build();
+    expect(plan.dependencies.map((d) => [d.name, d.range])).toEqual([
+      ['@mfeflow/rsbuild', 'link:/repo/packages/x'],
+      ['react', 'catalog:'],
+    ]);
+    expect(plan.changes.map((c) => c.path)).toEqual(['package.json']);
+  });
+
+  it('keeps the declared range when the hook returns undefined', async () => {
+    const b = new PlanBuilder(reader({ 'package.json': pkg() }), { rewriteRange });
+    await b.addDependency('package.json', 'zod', '^4.0.0');
+    expect(b.build().dependencies[0]?.range).toBe('^4.0.0');
+  });
+});
+
 describe('PlanBuilder catalog', () => {
   const workspace = '# versions\ncatalog:\n  react: 19.3.1 # keep\n';
 

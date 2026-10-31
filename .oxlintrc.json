@@ -8,16 +8,31 @@
     "**/.turbo/**",
     "**/__fixture__/**",
     "**/playwright-report/**",
-    "**/test-results/**"
+    "**/test-results/**",
+    "packages/cli/assets/**",
+    "features/*/files/**",
+    "templates/**"
   ],
   "overrides": [
     {
-      "files": ["packages/*/bin/*.js"],
+      "files": ["packages/*/bin/*.js", "packages/*/scripts/*.mjs", "scripts/*.mjs"],
       "rules": {
         "typescript/no-unsafe-call": "off",
         "typescript/no-unsafe-member-access": "off",
         "typescript/no-unsafe-argument": "off",
-        "typescript/no-unsafe-assignment": "off"
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/await-thenable": "off",
+        "typescript/no-unsafe-return": "off",
+        "no-await-in-loop": "off",
+        "typescript/no-unsafe-type-assertion": "off"
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "packages/cli/src/testing.ts"],
+      "rules": {
+        "no-await-in-loop": "off",
+        "unicorn/consistent-function-scoping": "off",
+        "typescript/no-unsafe-type-assertion": "off"
       }
     },
     {

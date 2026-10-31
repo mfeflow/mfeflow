@@ -4,6 +4,7 @@ import {
   isMfeManifest,
   isRegistryEntry,
   isRegistryIndex,
+  MFE_NAME,
   SCHEMA_URLS,
   validateMfeflowProject,
   validateMfeManifest,
@@ -159,6 +160,15 @@ describe('registry index', () => {
     ).toEqual(['remotes[0].remoteEntry', 'remotes[0].exposes']);
   });
 
+  it('keeps Module Federation names to words joined by single underscores', () => {
+    for (const name of ['cart', 'cart2', 'order_history', 'a_b2_c'])
+      expect(MFE_NAME.test(name)).toBe(true);
+    // `cart_` and `cart` (or `a__b` and `a_b`) would turn into the same component name.
+    for (const name of ['cart_', '_cart', 'a__b', 'a_1', 'Cart', '1a', ''])
+      expect(MFE_NAME.test(name)).toBe(false);
+    expect(paths(validateMfeManifest({ ...cart, name: 'cart_' }))).toEqual(['name']);
+  });
+
   it('accepts the global names Module Federation produces', () => {
     const entry = { version: '1.0.0', manifestUrl: 'https://cdn.example.com/cart/m.json' };
     for (const entryGlobalName of ['cart', 'Cart_v2', 'my-app', '$shell', '_x1'])
@@ -218,6 +228,11 @@ describe('mfeflow.json', () => {
     },
   };
 
+  const withPort = (port: unknown) => ({
+    ...project,
+    apps: { ...project.apps, cart: { kind: 'remote', path: 'apps/cart', port } },
+  });
+
   it('accepts a valid project', () => {
     expect(isMfeflowProject(project)).toBe(true);
   });
@@ -247,6 +262,14 @@ describe('mfeflow.json', () => {
       'features.x',
     ]);
     expect(validateMfeflowProject('x')).toHaveLength(1);
+  });
+
+  it('checks the dev server port of an app', () => {
+    expect(validateMfeflowProject(withPort(4311))).toEqual([]);
+    expect(paths(validateMfeflowProject(withPort(0)))).toEqual(['apps.cart.port']);
+    expect(paths(validateMfeflowProject(withPort(70000)))).toEqual(['apps.cart.port']);
+    expect(paths(validateMfeflowProject(withPort(43.5)))).toEqual(['apps.cart.port']);
+    expect(paths(validateMfeflowProject(withPort('4311')))).toEqual(['apps.cart.port']);
   });
 
   it('checks copied-file hashes and registries', () => {
@@ -280,6 +303,37 @@ describe('mfeflow.json', () => {
       'registries.@ok',
       'registries.@two',
     ]);
+  });
+
+  it('checks the local checkout path', () => {
+    const withLocal = (local: unknown) => ({ ...project, local });
+    for (const ok of [
+      '../mfeflow',
+      '../../a/b',
+      '..',
+      'vendor/mfeflow',
+      '/abs/mfeflow',
+      'C:/src/mfeflow',
+    ]) {
+      expect(validateMfeflowProject(withLocal(ok)), ok).toEqual([]);
+    }
+    for (const bad of [
+      '',
+      'C:x',
+      'C:\\x',
+      '/a/../b',
+      'C:/a/./b',
+      '//host/x',
+      '..\\x',
+      './a',
+      'a/../b',
+      'a//b',
+      'a/',
+      'a/..',
+      4,
+    ]) {
+      expect(paths(validateMfeflowProject(withLocal(bad))), String(bad)).toEqual(['local']);
+    }
   });
 
   it('publishes schema URLs', () => {

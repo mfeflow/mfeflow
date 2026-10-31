@@ -1,0 +1,7 @@
+{
+  "name": "<%= it.app.name %>",
+  "owner": "team-<%= it.app.name %>",
+  "shells": [],
+  "routes": [],
+  "exposes": []
+}

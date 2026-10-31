@@ -9,16 +9,33 @@ export interface MfeflowProject {
   packageManager: 'pnpm' | 'npm';
   /** npm scope for the project's own packages, e.g. `@shopco`. */
   scope: string;
-  apps: Record<string, { kind: 'shell' | 'remote'; path: string }>;
+  apps: Record<string, { kind: 'shell' | 'remote'; path: string; port?: number }>;
   features: Record<string, { version: string; options?: Record<string, unknown> }>;
   /** Hashes of copied files, so `upgrade` can tell when a file was edited. */
   files?: Record<string, string>;
   /** Third-party feature registries: `{ "@someone": "https://…/{name}.json" }`. `@mfeflow` is reserved. */
   registries?: Record<string, string>;
+  /** Built mfeflow checkout, relative to the project root, that `@mfeflow/*` dependencies link to. Set by `--local` only. */
+  local?: string;
 }
 
 export const FILE_HASH = /^sha256-[0-9a-f]{64}$/;
 const REGISTRY_NAMESPACE = /^@[a-z0-9][a-z0-9-]*$/;
+
+/** A relative path with forward slashes whose only `..` segments come first, so it may leave the project. */
+function isCheckoutPath(value: string): boolean {
+  if (value === '' || value.includes('\\') || value.includes('\0')) return false;
+  const absolute = /^(?:\/|[A-Za-z]:\/)/.exec(value);
+  if (absolute) {
+    const parts = value.slice(absolute[0].length).split('/');
+    return parts.every((part) => part !== '' && part !== '.' && part !== '..');
+  }
+  if (/^[A-Za-z]:/.test(value)) return false;
+  const parts = value.split('/');
+  const climbing = parts.findIndex((part) => part !== '..');
+  const rest = climbing === -1 ? [] : parts.slice(climbing);
+  return rest.every((part) => part !== '' && part !== '.' && part !== '..');
+}
 
 const SCOPE = /^@[a-z0-9][a-z0-9-._]*$/;
 const FEATURE = /^(@[a-z0-9-]+\/)?[a-z][a-z0-9-]*$/;
@@ -53,6 +70,9 @@ export function validateMfeflowProject(value: unknown): Issue[] {
       else if (kind !== undefined && kind !== 'remote')
         c.add(`${at}.kind`, 'must be shell or remote');
       c.string(app, 'path', at);
+      const port = c.number(app, 'port', at, { required: false, min: 1, max: 65535 });
+      if (port !== undefined && !Number.isInteger(port))
+        c.add(`${at}.port`, 'must be a whole number');
     }
     if (shells === 0) c.add('apps', 'needs at least one shell');
   }
@@ -86,6 +106,15 @@ export function validateMfeflowProject(value: unknown): Issue[] {
       else if (!REGISTRY_NAMESPACE.test(ns)) c.add(at, 'namespaces look like "@someone"');
       if (typeof url !== 'string' || !url.startsWith('https://') || !url.includes('{name}'))
         c.add(at, 'must be an https URL containing {name}');
+    }
+  }
+  if ('local' in value) {
+    const local = c.string(value, 'local', '');
+    if (local !== undefined && !isCheckoutPath(local)) {
+      c.add(
+        'local',
+        'must be a path with forward slashes: relative like "../mfeflow", or absolute when no relative path exists',
+      );
     }
   }
   return c.issues;

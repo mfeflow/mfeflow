@@ -1,0 +1,67 @@
+{
+  "name": "tsconfig",
+  "version": "0.1.0",
+  "description": "Strict TypeScript 7 presets from @mfeflow/tsconfig, and a typecheck script.",
+  "requires": ["core"],
+  "files": [
+    {
+      "to": "tsconfig.json",
+      "target": "shell",
+      "from": "files/tsconfig.json"
+    },
+    {
+      "to": "tsconfig.json",
+      "target": "remotes",
+      "from": "files/tsconfig.json"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@mfeflow/tsconfig",
+      "range": "latest",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "@mfeflow/tsconfig",
+      "range": "latest",
+      "target": "remotes",
+      "dev": true
+    },
+    {
+      "name": "typescript",
+      "range": "7.0.2",
+      "target": "root",
+      "dev": true
+    },
+    {
+      "name": "typescript",
+      "range": "7.0.2",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "typescript",
+      "range": "7.0.2",
+      "target": "remotes",
+      "dev": true
+    }
+  ],
+  "scripts": [
+    {
+      "name": "typecheck",
+      "command": "turbo run typecheck",
+      "target": "root"
+    },
+    {
+      "name": "typecheck",
+      "command": "tsc --noEmit",
+      "target": "shell"
+    },
+    {
+      "name": "typecheck",
+      "command": "tsc --noEmit",
+      "target": "remotes"
+    }
+  ]
+}

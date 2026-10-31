@@ -1,0 +1,5 @@
+{
+  "version": "<%= it.version %>",
+  "manifestUrl": "<%= it.manifestUrl %>",
+  "owner": "team-<%= it.name %>"
+}

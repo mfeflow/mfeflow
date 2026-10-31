@@ -80,6 +80,12 @@ export type ReadFile = (file: string) => Promise<string | undefined>;
 export interface PlanBuilderOptions {
   /** Put new dependencies in the `catalog:` of pnpm-workspace.yaml and reference them as `catalog:`. */
   catalog?: boolean;
+  /**
+   * Replaces a dependency's declared range before it is written, for example
+   * `latest` with a `link:` path. A replaced range goes into package.json as
+   * returned and never into the catalog. Return undefined to keep the range.
+   */
+  rewriteRange?: (name: string, range: string) => string | undefined;
 }
 
 const WORKSPACE_FILE = 'pnpm-workspace.yaml';
@@ -191,8 +197,9 @@ export class PlanBuilder {
   }
 
   async addDependency(file: string, name: string, range: string, dev = false): Promise<void> {
-    let wanted = range;
-    if (this.options.catalog && !isPinnedElsewhere(range))
+    const rewritten = this.options.rewriteRange?.(name, range);
+    let wanted = rewritten ?? range;
+    if (this.options.catalog && rewritten === undefined && !isPinnedElsewhere(range))
       wanted = await this.useCatalog(name, range);
     let added = true;
     await this.patch(file, (source) =>

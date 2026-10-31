@@ -1,0 +1,9 @@
+{
+  "name": "<%= it.scope.slice(1) %>-platform",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=22.12"
+  }
+}

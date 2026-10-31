@@ -1,0 +1,34 @@
+# <%= it.scope.slice(1) %>-platform
+
+A React micro-frontend platform made with [mfeflow](https://github.com/mfeflow/mfeflow):
+one shell and independently deployable remotes, loaded at runtime through Module Federation.
+
+```
+apps/shell      the host: routes, layout, registry loading
+apps/<remote>   one micro-frontend each, exposing ./App
+registry/envs   which build of each remote every environment serves
+mfeflow.json    what the CLI generated; `mfeflow add` reads and updates it
+```
+
+## Run it
+
+```sh
+pnpm install
+pnpm dev
+```
+
+`pnpm dev` starts the shell on http://localhost:4300 and every remote on its own port
+(see `registry/envs/dev`). The shell reads that dev registry and renders the remotes.
+
+## Change it
+
+```sh
+mfeflow add remote checkout     # a new remote, its registry files and its shell route
+mfeflow add <feature>           # see `mfeflow features`
+```
+
+## Before you deploy
+
+`registry/envs/staging` and `registry/envs/prod` point at `example.com`. Replace the hosts
+with where you serve each remote (the shell expects `/mfe/<name>/` on its own origin).
+The shell loads the registry from `/registry/index.json`, so serve one per environment.

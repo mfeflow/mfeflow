@@ -1,0 +1,42 @@
+{
+  "name": "git-hooks",
+  "version": "0.1.0",
+  "description": "lefthook with commitlint: Conventional Commit messages, typecheck before push. Opt-in.",
+  "requires": ["core"],
+  "files": [
+    {
+      "to": "lefthook.yml",
+      "from": "files/lefthook.yml"
+    },
+    {
+      "to": "commitlint.config.js",
+      "from": "files/commitlint.config.js"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "lefthook",
+      "range": "2.2.2",
+      "target": "root",
+      "dev": true
+    },
+    {
+      "name": "@commitlint/cli",
+      "range": "21.2.4",
+      "target": "root",
+      "dev": true
+    },
+    {
+      "name": "@commitlint/config-conventional",
+      "range": "21.2.4",
+      "target": "root",
+      "dev": true
+    }
+  ],
+  "scripts": [
+    {
+      "name": "prepare",
+      "command": "lefthook install"
+    }
+  ]
+}

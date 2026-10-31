@@ -1,18 +1,14 @@
+import { main as mfeflow, type Runtime } from 'mfeflow';
 import { readPackageJson } from './version';
 
-/** Message shown by `npm create mfeflow@latest` until the scaffolder exists. */
-export function notReadyText(): string {
-  const { version } = readPackageJson();
-  return [
-    `create-mfeflow ${version}`,
-    '',
-    'mfeflow is in early development; project creation is not available yet.',
-    'Follow along: https://github.com/mfeflow/mfeflow',
-  ].join('\n');
-}
-
-/** Runs the scaffolder and returns the process exit code. */
-export function main(write: (text: string) => void): number {
-  write(notReadyText());
-  return 1;
+/**
+ * `npm create mfeflow@latest my-app -- --yes` runs this with `['my-app', '--yes']`.
+ * It is `mfeflow init` with the same arguments, so every `init` flag works.
+ */
+export async function main(argv: readonly string[], runtime?: Runtime): Promise<number> {
+  if (argv[0] === '--version' || argv[0] === '-v') {
+    process.stdout.write(`create-mfeflow ${readPackageJson().version}\n`);
+    return 0;
+  }
+  return runtime ? mfeflow(['init', ...argv], runtime) : mfeflow(['init', ...argv]);
 }

@@ -173,6 +173,9 @@ catalogs:
     '@changesets/cli':
       specifier: 3.0.3
       version: 3.0.3
+    '@clack/prompts':
+      specifier: 1.8.1
+      version: 1.8.1
     '@commitlint/cli':
       specifier: 21.2.4
       version: 21.2.4
@@ -221,6 +224,9 @@ catalogs:
     '@vitest/coverage-v8':
       specifier: 5.0.5
       version: 5.0.5
+    citty:
+      specifier: 0.2.2
+      version: 0.2.2
     diff:
       specifier: 9.0.0
       version: 9.0.0
@@ -547,6 +553,19 @@ importers:
         version: 7.0.2
 
   packages/cli:
+    dependencies:
+      '@clack/prompts':
+        specifier: 'catalog:'
+        version: 1.8.1
+      '@mfeflow/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@mfeflow/core':
+        specifier: workspace:*
+        version: link:../core
+      citty:
+        specifier: 'catalog:'
+        version: 0.2.2
     devDependencies:
       '@rslib/core':
         specifier: 'catalog:'
@@ -608,6 +627,10 @@ importers:
         version: 7.0.2
 
   packages/create-mfeflow:
+    dependencies:
+      mfeflow:
+        specifier: workspace:*
+        version: link:../cli
     devDependencies:
       '@rslib/core':
         specifier: 'catalog:'
@@ -2420,6 +2443,9 @@ packages:
     engines: {node: '>=20.19.0 <22.0.0 || >=22.12.0'}
     peerDependencies:
       devtools-protocol: '*'
+
+  citty@0.2.2:
+    resolution: {integrity: sha512-+6vJA3L98yv+IdfKGZHBNiGW5KHn22e/JwID0Strsz8h4S/csAu/OuICwxrg44k5MRiZHWIo8XXuJgQTriRP4w==}
 
   cliui@9.0.1:
     resolution: {integrity: sha512-k7ndgKhwoQveBL+/1tqGJYNz097I7WOvwbmmU2AR5+magtbjPWQTS1C5vzGkBC8Ym8UWRzfKUzUUqFLypY4Q+w==}
@@ -5371,6 +5397,8 @@ snapshots:
       devtools-protocol: 0.0.1704951
       mitt: 3.0.1
       zod: 4.6.7
+
+  citty@0.2.2: {}
 
   cliui@9.0.1:
     dependencies:

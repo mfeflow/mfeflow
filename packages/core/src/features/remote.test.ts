@@ -96,3 +96,55 @@ describe('fetchRemoteText size cap', () => {
     expect((await rejection(get(response))).code).toBe('MFEFLOW_E402');
   });
 });
+
+describe('fetchRemoteText redirects', () => {
+  const redirect = (location: string | null): FetchResponse => ({
+    ok: false,
+    status: 302,
+    headers: { get: (name) => (name.toLowerCase() === 'location' ? location : null) },
+    text: () => Promise.resolve(''),
+  });
+  const ok = (text: string): FetchResponse => ({
+    ok: true,
+    status: 200,
+    text: () => Promise.resolve(text),
+  });
+  const script = (...replies: FetchResponse[]) => {
+    const asked: { url: string; redirect: unknown }[] = [];
+    const fetch: FetchLike = (url, init) => {
+      asked.push({ url, redirect: init?.redirect });
+      const reply = replies[asked.length - 1];
+      return reply ? Promise.resolve(reply) : Promise.reject(new Error('unexpected request'));
+    };
+    return { fetch, asked };
+  };
+
+  it('follows a redirect that stays on https, asking for each hop by hand', async () => {
+    const { fetch, asked } = script(redirect('/moved.json'), ok('{"a":1}'));
+    expect(await fetchRemoteText('@acme/segment', registries, fetch)).toBe('{"a":1}');
+    expect(asked).toEqual([
+      { url: 'https://acme.example/segment.json', redirect: 'manual' },
+      { url: 'https://acme.example/moved.json', redirect: 'manual' },
+    ]);
+  });
+
+  it('refuses a redirect to http (E401) without ever requesting it', async () => {
+    const { fetch, asked } = script(redirect('http://evil.example/x.json'), ok('{}'));
+    const error = await rejection(fetchRemoteText('@acme/segment', registries, fetch));
+    expect(error.code).toBe('MFEFLOW_E401');
+    expect(error.message).toContain('not https');
+    expect(asked).toHaveLength(1);
+  });
+
+  it('refuses a redirect with no address and one that never ends (E401)', async () => {
+    const none = script(redirect(null));
+    expect((await rejection(fetchRemoteText('@acme/s', registries, none.fetch))).message).toContain(
+      'no address',
+    );
+    const hop = redirect('https://acme.example/again');
+    const loop = script(hop, hop, hop, hop, hop, hop, hop);
+    expect((await rejection(fetchRemoteText('@acme/s', registries, loop.fetch))).message).toContain(
+      'too many',
+    );
+  });
+});

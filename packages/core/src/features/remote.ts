@@ -11,21 +11,34 @@ export interface FetchResponse {
   text(): Promise<string>;
 }
 
-export type FetchLike = (url: string, init?: { signal?: AbortSignal }) => Promise<FetchResponse>;
+export type FetchLike = (
+  url: string,
+  init?: { signal?: AbortSignal; redirect?: 'follow' | 'manual' },
+) => Promise<FetchResponse>;
 
 const MAX_BYTES = 1_000_000;
 const TIMEOUT_MS = 10_000;
+const MAX_REDIRECTS = 5;
 
 const realFetch: FetchLike = (url, init) => fetch(url, init);
 
-/** The URL a namespaced feature lives at. `{name}` is the part after the slash, URL-encoded. */
-export function registryUrl(name: string, registries: Record<string, string>): string {
+/**
+ * The URL a namespaced feature lives at. `{name}` is the part after the slash and
+ * `{version}` the version asked for (`latest` when none), both URL-encoded.
+ */
+export function registryUrl(
+  name: string,
+  registries: Record<string, string>,
+  version?: string,
+): string {
   const slash = name.indexOf('/');
   const namespace = name.slice(0, slash);
   const bare = name.slice(slash + 1);
   const template = registries[namespace];
   if (template === undefined) throw new MfeflowError('E210', namespace);
-  const url = template.replaceAll('{name}', encodeURIComponent(bare));
+  const url = template
+    .replaceAll('{name}', encodeURIComponent(bare))
+    .replaceAll('{version}', encodeURIComponent(version ?? 'latest'));
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -36,22 +49,61 @@ export function registryUrl(name: string, registries: Record<string, string>): s
   return parsed.href;
 }
 
+/**
+ * GETs `url`, following redirects by hand so one that leaves https is refused before it is
+ * requested. `code` is the error every failure here throws.
+ */
+export async function getHttps(
+  url: string,
+  fetchImpl: FetchLike,
+  code: 'E109' | 'E401',
+): Promise<FetchResponse> {
+  const fail = (at: string, why: string, cause?: unknown): never => {
+    throw new MfeflowError(code, `${at}: ${why}`, cause === undefined ? {} : { cause });
+  };
+  let current = url;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    let response: FetchResponse;
+    try {
+      // oxlint-disable-next-line no-await-in-loop -- each hop depends on the last answer
+      response = await fetchImpl(current, {
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+        redirect: 'manual',
+      });
+    } catch (error) {
+      return fail(current, messageOf(error), error);
+    }
+    if (response.url !== undefined && response.url !== '' && !response.url.startsWith('https://')) {
+      fail(url, `ended up at ${response.url}, which is not https`);
+    }
+    if (response.status < 300 || response.status >= 400) return response;
+    const location = response.headers?.get('location');
+    // oxlint-disable-next-line no-await-in-loop -- the redirect body is not wanted
+    await response.body?.cancel().catch(() => undefined);
+    if (location === null || location === undefined || location === '') {
+      fail(current, `redirected (${String(response.status)}) with no address`);
+    }
+    let next: URL;
+    try {
+      next = new URL(location ?? '', current);
+    } catch (error) {
+      return fail(current, 'redirected to a bad address', error);
+    }
+    if (next.protocol !== 'https:') fail(url, `redirected to ${next.href}, which is not https`);
+    current = next.href;
+  }
+  return fail(url, 'redirected too many times');
+}
+
 /** Downloads the feature.json text for `@ns/name`. */
 export async function fetchRemoteText(
   name: string,
   registries: Record<string, string>,
   fetchImpl: FetchLike = realFetch,
+  version?: string,
 ): Promise<string> {
-  const url = registryUrl(name, registries);
-  let response: FetchResponse;
-  try {
-    response = await fetchImpl(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
-  } catch (error) {
-    throw new MfeflowError('E401', `${url} (${messageOf(error)})`, { cause: error });
-  }
-  if (response.url !== undefined && response.url !== '' && !response.url.startsWith('https://')) {
-    throw new MfeflowError('E401', `${url} redirected away from https`);
-  }
+  const url = registryUrl(name, registries, version);
+  const response = await getHttps(url, fetchImpl, 'E401');
   if (!response.ok) {
     const hint = response.status === 404 ? `${name} is not in that registry` : undefined;
     throw new MfeflowError(
@@ -59,15 +111,31 @@ export async function fetchRemoteText(
       `${url} answered ${String(response.status)}${hint ? `: ${hint}` : ''}`,
     );
   }
-  const tooBig = () => new MfeflowError('E402', `${url} is larger than 1 MB`);
+  return readCappedText(
+    response,
+    MAX_BYTES,
+    () => new MfeflowError('E402', `${url} is larger than 1 MB`),
+  );
+}
+
+/**
+ * The body of `response` as text, refusing more than `maxBytes`: from the declared
+ * length first, then on the bytes actually streamed, so an oversized answer is
+ * cancelled instead of downloaded. `tooBig` builds the error to throw.
+ */
+export async function readCappedText(
+  response: FetchResponse,
+  maxBytes: number,
+  tooBig: () => Error,
+): Promise<string> {
   const declared = Number(response.headers?.get('content-length') ?? Number.NaN);
-  if (declared > MAX_BYTES) {
+  if (declared > maxBytes) {
     await response.body?.cancel().catch(() => undefined);
     throw tooBig();
   }
   if (!response.body) {
     const text = await response.text();
-    if (Buffer.byteLength(text, 'utf8') > MAX_BYTES) throw tooBig();
+    if (Buffer.byteLength(text, 'utf8') > maxBytes) throw tooBig();
     return text;
   }
   const chunks: Uint8Array[] = [];
@@ -75,7 +143,7 @@ export async function fetchRemoteText(
   // Leaving the loop early cancels the stream, so an oversized answer is not downloaded to the end.
   for await (const chunk of response.body) {
     total += chunk.byteLength;
-    if (total > MAX_BYTES) throw tooBig();
+    if (total > maxBytes) throw tooBig();
     chunks.push(chunk);
   }
   return new TextDecoder().decode(Buffer.concat(chunks));

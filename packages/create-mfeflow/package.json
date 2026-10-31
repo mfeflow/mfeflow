@@ -1,7 +1,7 @@
 {
   "name": "create-mfeflow",
   "version": "0.0.0",
-  "description": "Create a React micro-frontend project with mfeflow: npm create mfeflow@latest. Early, not usable yet.",
+  "description": "Create a React micro-frontend project with mfeflow: npm create mfeflow@latest.",
   "keywords": [
     "micro-frontend",
     "micro-frontends",
@@ -49,6 +49,9 @@
   "scripts": {
     "build": "rslib build",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "mfeflow": "workspace:*"
   },
   "devDependencies": {
     "@rslib/core": "catalog:",

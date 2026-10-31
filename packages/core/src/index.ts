@@ -9,12 +9,15 @@ export function packageInfo(): { name: string; version: string } {
 export {
   DOCS_BASE,
   ERROR_CATALOGUE,
+  hasErrno,
   isMfeflowError,
+  messageOf,
   MfeflowError,
   type ErrorCode,
   type MfeflowErrorOptions,
 } from './errors';
 export { hashContent } from './hash';
+export { inOrder } from './sequence';
 export { realFs, type FsOps } from './fs';
 export {
   findDiverged,
@@ -58,6 +61,8 @@ export {
   listLocalFeatures,
   loadFeature,
   parseFeature,
+  getHttps,
+  readCappedText,
   registryUrl,
   resolveFeature,
   resolveOptions,

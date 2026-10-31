@@ -1,0 +1,5 @@
+import { RemoteBoundary } from '@mfeflow/runtime';
+
+export function <%= it.component %>() {
+  return <RemoteBoundary id="<%= it.name %>/App" loading={<p>Loading <%= it.name %>…</p>} />;
+}

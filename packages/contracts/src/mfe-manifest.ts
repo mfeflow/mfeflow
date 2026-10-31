@@ -22,7 +22,12 @@ export interface MfeManifest {
   platform?: Record<string, string>;
 }
 
-export const MFE_NAME = /^[a-z][a-z0-9_]*$/;
+/**
+ * Lowercase words of letters and digits, joined by single underscores. A name never ends
+ * in `_` and `_` is never followed by a digit, so `cart_` and `cart`, or `a__b` and `a_b`,
+ * cannot become the same component or global name.
+ */
+export const MFE_NAME = /^[a-z][a-z0-9]*(?:_[a-z][a-z0-9]*)*$/;
 export const ROUTE = /^\/[A-Za-z0-9/_:*.-]*$/;
 export const EXPOSE = /^\.\/[A-Za-z0-9_/-]+$/;
 /** `<domain>.<event>@<major>`, e.g. `cart.item_added@1`. */
@@ -38,7 +43,7 @@ export function validateMfeManifest(value: unknown): Issue[] {
   }
   c.string(value, 'name', '', {
     pattern: MFE_NAME,
-    hint: 'use lowercase letters, digits and _ (a Module Federation name)',
+    hint: 'use lowercase words of letters and digits joined by single _ (a Module Federation name)',
   });
   c.string(value, 'owner', '');
   c.string(value, 'contact', '', { required: false });

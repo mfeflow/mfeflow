@@ -1,0 +1,301 @@
+{
+  "name": "core",
+  "version": "0.1.0",
+  "description": "The shell, the remotes, the registry and the workspace around them.",
+  "files": [
+    {
+      "to": "package.json",
+      "target": "root",
+      "from": "files/root/package.json.eta",
+      "template": true
+    },
+    {
+      "to": "pnpm-workspace.yaml",
+      "target": "root",
+      "from": "files/root/pnpm-workspace.yaml.eta",
+      "template": true
+    },
+    {
+      "to": "turbo.json",
+      "target": "root",
+      "from": "files/root/turbo.json.eta",
+      "template": true
+    },
+    {
+      "to": ".gitignore",
+      "target": "root",
+      "from": "files/root/gitignore.eta",
+      "template": true
+    },
+    {
+      "to": ".nvmrc",
+      "target": "root",
+      "from": "files/root/nvmrc.eta",
+      "template": true
+    },
+    {
+      "to": "README.md",
+      "target": "root",
+      "from": "files/root/README.md.eta",
+      "template": true
+    },
+    {
+      "to": "AGENTS.md",
+      "target": "root",
+      "from": "files/root/AGENTS.md.eta",
+      "template": true
+    },
+    {
+      "to": "registry/envs/dev/.gitkeep",
+      "target": "root",
+      "content": ""
+    },
+    {
+      "to": "registry/envs/staging/.gitkeep",
+      "target": "root",
+      "content": ""
+    },
+    {
+      "to": "registry/envs/prod/.gitkeep",
+      "target": "root",
+      "content": ""
+    },
+    {
+      "to": "package.json",
+      "target": "shell",
+      "from": "files/shell/package.json.eta",
+      "template": true
+    },
+    {
+      "to": "mfe.json",
+      "target": "shell",
+      "from": "files/shell/mfe.json.eta",
+      "template": true
+    },
+    {
+      "to": "rsbuild.config.ts",
+      "target": "shell",
+      "from": "files/shell/rsbuild.config.ts.eta",
+      "template": true
+    },
+    {
+      "to": "src/env.d.ts",
+      "target": "shell",
+      "from": "files/shell/src/env.d.ts.eta",
+      "template": true
+    },
+    {
+      "to": "src/index.ts",
+      "target": "shell",
+      "from": "files/shell/src/index.ts.eta",
+      "template": true
+    },
+    {
+      "to": "src/bootstrap.tsx",
+      "target": "shell",
+      "from": "files/shell/src/bootstrap.tsx.eta",
+      "template": true
+    },
+    {
+      "to": "src/App.tsx",
+      "target": "shell",
+      "from": "files/shell/src/App.tsx.eta",
+      "template": true
+    },
+    {
+      "to": "src/remotes/route-table.tsx",
+      "target": "shell",
+      "from": "files/shell/src/remotes/route-table.tsx.eta",
+      "template": true
+    },
+    {
+      "to": "public/config/runtime-config.json",
+      "target": "shell",
+      "from": "files/shell/public/config/runtime-config.json.eta",
+      "template": true
+    },
+    {
+      "to": "package.json",
+      "target": "remotes",
+      "from": "files/remote/package.json.eta",
+      "template": true
+    },
+    {
+      "to": "mfe.json",
+      "target": "remotes",
+      "from": "files/remote/mfe.json.eta",
+      "template": true
+    },
+    {
+      "to": "rsbuild.config.ts",
+      "target": "remotes",
+      "from": "files/remote/rsbuild.config.ts.eta",
+      "template": true
+    },
+    {
+      "to": "src/env.d.ts",
+      "target": "remotes",
+      "from": "files/remote/src/env.d.ts.eta",
+      "template": true
+    },
+    {
+      "to": "src/index.ts",
+      "target": "remotes",
+      "from": "files/remote/src/index.ts.eta",
+      "template": true
+    },
+    {
+      "to": "src/bootstrap.tsx",
+      "target": "remotes",
+      "from": "files/remote/src/bootstrap.tsx.eta",
+      "template": true
+    },
+    {
+      "to": "src/exposed/App.tsx",
+      "target": "remotes",
+      "from": "files/remote/src/exposed/App.tsx.eta",
+      "template": true
+    },
+    {
+      "to": "src/pages/Home.tsx",
+      "target": "shell",
+      "from": "files/shell/src/pages/Home.tsx.eta",
+      "template": true
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "turbo",
+      "range": "2.11.10",
+      "target": "root",
+      "dev": true
+    },
+    {
+      "name": "@mfeflow/runtime",
+      "range": "latest",
+      "target": "shell"
+    },
+    {
+      "name": "@module-federation/enhanced",
+      "range": "2.9.2",
+      "target": "shell"
+    },
+    {
+      "name": "react",
+      "range": "19.3.1",
+      "target": "shell"
+    },
+    {
+      "name": "react-dom",
+      "range": "19.3.1",
+      "target": "shell"
+    },
+    {
+      "name": "@mfeflow/rsbuild",
+      "range": "latest",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "@rsbuild/core",
+      "range": "2.3.0",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "@types/node",
+      "range": "26.6.6",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "@types/react",
+      "range": "19.3.0",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "@types/react-dom",
+      "range": "19.3.0",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "@module-federation/enhanced",
+      "range": "2.9.2",
+      "target": "remotes"
+    },
+    {
+      "name": "react",
+      "range": "19.3.1",
+      "target": "remotes"
+    },
+    {
+      "name": "react-dom",
+      "range": "19.3.1",
+      "target": "remotes"
+    },
+    {
+      "name": "@mfeflow/rsbuild",
+      "range": "latest",
+      "target": "remotes",
+      "dev": true
+    },
+    {
+      "name": "@rsbuild/core",
+      "range": "2.3.0",
+      "target": "remotes",
+      "dev": true
+    },
+    {
+      "name": "@types/node",
+      "range": "26.6.6",
+      "target": "remotes",
+      "dev": true
+    },
+    {
+      "name": "@types/react",
+      "range": "19.3.0",
+      "target": "remotes",
+      "dev": true
+    },
+    {
+      "name": "@types/react-dom",
+      "range": "19.3.0",
+      "target": "remotes",
+      "dev": true
+    }
+  ],
+  "scripts": [
+    {
+      "name": "dev",
+      "command": "turbo run dev",
+      "target": "root"
+    },
+    {
+      "name": "build",
+      "command": "turbo run build",
+      "target": "root"
+    },
+    {
+      "name": "dev",
+      "command": "rsbuild dev",
+      "target": "shell"
+    },
+    {
+      "name": "build",
+      "command": "rsbuild build",
+      "target": "shell"
+    },
+    {
+      "name": "dev",
+      "command": "rsbuild dev",
+      "target": "remotes"
+    },
+    {
+      "name": "build",
+      "command": "rsbuild build",
+      "target": "remotes"
+    }
+  ]
+}

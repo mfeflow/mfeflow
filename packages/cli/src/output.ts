@@ -1,0 +1,219 @@
+import type { Issue } from '@mfeflow/contracts';
+import { type Plan } from '@mfeflow/core';
+import type { ErrorReport } from './exit';
+
+export interface PlanReport {
+  features: { name: string; version: string }[];
+  changes: { path: string; action: 'create' | 'patch' | 'delete' }[];
+  dependencies: { file: string; name: string; range: string; dev: boolean }[];
+  scripts: { file: string; name: string; command: string }[];
+  warnings: string[];
+}
+
+export interface AppReport {
+  name: string;
+  kind: 'shell' | 'remote';
+  path: string;
+  port: number | null;
+}
+
+interface WriteReport {
+  ok: true;
+  dryRun: boolean;
+  root: string;
+  plan: PlanReport;
+  /** Files written, in plan order. Empty for a dry run. */
+  written: string[];
+  installed: boolean;
+  /** Unified diff of every change. Only present for a dry run. */
+  diff?: string;
+}
+
+export interface InitResult extends WriteReport {
+  command: 'init';
+  scope: string;
+  apps: AppReport[];
+  next: string[];
+}
+
+export interface AddResult extends WriteReport {
+  command: 'add';
+  kind: 'remote' | 'shell' | 'feature';
+  /** What was added: an app name, or feature names. */
+  added: string[];
+  /** Features that were already part of the project. */
+  skipped: string[];
+}
+
+export interface FeatureInfo {
+  name: string;
+  version: string;
+  description: string;
+  always: boolean;
+  default: boolean;
+  installed: boolean;
+}
+
+export interface FeaturesResult {
+  ok: true;
+  command: 'features';
+  search: string | null;
+  features: FeatureInfo[];
+}
+
+export interface FailureResult {
+  ok: false;
+  error: ErrorReport;
+  exitCode: number;
+}
+
+export type CliResult = InitResult | AddResult | FeaturesResult | FailureResult;
+
+/** The plan as plain data for `--json`, without file contents. Features are listed once. */
+export function planReport(plan: Plan): PlanReport {
+  const features = new Map(plan.features.map((f) => [f.name, f.version]));
+  return {
+    features: [...features].map(([name, version]) => ({ name, version })),
+    changes: plan.changes.map((c) => ({ path: c.path, action: c.action })),
+    dependencies: plan.dependencies.map((d) => ({ ...d })),
+    scripts: plan.scripts.map((s) => ({ file: s.file, name: s.name, command: s.command })),
+    warnings: [...plan.warnings],
+  };
+}
+
+type Obj = Record<string, unknown>;
+
+const isObj = (value: unknown): value is Obj =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+class Check {
+  readonly issues: Issue[] = [];
+
+  add(path: string, message: string): void {
+    this.issues.push({ path, message });
+  }
+
+  string(obj: Obj, key: string, at: string): void {
+    if (typeof obj[key] !== 'string') this.add(`${at}${key}`, 'must be text');
+  }
+
+  boolean(obj: Obj, key: string, at: string): void {
+    if (typeof obj[key] !== 'boolean') this.add(`${at}${key}`, 'must be true or false');
+  }
+
+  list(obj: Obj, key: string, at: string, each: (item: unknown, path: string) => void): void {
+    const value = obj[key];
+    if (!Array.isArray(value)) {
+      this.add(`${at}${key}`, 'must be a list');
+      return;
+    }
+    value.forEach((item: unknown, i) => {
+      each(item, `${at}${key}[${String(i)}]`);
+    });
+  }
+
+  texts(obj: Obj, key: string, at: string): void {
+    this.list(obj, key, at, (item, path) => {
+      if (typeof item !== 'string') this.add(path, 'must be text');
+    });
+  }
+
+  objects(obj: Obj, key: string, at: string, check: (item: Obj, path: string) => void): void {
+    this.list(obj, key, at, (item, path) => {
+      if (isObj(item)) check(item, `${path}.`);
+      else this.add(path, 'must be an object');
+    });
+  }
+}
+
+function checkPlan(c: Check, plan: unknown): void {
+  if (!isObj(plan)) {
+    c.add('plan', 'must be an object');
+    return;
+  }
+  const at = 'plan.';
+  c.objects(plan, 'features', at, (f, p) => {
+    c.string(f, 'name', p);
+    c.string(f, 'version', p);
+  });
+  c.objects(plan, 'changes', at, (f, p) => {
+    c.string(f, 'path', p);
+    if (!['create', 'patch', 'delete'].includes(String(f.action))) {
+      c.add(`${p}action`, 'must be create, patch or delete');
+    }
+  });
+  c.objects(plan, 'dependencies', at, (d, p) => {
+    for (const key of ['file', 'name', 'range']) c.string(d, key, p);
+    c.boolean(d, 'dev', p);
+  });
+  c.objects(plan, 'scripts', at, (s, p) => {
+    for (const key of ['file', 'name', 'command']) c.string(s, key, p);
+  });
+  c.texts(plan, 'warnings', at);
+}
+
+function checkWrite(c: Check, value: Obj): void {
+  c.boolean(value, 'dryRun', '');
+  c.string(value, 'root', '');
+  checkPlan(c, value.plan);
+  c.texts(value, 'written', '');
+  c.boolean(value, 'installed', '');
+  if (value.diff !== undefined && typeof value.diff !== 'string') c.add('diff', 'must be text');
+  if (value.dryRun === true && typeof value.diff !== 'string') {
+    c.add('diff', 'is required for a dry run');
+  }
+  if (value.dryRun === true && Array.isArray(value.written) && value.written.length > 0) {
+    c.add('written', 'must be empty for a dry run');
+  }
+}
+
+/** Checks a document the CLI printed with `--json`. Returns the problems; empty means valid. */
+export function validateResult(value: unknown): Issue[] {
+  const c = new Check();
+  if (!isObj(value)) {
+    c.add('', 'must be an object');
+    return c.issues;
+  }
+  if (value.ok === false) {
+    if (!isObj(value.error)) c.add('error', 'must be an object');
+    else for (const key of ['code', 'message', 'fix', 'docs']) c.string(value.error, key, 'error.');
+    if (typeof value.exitCode !== 'number') c.add('exitCode', 'must be a number');
+    return c.issues;
+  }
+  if (value.ok !== true) c.add('ok', 'must be true or false');
+  switch (value.command) {
+    case 'init':
+      checkWrite(c, value);
+      c.string(value, 'scope', '');
+      c.texts(value, 'next', '');
+      c.objects(value, 'apps', '', (app, p) => {
+        c.string(app, 'name', p);
+        c.string(app, 'path', p);
+        if (app.kind !== 'shell' && app.kind !== 'remote')
+          c.add(`${p}kind`, 'must be shell or remote');
+        if (app.port !== null && typeof app.port !== 'number')
+          c.add(`${p}port`, 'must be a number or null');
+      });
+      break;
+    case 'add':
+      checkWrite(c, value);
+      if (!['remote', 'shell', 'feature'].includes(String(value.kind))) {
+        c.add('kind', 'must be remote, shell or feature');
+      }
+      c.texts(value, 'added', '');
+      c.texts(value, 'skipped', '');
+      break;
+    case 'features':
+      if (value.search !== null && typeof value.search !== 'string') {
+        c.add('search', 'must be text or null');
+      }
+      c.objects(value, 'features', '', (f, p) => {
+        for (const key of ['name', 'version', 'description']) c.string(f, key, p);
+        for (const key of ['always', 'default', 'installed']) c.boolean(f, key, p);
+      });
+      break;
+    default:
+      c.add('command', 'must be init, add or features');
+  }
+  return c.issues;
+}
