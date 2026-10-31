@@ -1,0 +1,24 @@
+import { createRoot } from 'react-dom/client';
+import {
+  applyDevOverrides,
+  loadRegistryIndex,
+  registerRemotesFromIndex,
+  reportRemoteError,
+} from '@mfeflow/runtime';
+import { App } from './App';
+
+const DEV = process.env.NODE_ENV !== 'production';
+
+export async function main(): Promise<void> {
+  try {
+    // Dev only: ?mfe-override=cart@http://localhost:4312/mf-manifest.json points a remote at your build.
+    const index = applyDevOverrides(await loadRegistryIndex(), { enabled: DEV });
+    // In dev the registry points at the remotes' dev servers; elsewhere remotes share the shell's origin.
+    const devOrigins = DEV ? index.remotes.map((remote) => new URL(remote.entry).origin) : [];
+    registerRemotesFromIndex(index, { allowedOrigins: [location.origin, ...devOrigins] });
+  } catch (error) {
+    reportRemoteError('<%= it.app.name %>', 'registry', error);
+  }
+  const el = document.getElementById('root');
+  if (el) createRoot(el).render(<App />);
+}

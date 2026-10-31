@@ -1,0 +1,60 @@
+{
+  "name": "lint-oxlint",
+  "version": "0.1.0",
+  "description": "oxlint with type-aware rules on TypeScript 7 (@mfeflow/oxlint-config), and Prettier.",
+  "requires": ["core", "tsconfig"],
+  "files": [
+    {
+      "to": ".oxlintrc.json",
+      "from": "files/oxlintrc.json"
+    },
+    {
+      "to": ".prettierrc.json",
+      "from": "files/prettierrc.json"
+    },
+    {
+      "to": ".prettierignore",
+      "from": "files/prettierignore"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@mfeflow/oxlint-config",
+      "range": "latest",
+      "target": "root",
+      "dev": true
+    },
+    {
+      "name": "oxlint",
+      "range": "1.90.0",
+      "target": "root",
+      "dev": true
+    },
+    {
+      "name": "oxlint-tsgolint",
+      "range": "7.0.2005",
+      "target": "root",
+      "dev": true
+    },
+    {
+      "name": "prettier",
+      "range": "3.9.10",
+      "target": "root",
+      "dev": true
+    }
+  ],
+  "scripts": [
+    {
+      "name": "lint",
+      "command": "oxlint --type-aware --deny-warnings"
+    },
+    {
+      "name": "format",
+      "command": "prettier --write ."
+    },
+    {
+      "name": "format:check",
+      "command": "prettier --check ."
+    }
+  ]
+}

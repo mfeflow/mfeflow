@@ -1,0 +1,7 @@
+import { createRemoteConfig } from '@mfeflow/rsbuild';
+
+export default createRemoteConfig({
+  name: '<%= it.app.name %>',
+  port: <%= it.app.port %>,
+  exposes: { './App': './src/exposed/App.tsx' },
+});

@@ -1,0 +1,12 @@
+import type { ComponentType } from 'react';
+import { Home } from '../pages/Home';
+
+export interface AppRoute {
+  path: string;
+  Component: ComponentType;
+}
+
+// `mfeflow add remote <name>` adds a route here.
+export const routes: AppRoute[] = [
+  { path: '/', Component: Home },
+];
