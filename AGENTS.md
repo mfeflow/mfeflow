@@ -16,4 +16,5 @@ Guidance for coding agents working in this repo.
 - Tests sit next to the code as `*.test.ts`; coverage must stay at or above 80%.
 - Relative imports have no file extension (`./plan`, not `./plan.js`); a folder's
   `index` is imported as the folder. oxlint (`import/extensions`) enforces it.
-  Exceptions: files Node runs directly (`bin/`, `scripts/`, the storefront e2e).
+  Asset imports keep their extension. Exceptions: files Node runs directly
+  (`bin/`, `scripts/`, the storefront e2e).

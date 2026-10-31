@@ -32,19 +32,23 @@
     ],
     "import/extensions": [
       "error",
-      "never",
+      "ignorePackages",
       {
-        "json": "always",
-        "css": "always",
-        "svg": "always",
-        "png": "always"
+        "js": "never",
+        "jsx": "never",
+        "ts": "never",
+        "tsx": "never",
+        "mjs": "never",
+        "cjs": "never",
+        "mts": "never",
+        "cts": "never"
       }
     ]
   },
   "ignorePatterns": ["**/dist/**", "**/doc_build/**", "**/coverage/**", "**/.turbo/**"],
   "overrides": [
     {
-      "files": ["**/bin/**", "scripts/**"],
+      "files": ["**/bin/**", "**/scripts/**"],
       "rules": {
         "import/extensions": "off"
       }
