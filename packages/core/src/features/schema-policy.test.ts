@@ -108,6 +108,26 @@ describe('sanitizeSchemas', () => {
     });
   });
 
+  it("accepts arktype's string-literal form for the arktype entry only", () => {
+    expect(sanitizeSchemas({ zod: 'z.string()', arktype: '"string.url"  /* x */' }, 'x')).toEqual({
+      zod: 'z.string()',
+      arktype: "'string.url'",
+    });
+    expect(sanitizeSchemas({ arktype: "'/^(GTM-[A-Z0-9]{4,12})?$/'" }, 'x')).toEqual({
+      arktype: "'/^(GTM-[A-Z0-9]{4,12})?$/'",
+    });
+    expect(sanitizeSchemas({ arktype: "type('string')" }, 'x')).toEqual({
+      arktype: "type('string')",
+    });
+    for (const schemas of [{ zod: "'string'" }, { valibot: "'string'" }]) {
+      expect(thrown(() => sanitizeSchemas(schemas, 'x')).code).toBe('MFEFLOW_E203');
+    }
+    expect(thrown(() => sanitizeSchemas("'string'", 'x')).code).toBe('MFEFLOW_E203');
+    expect(thrown(() => sanitizeSchemas({ arktype: 'process.exit()' }, 'x')).code).toBe(
+      'MFEFLOW_E203',
+    );
+  });
+
   it('refuses a map with one bad entry, naming the feature', () => {
     const error = thrown(() =>
       sanitizeSchemas({ zod: 'z.string()', valibot: 'process.exit(1)' }, 'evil'),
