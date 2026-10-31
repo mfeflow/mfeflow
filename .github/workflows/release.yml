@@ -47,9 +47,12 @@ jobs:
       # No `publish` input: the action only versions. GITHUB_TOKEN is for the pull request and for
       # @changesets/changelog-github, which reads pull request and author links from the API.
       - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        # v2 input names. Tags and the GitHub Release come from the `tag` job after a publish.
         with:
-          title: 'chore: version packages'
-          commit: 'chore: version packages'
+          pr-title: 'chore: version packages'
+          commit-message: 'chore: version packages'
+          create-github-releases: false
+          push-git-tags: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
