@@ -9,6 +9,7 @@ import {
   killTree,
   onInterrupt,
   portFree,
+  resolveCommand,
   spawnDev,
   watchPaths,
   wrap,
@@ -77,6 +78,49 @@ describe('killTree', () => {
         },
       }),
     );
+  });
+});
+
+describe('resolveCommand', () => {
+  const on = (files: string[], platform: NodeJS.Platform = 'linux') => ({
+    platform,
+    isFile: (file: string) => files.includes(file),
+  });
+
+  it('takes the first PATH entry that has the command, in order', () => {
+    const env = {
+      ...on(['/b/pnpm', '/c/pnpm']),
+      path: '/a::/b:/c',
+    };
+    expect(resolveCommand('pnpm', env)).toBe('/b/pnpm');
+  });
+
+  it('is undefined when nothing on the PATH has it, or the PATH is not set', () => {
+    expect(resolveCommand('pnpm', { ...on([]), path: '/a:/b' })).toBeUndefined();
+    expect(resolveCommand('pnpm', { ...on(['/a/pnpm']), path: undefined })).toBeUndefined();
+  });
+
+  it('leaves a command that has a folder in it alone', () => {
+    expect(resolveCommand('/opt/pnpm/pnpm', { ...on([]), path: '/a' })).toBe('/opt/pnpm/pnpm');
+  });
+
+  it('tries each PATHEXT extension in turn on Windows, per PATH entry', () => {
+    const env = {
+      ...on([String.raw`C:\b\pnpm.CMD`, String.raw`C:\b\pnpm.EXE`], 'win32'),
+      path: String.raw`C:\a;C:\b`,
+      pathext: '.EXE;.CMD',
+    };
+    expect(resolveCommand('pnpm', env)).toBe(String.raw`C:\b\pnpm.EXE`);
+  });
+
+  it('does not add an extension to a command that already has one on Windows', () => {
+    const env = { ...on([String.raw`C:\b\pnpm.cmd`], 'win32'), path: String.raw`C:\b` };
+    expect(resolveCommand('pnpm.cmd', env)).toBe(String.raw`C:\b\pnpm.cmd`);
+  });
+
+  it('uses the default PATHEXT when Windows gives none', () => {
+    const env = { ...on([String.raw`C:\n\npm.CMD`], 'win32'), path: String.raw`C:\n` };
+    expect(resolveCommand('npm', env)).toBe(String.raw`C:\n\npm.CMD`);
   });
 });
 

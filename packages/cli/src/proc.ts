@@ -50,6 +50,80 @@ export interface TreeKiller {
   graceMs: number;
 }
 
+export interface ResolveEnv {
+  /** The `PATH` value; undefined when the variable is not set. */
+  path: string | undefined;
+  /** Windows: the `PATHEXT` value. */
+  pathext?: string | undefined;
+  platform: NodeJS.Platform;
+  /** Is `file` a runnable file? */
+  isFile(file: string): boolean;
+}
+
+const DEFAULT_PATHEXT = '.COM;.EXE;.BAT;.CMD';
+
+/**
+ * The absolute path of the first `command` found on the `PATH` entries, in order (on Windows with
+ * each `PATHEXT` extension). A command that has a folder in it is returned as given. Undefined when none is found.
+ */
+export function resolveCommand(command: string, env: ResolveEnv): string | undefined {
+  const win = env.platform === 'win32';
+  const flavour = win ? path.win32 : path.posix;
+  if (command.includes('/') || (win && command.includes('\\'))) {
+    return flavour.isAbsolute(command) ? command : flavour.resolve(command);
+  }
+  const extensions = win
+    ? (env.pathext ?? DEFAULT_PATHEXT).split(';').filter((ext) => ext !== '')
+    : [];
+  const hasExtension = extensions.some((ext) => command.toLowerCase().endsWith(ext.toLowerCase()));
+  const names = win
+    ? hasExtension
+      ? [command]
+      : extensions.map((ext) => command + ext)
+    : [command];
+  for (const dir of (env.path ?? '').split(flavour.delimiter)) {
+    if (dir === '') continue;
+    for (const name of names) {
+      const file = flavour.join(dir, name);
+      if (env.isFile(file)) return file;
+    }
+  }
+  return undefined;
+}
+
+function isRunnableFile(file: string): boolean {
+  try {
+    if (!fs.statSync(file).isFile()) return false;
+    if (process.platform !== 'win32') fs.accessSync(file, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const resolved = new Map<string, string | undefined>();
+
+/** Resolves a command once per run. Falls back to the name, so a missing program fails when it is spawned. */
+function absoluteCommand(command: string): string {
+  if (!resolved.has(command)) {
+    const key = Object.keys(process.env).find((k) => k.toUpperCase() === 'PATH');
+    resolved.set(
+      command,
+      resolveCommand(command, {
+        path: key === undefined ? undefined : process.env[key], // NOSONAR: the package manager is wherever the user installed it
+        pathext: process.env.PATHEXT,
+        platform: process.platform,
+        isFile: isRunnableFile,
+      }),
+    );
+  }
+  return resolved.get(command) ?? command;
+}
+
+/** `taskkill` from System32, not looked up on the PATH. */
+const taskkillExe = (): string =>
+  path.win32.join(process.env.SystemRoot ?? String.raw`C:\Windows`, 'System32', 'taskkill.exe');
+
 const alive = (kill: Kill, pid: number): boolean => {
   try {
     kill(-pid, 0);
@@ -85,7 +159,7 @@ const realKiller: TreeKiller = {
   kill: (pid, signal) => process.kill(pid, signal),
   taskkill: (pid) =>
     new Promise((resolve) => {
-      const child = spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' });
+      const child = spawn(taskkillExe(), ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' });
       child.on('error', () => {
         resolve();
       });
@@ -164,7 +238,7 @@ export function createReaper(proc: ExitSource, killNow: (pid: number) => void): 
 
 const reaper = createReaper(process, (pid) => {
   if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' });
+    spawnSync(taskkillExe(), ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' });
     return;
   }
   try {
@@ -175,14 +249,17 @@ const reaper = createReaper(process, (pid) => {
 });
 
 export const spawnDev: SpawnDev = (spec) => {
-  const child = spawn(spec.command, [...spec.args], {
+  const command = absoluteCommand(spec.command);
+  // pnpm is a .cmd file on Windows and needs a shell, which splits a path with spaces unless it is quoted.
+  const shell =
+    process.platform === 'win32' && (!path.isAbsolute(command) || /\.(?:cmd|bat)$/i.test(command));
+  const child = spawn(shell && /\s/.test(command) ? `"${command}"` : command, [...spec.args], {
     cwd: spec.cwd,
     env: { ...process.env, ...spec.env },
     stdio: ['ignore', 'pipe', 'pipe'],
     // POSIX: its own process group, so one signal takes the dev server's children too.
     detached: process.platform !== 'win32',
-    // pnpm is a .cmd file on Windows and needs a shell.
-    shell: process.platform === 'win32' && !path.isAbsolute(spec.command),
+    shell,
   });
   const proc = wrap(child, realKiller);
   if (child.pid === undefined) return proc;
