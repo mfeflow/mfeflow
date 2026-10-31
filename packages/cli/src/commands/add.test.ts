@@ -174,6 +174,7 @@ describe('mfeflow add shell', () => {
     expect(await read('apps/admin/src/api/endpoints.ts')).toContain('createUrlFactory');
     expect((await load()).apps.admin).toEqual({ kind: 'shell', path: 'apps/admin', port: 4301 });
     expect(await fs.readdir(path.join(project, 'registry/envs/dev'))).toEqual([
+      '.gitkeep',
       'cart.json',
       'catalog.json',
     ]);

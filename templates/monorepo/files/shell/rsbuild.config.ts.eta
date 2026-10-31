@@ -19,12 +19,21 @@ function readEntry(file: string): DevEntry {
   return { manifestUrl, version };
 }
 
+function readNames(dir: string): string[] {
+  try {
+    return fs.readdirSync(dir);
+  } catch (error) {
+    // A project with no remotes yet has nothing to list.
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
 // The shell finds its remotes through the registry. In dev that is registry/envs/dev, which
 // points at each remote's dev server, inlined so the shell needs no registry server.
 function devRegistry(): string {
   const dir = path.resolve(process.cwd(), '../../registry/envs/dev');
-  const remotes = fs
-    .readdirSync(dir)
+  const remotes = readNames(dir)
     .filter((file) => file.endsWith('.json'))
     .toSorted()
     .map((file) => {

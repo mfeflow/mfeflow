@@ -46,6 +46,21 @@
       "template": true
     },
     {
+      "to": "registry/envs/dev/.gitkeep",
+      "target": "root",
+      "content": ""
+    },
+    {
+      "to": "registry/envs/staging/.gitkeep",
+      "target": "root",
+      "content": ""
+    },
+    {
+      "to": "registry/envs/prod/.gitkeep",
+      "target": "root",
+      "content": ""
+    },
+    {
       "to": "package.json",
       "target": "shell",
       "from": "files/shell/package.json.eta",

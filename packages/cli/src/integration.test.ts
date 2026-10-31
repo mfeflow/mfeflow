@@ -62,6 +62,7 @@ describe('mfeflow init --local --yes --no-install', () => {
         'apps/catalog/src/exposed/App.tsx',
         'apps/cart/src/exposed/App.tsx',
         ...['dev', 'staging', 'prod'].flatMap((env) => [
+          `registry/envs/${env}/.gitkeep`,
           `registry/envs/${env}/catalog.json`,
           `registry/envs/${env}/cart.json`,
         ]),

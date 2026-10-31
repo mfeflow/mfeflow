@@ -22,6 +22,7 @@ describe('first-party catalogue', () => {
       expect(feature.trust).toBe('first-party');
       expect(validateFeatureManifest(feature.manifest)).toEqual([]);
       for (const file of feature.manifest.files ?? []) {
+        if (file.content !== undefined) continue;
         expect(file.from).toBeDefined();
         expect((await feature.readAsset?.(file.from ?? '')) ?? '').not.toBe('');
       }
