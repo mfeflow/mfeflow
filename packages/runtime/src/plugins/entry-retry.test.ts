@@ -6,6 +6,7 @@ type Args = Parameters<NonNullable<ReturnType<typeof createEntryRetryPlugin>['lo
 interface Harness {
   args: Args;
   urls: string[];
+  loadingAtCall: (Promise<void> | undefined)[];
   globalLoading: Record<string, Promise<void> | undefined>;
 }
 
@@ -15,10 +16,12 @@ function harness(
   entryUrl = 'http://x/remoteEntry.js',
 ): Harness {
   const urls: string[] = [];
+  const loadingAtCall: (Promise<void> | undefined)[] = [];
   const globalLoading: Record<string, Promise<void> | undefined> = { cart: Promise.resolve() };
   let call = 0;
   const getRemoteEntry = vi.fn((params: { getEntryUrl?: (u: string) => string }) => {
     urls.push(params.getEntryUrl?.(entryUrl) ?? '');
+    loadingAtCall.push(globalLoading.cart);
     const outcome = outcomes[call++];
     if (outcome instanceof Error) return Promise.reject(outcome);
     return Promise.resolve(outcome);
@@ -30,7 +33,7 @@ function harness(
     globalLoading,
     uniqueKey: 'cart',
   } as unknown as Args;
-  return { args, urls, globalLoading };
+  return { args, urls, loadingAtCall, globalLoading };
 }
 // oxlint-enable typescript/no-unsafe-type-assertion
 
@@ -47,7 +50,7 @@ describe('entry retry plugin', () => {
     expect(h.urls).toEqual([]);
     await vi.advanceTimersByTimeAsync(1);
     expect(h.urls).toEqual(['http://x/remoteEntry.js?retry=1']);
-    expect(h.globalLoading.cart).toBeUndefined();
+    expect(h.loadingAtCall).toEqual([undefined]);
     await vi.advanceTimersByTimeAsync(200);
     await expect(pending).resolves.toBe(exports);
     expect(h.urls).toEqual(['http://x/remoteEntry.js?retry=1', 'http://x/remoteEntry.js?retry=2']);
@@ -77,6 +80,42 @@ describe('entry retry plugin', () => {
     await vi.advanceTimersByTimeAsync(100);
     await pending;
     expect(h.globalLoading.cart).toBe(other);
+    vi.useRealTimers();
+  });
+
+  it('lets a caller arriving during any delay join the retry instead of starting a plain load', async () => {
+    vi.useFakeTimers();
+    const exports = { get: () => undefined };
+    const h = harness([new Error('404'), exports]);
+    const original = h.globalLoading.cart;
+    const pending = run(createEntryRetryPlugin({ delayMs: 100 }), h.args);
+    await vi.advanceTimersByTimeAsync(50);
+    const duringFirst = h.globalLoading.cart;
+    expect(duringFirst).toBeDefined();
+    expect(duringFirst).not.toBe(original);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(h.loadingAtCall).toEqual([undefined]);
+    await vi.advanceTimersByTimeAsync(100);
+    const duringSecond = h.globalLoading.cart;
+    expect(duringSecond).toBe(duringFirst);
+    await vi.advanceTimersByTimeAsync(100);
+    await expect(pending).resolves.toBe(exports);
+    await expect(duringSecond).resolves.toBe(exports);
+    expect(h.globalLoading.cart).toBeUndefined();
+    vi.useRealTimers();
+  });
+
+  it('rejects the callers that joined when every retry fails, and leaves nothing cached', async () => {
+    vi.useFakeTimers();
+    const h = harness([undefined]);
+    const pending = run(createEntryRetryPlugin({ times: 1, delayMs: 10 }), h.args);
+    await vi.advanceTimersByTimeAsync(5);
+    const joined = h.globalLoading.cart;
+    const rejection = expect(joined).rejects.toThrow(/failed to load after retries/);
+    await vi.advanceTimersByTimeAsync(10);
+    await pending;
+    await rejection;
+    expect(h.globalLoading.cart).toBeUndefined();
     vi.useRealTimers();
   });
 

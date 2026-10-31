@@ -13,6 +13,7 @@ export interface EntryRetryOptions {
 type LoadEntryErrorHook = NonNullable<ModuleFederationRuntimePlugin['loadEntryError']>;
 type LoadEntryErrorArgs = Parameters<LoadEntryErrorHook>[0];
 type EntryExports = Awaited<ReturnType<LoadEntryErrorArgs['getRemoteEntry']>>;
+type Loaded = Exclude<EntryExports, false | void | undefined>;
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => {
@@ -29,47 +30,76 @@ export function createEntryRetryPlugin(
   // One retry loop per remote: callers that fail while it runs share its result.
   const inFlight = new Map<string, Promise<EntryExports | undefined>>();
 
-  async function attempts({
-    getRemoteEntry,
-    origin,
-    remoteInfo,
-    remoteEntryExports,
-    globalLoading,
-    uniqueKey,
-  }: LoadEntryErrorArgs): Promise<EntryExports | undefined> {
+  async function attempts(
+    {
+      getRemoteEntry,
+      origin,
+      remoteInfo,
+      remoteEntryExports,
+      globalLoading,
+      uniqueKey,
+    }: LoadEntryErrorArgs,
+    joinable: Promise<Loaded>,
+  ): Promise<EntryExports | undefined> {
     let failed = globalLoading[uniqueKey];
-    for (let attempt = 1; attempt <= times; attempt++) {
-      // oxlint-disable-next-line no-await-in-loop -- attempts are sequential on purpose
-      await sleep(delayMs * attempt);
-      // Drop the failed load so getRemoteEntry fetches again, but never a load someone else started.
-      if (globalLoading[uniqueKey] === failed) {
+    try {
+      for (let attempt = 1; attempt <= times; attempt++) {
+        // Callers arriving while we wait join this retry instead of starting a plain load; never replace a load someone else started.
+        if (globalLoading[uniqueKey] === failed || globalLoading[uniqueKey] === undefined) {
+          globalLoading[uniqueKey] = joinable;
+          failed = joinable;
+        }
+        // oxlint-disable-next-line no-await-in-loop -- attempts are sequential on purpose
+        await sleep(delayMs * attempt);
+        if (globalLoading[uniqueKey] === failed) {
+          // oxlint-disable-next-line typescript/no-dynamic-delete -- keyed by the remote's unique key
+          delete globalLoading[uniqueKey];
+        }
+        try {
+          // oxlint-disable-next-line no-await-in-loop -- attempts are sequential on purpose
+          const exports = await getRemoteEntry({
+            origin,
+            remoteInfo,
+            remoteEntryExports,
+            getEntryUrl: (url: string) =>
+              `${url}${url.includes('?') ? '&' : '?'}retry=${String(attempt)}`,
+          });
+          if (exports) return exports;
+        } catch {
+          // next attempt
+        }
+        failed = globalLoading[uniqueKey];
+      }
+      return undefined;
+    } finally {
+      if (globalLoading[uniqueKey] === joinable) {
         // oxlint-disable-next-line typescript/no-dynamic-delete -- keyed by the remote's unique key
         delete globalLoading[uniqueKey];
       }
-      try {
-        // oxlint-disable-next-line no-await-in-loop -- attempts are sequential on purpose
-        const exports = await getRemoteEntry({
-          origin,
-          remoteInfo,
-          remoteEntryExports,
-          getEntryUrl: (url: string) =>
-            `${url}${url.includes('?') ? '&' : '?'}retry=${String(attempt)}`,
-        });
-        if (exports) return exports;
-      } catch {
-        // next attempt
-      }
-      failed = globalLoading[uniqueKey];
     }
-    return undefined;
   }
 
   function retry(args: LoadEntryErrorArgs): Promise<EntryExports | undefined> {
     const running = inFlight.get(args.uniqueKey);
     if (running) return running;
-    const started = attempts(args).finally(() => {
-      inFlight.delete(args.uniqueKey);
+    let settle!: (exports: EntryExports | undefined) => void;
+    const settled = new Promise<EntryExports | undefined>((resolve) => {
+      settle = resolve;
     });
+    const joinable = settled.then((exports) => {
+      if (!exports)
+        throw new Error(`entry of "${args.remoteInfo.name}" failed to load after retries`);
+      return exports;
+    });
+    joinable.catch(() => undefined);
+    const started = attempts(args, joinable)
+      .finally(() => {
+        inFlight.delete(args.uniqueKey);
+      })
+      .then((exports) => {
+        settle(exports);
+        return exports;
+      });
     inFlight.set(args.uniqueKey, started);
     return started;
   }
