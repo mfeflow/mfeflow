@@ -53,7 +53,8 @@ async function portClosed(port) {
 }
 
 async function checkRemote(html, name, origin) {
-  if (!html.includes(`${origin}/mf-manifest.json`)) throw new Error(`the shell does not list ${name}`);
+  if (!html.includes(`${origin}/mf-manifest.json`))
+    throw new Error(`the shell does not list ${name}`);
   const manifest = JSON.parse(
     await waitFor(`${origin}/mf-manifest.json`, (body) => body.includes('metaData'), name),
   );
@@ -115,12 +116,15 @@ try {
   dev.kill('SIGINT');
   const { code } = await Promise.race([
     devExit,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('mfeflow dev did not stop')), 30_000)),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('mfeflow dev did not stop')), 30_000),
+    ),
   ]);
   if (code !== 130) throw new Error(`mfeflow dev exited with ${String(code)}, expected 130`);
   dev = undefined;
   for (const port of [4300, 4311, 4312, 4313]) {
-    if (!(await portClosed(port))) throw new Error(`port ${String(port)} is still open after Ctrl+C`);
+    if (!(await portClosed(port)))
+      throw new Error(`port ${String(port)} is still open after Ctrl+C`);
   }
   console.log('ok  Ctrl+C stopped the shell and every remote');
   console.log('\nsmoke passed');
