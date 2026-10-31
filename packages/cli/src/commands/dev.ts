@@ -6,7 +6,7 @@ import { assertKnownFlags, GLOBAL_ARGS, readGlobals, repeated, splitList } from 
 import { assertAllowed, devIndex, parseOverrides, serializeIndex } from '../devregistry';
 import { inspectProject, readText, type AppView, type ProjectView } from '../inspect';
 import type { DevApp, DevResult } from '../output';
-import { realDevHost, type DevHost, type DevProcess } from '../proc';
+import { DEFAULT_WAIT, realDevHost, type DevHost, type DevProcess } from '../proc';
 import type { Runtime } from '../runtime';
 
 export const DEV_ARGS = {
@@ -156,13 +156,43 @@ function describe(app: AppView, packageManager: string): DevApp {
   };
 }
 
-/** Has the app's package manager linked its binaries yet? A remote added by `mfeflow add` is not runnable until its install ends. */
-async function hasDependencies(app: AppView): Promise<boolean> {
+/** Is `name` in a node_modules of the app or of a folder above it, up to the project root (a hoisted install puts it in the root's)? */
+async function isLinked(app: AppView, root: string, name: string): Promise<boolean> {
+  let dir = app.dir;
+  while (!path.relative(root, dir).startsWith('..')) {
+    try {
+      // oxlint-disable-next-line no-await-in-loop -- walks up one folder at a time
+      await fs.access(path.join(dir, 'node_modules', ...name.split('/')));
+      return true;
+    } catch {
+      // Not here; try the folder above.
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir || dir === root) break;
+    dir = parent;
+  }
+  return false;
+}
+
+/**
+ * Has the install reached the app? A remote added by `mfeflow add` is not runnable until it has:
+ * every dependency it declares is linked in its own node_modules or, with node-linker=hoisted, the project's.
+ */
+async function hasDependencies(app: AppView, root: string): Promise<boolean> {
+  const text = await readText(path.join(app.dir, 'package.json'));
+  let doc: unknown;
   try {
-    return (await fs.readdir(path.join(app.dir, 'node_modules', '.bin'))).length > 0;
+    doc = text === undefined ? undefined : JSON.parse(text);
   } catch {
     return false;
   }
+  if (typeof doc !== 'object' || doc === null) return false;
+  const names = ['dependencies', 'devDependencies'].flatMap((key) => {
+    const group: unknown = Reflect.get(doc, key);
+    return typeof group === 'object' && group !== null ? Object.keys(group) : [];
+  });
+  const linked = await Promise.all(names.map((name) => isLinked(app, root, name)));
+  return linked.every(Boolean);
 }
 
 async function busyPorts(host: DevHost, apps: readonly AppView[]): Promise<AppView[]> {
@@ -268,6 +298,29 @@ export async function runDev(
   const session = new Session(host, rt.io, out, registryFile, known);
   let busy = Promise.resolve();
   const waiting = new Set<string>();
+  const policy = host.waitPolicy ?? DEFAULT_WAIT;
+  let poll: NodeJS.Timeout | undefined;
+  let waitingSince = 0;
+  let closed = false;
+  const stopPolling = (): void => {
+    clearInterval(poll);
+    poll = undefined;
+  };
+  // The lockfile watch can miss the end of an install, so a waiting remote is also looked for on a timer.
+  const keepPolling = (): void => {
+    if (waiting.size === 0 || closed) {
+      stopPolling();
+    } else if (poll === undefined) {
+      waitingSince = Date.now();
+      poll = setInterval(reload, policy.intervalMs);
+    } else if (Date.now() - waitingSince > policy.timeoutMs) {
+      out(
+        `mfeflow: gave up waiting for ${[...waiting].join(', ')} to be installed. Run \`${packageManager} install\`, then save mfeflow.json or run \`mfeflow dev\` again.`,
+      );
+      waiting.clear();
+      stopPolling();
+    }
+  };
   const reload = (): void => {
     busy = busy.then(async () => {
       let next: ProjectView;
@@ -296,7 +349,7 @@ export async function runDev(
         }
       }
       const candidates = now.filter((a) => !session.has(a.name));
-      const installed = await Promise.all(candidates.map(hasDependencies));
+      const installed = await Promise.all(candidates.map((app) => hasDependencies(app, root)));
       const fresh = candidates.filter((app, i) => {
         if (installed[i] === true) {
           waiting.delete(app.name);
@@ -319,6 +372,7 @@ export async function runDev(
           session.start(app, packageManager);
         }
       }
+      keepPolling();
     });
   };
 
@@ -347,6 +401,8 @@ export async function runDev(
   } finally {
     stopWatching();
     stopListening();
+    closed = true;
+    stopPolling();
     await busy;
     await session.stopAll();
   }

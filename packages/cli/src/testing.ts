@@ -4,7 +4,7 @@ import path from 'node:path';
 import { isMfeflowError, type MfeflowError } from '@mfeflow/core';
 import { assetRoots } from './assets';
 import type { Io } from './io';
-import type { DevHost, DevProcess, DevSpec } from './proc';
+import type { DevHost, DevProcess, DevSpec, WaitPolicy } from './proc';
 import type { Prompter } from './prompter';
 import type { Runtime } from './runtime';
 import type { System } from './system';
@@ -93,6 +93,7 @@ export interface FakeDev extends DevHost {
   change(): void;
   /** Ctrl+C. */
   interrupt(): void;
+  waitPolicy: WaitPolicy;
 }
 
 export function fakeDev(): FakeDev {
@@ -103,6 +104,7 @@ export function fakeDev(): FakeDev {
     procs,
     busy: new Set(),
     watched,
+    waitPolicy: { intervalMs: 20, timeoutMs: 60_000 },
     change: () => {
       for (const listener of listeners.watch) listener();
     },

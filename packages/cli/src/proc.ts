@@ -27,7 +27,16 @@ export interface DevHost {
   /** Calls back, debounced, when any of `paths` changes. Returns a function that stops watching. */
   watch(paths: readonly string[], listener: () => void): () => void;
   portFree(port: number): Promise<boolean>;
+  /** How often `dev` looks for a new remote's install to finish, and when it gives up. */
+  waitPolicy?: WaitPolicy;
 }
+
+export interface WaitPolicy {
+  intervalMs: number;
+  timeoutMs: number;
+}
+
+export const DEFAULT_WAIT: WaitPolicy = { intervalMs: 2000, timeoutMs: 5 * 60_000 };
 
 const GRACE_MS = 5000;
 

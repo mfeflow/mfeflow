@@ -33,11 +33,19 @@ async function start(root: string, count: number, ...argv: string[]) {
   return { rt, done };
 }
 
-/** What `pnpm install` leaves in an app: its linked binaries. */
-async function fakeInstall(root: string, app: string): Promise<void> {
-  const bin = path.join(root, 'apps', app, 'node_modules', '.bin');
-  await fs.mkdir(bin, { recursive: true });
-  await fs.writeFile(path.join(bin, 'rsbuild'), '');
+/** What `pnpm install` leaves behind: every declared dependency linked, in the app or (hoisted) the project. */
+async function fakeInstall(root: string, app: string, hoisted = false): Promise<void> {
+  const dir = path.join(root, 'apps', app);
+  const pkg = JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf8')) as Record<
+    string,
+    Record<string, string>
+  >;
+  const names = [...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.devDependencies ?? {})];
+  const modules = path.join(hoisted ? root : dir, 'node_modules');
+  await Promise.all(
+    names.map((name) => fs.mkdir(path.join(modules, ...name.split('/')), { recursive: true })),
+  );
+  await fs.mkdir(path.join(modules, '.bin'), { recursive: true });
 }
 
 const registryOf = async (
@@ -262,6 +270,53 @@ describe('mfeflow dev', () => {
       await fakeInstall(root, 'checkout');
       rt.dev.change();
       await until(() => rt.dev.procs.length === 4, 'checkout');
+      rt.dev.interrupt();
+      expect(await done).toBe(130);
+    });
+
+    it('starts a new remote once the install ends, without any file change to tell it', async () => {
+      const root = await project();
+      const { rt, done } = await start(root, 3);
+      await main(['add', 'remote', 'checkout', '--no-install', '--cwd', root], testRuntime());
+      rt.dev.change();
+      await until(() => rt.io.out.some((l) => l.includes('checkout is waiting')), 'waiting');
+      await fakeInstall(root, 'checkout');
+      await until(() => rt.dev.procs.length === 4, 'checkout, found by polling');
+      rt.dev.interrupt();
+      expect(await done).toBe(130);
+    });
+
+    it('starts a new remote whose dependencies a hoisted install put in the project root', async () => {
+      const root = await project();
+      const { rt, done } = await start(root, 3);
+      await main(['add', 'remote', 'checkout', '--no-install', '--cwd', root], testRuntime());
+      await fs.mkdir(path.join(root, 'node_modules', '.bin'), { recursive: true });
+      await fs.writeFile(path.join(root, 'node_modules', '.bin', 'rsbuild'), '');
+      rt.dev.change();
+      await until(() => rt.io.out.some((l) => l.includes('checkout is waiting')), 'waiting');
+      await fakeInstall(root, 'checkout', true);
+      await until(() => rt.dev.procs.length === 4, 'checkout');
+      rt.dev.interrupt();
+      expect(await done).toBe(130);
+    });
+
+    it('stops waiting after the timeout and says what to do', async () => {
+      const root = await project();
+      const rt = testRuntime();
+      rt.dev.waitPolicy = { intervalMs: 10, timeoutMs: 50 };
+      const done = main(['dev', '--cwd', root], rt);
+      await until(() => rt.dev.procs.length === 3, '3 processes');
+      await main(['add', 'remote', 'checkout', '--no-install', '--cwd', root], testRuntime());
+      rt.dev.change();
+      await until(
+        () => rt.io.out.some((l) => l.includes('gave up waiting for checkout')),
+        'timeout',
+      );
+      expect(rt.io.out.join('\n')).toContain('Run `pnpm install`');
+      const lines = rt.io.out.length;
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      expect(rt.io.out).toHaveLength(lines);
+      expect(rt.dev.procs).toHaveLength(3);
       rt.dev.interrupt();
       expect(await done).toBe(130);
     });
