@@ -62,6 +62,9 @@ export function isModuleSpecifier(value: string): boolean {
 /** An npm dist-tag such as `latest` or `next`. Nothing with a colon, slash or dot can be one. */
 const DIST_TAG = /^[a-z][a-z0-9-]*$/;
 
+/** What npm-package-arg reads as a local tarball, tested on each comparator since `semver` accepts `1.0.0-x.tar` as a prerelease. */
+const TARBALL_NAME = /[.](?:tgz|tar\.gz|tar)$/i;
+
 /**
  * True for a semver range or a dist-tag, the only things a registry resolves.
  * Everything else (file:, link:, git, URLs, `npm:` aliases, `workspace:`,
@@ -69,6 +72,8 @@ const DIST_TAG = /^[a-z][a-z0-9-]*$/;
  */
 export function isRegistryRange(range: string): boolean {
   if (range === '' || range !== range.trim()) return false;
+  if (range.includes('/') || range.includes('\\')) return false;
+  if (range.split(/\s+|\|\|/).some((part) => TARBALL_NAME.test(part))) return false;
   return DIST_TAG.test(range) || validRange(range) !== null;
 }
 

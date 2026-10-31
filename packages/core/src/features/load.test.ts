@@ -148,6 +148,14 @@ describe('malicious third-party features are rejected', () => {
       'Latest',
       '',
       '1.0.0-',
+      '1.2.3-x.tar',
+      '^1.0.0-evil.tgz',
+      '1.0.0-a.tar.gz',
+      '1.0.0+build.tar',
+      '>=1.0.0-0.tar <2',
+      '1.0.0-A.TAR',
+      '>=1 <2 || 3.0.0-x.tgz',
+      '1.0.0-a\\b',
     ]) {
       const error = third({ dependencies: [{ name: 'x', range }] });
       expect(error.code, JSON.stringify(range)).toMatch(/^MFEFLOW_E20[23]$/);
@@ -164,6 +172,9 @@ describe('malicious third-party features are rejected', () => {
       '1.2.3 - 2.0.0',
       '*',
       '^19',
+      '1.0.0-beta.1',
+      '1.0.0-rc.2 || ^2.0.0-0',
+      '^1.0.0+build.5',
     ]) {
       const manifest = text({ dependencies: [{ name: 'x', range }] });
       expect(() => parseFeature(manifest, 'third-party', 'x'), range).not.toThrow();
