@@ -56,6 +56,17 @@ so it does not count against the shell's overhead (see the cost model).
 - Core Web Vitals (`CLS`, `FCP`, `INP`, `LCP`, `TTFB`) become `web_vital.*` spans tagged `mfe.name = shell`.
 - Spans leave in batches every 5 seconds and when the tab is hidden.
 
+## What leaves the browser
+
+Spans are scrubbed before they are exported:
+
+- `url.full` (and `http.url`) is cut to origin and path. The query string and the fragment are dropped, and so are
+  `url.query` and `http.target`'s query, because tokens and email addresses end up in them.
+- Userinfo (`user:pass@host`) is always removed.
+- To keep the query, pass `recordQuery: true` to `createOtelProvider` in `apps/shell/src/telemetry/init.ts`. Only do
+  that for a backend you trust with whatever your URLs carry. Userinfo and the fragment are still removed.
+- `reportError` sends at most 4 KB of message and 4 KB of stack per error.
+
 ## Starting a trace from a click
 
 ```ts

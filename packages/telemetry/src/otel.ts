@@ -40,6 +40,11 @@ export interface OtelOptions {
    * Same-origin requests always get it. The server must allow the header in CORS.
    */
   propagateTraceHeaderCorsUrls?: readonly string[] | undefined;
+  /**
+   * Keep the query string on `url.full`. Off by default: queries carry tokens and personal data.
+   * Userinfo (`user:pass@`) and the fragment are removed either way.
+   */
+  recordQuery?: boolean | undefined;
   /** Record Core Web Vitals as spans. Default true. */
   webVitals?: boolean | undefined;
   /** How long spans wait for a batch, in milliseconds. Default 5000. */
@@ -86,6 +91,64 @@ export class MfeNameProcessor implements SpanProcessor {
   }
 }
 
+const URL_ATTRIBUTES = ['url.full', 'http.url'] as const;
+const QUERY_ATTRIBUTES = ['url.query', 'http.target'] as const;
+/** The longest message or stack a reported error may carry to the backend. */
+export const MAX_ERROR_TEXT = 4096;
+
+export function clip(text: string, max = MAX_ERROR_TEXT): string {
+  return text.length > max ? `${text.slice(0, max)}...[truncated]` : text;
+}
+
+/** Origin and path of a URL, plus the query when asked. Never userinfo, never the fragment. */
+export function scrubUrl(value: string, recordQuery: boolean): string {
+  try {
+    const url = new URL(value);
+    url.username = '';
+    url.password = '';
+    url.hash = '';
+    if (!recordQuery) url.search = '';
+    return url.href;
+  } catch {
+    const cut = value.search(/[?#]/);
+    return cut === -1 ? value : value.slice(0, cut);
+  }
+}
+
+/**
+ * Rewrites the URL attributes of every finished span before the batch processor sees it, so a token
+ * in `?token=` or `user:pass@` never reaches the exporter. It runs on end, not in the fetch
+ * instrumentation's own hook, because that hook is skipped when the request fails early.
+ */
+export class UrlScrubProcessor implements SpanProcessor {
+  constructor(private readonly recordQuery: boolean) {}
+  onStart(): void {}
+  onEnd(span: ReadableSpan): void {
+    const attributes: Record<string, unknown> = span.attributes;
+    for (const key of URL_ATTRIBUTES) {
+      const value = attributes[key];
+      if (typeof value === 'string') attributes[key] = scrubUrl(value, this.recordQuery);
+    }
+    if (!this.recordQuery) {
+      for (const key of QUERY_ATTRIBUTES) {
+        const value = attributes[key];
+        if (typeof value === 'string') {
+          const cut = value.indexOf('?');
+          if (cut === -1) continue;
+          attributes[key] = value.slice(0, cut);
+        }
+      }
+      delete attributes['url.query'];
+    }
+  }
+  forceFlush(): Promise<void> {
+    return Promise.resolve();
+  }
+  shutdown(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
 async function watchWebVitals(record: (metric: WebVitalMetric) => void): Promise<void> {
   const { onCLS, onFCP, onINP, onLCP, onTTFB } = await import('web-vitals');
   const forward = (metric: WebVitalMetric) => {
@@ -122,7 +185,11 @@ export function createOtelProvider(options: OtelOptions): TelemetryProvider {
     sampler: new ParentBasedSampler({
       root: new TraceIdRatioBasedSampler(clampRatio(options.sampleRatio)),
     }),
-    spanProcessors: [new MfeNameProcessor(), batch],
+    spanProcessors: [
+      new MfeNameProcessor(),
+      new UrlScrubProcessor(options.recordQuery === true),
+      batch,
+    ],
   });
 
   const recordWebVitals = (metric: WebVitalMetric): void => {
@@ -170,11 +237,15 @@ export function createOtelProvider(options: OtelOptions): TelemetryProvider {
           ...(errorContext.where === undefined ? {} : { 'mfe.error.where': errorContext.where }),
         },
       });
-      span.recordException(error instanceof Error ? error : String(error));
-      span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: error instanceof Error ? error.message : String(error),
+      const message = clip(error instanceof Error ? error.message : String(error));
+      span.recordException({
+        name: error instanceof Error ? error.name : 'Error',
+        message,
+        ...(error instanceof Error && error.stack !== undefined
+          ? { stack: clip(error.stack) }
+          : {}),
       });
+      span.setStatus({ code: SpanStatusCode.ERROR, message });
       span.end();
     },
     recordWebVitals,

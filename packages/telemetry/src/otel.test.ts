@@ -1,7 +1,15 @@
 import { context, propagation, trace } from '@opentelemetry/api';
 import { InMemorySpanExporter, type ReadableSpan } from '@opentelemetry/sdk-trace';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clampRatio, createOtelProvider, prefixPattern, type OtelOptions } from './otel';
+import {
+  clampRatio,
+  clip,
+  createOtelProvider,
+  MAX_ERROR_TEXT,
+  prefixPattern,
+  scrubUrl,
+  type OtelOptions,
+} from './otel';
 
 const base: OtelOptions = {
   serviceName: 'shell',
@@ -86,6 +94,20 @@ describe('createOtelProvider', () => {
     expect(second?.attributes['mfe.error.where']).toBeUndefined();
   });
 
+  it('caps the message and stack of a reported error', async () => {
+    const provider = await start();
+    const error = new Error('m'.repeat(10_000));
+    error.stack = 's'.repeat(10_000);
+    provider.reportError(error, { mfe: 'cart' });
+    await provider.flush?.();
+    const span = finished()[0];
+    const event = span?.events[0]?.attributes;
+    expect(String(span?.status.message).length).toBeLessThan(MAX_ERROR_TEXT + 40);
+    expect(String(event?.['exception.message']).length).toBeLessThan(MAX_ERROR_TEXT + 40);
+    expect(String(event?.['exception.stacktrace']).length).toBeLessThan(MAX_ERROR_TEXT + 40);
+    expect(String(event?.['exception.stacktrace'])).toContain('[truncated]');
+  });
+
   it('records a web vital as a span tagged with the shell', async () => {
     const provider = await start();
     provider.recordWebVitals({ name: 'LCP', value: 1500, rating: 'good', id: 'v1-1' });
@@ -130,6 +152,44 @@ describe('createOtelProvider', () => {
     });
     error.mockRestore();
     vi.doUnmock('web-vitals');
+  });
+});
+
+const dirty = 'https://user:pass@api.example.com/v1/orders?token=abc&email=a%40b.com#frag';
+
+async function spanWithUrls(extra: Partial<OtelOptions>): Promise<Record<string, unknown>> {
+  const provider = await start(extra);
+  provider
+    .getTracer('cart')
+    .startSpan('HTTP GET', {
+      attributes: { 'url.full': dirty, 'http.url': dirty, 'url.query': 'token=abc' },
+    })
+    .end();
+  await provider.flush?.();
+  return { ...finished()[0]?.attributes };
+}
+
+describe('url scrubbing', () => {
+  it('exports origin and path only by default', async () => {
+    const attributes = await spanWithUrls({});
+    expect(attributes['url.full']).toBe('https://api.example.com/v1/orders');
+    expect(attributes['http.url']).toBe('https://api.example.com/v1/orders');
+    expect(attributes['url.query']).toBeUndefined();
+    expect(JSON.stringify(attributes)).not.toMatch(/token|email|pass|frag/);
+  });
+
+  it('keeps the query with recordQuery, but still drops userinfo and fragment', async () => {
+    const attributes = await spanWithUrls({ recordQuery: true });
+    expect(attributes['url.full']).toBe(
+      'https://api.example.com/v1/orders?token=abc&email=a%40b.com',
+    );
+    expect(attributes['url.query']).toBe('token=abc');
+  });
+
+  it('scrubUrl survives a value that is not a URL', () => {
+    expect(scrubUrl('/orders?token=abc#x', false)).toBe('/orders');
+    expect(scrubUrl('/orders', false)).toBe('/orders');
+    expect(clip('abc', 2)).toBe('ab...[truncated]');
   });
 });
 
