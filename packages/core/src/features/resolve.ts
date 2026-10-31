@@ -150,11 +150,8 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
   for (const script of manifest.scripts ?? []) {
     for (const place of placesFor(script.target, project)) {
       const pkg = joinPosix(place.dir, 'package.json');
-      steps.push(async () => {
-        if (!trusted)
-          assertPlainScript(script.name, await existingScripts(builder, pkg), manifest.name);
-        await builder.addScript(pkg, script.name, script.command);
-      });
+      if (!trusted) assertPlainScript(script.name, manifest.name);
+      steps.push(() => builder.addScript(pkg, script.name, script.command));
     }
   }
 
@@ -186,19 +183,6 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     version: manifest.version,
     ...(Object.keys(options).length > 0 ? { options } : {}),
   });
-}
-
-async function existingScripts(builder: PlanBuilder, pkgFile: string): Promise<string[]> {
-  const text = await builder.content(pkgFile);
-  if (text === undefined) return [];
-  try {
-    const parsed: unknown = JSON.parse(text);
-    const scripts: unknown =
-      typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'scripts') : undefined;
-    return typeof scripts === 'object' && scripts !== null ? Object.keys(scripts) : [];
-  } catch {
-    return [];
-  }
 }
 
 /** Patches a file; a missing `.env*` example file is created instead, since it is optional. */

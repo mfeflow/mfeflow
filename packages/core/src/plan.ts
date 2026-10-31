@@ -1,6 +1,7 @@
 import { formatPatch, structuredPatch } from 'diff';
 import { isMap, parseDocument } from 'yaml';
-import { MfeflowError, messageOf } from './errors.js';
+import { MfeflowError } from './errors.js';
+import { asRecord, editJsonObject } from './json.js';
 
 export type ChangeAction = 'create' | 'patch' | 'delete';
 
@@ -145,21 +146,34 @@ export class PlanBuilder {
     if (this.options.catalog && !isPinnedElsewhere(range))
       wanted = await this.useCatalog(name, range);
     await this.patch(file, (source) =>
-      editPackageJson(file, source, (pkg) => {
+      editJsonObject(file, source, (pkg) => {
         const key = dev ? 'devDependencies' : 'dependencies';
         pkg[key] = sortedWith(pkg[key], name, wanted);
+        return true;
       }),
     );
     this.plan.dependencies.push({ file, name, range: wanted, dev });
   }
 
+  /** Adds a script. An identical one already there is a no-op; a different command under the same name is a conflict. */
   async addScript(file: string, name: string, command: string): Promise<void> {
+    let added = true;
     await this.patch(file, (source) =>
-      editPackageJson(file, source, (pkg) => {
-        pkg.scripts = { ...asRecord(pkg.scripts), [name]: command };
+      editJsonObject(file, source, (pkg) => {
+        const scripts = asRecord(pkg.scripts);
+        const existing = scripts[name];
+        if (existing === command) {
+          added = false;
+          return false;
+        }
+        if (existing !== undefined) {
+          throw new MfeflowError('E207', `${file}: script "${name}" already exists`);
+        }
+        pkg.scripts = { ...scripts, [name]: command };
+        return true;
       }),
     );
-    this.plan.scripts.push({ file, name, command });
+    if (added) this.plan.scripts.push({ file, name, command });
   }
 
   addEnvKey(file: string, key: string): void {
@@ -205,42 +219,9 @@ function isPinnedElsewhere(range: string): boolean {
   return range.startsWith('catalog:') || range.startsWith('workspace:');
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? Object.fromEntries(Object.entries(value))
-    : {};
-}
-
 function sortedWith(existing: unknown, name: string, range: string): Record<string, unknown> {
   const next = { ...asRecord(existing), [name]: range };
   return Object.fromEntries(Object.entries(next).toSorted(([a], [b]) => (a < b ? -1 : 1)));
-}
-
-function indentOf(source: string): string | number {
-  const match = /^[ \t]+(?=")/m.exec(source);
-  return match ? match[0] : 2;
-}
-
-/** Edits a package.json, keeping its indentation and final newline. */
-function editPackageJson(
-  file: string,
-  source: string,
-  edit: (pkg: Record<string, unknown>) => void,
-): string {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(source);
-  } catch (error) {
-    throw new MfeflowError('E208', `${file} is not valid JSON (${messageOf(error)})`, {
-      cause: error,
-    });
-  }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new MfeflowError('E208', `${file} is not a JSON object`);
-  }
-  const pkg = asRecord(parsed);
-  edit(pkg);
-  return `${JSON.stringify(pkg, null, indentOf(source))}${source.endsWith('\n') ? '\n' : ''}`;
 }
 
 /** The unified diff of every file change, one `---`/`+++` block per file. */

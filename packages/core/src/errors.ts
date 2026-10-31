@@ -57,8 +57,8 @@ export const ERROR_CATALOGUE = {
     fix: 'Add the required feature in the same command, for example `mfeflow add tsconfig this-feature`.',
   },
   E207: {
-    title: 'A file the feature wants to create already exists',
-    fix: 'Move or delete the existing file, or edit it by hand and skip the feature file.',
+    title: 'The feature wants to create or change something that already exists',
+    fix: 'Move or delete the existing file, script or dependency range, or edit it by hand and skip that part of the feature.',
   },
   E208: {
     title: 'A file the feature edits is missing or not shaped as expected',

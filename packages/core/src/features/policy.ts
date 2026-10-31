@@ -21,35 +21,51 @@ export const THIRD_PARTY_KEYS: ReadonlySet<string> = new Set([
   'transforms',
 ]);
 
+/** Shape of a third-party script name: lower-case words, optionally namespaced with colons. */
+const SCRIPT_NAME = /^[a-z][a-z0-9-]*(:[a-z0-9-]+)*$/;
+
+/** Prefixes the package managers read as hooks of their own (`pnpm:devPreinstall`). */
+const MANAGER_PREFIXES = new Set(['pnpm', 'npm', 'yarn', 'bun']);
+
+/** Every event npm or pnpm runs a script for without being asked by name, plus the ones they wrap. */
 const LIFECYCLE_SCRIPTS = new Set([
-  'preinstall',
   'install',
-  'postinstall',
-  'prepublish',
-  'preprepare',
-  'prepare',
-  'postprepare',
-  'prepublishOnly',
-  'prepack',
-  'postpack',
-  'preuninstall',
   'uninstall',
-  'postuninstall',
+  'prepare',
+  'prepublish',
+  'prepublishonly',
+  'publish',
+  'pack',
+  'version',
+  'shrinkwrap',
   'dependencies',
+  'test',
+  'start',
+  'stop',
+  'restart',
 ]);
 
 /** Registry version ranges and dist-tags only: no URLs, git, file, link, npm: aliases or `catalog:`. */
 const SAFE_RANGE = /^[A-Za-z0-9.^~<>=*|+\- ]+$/;
 
-/** Throws E203 for a script name npm would run on its own, or wraps another script. */
-export function assertPlainScript(name: string, siblings: Iterable<string>, label: string): void {
-  const known = new Set(siblings);
-  const wraps = /^(pre|post)(.+)$/.exec(name)?.[2];
-  if (LIFECYCLE_SCRIPTS.has(name) || (wraps !== undefined && known.has(wraps))) {
-    throw new MfeflowError(
-      'E203',
-      `${label}: script "${name}" would run on its own (npm lifecycle)`,
-    );
+/**
+ * Throws E203 unless `name` is a plain, namespaced script name that no package
+ * manager runs on its own. An allowlist on the shape, then the known hooks:
+ * lifecycle events, `pnpm:`/`npm:`/`yarn:`/`bun:` prefixes and every `pre` or
+ * `post` name, since what it wraps may be added to package.json later.
+ */
+export function assertPlainScript(name: string, label: string): void {
+  const reject = (why: string): never => {
+    throw new MfeflowError('E203', `${label}: script "${name}" ${why}`);
+  };
+  if (!SCRIPT_NAME.test(name)) {
+    reject('must be lower-case words joined by ":" (for example analytics:check)');
+  }
+  const prefix = name.split(':')[0] ?? '';
+  if (MANAGER_PREFIXES.has(prefix)) reject('uses a package manager hook prefix');
+  if (LIFECYCLE_SCRIPTS.has(name)) reject('would run on its own (npm lifecycle)');
+  if (/^(pre|post)/.test(name)) {
+    reject('starts with pre or post, which wraps another script; namespace it, e.g. feature:name');
   }
 }
 
@@ -103,6 +119,5 @@ export function assertThirdPartyContent(manifest: FeatureManifest, label: string
       );
     }
   }
-  const names = (manifest.scripts ?? []).map((s) => s.name);
-  for (const name of names) assertPlainScript(name, names, label);
+  for (const script of manifest.scripts ?? []) assertPlainScript(script.name, label);
 }

