@@ -1,7 +1,9 @@
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createSystem, run, type Run } from './system';
+import { createSystem, isolatedEnv, run, type Run } from './system';
 
 const quiet = { stderr: () => undefined };
 
@@ -99,5 +101,57 @@ describe('gitInit', () => {
   it('does not fail when git is missing', async () => {
     const runner: Run = () => Promise.reject(new Error('ENOENT'));
     expect(await createSystem(quiet, runner).gitInit('/p')).toBe(false);
+  });
+});
+
+describe('isolatedEnv', () => {
+  it('drops the variables that bind git to another repository and keeps the rest', () => {
+    const env = isolatedEnv({
+      GIT_DIR: '/r/.git',
+      GIT_WORK_TREE: '/r',
+      GIT_INDEX_FILE: 'i',
+      PATH: '/bin',
+      GIT_AUTHOR_NAME: 'a',
+    });
+    expect(env).toEqual({ PATH: '/bin', GIT_AUTHOR_NAME: 'a' });
+  });
+
+  it('keeps git init from turning the repository of a worktree hook bare', async () => {
+    const base = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'mfeflow-gitenv-')));
+    const git = (cwd: string, ...args: string[]) =>
+      execFileSync('git', args, { cwd, env: isolatedEnv(), stdio: 'pipe' }).toString().trim();
+    try {
+      const outer = path.join(base, 'outer');
+      await fs.mkdir(outer);
+      git(outer, 'init', '-q');
+      git(
+        outer,
+        '-c',
+        'user.name=t',
+        '-c',
+        'user.email=t@t',
+        'commit',
+        '-q',
+        '--allow-empty',
+        '--no-gpg-sign',
+        '-m',
+        'x',
+      );
+      git(outer, 'worktree', 'add', '-q', path.join(base, 'wt'), '-b', 'w');
+      const project = path.join(base, 'project');
+      await fs.mkdir(project);
+      const saved = process.env.GIT_DIR;
+      process.env.GIT_DIR = path.join(outer, '.git', 'worktrees', 'wt');
+      try {
+        expect(await createSystem(quiet).gitInit(project)).toBe(true);
+      } finally {
+        if (saved === undefined) delete process.env.GIT_DIR;
+        else process.env.GIT_DIR = saved;
+      }
+      expect(git(outer, 'config', 'core.bare')).toBe('false');
+      expect(git(project, 'rev-parse', '--is-inside-work-tree')).toBe('true');
+    } finally {
+      await fs.rm(base, { recursive: true, force: true });
+    }
   });
 });
