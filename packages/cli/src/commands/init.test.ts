@@ -31,6 +31,7 @@ describe('mfeflow init', () => {
     const rt = testRuntime();
     expect(await main(['init', 'app', '--yes', '--no-install', '--cwd', cwd], rt)).toBe(0);
     const tree = await readTree(path.join(cwd, 'app'));
+    expect(tree).not.toHaveProperty(['apps/shell/public/config/runtime-config.json']);
     expect(Object.keys(tree)).toEqual(
       expect.arrayContaining([
         'package.json',
@@ -39,7 +40,7 @@ describe('mfeflow init', () => {
         'mfeflow.json',
         'AGENTS.md',
         'apps/shell/src/index.ts',
-        'apps/shell/public/config/runtime-config.json',
+        'apps/shell/public/config/runtime-config.dev.json',
         'apps/catalog/src/exposed/App.tsx',
         'apps/cart/mfe.json',
         'registry/envs/dev/catalog.json',

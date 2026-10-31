@@ -109,12 +109,6 @@
       "template": true
     },
     {
-      "to": "public/config/runtime-config.json",
-      "target": "shell",
-      "from": "files/shell/public/config/runtime-config.json.eta",
-      "template": true
-    },
-    {
       "to": "package.json",
       "target": "remotes",
       "from": "files/remote/package.json.eta",

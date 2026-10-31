@@ -67,7 +67,6 @@ describe('mfeflow init --local --yes --no-install', () => {
           `apps/${app}/src/env.d.ts`,
           `apps/${app}/src/index.ts`,
         ]),
-        'apps/shell/public/config/runtime-config.json',
         'apps/shell/public/config/runtime-config.dev.json',
         'apps/shell/public/config/runtime-config.staging.json',
         'apps/shell/public/config/runtime-config.prod.json',

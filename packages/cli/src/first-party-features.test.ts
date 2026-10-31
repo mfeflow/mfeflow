@@ -179,6 +179,20 @@ describe('testing', () => {
     expect(root.scripts).toMatchObject({ test: 'vitest run', 'test:e2e': 'playwright test' });
   });
 
+  it('fails the smoke test on a console error, a failed request or a runtime config that did not load', async () => {
+    await add('env-t3');
+    await add('testing');
+    const spec = await read('e2e/smoke.spec.ts');
+    for (const listener of ["'pageerror'", "'console'", "'requestfailed'", "'response'"]) {
+      expect(spec, listener).toContain(`page.on(${listener}`);
+    }
+    expect(spec).toContain('expect(problems).toEqual([])');
+    const key = /const KEY = '(\w+)'/.exec(await read('apps/shell/src/config/runtime.ts'))?.[1];
+    expect(key).toBe('__MFE_RUNTIME_CONFIG__');
+    expect(spec).toContain(`'${key}'`);
+    expect(spec).toContain('scripts/check-runtime-config.ts');
+  });
+
   it('keeps Playwright output out of the working tree and stops the dev servers it starts', async () => {
     await add('testing');
     const config = await read('playwright.config.ts');

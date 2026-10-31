@@ -35,6 +35,26 @@ compiled into it.
 `public/config/` is copied into `dist/`, so every environment's file ships in every build. Keep secrets out of
 runtime config; it is public by design.
 
+### Which file `/config/runtime-config.json` is
+
+There is no `runtime-config.json` in the project; each environment picks its own file.
+
+- **`pnpm dev` and `rsbuild preview`**: the dev and preview servers answer `/config/runtime-config.json` with
+  `runtime-config.dev.json`. Set `MFE_ENV` to use another environment's file, for example
+  `MFE_ENV=staging pnpm exec rsbuild preview` in `apps/shell`. A name with no file is a 404 that lists the files that exist, and the smoke test
+  fails on it.
+- **A deploy**: the build is the same for every environment. As the last step of a deploy, copy that environment's file
+  over the URL the shell fetches:
+
+  ```sh
+  pnpm check:runtime-config prod
+  cp dist/config/runtime-config.prod.json dist/config/runtime-config.json
+  ```
+
+  Or have the host or CDN rewrite `/config/runtime-config.json` to `/config/runtime-config.prod.json`. A deploy that
+  skips the step makes the shell report a failed load and `getRuntimeConfig()` throw, rather than run with another
+  environment's values.
+
 ## Add a key
 
 ```sh

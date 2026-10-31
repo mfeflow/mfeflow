@@ -6,6 +6,7 @@ import { parse } from 'es-module-lexer/js';
 import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginModuleFederation } from '@module-federation/rsbuild-plugin';
 import { pluginMfEsmRuntime } from './esm-runtime';
+import { runtimeConfigSetup } from './runtime-config';
 import {
   installedVersionFrom,
   resolvableFrom,
@@ -14,6 +15,13 @@ import {
 } from './shared';
 
 export { esmTwin, isMfCjs, pluginMfEsmRuntime } from './esm-runtime';
+export {
+  RUNTIME_CONFIG_URL,
+  runtimeConfigEnv,
+  runtimeConfigEnvs,
+  runtimeConfigHandler,
+  runtimeConfigSetup,
+} from './runtime-config';
 export {
   DEFAULT_SINGLETONS,
   installedVersionFrom,
@@ -251,6 +259,7 @@ export function createShellConfig(o: ShellOptions): RsbuildConfig {
   const cwd = o.cwd ?? process.cwd();
   const require = createRequire(path.join(cwd, 'package.json'));
   if (o.eager === false) assertAsyncBoundary(path.join(cwd, 'src/index.ts'));
+  const setup = runtimeConfigSetup(cwd, o.env ?? process.env);
   return {
     plugins: [
       pluginReact(),
@@ -264,6 +273,10 @@ export function createShellConfig(o: ShellOptions): RsbuildConfig {
       entry: { index: './src/index.ts' },
       define: { __MFEFLOW_SNAPSHOT__: JSON.stringify(snapshotEnabled(o)) },
     },
-    server: { historyApiFallback: true, ...(o.port === undefined ? {} : { port: o.port }) },
+    server: {
+      historyApiFallback: true,
+      ...(o.port === undefined ? {} : { port: o.port }),
+      ...(setup === undefined ? {} : { setup }),
+    },
   };
 }

@@ -111,7 +111,7 @@ describe('mfeflow add env-key --scope runtime', () => {
     const { code } = await envKey(['GTM_ID', ...RUNTIME, '--value', 'GTM-ABC']);
     expect(code).toBe(0);
     expect(await read('apps/shell/src/config/schema.ts')).toContain('GTM_ID: z.string().min(1),');
-    for (const name of ['', '.dev', '.staging', '.prod']) {
+    for (const name of ['.dev', '.staging', '.prod']) {
       const file = `apps/shell/public/config/runtime-config${name}.json`;
       expect(JSON.parse(await read(file)), file).toMatchObject({ GTM_ID: 'GTM-ABC' });
     }
