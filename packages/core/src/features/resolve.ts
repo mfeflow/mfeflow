@@ -1,4 +1,9 @@
-import { isSafeRelativePath, type FeatureFile, type FeatureManifest } from '@mfeflow/contracts';
+import {
+  isSafeRelativePath,
+  type FeatureCondition,
+  type FeatureFile,
+  type FeatureManifest,
+} from '@mfeflow/contracts';
 import { MfeflowError } from '../errors';
 import { joinPosix } from '../paths';
 import { inOrder } from '../sequence';
@@ -84,6 +89,11 @@ export function resolveOptions(
   return out;
 }
 
+/** True when the part has no condition, or every option it names has the value it asks for. */
+function applies(part: { when?: FeatureCondition }, options: Record<string, unknown>): boolean {
+  return Object.entries(part.when ?? {}).every(([name, value]) => options[name] === value);
+}
+
 /** `relative` is the path inside the target app; `file` is the project path it ends up at. */
 function assertWritable(file: string, relative: string, trusted: boolean): void {
   if (!isSafeRelativePath(file)) throw new MfeflowError('E105', `"${file}"`);
@@ -138,7 +148,7 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
 
   const steps: (() => Promise<void>)[] = [];
 
-  for (const file of manifest.files ?? []) {
+  for (const file of (manifest.files ?? []).filter((f) => applies(f, options))) {
     for (const place of placesFor(file.target, project)) {
       const to = joinPosix(place.dir, file.to);
       assertWritable(to, file.to, trusted);
@@ -146,14 +156,14 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     }
   }
 
-  for (const dep of manifest.dependencies ?? []) {
+  for (const dep of (manifest.dependencies ?? []).filter((d) => applies(d, options))) {
     for (const place of placesFor(dep.target, project)) {
       const pkg = joinPosix(place.dir, 'package.json');
       steps.push(() => builder.addDependency(pkg, dep.name, dep.range, dep.dev));
     }
   }
 
-  for (const script of manifest.scripts ?? []) {
+  for (const script of (manifest.scripts ?? []).filter((x) => applies(x, options))) {
     for (const place of placesFor(script.target, project)) {
       const pkg = joinPosix(place.dir, 'package.json');
       if (!trusted) assertPlainScript(script.name, manifest.name);
@@ -161,7 +171,7 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     }
   }
 
-  for (const declared of manifest.transforms ?? []) {
+  for (const declared of (manifest.transforms ?? []).filter((t) => applies(t, options))) {
     if (!trusted) assertThirdPartyTransform(declared, manifest.name);
     const transform =
       !trusted && declared.op === 'add-env-key'

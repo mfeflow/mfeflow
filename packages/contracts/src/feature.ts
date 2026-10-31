@@ -19,6 +19,9 @@ export type FeatureTarget = string;
 
 export type PromptValue = string | boolean;
 
+/** Applies a part only when each named option has this value, for example `{ "validator": "zod" }`. */
+export type FeatureCondition = Record<string, PromptValue>;
+
 export interface FeaturePrompt {
   name: string;
   type: 'boolean' | 'string' | 'select';
@@ -31,6 +34,7 @@ export interface FeatureFile {
   /** Destination, relative to the target. */
   to: string;
   target?: FeatureTarget;
+  when?: FeatureCondition;
   /** Source file inside a local feature folder. Remote features cannot use it. */
   from?: string;
   /** Inline content. The only source a remote feature may use. */
@@ -44,12 +48,14 @@ export interface FeatureDependency {
   range: string;
   dev?: boolean;
   target?: FeatureTarget;
+  when?: FeatureCondition;
 }
 
 export interface FeatureScript {
   name: string;
   command: string;
   target?: FeatureTarget;
+  when?: FeatureCondition;
 }
 
 export type Literal = string | number | boolean | null;
@@ -58,6 +64,7 @@ interface TransformBase {
   /** File to edit, relative to the target. */
   file: string;
   target?: FeatureTarget;
+  when?: FeatureCondition;
 }
 
 export interface AddImportOp extends TransformBase {
@@ -211,6 +218,18 @@ function checkLiteralMap(c: Checker, value: unknown, at: string): void {
   }
 }
 
+function checkWhen(c: Checker, obj: Obj, at: string): void {
+  const when = obj.when;
+  if (when === undefined) return;
+  if (!isObj(when) || Object.keys(when).length === 0)
+    return c.add(`${at}.when`, 'must be an object of option names and values');
+  for (const [name, value] of Object.entries(when)) {
+    if (!IDENT.test(name)) c.add(`${at}.when`, `"${name}" must be a JavaScript identifier`);
+    if (typeof value !== 'string' && typeof value !== 'boolean')
+      c.add(`${at}.when.${name}`, 'must be a string or boolean');
+  }
+}
+
 function checkPath(c: Checker, obj: Obj, key: string, at: string): void {
   const value = c.string(obj, key, at);
   if (value !== undefined && !isSafeRelativePath(value))
@@ -227,6 +246,7 @@ function checkTransform(c: Checker, t: unknown, at: string): void {
   }
   checkPath(c, t, 'file', at);
   checkTarget(c, t, at);
+  checkWhen(c, t, at);
   if (t.defaultImport !== undefined && typeof t.defaultImport !== 'boolean')
     c.add(`${at}.defaultImport`, 'must be true or false');
   if (t.typeOnly !== undefined && typeof t.typeOnly !== 'boolean')
@@ -359,6 +379,7 @@ export function validateFeatureManifest(value: unknown): Issue[] {
   eachObject(c, value, 'files', (f, at) => {
     checkPath(c, f, 'to', at);
     checkTarget(c, f, at);
+    checkWhen(c, f, at);
     c.string(f, 'from', at, { required: false });
     c.string(f, 'content', at, { required: false });
     if (typeof f.from === 'string' && !isSafeRelativePath(f.from))
@@ -370,11 +391,13 @@ export function validateFeatureManifest(value: unknown): Issue[] {
     c.string(d, 'name', at, { pattern: PACKAGE, hint: 'must be an npm package name' });
     c.string(d, 'range', at);
     checkTarget(c, d, at);
+    checkWhen(c, d, at);
   });
   eachObject(c, value, 'scripts', (s, at) => {
     c.string(s, 'name', at, { pattern: /^[A-Za-z0-9:_.-]+$/, hint: 'must be a script name' });
     c.string(s, 'command', at);
     checkTarget(c, s, at);
+    checkWhen(c, s, at);
   });
   eachObject(c, value, 'transforms', (t, at) => {
     checkTransform(c, t, at);
