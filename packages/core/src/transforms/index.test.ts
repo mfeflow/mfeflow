@@ -28,7 +28,11 @@ describe('applyTransform', () => {
           from: './go',
         },
       ],
-      ['c.json', '{}', { op: 'add-env-key', file: 'c.json', key: 'K' }],
+      [
+        'c.json',
+        '{}',
+        { op: 'add-env-key', file: 'c.json', key: 'K', scope: 'runtime', schema: 'z.string()' },
+      ],
       [
         'r.ts',
         'export const routes = [];\n',

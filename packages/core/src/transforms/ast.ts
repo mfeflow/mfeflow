@@ -2,6 +2,7 @@ import { parse } from '@babel/parser';
 import {
   isArrayExpression,
   isArrowFunctionExpression,
+  isCallExpression,
   isFunctionDeclaration,
   isFunctionExpression,
   isIdentifier,
@@ -123,12 +124,36 @@ export function findArray(ast: File, name: string): ArrayExpression | undefined 
   return undefined;
 }
 
+/** `const name = { … }`, or `const name = z.object({ … })` (any call whose first argument is the object). */
 export function findObject(ast: File, name: string): ObjectExpression | undefined {
   for (const node of findAll(ast, (n) => n.type === 'VariableDeclarator')) {
     if (node.type !== 'VariableDeclarator' || !isIdentifier(node.id) || node.id.name !== name)
       continue;
-    const object = unwrap(node.init);
-    if (isObjectExpression(object)) return object;
+    const init = unwrap(node.init);
+    if (isObjectExpression(init)) return init;
+    const first = isCallExpression(init) ? init.arguments[0] : undefined;
+    if (isObjectExpression(first)) return first;
+  }
+  return undefined;
+}
+
+/** The `server` object of `createEnv({ server: { … } })`. */
+export function findServerSchema(ast: File): ObjectExpression | undefined {
+  for (const node of findAll(ast, (n) => isCallExpression(n))) {
+    if (!isCallExpression(node) || !isIdentifier(node.callee) || node.callee.name !== 'createEnv')
+      continue;
+    const options = node.arguments[0];
+    if (!isObjectExpression(options)) continue;
+    for (const p of options.properties) {
+      if (
+        isObjectProperty(p) &&
+        isIdentifier(p.key) &&
+        p.key.name === 'server' &&
+        isObjectExpression(p.value)
+      ) {
+        return p.value;
+      }
+    }
   }
   return undefined;
 }

@@ -101,12 +101,24 @@ export interface AddBootStepOp extends TransformBase {
   function?: string;
 }
 
+/**
+ * Adds a typed env key (decision 0020). `file` is the TypeScript file holding
+ * the schema: `env.ts` for `server`, `src/config/schema.ts` for `runtime`.
+ */
 export interface AddEnvKeyOp extends TransformBase {
   op: 'add-env-key';
   key: string;
+  scope: 'server' | 'runtime';
+  /** The schema as source text, for example `z.string().url()`. */
+  schema: string;
+  /** Placeholder written to `.env.example` or the runtime config files. Default: empty string. */
   value?: Literal;
-  /** For `.ts` files: the object holding the keys. Defaults to `runtimeConfig`. */
+  /** The schema object's variable name for `runtime`. Defaults to `runtimeConfigSchema`. */
   object?: string;
+  /** `server`: the dotenv example file to add a line to. Defaults to `.env.example`. */
+  example?: string;
+  /** `runtime`: the `runtime-config.<env>.json` files to add the key to. */
+  configFiles?: string[];
 }
 
 export interface AddRouteOp extends TransformBase {
@@ -260,12 +272,24 @@ function checkTransform(c: Checker, t: unknown, at: string): void {
           });
       }
       break;
-    case 'add-env-key':
+    case 'add-env-key': {
       c.string(t, 'key', at, { pattern: /^[A-Za-z_][A-Za-z0-9_]*$/, hint: 'must be a plain key' });
+      const scope = c.string(t, 'scope', at);
+      if (scope !== undefined && scope !== 'server' && scope !== 'runtime')
+        c.add(`${at}.scope`, 'must be server or runtime');
+      c.string(t, 'schema', at);
       ident('object', false);
+      if (t.example !== undefined) checkPath(c, t, 'example', at);
+      if (t.configFiles !== undefined) {
+        for (const f of c.stringArray(t, 'configFiles', at)) {
+          if (!isSafeRelativePath(f))
+            c.add(`${at}.configFiles`, `"${f}" must be a relative path with no ".."`);
+        }
+      }
       if (t.value !== undefined && !isLiteral(t.value))
         c.add(`${at}.value`, 'must be a string, number, boolean or null');
       break;
+    }
     case 'add-route':
       c.string(t, 'path', at, { pattern: ROUTE, hint: 'must be a route path' });
       ident('component');
