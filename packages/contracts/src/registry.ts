@@ -1,10 +1,14 @@
-import { Checker, isObj, isUrl, type Issue } from './validate.js';
-import { MFE_NAME, ROUTE } from './mfe-manifest.js';
+import { Checker, isObj, isUrl, type Issue, type Obj } from './validate.js';
+import { EXPOSE, MFE_NAME, ROUTE } from './mfe-manifest.js';
 
 /** `registry/envs/<env>/<name>.json`: what one remote serves in one environment. */
 export interface RegistryEntry {
   version: string;
   manifestUrl: string;
+  /** The remote's entry script, read from `mf-manifest.json` at publish time. Production shells register this, not the manifest. */
+  remoteEntry?: string;
+  /** Per expose (`./App`), the JS and CSS files it needs before it renders. The edge turns these into preload hints. */
+  exposes?: Record<string, string[]>;
   previous?: string;
   owner?: string;
   rollout?: { candidate: string; stable: string; percent: number };
@@ -15,10 +19,43 @@ export interface RegistryIndex {
   shell?: string;
   env?: string;
   generatedAt?: string;
-  remotes: { name: string; entry: string; version?: string; routes?: string[]; owner?: string }[];
+  remotes: RegistryIndexRemote[];
+}
+
+export interface RegistryIndexRemote {
+  name: string;
+  /** `mf-manifest.json` URL. */
+  entry: string;
+  /** Entry script URL; shells register it in place of `entry` when present. */
+  remoteEntry?: string;
+  /** Per expose, the files to preload. Not inlined into the shell's HTML. */
+  exposes?: Record<string, string[]>;
+  version?: string;
+  routes?: string[];
+  owner?: string;
 }
 
 const VERSION = /^[0-9A-Za-z.+-]+$/;
+
+function checkRemoteFiles(c: Checker, obj: Obj, at: string): void {
+  const entry = c.string(obj, 'remoteEntry', at, { required: false });
+  if (entry !== undefined && !isUrl(entry))
+    c.add(at ? `${at}.remoteEntry` : 'remoteEntry', 'must be an http(s) URL');
+  const exposes = c.object(obj, 'exposes', at, false);
+  if (!exposes) return;
+  const base = at ? `${at}.exposes` : 'exposes';
+  for (const [expose, files] of Object.entries(exposes)) {
+    if (!EXPOSE.test(expose)) c.add(`${base}.${expose}`, 'must look like "./App"');
+    if (!Array.isArray(files)) {
+      c.add(`${base}.${expose}`, 'must be an array of URLs');
+      continue;
+    }
+    files.forEach((file: unknown, i) => {
+      if (typeof file !== 'string' || !isUrl(file))
+        c.add(`${base}.${expose}[${String(i)}]`, 'must be an http(s) URL');
+    });
+  }
+}
 
 export function validateRegistryEntry(value: unknown): Issue[] {
   const c = new Checker();
@@ -32,6 +69,7 @@ export function validateRegistryEntry(value: unknown): Issue[] {
   });
   const url = c.string(value, 'manifestUrl', '');
   if (url !== undefined && !isUrl(url)) c.add('manifestUrl', 'must be an http(s) URL');
+  checkRemoteFiles(c, value, '');
   c.string(value, 'previous', '', { required: false, pattern: VERSION, hint: 'must be a version' });
   c.string(value, 'owner', '', { required: false });
   const rollout = c.object(value, 'rollout', '', false);
@@ -69,6 +107,7 @@ export function validateRegistryIndex(value: unknown): Issue[] {
     });
     const entry = c.string(remote, 'entry', at);
     if (entry !== undefined && !isUrl(entry)) c.add(`${at}.entry`, 'must be an http(s) URL');
+    checkRemoteFiles(c, remote, at);
     c.string(remote, 'version', at, { required: false });
     c.string(remote, 'owner', at, { required: false });
     const routes = c.stringArray(remote, 'routes', at, {

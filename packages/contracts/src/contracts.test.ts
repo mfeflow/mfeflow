@@ -93,6 +93,23 @@ describe('registry entry', () => {
     expect(paths(validateRegistryEntry({ version: 'v 1' }))).toEqual(['version', 'manifestUrl']);
     expect(validateRegistryEntry([])).toHaveLength(1);
   });
+
+  it('checks the entry script and per-expose files', () => {
+    const files = {
+      remoteEntry: 'https://cdn.example.com/mfe/cart/e.js',
+      exposes: { './App': ['https://cdn.example.com/mfe/cart/a.js'] },
+    };
+    expect(isRegistryEntry({ ...entry, ...files })).toBe(true);
+    expect(
+      paths(
+        validateRegistryEntry({
+          ...entry,
+          remoteEntry: 'e.js',
+          exposes: { App: [], './Other': 'x', './Third': ['https://ok.example.com/a.js', 3] },
+        }),
+      ),
+    ).toEqual(['remoteEntry', 'exposes.App', 'exposes../Other', 'exposes../Third[1]']);
+  });
 });
 
 describe('registry index', () => {
@@ -111,6 +128,19 @@ describe('registry index', () => {
 
   it('accepts a valid index', () => {
     expect(isRegistryIndex(index)).toBe(true);
+  });
+
+  it('accepts and checks remoteEntry and per-expose files on remotes', () => {
+    const remote = {
+      name: 'cart',
+      entry: 'https://cdn.example.com/cart/mf-manifest.json',
+      remoteEntry: 'https://cdn.example.com/cart/e.js',
+      exposes: { './App': ['https://cdn.example.com/cart/a.js'] },
+    };
+    expect(isRegistryIndex({ remotes: [remote] })).toBe(true);
+    expect(
+      paths(validateRegistryIndex({ remotes: [{ ...remote, remoteEntry: 'x', exposes: [] }] })),
+    ).toEqual(['remotes[0].remoteEntry', 'remotes[0].exposes']);
   });
 
   it('catches duplicates, route collisions and bad entries', () => {
