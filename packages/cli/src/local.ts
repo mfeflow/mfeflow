@@ -88,14 +88,16 @@ export function chooseLocal(
   if (flag === LOCAL_NONE) return { checkout: undefined, project: rest };
   if (flag === undefined) {
     return {
-      checkout: recorded === undefined ? undefined : path.resolve(root, ...recorded.split('/')),
+      checkout: recorded === undefined ? undefined : path.resolve(root, recorded),
       project,
     };
   }
   const checkout = path.resolve(cwd, flag);
   const relative = path.relative(root, checkout);
-  if (relative === '' || path.isAbsolute(relative)) {
-    throw new MfeflowError('E107', `--local ${flag} cannot be recorded relative to ${root}`);
+  if (relative === '') {
+    throw new MfeflowError('E107', `--local ${flag} is the project itself`);
   }
-  return { checkout, project: { ...rest, local: posix(relative) } };
+  // On Windows a checkout on another drive has no relative path: record it absolute.
+  const local = posix(path.isAbsolute(relative) ? checkout : relative);
+  return { checkout, project: { ...rest, local } };
 }

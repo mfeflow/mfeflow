@@ -25,7 +25,12 @@ const REGISTRY_NAMESPACE = /^@[a-z0-9][a-z0-9-]*$/;
 /** A relative path with forward slashes whose only `..` segments come first, so it may leave the project. */
 function isCheckoutPath(value: string): boolean {
   if (value === '' || value.includes('\\') || value.includes('\0')) return false;
-  if (value.startsWith('/') || /^[A-Za-z]:/.test(value)) return false;
+  const absolute = /^(?:\/|[A-Za-z]:\/)/.exec(value);
+  if (absolute) {
+    const parts = value.slice(absolute[0].length).split('/');
+    return parts.every((part) => part !== '' && part !== '.' && part !== '..');
+  }
+  if (/^[A-Za-z]:/.test(value)) return false;
   const parts = value.split('/');
   const climbing = parts.findIndex((part) => part !== '..');
   const rest = climbing === -1 ? [] : parts.slice(climbing);
@@ -106,7 +111,10 @@ export function validateMfeflowProject(value: unknown): Issue[] {
   if ('local' in value) {
     const local = c.string(value, 'local', '');
     if (local !== undefined && !isCheckoutPath(local)) {
-      c.add('local', 'must be a relative path with forward slashes, like "../mfeflow"');
+      c.add(
+        'local',
+        'must be a path with forward slashes: relative like "../mfeflow", or absolute when no relative path exists',
+      );
     }
   }
   return c.issues;

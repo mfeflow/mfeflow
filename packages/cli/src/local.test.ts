@@ -118,7 +118,13 @@ describe('chooseLocal', () => {
     expect(chooseLocal(linked, root, root, 'none')).toEqual({ checkout: undefined, project });
   });
 
-  it('refuses a checkout it cannot record relative to the project (E107)', () => {
+  it('refuses the project itself as the checkout (E107)', () => {
     expect(thrown(() => chooseLocal(project, root, root, '.')).code).toBe('MFEFLOW_E107');
+  });
+
+  it('follows a checkout recorded as an absolute path', () => {
+    const elsewhere = path.resolve('/other/mfeflow');
+    const linked = { ...project, local: elsewhere.split(path.sep).join('/') };
+    expect(chooseLocal(linked, root, root, undefined).checkout).toBe(elsewhere);
   });
 });
