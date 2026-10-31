@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { MfeflowError } from './errors.js';
 
 export interface PackageJson {
   name: string;
@@ -21,6 +22,7 @@ export function isPackageJson(value: unknown): value is PackageJson {
 export function readPackageJson(): PackageJson {
   const require = createRequire(import.meta.url);
   const pkg: unknown = require('../package.json');
-  if (!isPackageJson(pkg)) throw new Error('package.json is missing a name or version');
+  if (!isPackageJson(pkg))
+    throw new MfeflowError('E106', 'package.json is missing a name or version');
   return pkg;
 }

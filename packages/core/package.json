@@ -46,9 +46,19 @@
     "build": "rslib build",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@babel/parser": "catalog:",
+    "@babel/types": "catalog:",
+    "@mfeflow/contracts": "workspace:*",
+    "diff": "catalog:",
+    "eta": "catalog:",
+    "semver": "catalog:",
+    "yaml": "catalog:"
+  },
   "devDependencies": {
     "@rslib/core": "catalog:",
     "@types/node": "catalog:",
+    "@types/semver": "catalog:",
     "typescript": "catalog:"
   }
 }

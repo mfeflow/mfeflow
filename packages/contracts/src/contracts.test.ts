@@ -249,6 +249,39 @@ describe('mfeflow.json', () => {
     expect(validateMfeflowProject('x')).toHaveLength(1);
   });
 
+  it('checks copied-file hashes and registries', () => {
+    const hash = `sha256-${'a'.repeat(64)}`;
+    expect(
+      validateMfeflowProject({
+        ...project,
+        files: { 'apps/shell/src/a.ts': hash },
+        registries: { '@acme': 'https://acme.dev/{name}.json' },
+      }),
+    ).toEqual([]);
+    expect(
+      paths(
+        validateMfeflowProject({
+          ...project,
+          files: { '../a.ts': hash, 'b.ts': 'sha256-short', 'c\\d.ts': hash },
+          registries: {
+            '@mfeflow': 'https://acme.dev/{name}.json',
+            acme: 'https://acme.dev/{name}.json',
+            '@ok': 'http://acme.dev/{name}.json',
+            '@two': 'https://acme.dev/feature.json',
+          },
+        }),
+      ),
+    ).toEqual([
+      'files.../a.ts',
+      'files.b.ts',
+      'files.c\\d.ts',
+      'registries.@mfeflow',
+      'registries.acme',
+      'registries.@ok',
+      'registries.@two',
+    ]);
+  });
+
   it('publishes schema URLs', () => {
     expect(SCHEMA_URLS.mfe).toBe('https://mfeflow.dev/schema/mfe.json');
   });
