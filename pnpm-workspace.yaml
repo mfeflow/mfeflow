@@ -17,7 +17,6 @@ catalog:
   '@module-federation/enhanced': 2.9.2
   '@module-federation/rsbuild-plugin': 2.9.2
   '@opentelemetry/api': 1.10.0
-  '@opentelemetry/context-zone': 3.0.0
   '@opentelemetry/core': 3.0.0
   '@opentelemetry/exporter-trace-otlp-http': 0.300.0
   '@opentelemetry/instrumentation': 0.300.0
@@ -57,7 +56,6 @@ catalog:
   vitest: 5.0.5
   web-vitals: 6.2.3
   yaml: 2.9.1
-  zone.js: 0.16.3
 
 # Dependencies allowed to run install scripts.
 allowBuilds:
