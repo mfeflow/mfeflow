@@ -1,7 +1,7 @@
 {
   "name": "@mfeflow/runtime",
   "version": "0.0.0",
-  "description": "Runtime pieces for mfeflow micro-frontends. Starts with composeProviders and withProps; the remote loader, boundaries and registry client follow.",
+  "description": "Runtime for mfeflow micro-frontends: remotes from a registry index, RemoteBoundary with timeout and fallback, error reporting, singleton checks, composeProviders.",
   "keywords": [
     "micro-frontend",
     "mfe",
@@ -25,6 +25,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./plugins/report": {
+      "types": "./dist/plugins/report.d.ts",
+      "import": "./dist/plugins/report.js"
     }
   },
   "files": [
@@ -42,10 +46,12 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
+    "@module-federation/enhanced": "^2.9.0",
     "react": "^19.0.0"
   },
   "peerDependenciesMeta": {},
   "devDependencies": {
+    "@module-federation/enhanced": "catalog:",
     "@rslib/core": "catalog:",
     "@testing-library/dom": "catalog:",
     "@testing-library/react": "catalog:",
