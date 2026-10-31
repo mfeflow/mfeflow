@@ -1,7 +1,15 @@
 name: release
 
 # Dormant until npm publishing is configured: set the repository variable
-# RELEASE_ENABLED=true and add trusted publishing (or NPM_TOKEN) on npm.
+# RELEASE_ENABLED=true and the secret NPM_TOKEN (an automation token that can publish
+# `mfeflow`, `create-mfeflow` and `@mfeflow/*`).
+#
+# After the first publish, switch to npm trusted publishing (OIDC): on npmjs.com add this
+# repository and workflow (release.yml) as a trusted publisher of every package, then delete
+# NPM_TOKEN and the NODE_AUTH_TOKEN line below. `id-token: write` and provenance are already set.
+#
+# The 13 public packages are versioned together (the `fixed` group in .changeset/config.json).
+# A new public package must be added to that list, or the pack check fails.
 
 on:
   push:
@@ -32,6 +40,8 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm check:pack
       - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           publish: pnpm release
@@ -39,4 +49,5 @@ jobs:
           commit: 'chore: version packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: 'true'
