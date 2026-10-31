@@ -333,6 +333,16 @@ describe('mfeflow add @namespace/feature', () => {
     expect(await readTree(project)).toEqual(before);
   });
 
+  it('previews it with --dry-run without --yes, since nothing is written', async () => {
+    const before = await readTree(project);
+    const rt = testRuntime({ fetch: fetchManifest });
+    const { code } = await add(['@acme/hello', '--dry-run'], rt);
+    expect(rt.io.err.join('\n')).toBe('');
+    expect(code).toBe(0);
+    expect(rt.io.out.join('\n')).toContain('src/hello.ts');
+    expect(await readTree(project)).toEqual(before);
+  });
+
   it('applies it with --yes, using the option given by --option', async () => {
     const rt = testRuntime({ fetch: fetchManifest });
     const { code } = await add(

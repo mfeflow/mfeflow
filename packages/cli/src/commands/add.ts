@@ -241,9 +241,9 @@ async function askOptions(
   return answers;
 }
 
-/** A feature from a registry is code nobody here wrote: it needs a person's yes, or --yes. */
+/** A feature from a registry is code nobody here wrote: writing it needs a person's yes, or --yes. */
 function assertThirdPartyAllowed(names: readonly string[], globals: Globals, canPrompt: boolean) {
-  if (names.length > 0 && !globals.yes && !canPrompt) {
+  if (names.length > 0 && !globals.yes && !canPrompt && !globals.dryRun) {
     throw new MfeflowError(
       'E107',
       `${names.join(', ')} comes from a registry; pass --yes to apply it without a terminal to confirm in`,
