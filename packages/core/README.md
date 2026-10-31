@@ -8,7 +8,7 @@ The engine behind the `mfeflow` CLI: loads and saves `mfeflow.json`, plans a cha
 pnpm add @mfeflow/core
 ```
 
-Docs: [mfeflow.dev](https://mfeflow.dev) (coming soon).
+Docs: [mfeflow.github.io/mfeflow](https://mfeflow.github.io/mfeflow/).
 
 MIT licensed.
 

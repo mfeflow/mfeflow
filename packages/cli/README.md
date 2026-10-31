@@ -41,7 +41,7 @@ runs part of the project; `--remote name=url` uses a server you run yourself (th
 localhost unless `--allow-origin <origin>` names it); Ctrl+C stops every app, process trees included, on Windows too.
 It exits 130 after Ctrl+C.
 
-`doctor` runs these checks, each with a code and a docs page (`https://mfeflow.dev/errors/<code>`). It exits with 0
+`doctor` runs these checks, each with a code and a docs page (`https://mfeflow.github.io/mfeflow/errors/<code>`). It exits with 0
 when there are no errors, else with the lowest exit code among the errors' ranges (project 3 before build 5).
 
 | Check                                 | Code           | Fixed by `--fix`              |
@@ -91,7 +91,7 @@ Errors print the code, one line of fix and a docs link:
 ```
 MFEFLOW_E108 The target folder is not empty: /work/app already has notes.txt
   Fix: Pick a new or empty folder, or move what is in the way.
-  https://mfeflow.dev/errors/E108
+  https://mfeflow.github.io/mfeflow/errors/E108
 ```
 
 | Exit | Meaning                                                                 |
