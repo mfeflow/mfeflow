@@ -22,12 +22,23 @@ Nothing is on npm yet.
 
 What works today, from the repo:
 
-- `@mfeflow/contracts`: types and validators for `mfe.json`, `mfeflow.json`, `feature.json` and the registry.
+- `@mfeflow/contracts`: types and validators for `mfe.json`, `mfeflow.json`, `feature.json` and the registry, and the cost model.
 - `@mfeflow/runtime`, `@mfeflow/rsbuild`, `@mfeflow/storage`, `@mfeflow/theme`, `@mfeflow/i18n`, `@mfeflow/url-factory`: the runtime and build packages, exercised by the storefront example.
 - `@mfeflow/tsconfig`, `@mfeflow/oxlint-config`, `@mfeflow/testing`: shared config and test helpers.
-- `@mfeflow/core` (new): the engine behind the CLI. It loads and saves `mfeflow.json`, plans a change as data with a unified diff, applies it atomically with rollback, edits files with seven built-in transform ops, and resolves features from a local folder or a namespaced registry. Third-party features are declarative only and never run code.
+- `@mfeflow/core`: the engine behind the CLI. It loads and saves `mfeflow.json`, plans a change as data with a unified diff, applies it atomically with rollback, edits files with seven built-in transform ops, and resolves features from a local folder or a namespaced registry. Third-party features are declarative only and never run code.
+- `mfeflow` and `create-mfeflow`: `init`, `add remote|shell|<feature>` and `features`; the first features (`tsconfig`, `lint-oxlint`, `url-factory`, `git-hooks`); `--local` to run a generated project from a checkout.
+- `mfeflow dev` (one command for the shell and every remote, a dev registry that follows `add remote`, `--remote name=url` overrides), `mfeflow doctor` (with `--fix` and `--json`), `validate`, `check-compat` and `budget` for CI.
 
-Being built now: the CLI (`init`, `add`, `doctor`, `dev`) on top of the engine, and the first features.
+Checked in CI: unit tests with coverage, the storefront e2e, a smoke job that generates a project and runs `mfeflow dev`, the
+[feature matrix](.github/workflows/matrix.yml) (every combination of the first-party features, on every pull request that
+touches the CLI, the engine, the features or the templates; nightly on macOS and Windows too) and the
+[cost-model perf job](.github/workflows/perf.yml) (LCP at most +300 ms, the shell at most +32 KB of JS and each remote on a
+route at most +10 KB, against the same pages built as one app).
+
+Time to a running platform, measured by [`bench/`](bench/README.md) on 2026-10-31 (warm pnpm store, median of 5, arm64 laptop with 8 cores):
+about 5 s from `create-mfeflow` to a shell and two remotes answering on `pnpm dev`.
+
+Next: `upgrade`, the typed env feature, the registry and the generated CI/CD.
 
 ## What it will do
 
