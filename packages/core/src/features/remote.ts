@@ -5,6 +5,9 @@ export interface FetchResponse {
   ok: boolean;
   status: number;
   url?: string;
+  headers?: { get(name: string): string | null };
+  /** When present the body is read from it, a chunk at a time, so the size cap holds. */
+  body?: ReadableStream<Uint8Array> | null;
   text(): Promise<string>;
 }
 
@@ -56,7 +59,24 @@ export async function fetchRemoteText(
       `${url} answered ${String(response.status)}${hint ? `: ${hint}` : ''}`,
     );
   }
-  const text = await response.text();
-  if (text.length > MAX_BYTES) throw new MfeflowError('E402', `${url} is larger than 1 MB`);
-  return text;
+  const tooBig = () => new MfeflowError('E402', `${url} is larger than 1 MB`);
+  const declared = Number(response.headers?.get('content-length') ?? Number.NaN);
+  if (declared > MAX_BYTES) {
+    await response.body?.cancel().catch(() => undefined);
+    throw tooBig();
+  }
+  if (!response.body) {
+    const text = await response.text();
+    if (Buffer.byteLength(text, 'utf8') > MAX_BYTES) throw tooBig();
+    return text;
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  // Leaving the loop early cancels the stream, so an oversized answer is not downloaded to the end.
+  for await (const chunk of response.body) {
+    total += chunk.byteLength;
+    if (total > MAX_BYTES) throw tooBig();
+    chunks.push(chunk);
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks));
 }
