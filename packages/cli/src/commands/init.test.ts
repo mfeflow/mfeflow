@@ -378,16 +378,21 @@ describe('mfeflow init', () => {
     );
   });
 
-  it('does not touch a folder it did not create when the install fails', async () => {
+  it('empties an existing empty folder, and only that, when the install fails', async () => {
     const cwd = await workspace();
     await fs.mkdir(path.join(cwd, 'app'));
     const rt = testRuntime();
     rt.system.install = async (root) => {
       await fs.mkdir(path.join(root, 'node_modules'));
+      await fs.writeFile(path.join(root, 'pnpm-lock.yaml'), '');
+      await fs.mkdir(path.join(root, '.git'));
       throw new Error('pnpm install exited with 1');
     };
-    expect(await main(['init', 'app', '--yes', '--cwd', cwd], rt)).toBe(4);
-    expect(await fs.readdir(path.join(cwd, 'app'))).toEqual(['node_modules']);
+    expect(await main(['init', 'app', '--yes', '--cwd', cwd, '--features', 'git-hooks'], rt)).toBe(
+      4,
+    );
+    expect(await fs.readdir(path.join(cwd, 'app'))).toEqual([]);
+    expect(rt.io.err.join('\n')).toContain('MFEFLOW_E213');
   });
 
   it('links @mfeflow packages from a checkout with --local, and names a bad checkout (E110)', async () => {

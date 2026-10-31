@@ -73,19 +73,49 @@ async function removeCreated(missing: readonly string[]): Promise<string | undef
   return undefined;
 }
 
-/** E213 for a project folder that was just created, so the message does not point into a folder that is gone. */
-function installFailed(error: MfeflowError, root: string, stuck: string | undefined): MfeflowError {
+/** Empties a folder that was empty when the run began, keeping the folder itself. */
+async function removeContents(root: string): Promise<string | undefined> {
+  try {
+    const entries = await fs.readdir(root);
+    await Promise.all(
+      entries.map((entry) => fs.rm(path.join(root, entry), { recursive: true, force: true })),
+    );
+  } catch (error) {
+    return messageOf(error);
+  }
+  return undefined;
+}
+
+async function isEmptyFolder(dir: string): Promise<boolean> {
+  try {
+    return (await fs.readdir(dir)).length === 0;
+  } catch {
+    return false;
+  }
+}
+
+/** E213 for a project folder this run made or filled, so the message does not point into what is gone. */
+function installFailed(
+  error: MfeflowError,
+  root: string,
+  stuck: string | undefined,
+  emptied: boolean,
+): MfeflowError {
   const reason = messageOf(error.cause ?? error);
   if (stuck !== undefined) {
-    return new MfeflowError('E213', `${reason}; could not remove ${root} (${stuck})`, {
+    return new MfeflowError('E213', `${reason}; could not clean up ${root} (${stuck})`, {
       cause: error.cause,
-      fix: `Delete ${root} by hand, check your network and package manager, then run the command again.`,
+      fix: `Delete what is inside ${root} by hand, check your network and package manager, then run the command again.`,
     });
   }
-  return new MfeflowError('E213', `${reason}; removed the new folder ${root}`, {
-    cause: error.cause,
-    fix: 'Nothing was left behind. Check your network and package manager, then run the command again.',
-  });
+  return new MfeflowError(
+    'E213',
+    `${reason}; ${emptied ? 'emptied the folder' : 'removed the new folder'} ${root}`,
+    {
+      cause: error.cause,
+      fix: 'Nothing was left behind. Check your network and package manager, then run the command again.',
+    },
+  );
 }
 
 async function exists(dir: string): Promise<boolean> {
@@ -119,6 +149,7 @@ export async function writePlan(request: WriteRequest): Promise<WriteOutcome> {
   }
   const installing = globals.install && plan.dependencies.length > 0;
   const missing = await missingFolders(root);
+  const wasEmpty = missing.length === 0 && (await isEmptyFolder(root));
   await fs.mkdir(root, { recursive: true });
   let result;
   try {
@@ -135,9 +166,10 @@ export async function writePlan(request: WriteRequest): Promise<WriteOutcome> {
         : {}),
     });
   } catch (error) {
-    const stuck = await removeCreated(missing);
-    if (missing.length > 0 && isMfeflowError(error) && error.code === 'MFEFLOW_E213') {
-      throw installFailed(error, root, stuck);
+    const stuck = wasEmpty ? await removeContents(root) : await removeCreated(missing);
+    const cleaned = missing.length > 0 || wasEmpty;
+    if (cleaned && isMfeflowError(error) && error.code === 'MFEFLOW_E213') {
+      throw installFailed(error, root, stuck, wasEmpty);
     }
     throw error;
   }
