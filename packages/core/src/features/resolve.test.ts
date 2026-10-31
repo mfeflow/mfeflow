@@ -266,7 +266,14 @@ describe('resolveFeature', () => {
 
   it('refuses unsafe destinations for any feature (E105), including app paths from a tampered mfeflow.json', async () => {
     const builder = new PlanBuilder(reader());
-    const targets = ['.git/hooks/pre-commit', 'node_modules/x/index.js', 'mfeflow.json'];
+    const targets = [
+      '.git/hooks/pre-commit',
+      '.GIT/hooks/pre-commit',
+      '.git',
+      'node_modules/x/index.js',
+      'MFEFLOW.json',
+      'src/aux.ts',
+    ];
     const errors = await Promise.all(
       targets.map((to) => {
         const feature = local({ name: 'a', version: '1', files: [{ to, content: 'x' }] });

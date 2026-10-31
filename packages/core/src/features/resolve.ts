@@ -8,7 +8,8 @@ import { renderTemplate, substitute, type TemplateData } from '../templates.js';
 import { applyTransform } from '../transforms/index.js';
 import { envKeyFiles } from '../transforms/add-env-key.js';
 import type { LoadedFeature } from './load.js';
-import { assertPlainScript, isProtectedPath } from './policy.js';
+import { assertPlainScript } from './policy.js';
+import { assertWritable as assertSafeTarget, isProtectedPath } from './write-policy.js';
 
 export interface ResolveInput {
   feature: LoadedFeature;
@@ -81,9 +82,7 @@ export function resolveOptions(
 
 function assertWritable(file: string, trusted: boolean): void {
   if (!isSafeRelativePath(file)) throw new MfeflowError('E105', `"${file}"`);
-  if (/(^|\/)(\.git|node_modules)\//.test(file) || file === 'mfeflow.json') {
-    throw new MfeflowError('E105', `"${file}" is not a place features write to`);
-  }
+  assertSafeTarget(file);
   if (!trusted && isProtectedPath(file)) {
     throw new MfeflowError('E203', `"${file}" is a protected file`);
   }

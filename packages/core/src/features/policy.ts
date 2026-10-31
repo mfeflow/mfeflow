@@ -1,5 +1,6 @@
 import { TRANSFORM_OPS, type FeatureManifest } from '@mfeflow/contracts';
 import { MfeflowError } from '../errors.js';
+import { isProtectedPath } from './write-policy.js';
 
 /** Where a feature came from decides what it may do. */
 export type Trust = 'first-party' | 'third-party';
@@ -36,27 +37,8 @@ const LIFECYCLE_SCRIPTS = new Set([
   'dependencies',
 ]);
 
-/** Files that change how the package manager or git hooks run code. Third-party features cannot write them. */
-const PROTECTED = [
-  /(^|\/)package\.json$/,
-  /(^|\/)mfeflow\.json$/,
-  /(^|\/)pnpm-workspace\.yaml$/,
-  /(^|\/)\.npmrc$/,
-  /(^|\/)\.yarnrc(\.yml)?$/,
-  /(^|\/)\.pnpmfile\.cjs$/,
-  /(^|\/)lefthook[^/]*\.ya?ml$/,
-  /(^|\/)\.lefthook[^/]*\.ya?ml$/,
-  /(^|\/)\.husky\//,
-  /(^|\/)\.git\//,
-  /(^|\/)node_modules\//,
-];
-
 /** Registry version ranges and dist-tags only: no URLs, git, file, link, npm: aliases or `catalog:`. */
 const SAFE_RANGE = /^[A-Za-z0-9.^~<>=*|+\- ]+$/;
-
-export function isProtectedPath(file: string): boolean {
-  return PROTECTED.some((pattern) => pattern.test(file));
-}
 
 /** Throws E203 for a script name npm would run on its own, or wraps another script. */
 export function assertPlainScript(name: string, siblings: Iterable<string>, label: string): void {
