@@ -106,7 +106,7 @@ export const ERROR_CATALOGUE = {
   },
   E215: {
     title: 'The app name cannot be used',
-    fix: 'Use lowercase letters, digits and _, starting with a letter, and a name no app has yet.',
+    fix: 'Use lowercase words of letters and digits joined by single underscores (order_history), starting with a letter, and a name no app has yet.',
   },
   E401: {
     title: 'Could not fetch from the registry',

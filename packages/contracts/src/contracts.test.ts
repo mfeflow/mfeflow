@@ -4,6 +4,7 @@ import {
   isMfeManifest,
   isRegistryEntry,
   isRegistryIndex,
+  MFE_NAME,
   SCHEMA_URLS,
   validateMfeflowProject,
   validateMfeManifest,
@@ -157,6 +158,15 @@ describe('registry index', () => {
     expect(
       paths(validateRegistryIndex({ remotes: [{ ...remote, remoteEntry: 'x', exposes: [] }] })),
     ).toEqual(['remotes[0].remoteEntry', 'remotes[0].exposes']);
+  });
+
+  it('keeps Module Federation names to words joined by single underscores', () => {
+    for (const name of ['cart', 'cart2', 'order_history', 'a_b2_c'])
+      expect(MFE_NAME.test(name)).toBe(true);
+    // `cart_` and `cart` (or `a__b` and `a_b`) would turn into the same component name.
+    for (const name of ['cart_', '_cart', 'a__b', 'a_1', 'Cart', '1a', ''])
+      expect(MFE_NAME.test(name)).toBe(false);
+    expect(paths(validateMfeManifest({ ...cart, name: 'cart_' }))).toEqual(['name']);
   });
 
   it('accepts the global names Module Federation produces', () => {

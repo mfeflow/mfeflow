@@ -18,16 +18,25 @@ describe('app names', () => {
     }).not.toThrow();
   });
 
-  it.each(['Checkout', '1st', 'my-app', 'shell', 'root', 'remotes', 'catalog'])(
-    'rejects "%s" with E215',
-    (name) => {
-      expect(
-        thrown(() => {
-          assertAppName(name, apps);
-        }).code,
-      ).toBe('MFEFLOW_E215');
-    },
-  );
+  it.each([
+    'Checkout',
+    '1st',
+    'my-app',
+    'shell',
+    'root',
+    'remotes',
+    'catalog',
+    'cart_',
+    'a__b',
+    'a_1',
+    '_a',
+  ])('rejects "%s" with E215', (name) => {
+    expect(
+      thrown(() => {
+        assertAppName(name, apps);
+      }).code,
+    ).toBe('MFEFLOW_E215');
+  });
 });
 
 describe('ports and route names', () => {
@@ -40,6 +49,13 @@ describe('ports and route names', () => {
   it('names the route component after the remote', () => {
     expect(routeComponent('catalog')).toBe('CatalogRoute');
     expect(routeComponent('order_history')).toBe('OrderHistoryRoute');
+  });
+
+  it('gives every allowed name its own route component', () => {
+    const names = ['cart', 'cart2', 'a', 'a1', 'ab', 'a_b', 'a_b2', 'a_bc', 'ab_c', 'a_b_c', 'abc'];
+    for (const name of names) assertAppName(name);
+    const components = names.map(routeComponent);
+    expect(new Set(components).size).toBe(names.length);
   });
 });
 
