@@ -8,6 +8,8 @@ on:
       - apps/docs/**
       - packages/contracts/**
       - packages/core/src/errors.ts
+      - vitest.config.ts
+      - vitest.shared.ts
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
       - .github/workflows/docs.yml
@@ -37,13 +39,15 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Build the docs and what they are generated from
         run: pnpm exec turbo run build --filter=@mfeflow/docs
+      - name: Test the docs site
+        run: pnpm exec vitest run --project @mfeflow/docs
       - name: Check the build output
         run: |
           test -f apps/docs/doc_build/404.html
           test -f apps/docs/doc_build/schema/mfeflow.json
           test -f apps/docs/doc_build/errors/E102.html
       - name: Upload the site
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: apps/docs/doc_build
@@ -51,7 +55,7 @@ jobs:
   deploy:
     name: deploy
     needs: build
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
