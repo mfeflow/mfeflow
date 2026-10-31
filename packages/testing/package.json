@@ -8,7 +8,9 @@
     "testing",
     "testing-library",
     "react",
-    "vitest"
+    "vitest",
+    "module-federation",
+    "rsbuild"
   ],
   "homepage": "https://mfeflow.dev",
   "bugs": "https://github.com/mfeflow/mfeflow/issues",

@@ -9,7 +9,9 @@
     "json-schema",
     "manifest",
     "registry",
-    "validation"
+    "validation",
+    "react",
+    "rsbuild"
   ],
   "homepage": "https://mfeflow.dev",
   "bugs": "https://github.com/mfeflow/mfeflow/issues",

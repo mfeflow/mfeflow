@@ -10,7 +10,8 @@
     "i18next",
     "react-i18next",
     "rtl",
-    "react"
+    "react",
+    "rsbuild"
   ],
   "homepage": "https://mfeflow.dev",
   "bugs": "https://github.com/mfeflow/mfeflow/issues",
