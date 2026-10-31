@@ -6,5 +6,5 @@ export default defineConfig({
     tsconfigPath: './tsconfig.build.json',
   },
   lib: [{ format: 'esm', syntax: 'es2022', dts: true }],
-  output: { target: 'node' },
+  output: { target: 'web' },
 });
