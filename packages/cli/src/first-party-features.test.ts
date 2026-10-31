@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { parseProject, serializeProject } from '@mfeflow/core';
 import { main } from '.';
-import { readTree, removeDir, tempDir, testRuntime } from './testing';
+import { REPO, readTree, removeDir, tempDir, testRuntime } from './testing';
 
 let cwd = '';
 let project = '';
@@ -128,6 +128,36 @@ describe('env-t3', () => {
     expect(await read('apps/shell/src/config/schema.ts')).toContain(
       "z.enum(['dev', 'staging', 'prod'])",
     );
+  });
+});
+
+describe('the root tooling tsconfig.json', () => {
+  it('belongs to the tsconfig feature alone, so no other feature writes it', async () => {
+    const owners: string[] = [];
+    for (const name of await fs.readdir(path.join(REPO, 'features'))) {
+      const manifest = JSON.parse(
+        await fs.readFile(path.join(REPO, 'features', name, 'feature.json'), 'utf8'),
+      ) as { files?: Array<{ to: string; target?: string }> };
+      if (manifest.files?.some((f) => f.to === 'tsconfig.json' && (f.target ?? 'root') === 'root'))
+        owners.push(name);
+    }
+    expect(owners).toEqual(['tsconfig']);
+  });
+
+  it('survives an edit: testing and env-t3 can be added afterwards', async () => {
+    const edited =
+      '{\n  "extends": "@mfeflow/tsconfig/node.json",\n  "include": ["*.ts", "tools"]\n}\n';
+    await fs.writeFile(path.join(project, 'tsconfig.json'), edited);
+    expect(await add('testing')).toBe(0);
+    expect(await add('env-t3')).toBe(0);
+    expect(await read('tsconfig.json')).toBe(edited);
+  });
+
+  it('is written once, with the preset the tooling scripts need', async () => {
+    const root = JSON.parse(await read('tsconfig.json')) as { extends: string; include: string[] };
+    expect(root.extends).toBe('@mfeflow/tsconfig/node.json');
+    expect(root.include).toEqual(['*.ts', 'scripts', 'e2e']);
+    expect((await json('package.json')).devDependencies).toHaveProperty('@mfeflow/tsconfig');
   });
 });
 

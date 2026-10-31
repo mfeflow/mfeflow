@@ -43,11 +43,6 @@
       "from": "files/env.example"
     },
     {
-      "to": "tsconfig.json",
-      "target": "root",
-      "from": "files/tsconfig.json"
-    },
-    {
       "to": "scripts/check-runtime-config.ts",
       "target": "root",
       "from": "files/check-runtime-config.ts"
@@ -255,12 +250,6 @@
       "when": {
         "validator": "arktype"
       }
-    },
-    {
-      "name": "@mfeflow/tsconfig",
-      "range": "latest",
-      "target": "root",
-      "dev": true
     },
     {
       "name": "@types/node",

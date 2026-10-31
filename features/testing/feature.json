@@ -78,11 +78,6 @@
       "to": "e2e/smoke.spec.ts",
       "target": "root",
       "from": "files/sample-smoke-e2e.ts"
-    },
-    {
-      "to": "tsconfig.json",
-      "target": "root",
-      "from": "files/tsconfig.json"
     }
   ],
   "dependencies": [
@@ -167,12 +162,6 @@
     {
       "name": "@playwright/test",
       "range": "1.64.1",
-      "target": "root",
-      "dev": true
-    },
-    {
-      "name": "@mfeflow/tsconfig",
-      "range": "latest",
       "target": "root",
       "dev": true
     },

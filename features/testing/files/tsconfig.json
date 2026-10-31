@@ -1,4 +1,0 @@
-{
-  "extends": "@mfeflow/tsconfig/node.json",
-  "include": ["*.ts", "scripts", "e2e"]
-}

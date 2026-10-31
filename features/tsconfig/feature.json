@@ -13,6 +13,11 @@
       "to": "tsconfig.json",
       "target": "remotes",
       "from": "files/tsconfig.json"
+    },
+    {
+      "to": "tsconfig.json",
+      "target": "root",
+      "from": "files/root.tsconfig.json"
     }
   ],
   "dependencies": [
@@ -26,6 +31,12 @@
       "name": "@mfeflow/tsconfig",
       "range": "latest",
       "target": "remotes",
+      "dev": true
+    },
+    {
+      "name": "@mfeflow/tsconfig",
+      "range": "latest",
+      "target": "root",
       "dev": true
     },
     {
