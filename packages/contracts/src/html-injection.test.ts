@@ -98,8 +98,8 @@ describe('registryInjection', () => {
       },
       [{ remote: 'evil', expose: './App' }],
     );
-    expect(html.match(/<script>/g)).toHaveLength(1);
-    expect(html.match(/<\/script>/g)).toHaveLength(1);
+    expect(html.match(/<script>/gi)).toHaveLength(1);
+    expect(html.match(/<\/script\s*>/gi)).toHaveLength(1);
     expect(html).not.toContain('\u2028');
     expect(html).toContain('href="https://x.test/e.js?a=&#34;b&#34;&#38;c=&#60;d&#62;"');
   });
@@ -113,6 +113,36 @@ describe('injectIntoHead', () => {
     expect(injectIntoHead('<HEAD lang="en"><meta></HEAD>', '<i></i>')).toBe(
       '<HEAD lang="en"><i></i><meta></HEAD>',
     );
+  });
+
+  it('goes after the charset meta so it stays inside the first 1024 bytes', () => {
+    expect(
+      injectIntoHead('<html><head><META charset="utf-8"><title>x</title></head>', '<i></i>'),
+    ).toBe('<html><head><META charset="utf-8"><i></i><title>x</title></head>');
+    expect(
+      injectIntoHead(
+        '<head><meta name="a"><meta http-equiv="Content-Type" content="text/html; charset=utf-8"></head>',
+        '<i></i>',
+      ),
+    ).toBe(
+      '<head><meta name="a"><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><i></i></head>',
+    );
+  });
+
+  it('ignores a charset meta outside the head, a <header> tag and unclosed tags', () => {
+    expect(injectIntoHead('<header></header><head></head><meta charset="x">', '<i></i>')).toBe(
+      '<header></header><head><i></i></head><meta charset="x">',
+    );
+    expect(injectIntoHead('<head><meta charset="x"', '<i></i>')).toBe(
+      '<head><i></i><meta charset="x"',
+    );
+    expect(() => injectIntoHead('<head', '<i></i>')).toThrow(/no <head>/);
+  });
+
+  it('stays fast on a hostile page', () => {
+    const start = Date.now();
+    injectIntoHead(`<head ${' '.repeat(50_000)}>`, '<i></i>');
+    expect(Date.now() - start).toBeLessThan(200);
   });
 
   it('throws when there is no head', () => {

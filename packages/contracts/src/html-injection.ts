@@ -57,10 +57,47 @@ export function registryInjection(index: RegistryIndex, needs: readonly RouteNee
   return html;
 }
 
-/** Adds `snippet` right after the opening `<head>` tag. Throws if the page has none. */
+/** Index just past the `>` of the tag starting at `from`, or -1 when it never closes. */
+function tagEnd(html: string, from: number): number {
+  const close = html.indexOf('>', from);
+  return close === -1 ? -1 : close + 1;
+}
+
+/** End of the opening `<head>` tag, found with a linear scan (no backtracking). */
+function headEnd(lower: string): number {
+  let at = lower.indexOf('<head');
+  while (at !== -1) {
+    const next = lower.charAt(at + 5);
+    if (next === '>' || /\s/.test(next)) return tagEnd(lower, at);
+    at = lower.indexOf('<head', at + 5);
+  }
+  return -1;
+}
+
+/** End of the `<meta charset>` (or `http-equiv` content-type) tag inside the head, or -1. */
+function charsetEnd(lower: string, from: number): number {
+  const stop = lower.indexOf('</head', from);
+  for (let at = lower.indexOf('<meta', from); at !== -1;) {
+    if (stop !== -1 && at > stop) break;
+    const end = tagEnd(lower, at);
+    if (end === -1) break;
+    if (lower.slice(at, end).includes('charset')) return end;
+    at = lower.indexOf('<meta', end);
+  }
+  return -1;
+}
+
+/**
+ * Adds `snippet` to the page's `<head>`: right after the `<meta charset>` when
+ * there is one (the browser only looks for the charset in the first 1024
+ * bytes, so nothing may push it back), else right after the opening tag.
+ * Throws if the page has no head.
+ */
 export function injectIntoHead(html: string, snippet: string): string {
-  const open = /<head(\s[^>]*)?>/i.exec(html);
-  if (!open) throw new Error('@mfeflow/contracts: the HTML has no <head> to inject into');
-  const end = open.index + open[0].length;
+  const lower = html.toLowerCase();
+  const open = headEnd(lower);
+  if (open === -1) throw new Error('@mfeflow/contracts: the HTML has no <head> to inject into');
+  const charset = charsetEnd(lower, open);
+  const end = charset === -1 ? open : charset;
   return html.slice(0, end) + snippet + html.slice(end);
 }
