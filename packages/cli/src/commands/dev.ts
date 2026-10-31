@@ -312,7 +312,7 @@ export async function runDev(
       stopPolling();
     } else if (poll === undefined) {
       waitingSince = Date.now();
-      poll = setInterval(reload, policy.intervalMs);
+      poll = setInterval(() => reload(true), policy.intervalMs);
     } else if (Date.now() - waitingSince > policy.timeoutMs) {
       out(
         `mfeflow: gave up waiting for ${[...waiting].join(', ')} to be installed. Run \`${packageManager} install\`, then save mfeflow.json or run \`mfeflow dev\` again.`,
@@ -321,8 +321,10 @@ export async function runDev(
       stopPolling();
     }
   };
-  const reload = (): void => {
+  const reload = (fromPoll = false): void => {
     busy = busy.then(async () => {
+      // A poll tick queued before the poll gave up must not start waiting all over again.
+      if (fromPoll && poll === undefined) return;
       let next: ProjectView;
       try {
         next = await inspectProject(root);
@@ -383,7 +385,7 @@ export async function runDev(
       path.join(root, 'registry', 'envs', 'dev'),
       path.join(root, 'pnpm-lock.yaml'),
     ],
-    reload,
+    () => reload(),
   );
   let interrupted = false;
   const stopListening = host.onInterrupt(() => {
