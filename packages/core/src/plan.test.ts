@@ -64,6 +64,19 @@ describe('PlanBuilder files', () => {
   });
 });
 
+describe('PlanBuilder mfeflow.json', () => {
+  it('records the mfeflow.json it planned against, or null when there is none', async () => {
+    const present = new PlanBuilder(reader({ 'mfeflow.json': '{"version":1}\n' }));
+    expect(present.build().projectBefore).toBeUndefined();
+    await present.captureProject();
+    expect(present.build().projectBefore).toBe('{"version":1}\n');
+    const absent = new PlanBuilder(reader({}));
+    await absent.captureProject();
+    expect(absent.build().projectBefore).toBeNull();
+    expect(absent.build().changes).toEqual([]);
+  });
+});
+
 describe('PlanBuilder package.json', () => {
   it('adds dependencies sorted, keeping indentation and the final newline', async () => {
     const source = `{\n    "name": "shell",\n    "dependencies": {\n        "zod": "^4.0.0"\n    }\n}\n`;

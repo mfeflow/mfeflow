@@ -111,6 +111,7 @@ async function contentOf(
 export async function resolveFeature(input: ResolveInput): Promise<void> {
   const { feature, project, builder } = input;
   const { manifest } = feature;
+  await builder.captureProject();
   const trusted = feature.trust === 'first-party';
   const present = new Set([...Object.keys(project.features), ...(input.alsoAdding ?? [])]);
 

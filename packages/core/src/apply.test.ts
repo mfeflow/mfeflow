@@ -56,6 +56,11 @@ const remove = (file: string, before: string): FileChange => ({
   track: false,
 });
 const planOf = (...changes: FileChange[]): Plan => ({ ...emptyPlan(), changes });
+/** A plan made while mfeflow.json held `projectBefore` (null: it did not exist). */
+const planWithProject = (projectBefore: string | null, ...changes: FileChange[]): Plan => ({
+  ...planOf(...changes),
+  projectBefore,
+});
 
 async function leftovers(): Promise<string[]> {
   const entries = await fs.readdir(root, { recursive: true });
@@ -315,7 +320,7 @@ describe('applyPlan', () => {
       const error = await rejection(
         applyPlan(
           {
-            ...planOf(create('a.txt', 'a'), patch('edit.txt', 'one\n', 'two\n')),
+            ...planWithProject(before, create('a.txt', 'a'), patch('edit.txt', 'one\n', 'two\n')),
             features: [{ name: 'tsconfig', version: '1.0.0' }],
           },
           { root, project, install: () => Promise.reject(new Error('ENOTFOUND registry')) },
@@ -334,7 +339,10 @@ describe('applyPlan', () => {
       await saveProject(root, project);
       const result = await applyPlan(
         {
-          ...planOf(create('apps/shell/src/consent.ts', 'consent\n')),
+          ...planWithProject(
+            await read('mfeflow.json'),
+            create('apps/shell/src/consent.ts', 'consent\n'),
+          ),
           features: [{ name: 'analytics-gtm', version: '0.3.0', options: { consent: 'denied' } }],
         },
         { root, project },
@@ -350,13 +358,48 @@ describe('applyPlan', () => {
     });
 
     it('creates mfeflow.json for a new project', async () => {
-      await applyPlan(planOf(create('a.txt', 'a')), { root, project });
+      await applyPlan(planWithProject(null, create('a.txt', 'a')), { root, project });
       expect((await loadProject(root)).scope).toBe('@shopco');
+    });
+
+    it('refuses when mfeflow.json changed since the plan, and keeps the edit (E211)', async () => {
+      await saveProject(root, project);
+      const planned = await read('mfeflow.json');
+      const edited = `${planned.trimEnd().slice(0, -1)},\n  "registries": { "@acme": "https://acme.example/{name}.json" }\n}\n`;
+      await fs.writeFile(at('mfeflow.json'), edited);
+      const plan = {
+        ...planWithProject(planned, create('a.txt', 'a')),
+        features: [{ name: 'tsconfig', version: '1.0.0' }],
+      };
+      const error = await rejection(applyPlan(plan, { root, project }));
+      expect(error.code).toBe('MFEFLOW_E211');
+      expect(error.message).toContain('mfeflow.json');
+      expect(await read('mfeflow.json')).toBe(edited);
+      expect(await exists('a.txt')).toBe(false);
+    });
+
+    it('refuses when mfeflow.json appeared after a plan made without one', async () => {
+      await saveProject(root, project);
+      const error = await rejection(
+        applyPlan(planWithProject(null, create('a.txt', 'a')), { root, project }),
+      );
+      expect(error.code).toBe('MFEFLOW_E211');
+    });
+
+    it('refuses a plan that never recorded mfeflow.json instead of reading it now', async () => {
+      await saveProject(root, project);
+      const error = await rejection(applyPlan(planOf(create('a.txt', 'a')), { root, project }));
+      expect(error.code).toBe('MFEFLOW_E211');
+      expect(error.message).toContain('plan again');
+      expect(await exists('a.txt')).toBe(false);
     });
 
     it('does not rewrite mfeflow.json when nothing changes in it', async () => {
       await saveProject(root, project);
-      const result = await applyPlan(planOf(create('a.txt', 'a', false)), { root, project });
+      const result = await applyPlan(
+        planWithProject(await read('mfeflow.json'), create('a.txt', 'a', false)),
+        { root, project },
+      );
       expect(result.written).toEqual(['a.txt']);
     });
   });

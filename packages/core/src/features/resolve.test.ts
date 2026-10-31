@@ -199,6 +199,15 @@ describe('resolveFeature', () => {
     );
   });
 
+  it('records mfeflow.json as planned against, so apply can notice a later edit', async () => {
+    const builder = new PlanBuilder(reader({ ...tree, 'mfeflow.json': '{"version":1}\n' }));
+    await resolveFeature({ feature: local({ name: 'a', version: '1' }), project, builder });
+    expect(builder.build().projectBefore).toBe('{"version":1}\n');
+    const bare = new PlanBuilder(reader());
+    await resolveFeature({ feature: local({ name: 'a', version: '1' }), project, builder: bare });
+    expect(bare.build().projectBefore).toBeNull();
+  });
+
   it('is idempotent: resolving twice on the same builder changes nothing more', async () => {
     const builder = new PlanBuilder(reader());
     const input = { feature: local(analytics, assets), project, builder };

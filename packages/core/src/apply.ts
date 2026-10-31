@@ -43,7 +43,7 @@ interface Journal {
  */
 export async function applyPlan(plan: Plan, options: ApplyOptions): Promise<ApplyResult> {
   const ops = options.fs ?? realFs;
-  const { changes, project } = await withProjectFile(plan, options, ops);
+  const { changes, project } = withProjectFile(plan, options);
   const targets = changes.map((change) => ({
     change,
     file: resolveInRoot(options.root, change.path),
@@ -95,11 +95,13 @@ export async function applyPlan(plan: Plan, options: ApplyOptions): Promise<Appl
   return { written: changes.map((c) => c.path), project };
 }
 
-async function withProjectFile(plan: Plan, options: ApplyOptions, ops: FsOps) {
+function withProjectFile(plan: Plan, options: ApplyOptions) {
   if (!options.project) return { changes: plan.changes, project: undefined };
   const next = recordPlan(options.project, plan);
-  const file = resolveInRoot(options.root, PROJECT_FILE);
-  const before = (await readIfExists(ops, file)) ?? null;
+  if (plan.projectBefore === undefined) {
+    throw new MfeflowError('E211', `${PROJECT_FILE} (the plan did not record it; plan again)`);
+  }
+  const before = plan.projectBefore;
   const after = serializeProject(next);
   if (before === after) return { changes: plan.changes, project: next };
   const change: FileChange = {

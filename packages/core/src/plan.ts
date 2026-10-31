@@ -2,6 +2,7 @@ import { formatPatch, structuredPatch } from 'diff';
 import { isMap, parseDocument } from 'yaml';
 import { MfeflowError } from './errors.js';
 import { asRecord, editJsonObject } from './json.js';
+import { PROJECT_FILE } from './project.js';
 
 export type ChangeAction = 'create' | 'patch' | 'delete';
 
@@ -51,6 +52,11 @@ export interface Plan {
   scripts: ScriptAdd[];
   env: EnvKeyAdd[];
   warnings: string[];
+  /**
+   * What `mfeflow.json` held when the plan was made (null: no file). `applyPlan`
+   * checks it like any other target, so an edit in between is an E211.
+   */
+  projectBefore?: string | null;
 }
 
 export function emptyPlan(): Plan {
@@ -88,6 +94,7 @@ interface Tracked {
 export class PlanBuilder {
   private readonly files = new Map<string, Tracked>();
   private readonly plan = emptyPlan();
+  private projectBefore: string | null | undefined;
 
   constructor(
     private readonly read: ReadFile,
@@ -109,6 +116,11 @@ export class PlanBuilder {
 
   async content(file: string): Promise<string | undefined> {
     return (await this.open(file)).current ?? undefined;
+  }
+
+  /** Remembers `mfeflow.json` as it is now; `applyPlan` refuses to continue if it changes before the write. */
+  async captureProject(): Promise<void> {
+    this.projectBefore = (await this.read(PROJECT_FILE)) ?? null;
   }
 
   addFeature(feature: PlanFeature): void {
@@ -225,7 +237,11 @@ export class PlanBuilder {
         track: action === 'create' && entry.track,
       });
     }
-    return { ...this.plan, changes };
+    return {
+      ...this.plan,
+      changes,
+      ...(this.projectBefore === undefined ? {} : { projectBefore: this.projectBefore }),
+    };
   }
 }
 
