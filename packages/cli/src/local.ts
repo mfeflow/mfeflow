@@ -14,7 +14,7 @@ function posix(file: string): string {
 /** `file` with symlinks resolved; a path that does not exist yet resolves through its nearest existing parent. */
 function realpathLoose(file: string): string {
   try {
-    return fs.realpathSync(file);
+    return fs.realpathSync.native(file);
   } catch {
     const parent = path.dirname(file);
     return parent === file ? file : path.join(realpathLoose(parent), path.basename(file));

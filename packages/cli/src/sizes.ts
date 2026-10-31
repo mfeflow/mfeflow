@@ -49,7 +49,7 @@ export interface RemoteSize {
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-const ORIGIN = 'http://dist.invalid';
+const ORIGIN = 'https://dist.invalid';
 const SCRIPT = /\.[cm]?js$/;
 
 /** A file inside dist from the URL `assetsFromManifest` resolved it to. */
