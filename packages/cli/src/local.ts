@@ -11,6 +11,16 @@ function posix(file: string): string {
   return file.split(path.sep).join('/');
 }
 
+/** `file` with symlinks resolved; a path that does not exist yet resolves through its nearest existing parent. */
+function realpathLoose(file: string): string {
+  try {
+    return fs.realpathSync(file);
+  } catch {
+    const parent = path.dirname(file);
+    return parent === file ? file : path.join(realpathLoose(parent), path.basename(file));
+  }
+}
+
 interface LocalPackage {
   dir: string;
   built: boolean;
@@ -76,7 +86,9 @@ export const LOCAL_NONE = 'none';
 /**
  * The checkout a command links `@mfeflow/*` from, and the project recording it. An explicit
  * `flag` (a path, or `none`) changes the project's mode; without one the project's own mode
- * stays, so a project is never half linked and half published.
+ * stays, so a project is never half linked and half published. Both sides are compared by real
+ * path, so a root and a checkout reached through different symlinks (`/var` -> `/private/var`)
+ * still get the right relative path.
  */
 export function chooseLocal(
   project: MfeflowProject,
@@ -85,15 +97,16 @@ export function chooseLocal(
   flag: string | undefined,
 ): { checkout: string | undefined; project: MfeflowProject } {
   const { local: recorded, ...rest } = project;
+  const realRoot = realpathLoose(root);
   if (flag === LOCAL_NONE) return { checkout: undefined, project: rest };
   if (flag === undefined) {
     return {
-      checkout: recorded === undefined ? undefined : path.resolve(root, recorded),
+      checkout: recorded === undefined ? undefined : path.resolve(realRoot, recorded),
       project,
     };
   }
-  const checkout = path.resolve(cwd, flag);
-  const relative = path.relative(root, checkout);
+  const checkout = realpathLoose(path.resolve(cwd, flag));
+  const relative = path.relative(realRoot, checkout);
   if (relative === '') {
     throw new MfeflowError('E107', `--local ${flag} is the project itself`);
   }

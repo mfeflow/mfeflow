@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { DEFAULT_SINGLETONS } from '@mfeflow/rsbuild';
 import { main, validateResult, type ReportResult } from '..';
 import { SINGLETON_SPECIFIERS } from '../singletons';
-import { removeDir, tempDir, testRuntime } from '../testing';
+import { REPO, removeDir, tempDir, testRuntime } from '../testing';
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -389,5 +389,55 @@ describe('mfeflow check-compat', () => {
     expect(code).toBe(0);
     expect(result.findings).toMatchObject([{ code: 'MFEFLOW_E302', severity: 'warning' }]);
     expect(result.findings[0]?.message).toContain('until install');
+  });
+});
+
+describe('doctor with a project linked through symlinked folders', () => {
+  it('keeps the recorded --local path right when the root and checkout are reached via symlinks', async () => {
+    const base = await tempDir();
+    dirs.push(base);
+    const parent = path.join(base, 'real', 'deep', 'parent');
+    await fs.mkdir(parent, { recursive: true });
+    const viaParent = path.join(base, 'via');
+    const viaCheckout = path.join(base, 'ck');
+    await fs.symlink(parent, viaParent);
+    await fs.symlink(REPO, viaCheckout);
+
+    expect(
+      await main(
+        ['init', 'app', '--yes', '--no-install', '--local', viaCheckout, '--cwd', viaParent],
+        testRuntime(),
+      ),
+    ).toBe(0);
+    const app = path.join(viaParent, 'app');
+    expect(
+      await main(['add', 'remote', 'orders', '--yes', '--no-install', '--cwd', app], testRuntime()),
+    ).toBe(0);
+
+    for (const cwd of [app, path.join(parent, 'app')]) {
+      const { code, result } = await run(cwd, 'doctor');
+      expect(codes(result)).not.toContain('MFEFLOW_E110');
+      expect(code).toBe(0);
+    }
+    const manifest = JSON.parse(await fs.readFile(path.join(app, 'mfeflow.json'), 'utf8')) as {
+      local: string;
+    };
+    expect(await fs.realpath(path.resolve(parent, 'app', manifest.local))).toBe(
+      await fs.realpath(REPO),
+    );
+    for (const name of ['shell', 'orders']) {
+      const dir = path.join(parent, 'app', 'apps', name);
+      const pkg = JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf8')) as {
+        dependencies: Record<string, string>;
+      };
+      const links = Object.entries(pkg.dependencies).filter(([, v]) => v.startsWith('link:'));
+      expect(links.length).toBeGreaterThan(0);
+      for (const [dep, spec] of links) {
+        const target = await fs.realpath(path.resolve(dir, spec.slice('link:'.length)));
+        expect(target).toBe(
+          path.join(await fs.realpath(REPO), 'packages', dep.split('/')[1] ?? ''),
+        );
+      }
+    }
   });
 });

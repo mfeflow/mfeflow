@@ -482,7 +482,9 @@ describe('a project linked with --local', () => {
     const recorded = parseProject(
       await fs.readFile(path.join(linkedDir(), 'mfeflow.json'), 'utf8'),
     );
-    expect(recorded.local).toBe(path.relative(linkedDir(), REPO).split(path.sep).join('/'));
+    const real = await fs.realpath(linkedDir());
+    const checkout = await fs.realpath(REPO);
+    expect(recorded.local).toBe(path.relative(real, checkout).split(path.sep).join('/'));
   });
 
   it('keeps linking for later adds that pass no flag', async () => {
