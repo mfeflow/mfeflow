@@ -1,6 +1,6 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import { DevOverlay } from '@mfeflow/runtime';
-import { routes, type AppRoute } from './remotes/route-table';
+import { routes, type RouteEntry } from './remotes/route-table';
 
 function usePath(): [string, (event: MouseEvent<HTMLAnchorElement>) => void] {
   const [path, setPath] = useState(location.pathname);
@@ -21,7 +21,7 @@ function usePath(): [string, (event: MouseEvent<HTMLAnchorElement>) => void] {
   return [path, go];
 }
 
-const matches = (route: AppRoute, path: string) =>
+const matches = (route: RouteEntry, path: string) =>
   route.path === '/' ? path === '/' : path === route.path || path.startsWith(`${route.path}/`);
 
 export function App() {

@@ -62,6 +62,30 @@ describe('mfeflow init', () => {
     expect(rt.io.out.join('\n')).toContain('cd app');
   });
 
+  it("names a remote's route so it cannot clash with the route table's own names", async () => {
+    const cwd = await workspace();
+    expect(
+      await main(
+        ['init', 'p', '--yes', '--no-install', '--remotes', 'app,route', '--cwd', cwd],
+        testRuntime(),
+      ),
+    ).toBe(0);
+    const table = await fs.readFile(
+      path.join(cwd, 'p', 'apps/shell/src/remotes/route-table.tsx'),
+      'utf8',
+    );
+    const declared = [
+      ...table.matchAll(
+        /^import (?:type )?\{([^}]*)\}|^export (?:interface|const|function) (\w+)/gm,
+      ),
+    ].flatMap((m) =>
+      (m[1] ?? m[2] ?? '').split(',').map((n) => n.replace(/^\s*(?:type\s+)?/, '').trim()),
+    );
+    expect(declared.filter((name) => name !== '')).toEqual(
+      [...new Set(declared)].filter((n) => n !== ''),
+    );
+  });
+
   it('installs with the package manager, from the project folder, when asked to', async () => {
     const cwd = await workspace();
     const rt = testRuntime();
