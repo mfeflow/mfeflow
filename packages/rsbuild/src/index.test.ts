@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { createRsbuild } from '@rsbuild/core';
 import {
   createRemoteConfig,
+  assertAsyncBoundary,
   createShellConfig,
   DEFAULT_SINGLETONS,
   installedVersionFrom,
@@ -243,6 +244,33 @@ describe('createShellConfig', () => {
         cwd: path.resolve(import.meta.dirname, '..'),
       }).plugins,
     ).toHaveLength(2);
+  });
+});
+
+describe('eager: false', () => {
+  it('needs an entry with a dynamic import', () => {
+    expect(() => {
+      assertAsyncBoundary(
+        '/app/src/index.ts',
+        () => "import { main } from './bootstrap';\nmain();",
+      );
+    }).toThrow(/eager: false needs an async bootstrap boundary.*import\('\.\/bootstrap'\)/s);
+    expect(() => {
+      assertAsyncBoundary('/app/src/index.ts', () => "void import('./bootstrap');");
+    }).not.toThrow();
+    expect(() => {
+      assertAsyncBoundary('/app/src/index.ts', () => undefined);
+    }).not.toThrow();
+  });
+
+  it('is checked by createShellConfig against the real entry file', () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'mfeflow-eager-'));
+    fs.mkdirSync(path.join(cwd, 'src'));
+    fs.writeFileSync(path.join(cwd, 'src/index.ts'), "import './bootstrap';\n");
+    expect(() => createShellConfig({ name: 'shell', cwd, eager: false })).toThrow(/import\(\)/);
+    expect(() => createShellConfig({ name: 'shell', cwd })).not.toThrow();
+    fs.writeFileSync(path.join(cwd, 'src/index.ts'), "void import('./bootstrap');\n");
+    expect(() => createShellConfig({ name: 'shell', cwd, eager: false })).not.toThrow();
   });
 });
 

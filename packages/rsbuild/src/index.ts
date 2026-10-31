@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import type { RsbuildConfig } from '@rsbuild/core';
@@ -136,7 +137,14 @@ export interface ShellOptions {
   runtimePlugins?: readonly string[];
   /** Swap the CommonJS Module Federation runtime for its ESM build. Default true. */
   esmRuntime?: boolean;
-  /** Ship shared singletons in the initial chunk so the shell needs no async bootstrap boundary. Default true. */
+  /**
+   * Ship shared singletons in the initial chunk so the shell needs no async
+   * bootstrap boundary. Default true. With `false` the singletons load
+   * asynchronously, so the entry (`src/index.ts`) must only `import('./bootstrap')`;
+   * a synchronous bootstrap fails at runtime with "Shared module is not available
+   * for eager consumption". `createShellConfig` throws when the entry has no
+   * dynamic `import()`.
+   */
   eager?: boolean;
   /**
    * Keep the manifest/snapshot loader. Default: only in non-production builds,
@@ -199,10 +207,30 @@ export function shellFederationOptions(
   };
 }
 
+/**
+ * Throws when a shell built with `eager: false` has an entry that never calls
+ * `import()`: its shared singletons would not be ready when the entry runs.
+ * An entry file that does not exist is left for the bundler to report.
+ */
+export function assertAsyncBoundary(
+  entryFile: string,
+  read: (file: string) => string | undefined = (f) =>
+    fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : undefined,
+): void {
+  const source = read(entryFile);
+  if (source === undefined || /\bimport\s*\(/.test(source)) return;
+  throw new Error(
+    `@mfeflow/rsbuild: eager: false needs an async bootstrap boundary, but ${entryFile} has no import(). ` +
+      `Make it \`import('./bootstrap')\` (shared singletons load asynchronously, so a synchronous bootstrap fails with ` +
+      `"Shared module is not available for eager consumption"), or drop eager: false.`,
+  );
+}
+
 /** Rsbuild config for the shell (host). */
 export function createShellConfig(o: ShellOptions): RsbuildConfig {
   const cwd = o.cwd ?? process.cwd();
   const require = createRequire(path.join(cwd, 'package.json'));
+  if (o.eager === false) assertAsyncBoundary(path.join(cwd, 'src/index.ts'));
   return {
     plugins: [
       pluginReact(),
