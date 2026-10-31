@@ -7,6 +7,8 @@ import {
   createRemoteConfig,
   createShellConfig,
   DEFAULT_SINGLETONS,
+  installedVersionFrom,
+  packageNameOf,
   remoteFederationOptions,
   resolvableFrom,
   sharedSingletons,
@@ -66,6 +68,17 @@ describe('sharedSingletons', () => {
     ]) {
       expect(DEFAULT_SINGLETONS).toContain(s);
     }
+  });
+
+  it('pins requiredVersion to the installed version, not the package.json spec', () => {
+    expect(sharedSingletons(only('react'), [], () => '19.3.1')).toEqual({
+      react: { singleton: true, requiredVersion: '^19.3.1' },
+    });
+    const versionOf = installedVersionFrom(path.resolve(import.meta.dirname, '..'));
+    expect(versionOf('react-dom/client')).toMatch(/^19\./);
+    expect(versionOf('definitely-not-installed-xyz')).toBeUndefined();
+    expect(packageNameOf('@mfeflow/theme/react')).toBe('@mfeflow/theme');
+    expect(packageNameOf('react-dom/client')).toBe('react-dom');
   });
 
   it('resolves from a directory', () => {

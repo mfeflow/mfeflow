@@ -13,3 +13,5 @@ coverage/
 .vscode/*
 !.vscode/extensions.json
 __fixture__/
+playwright-report/
+test-results/

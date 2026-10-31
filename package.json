@@ -16,7 +16,8 @@
     "ci": "pnpm format:check && pnpm build && pnpm lint && pnpm typecheck && pnpm test",
     "changeset": "changeset",
     "release": "pnpm build && changeset publish",
-    "prepare": "lefthook install"
+    "prepare": "lefthook install",
+    "e2e": "pnpm --filter @storefront/e2e test"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",

@@ -1,0 +1,31 @@
+{
+  "name": "@storefront/shell",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rsbuild build",
+    "dev": "rsbuild dev",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mfeflow/i18n": "workspace:*",
+    "@mfeflow/runtime": "workspace:*",
+    "@mfeflow/storage": "workspace:*",
+    "@mfeflow/theme": "workspace:*",
+    "@module-federation/enhanced": "catalog:",
+    "i18next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-i18next": "catalog:"
+  },
+  "devDependencies": {
+    "@mfeflow/rsbuild": "workspace:*",
+    "@mfeflow/tsconfig": "workspace:*",
+    "@rsbuild/core": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - apps/*
+  - examples/storefront/*
 
 # Latest stable versions, checked 2026-10-31.
 catalog:
@@ -9,6 +10,7 @@ catalog:
   '@commitlint/config-conventional': 21.2.4
   '@module-federation/enhanced': 2.9.2
   '@module-federation/rsbuild-plugin': 2.9.2
+  '@playwright/test': 1.64.1
   '@rsbuild/core': 2.3.0
   '@rsbuild/plugin-react': 2.1.1
   '@rslib/core': 1.0.5

@@ -24,7 +24,8 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "files": [
@@ -50,6 +51,7 @@
   },
   "devDependencies": {
     "@module-federation/enhanced": "catalog:",
+    "@rsbuild/plugin-react": "catalog:",
     "@rslib/core": "catalog:",
     "@testing-library/dom": "catalog:",
     "@testing-library/react": "catalog:",

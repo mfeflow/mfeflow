@@ -1,0 +1,7 @@
+{
+  "extends": "@mfeflow/tsconfig/react-app.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src", "rsbuild.config.ts"]
+}
