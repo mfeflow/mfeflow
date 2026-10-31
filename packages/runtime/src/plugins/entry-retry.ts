@@ -26,7 +26,10 @@ export function createEntryRetryPlugin(
   const times = options.times ?? 2;
   const delayMs = options.delayMs ?? 300;
 
-  async function retry({
+  // One retry loop per remote: callers that fail while it runs share its result.
+  const inFlight = new Map<string, Promise<EntryExports | undefined>>();
+
+  async function attempts({
     getRemoteEntry,
     origin,
     remoteInfo,
@@ -34,12 +37,15 @@ export function createEntryRetryPlugin(
     globalLoading,
     uniqueKey,
   }: LoadEntryErrorArgs): Promise<EntryExports | undefined> {
+    let failed = globalLoading[uniqueKey];
     for (let attempt = 1; attempt <= times; attempt++) {
       // oxlint-disable-next-line no-await-in-loop -- attempts are sequential on purpose
       await sleep(delayMs * attempt);
-      // The failed load is cached; drop it so getRemoteEntry fetches again.
-      // oxlint-disable-next-line typescript/no-dynamic-delete -- keyed by the remote's unique key
-      delete globalLoading[uniqueKey];
+      // Drop the failed load so getRemoteEntry fetches again, but never a load someone else started.
+      if (globalLoading[uniqueKey] === failed) {
+        // oxlint-disable-next-line typescript/no-dynamic-delete -- keyed by the remote's unique key
+        delete globalLoading[uniqueKey];
+      }
       try {
         // oxlint-disable-next-line no-await-in-loop -- attempts are sequential on purpose
         const exports = await getRemoteEntry({
@@ -53,8 +59,19 @@ export function createEntryRetryPlugin(
       } catch {
         // next attempt
       }
+      failed = globalLoading[uniqueKey];
     }
     return undefined;
+  }
+
+  function retry(args: LoadEntryErrorArgs): Promise<EntryExports | undefined> {
+    const running = inFlight.get(args.uniqueKey);
+    if (running) return running;
+    const started = attempts(args).finally(() => {
+      inFlight.delete(args.uniqueKey);
+    });
+    inFlight.set(args.uniqueKey, started);
+    return started;
   }
 
   return {

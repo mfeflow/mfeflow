@@ -54,6 +54,40 @@ describe('entry retry plugin', () => {
     vi.useRealTimers();
   });
 
+  it('runs one retry for concurrent failures of the same remote and shares its result', async () => {
+    vi.useFakeTimers();
+    const exports = { get: () => undefined };
+    const h = harness([exports]);
+    const plugin = createEntryRetryPlugin({ delayMs: 100 });
+    const first = run(plugin, h.args);
+    await vi.advanceTimersByTimeAsync(50);
+    const second = run(plugin, h.args);
+    await vi.advanceTimersByTimeAsync(100);
+    await expect(Promise.all([first, second])).resolves.toEqual([exports, exports]);
+    expect(h.urls).toEqual(['http://x/remoteEntry.js?retry=1']);
+    vi.useRealTimers();
+  });
+
+  it('does not drop a load another caller started while it waited', async () => {
+    vi.useFakeTimers();
+    const h = harness([{}]);
+    const other = Promise.resolve();
+    const pending = run(createEntryRetryPlugin({ delayMs: 100 }), h.args);
+    h.globalLoading.cart = other;
+    await vi.advanceTimersByTimeAsync(100);
+    await pending;
+    expect(h.globalLoading.cart).toBe(other);
+    vi.useRealTimers();
+  });
+
+  it('starts a fresh retry once the previous one has finished', async () => {
+    const h = harness([undefined, {}]);
+    const plugin = createEntryRetryPlugin({ times: 1, delayMs: 1 });
+    await run(plugin, h.args);
+    await run(plugin, h.args);
+    expect(h.urls).toHaveLength(2);
+  });
+
   it('gives up after the configured retries and lets the error through', async () => {
     const h = harness([new Error('a'), undefined, new Error('c')]);
     await expect(
