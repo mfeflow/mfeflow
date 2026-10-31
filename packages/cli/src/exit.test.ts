@@ -1,6 +1,6 @@
 import { MfeflowError } from '@mfeflow/core';
 import { describe, expect, it } from 'vitest';
-import { Cancelled, EXIT, exitCodeFor, reportOf, unexpectedText } from './exit';
+import { Cancelled, EXIT, exitCodeFor, exitCodeOfCode, reportOf, unexpectedText } from './exit';
 
 describe('exit codes', () => {
   it('maps each error range to its own code', () => {
@@ -13,6 +13,14 @@ describe('exit codes', () => {
     expect(code('E201')).toBe(EXIT.feature);
     expect(code('E213')).toBe(EXIT.feature);
     expect(code('E401')).toBe(EXIT.registry);
+  });
+
+  it('maps a finding code the same way as an error', () => {
+    expect(exitCodeOfCode('MFEFLOW_E114')).toBe(EXIT.project);
+    expect(exitCodeOfCode('MFEFLOW_E301')).toBe(EXIT.build);
+    expect(exitCodeOfCode('MFEFLOW_E107')).toBe(EXIT.usage);
+    expect(exitCodeOfCode('MFEFLOW_E999')).toBe(EXIT.unexpected);
+    expect(exitCodeOfCode('UNEXPECTED')).toBe(EXIT.unexpected);
   });
 
   it('keeps the numbers stable', () => {

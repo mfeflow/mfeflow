@@ -33,11 +33,16 @@ const BY_RANGE: Record<string, number> = {
   '5': EXIT.upgrade,
 };
 
+/** The exit code of a catalogue code such as `MFEFLOW_E301`. */
+export function exitCodeOfCode(code: string): number {
+  if (USAGE_ERRORS.has(code)) return EXIT.usage;
+  return BY_RANGE[code.charAt('MFEFLOW_E'.length)] ?? EXIT.unexpected;
+}
+
 export function exitCodeFor(error: unknown): number {
   if (error instanceof Cancelled) return EXIT.cancelled;
   if (!isMfeflowError(error)) return EXIT.unexpected;
-  if (USAGE_ERRORS.has(error.code)) return EXIT.usage;
-  return BY_RANGE[error.code.charAt('MFEFLOW_E'.length)] ?? EXIT.unexpected;
+  return exitCodeOfCode(error.code);
 }
 
 export interface ErrorReport {

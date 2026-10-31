@@ -1,6 +1,6 @@
 import type { Check, Finding } from './findings';
 import type { ProjectView } from './inspect';
-import { EXIT } from './exit';
+import { EXIT, exitCodeOfCode } from './exit';
 
 export interface CheckReport {
   id: string;
@@ -56,19 +56,9 @@ export function summarizeReport(report: Report, fixed: number): Summary {
   };
 }
 
-const BY_RANGE: Record<string, number> = {
-  '1': EXIT.project,
-  '2': EXIT.feature,
-  '3': EXIT.build,
-  '4': EXIT.registry,
-  '5': EXIT.upgrade,
-};
-
 /** Exit code of a report: 0 without errors, else the lowest code among the errors' ranges (project before build). */
 export function exitForFindings(findings: readonly Finding[]): number {
-  const codes = findings
-    .filter((f) => f.severity === 'error')
-    .map((f) => BY_RANGE[f.code.charAt('MFEFLOW_E'.length)] ?? EXIT.unexpected);
+  const codes = findings.filter((f) => f.severity === 'error').map((f) => exitCodeOfCode(f.code));
   return codes.length === 0 ? EXIT.ok : Math.min(...codes);
 }
 
