@@ -17,6 +17,8 @@
       "@mfeflow/theme",
       "@mfeflow/i18n",
       "@mfeflow/storage",
+      "@mfeflow/analytics",
+      "@mfeflow/telemetry",
       "@mfeflow/testing",
       "@mfeflow/tsconfig",
       "@mfeflow/oxlint-config"
