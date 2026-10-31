@@ -12,6 +12,8 @@ export interface AssetRoots {
 /**
  * Published, the features and templates are copied next to `dist` (`assets/`).
  * In a checkout they sit at the repository root, two levels above this package.
+ * Code running from `src` (the tests) always reads the checkout, so an edit to a
+ * template is seen without a build, and a stale `assets/` left by one never is.
  */
 export function assetRoots(
   from: string = path.dirname(fileURLToPath(import.meta.url)),
@@ -19,6 +21,8 @@ export function assetRoots(
 ): AssetRoots {
   const pkg = path.resolve(from, '..');
   const bundled = path.join(pkg, 'assets');
-  const base = exists(path.join(bundled, 'features')) ? bundled : path.resolve(pkg, '../..');
+  const fromSource = path.basename(from) === 'src';
+  const base =
+    !fromSource && exists(path.join(bundled, 'features')) ? bundled : path.resolve(pkg, '../..');
   return { features: path.join(base, 'features'), templates: path.join(base, 'templates') };
 }
