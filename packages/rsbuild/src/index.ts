@@ -254,6 +254,18 @@ export function assertAsyncBoundary(
   );
 }
 
+/** The `version` of the app's `package.json`, or `0.0.0` when it has none. */
+export function appVersion(cwd: string): string {
+  try {
+    const pkg: unknown = JSON.parse(fs.readFileSync(path.join(cwd, 'package.json'), 'utf8'));
+    const version: unknown =
+      typeof pkg === 'object' && pkg !== null ? Reflect.get(pkg, 'version') : undefined;
+    return typeof version === 'string' ? version : '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
 /** Rsbuild config for the shell (host). */
 export function createShellConfig(o: ShellOptions): RsbuildConfig {
   const cwd = o.cwd ?? process.cwd();
@@ -271,7 +283,11 @@ export function createShellConfig(o: ShellOptions): RsbuildConfig {
     // The runtime reads this flag to refuse a remote with no remoteEntry when the manifest loader is gone.
     source: {
       entry: { index: './src/index.ts' },
-      define: { __MFEFLOW_SNAPSHOT__: JSON.stringify(snapshotEnabled(o)) },
+      // `__MFEFLOW_APP_VERSION__` is the app's own version, so code reads it without importing package.json.
+      define: {
+        __MFEFLOW_SNAPSHOT__: JSON.stringify(snapshotEnabled(o)),
+        __MFEFLOW_APP_VERSION__: JSON.stringify(appVersion(cwd)),
+      },
     },
     server: {
       historyApiFallback: true,

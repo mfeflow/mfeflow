@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { createRsbuild } from '@rsbuild/core';
 import {
   createRemoteConfig,
+  appVersion,
   assertAsyncBoundary,
   createShellConfig,
   DEFAULT_SINGLETONS,
@@ -231,9 +232,11 @@ describe('snapshotEnabled and the runtime flag', () => {
         env,
         ...(snapshot === undefined ? {} : { snapshot }),
       }).source?.define;
-    expect(define({ NODE_ENV: 'production' })).toEqual({ __MFEFLOW_SNAPSHOT__: 'false' });
-    expect(define({ NODE_ENV: 'production' }, true)).toEqual({ __MFEFLOW_SNAPSHOT__: 'true' });
-    expect(define({ NODE_ENV: 'development' })).toEqual({ __MFEFLOW_SNAPSHOT__: 'true' });
+    const snapshot = (env: Record<string, string>, flag?: boolean) =>
+      define(env, flag)?.['__MFEFLOW_SNAPSHOT__'];
+    expect(snapshot({ NODE_ENV: 'production' })).toBe('false');
+    expect(snapshot({ NODE_ENV: 'production' }, true)).toBe('true');
+    expect(snapshot({ NODE_ENV: 'development' })).toBe('true');
   });
 });
 
@@ -253,6 +256,23 @@ describe('createShellConfig', () => {
         cwd: path.resolve(import.meta.dirname, '..'),
       }).plugins,
     ).toHaveLength(2);
+  });
+});
+
+describe('the app version define', () => {
+  it('is the version in the app’s package.json, and 0.0.0 without one', () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'mfeflow-version-'));
+    fs.mkdirSync(path.join(cwd, 'src'));
+    expect(appVersion(cwd)).toBe('0.0.0');
+    fs.writeFileSync(path.join(cwd, 'package.json'), '{"name":"shell","version":"1.2.3"}');
+    expect(appVersion(cwd)).toBe('1.2.3');
+    expect(createShellConfig({ name: 'shell', cwd }).source?.define).toMatchObject({
+      __MFEFLOW_APP_VERSION__: '"1.2.3"',
+    });
+    fs.writeFileSync(path.join(cwd, 'package.json'), '{"name":"shell"}');
+    expect(appVersion(cwd)).toBe('0.0.0');
+    fs.writeFileSync(path.join(cwd, 'package.json'), 'not json');
+    expect(appVersion(cwd)).toBe('0.0.0');
   });
 });
 
