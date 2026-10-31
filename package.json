@@ -13,7 +13,7 @@
     "test": "vitest run --coverage",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "ci": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "ci": "pnpm format:check && pnpm build && pnpm lint && pnpm typecheck && pnpm test",
     "changeset": "changeset",
     "release": "pnpm build && changeset publish",
     "prepare": "lefthook install"
