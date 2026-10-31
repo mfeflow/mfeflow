@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import type { RsbuildPlugin } from '@rsbuild/core';
 
 const CJS_FILE = /\.cjs$/;
@@ -50,8 +51,10 @@ export function pluginMfEsmRuntime(): RsbuildPlugin {
                 const value = created[key];
                 if (typeof value === 'string') created[key] = value.replace(cjs, esm);
               }
-            } else if (isMfCjs(data.request)) {
-              data.request = esmTwin(data.request);
+            } else {
+              // Before resolving, so rule matching sees the ESM file; relative requests are resolved against the importer.
+              const target = path.resolve(data.context ?? '', data.request);
+              if (isMfCjs(target)) data.request = esmTwin(target);
             }
           }),
         );

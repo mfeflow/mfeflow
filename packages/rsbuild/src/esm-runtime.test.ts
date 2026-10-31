@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createRsbuild, type RsbuildConfig, type RsbuildPlugin } from '@rsbuild/core';
-import { esmTwin, isMfCjs } from './esm-runtime.js';
+import { esmTwin, isMfCjs, pluginMfEsmRuntime } from './esm-runtime.js';
 import { createRemoteConfig, createShellConfig } from './index.js';
 
 describe('isMfCjs', () => {
@@ -35,7 +35,7 @@ describe('esmTwin', () => {
 const fixture = path.resolve(import.meta.dirname, '../test/fixtures/remote');
 
 /** Builds the fixture and returns the names of every module in the bundle. */
-async function bundledModules(config: RsbuildConfig): Promise<string[]> {
+async function bundledModules(config: RsbuildConfig, cwd = fixture): Promise<string[]> {
   const dist = fs.mkdtempSync(path.join(os.tmpdir(), 'mfeflow-esm-'));
   const names: string[] = [];
   const collect: RsbuildPlugin = {
@@ -55,7 +55,7 @@ async function bundledModules(config: RsbuildConfig): Promise<string[]> {
     },
   };
   const rsbuild = await createRsbuild({
-    cwd: fixture,
+    cwd,
     rsbuildConfig: {
       ...config,
       plugins: [...(config.plugins ?? []), collect],
@@ -103,4 +103,34 @@ describe('the Module Federation runtime in a real build', () => {
     );
     expect(modules.filter(isMfModule).some((m) => m.endsWith('.cjs'))).toBe(true);
   }, 120_000);
+});
+
+describe('a relative request to a sibling .cjs inside a Module Federation dist', () => {
+  it('gets the ESM twin before rules run, so the twin is parsed as ESM', async () => {
+    const app = fs.mkdtempSync(path.join(os.tmpdir(), 'mfeflow-rel-'));
+    const dist = path.join(app, 'node_modules/@module-federation/fake/dist');
+    fs.mkdirSync(dist, { recursive: true });
+    fs.mkdirSync(path.join(app, 'src'));
+    fs.writeFileSync(
+      path.join(dist, 'entry.js'),
+      "import helper from './helper.cjs';\nexport const value = helper;\n",
+    );
+    fs.writeFileSync(path.join(dist, 'helper.cjs'), "module.exports = 'cjs';\n");
+    fs.writeFileSync(path.join(dist, 'helper.js'), "export default 'esm';\n");
+    fs.writeFileSync(
+      path.join(app, 'src/index.js'),
+      "import { value } from '@module-federation/fake/dist/entry.js';\nconsole.log(value);\n",
+    );
+    fs.writeFileSync(path.join(app, 'package.json'), '{"name":"app","private":true}\n');
+    try {
+      const modules = await bundledModules(
+        { source: { entry: { index: './src/index.js' } }, plugins: [pluginMfEsmRuntime()] },
+        app,
+      );
+      expect(modules.some((m) => m.endsWith('/fake/dist/helper.js'))).toBe(true);
+      expect(modules.filter((m) => m.endsWith('.cjs'))).toEqual([]);
+    } finally {
+      fs.rmSync(app, { recursive: true, force: true });
+    }
+  }, 60_000);
 });
