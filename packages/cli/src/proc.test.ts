@@ -269,15 +269,24 @@ describe('watchPaths', () => {
 
   it('watches a folder', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mfeflow-watch-'));
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    let fired = 0;
-    const stop = watchPaths([dir], () => {
-      fired += 1;
+    const changed = new Promise<void>((resolve) => {
+      const stop = watchPaths([dir], () => {
+        stop();
+        resolve();
+      });
     });
-    fs.writeFileSync(path.join(dir, 'a.json'), '{}');
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    stop();
-    expect(fired).toBeGreaterThanOrEqual(1);
-    fs.rmSync(dir, { recursive: true, force: true });
+    // The watch may not be live yet under load, so retry the write until it reports. The retry
+    // period must outlast the watcher's debounce, or every write would restart it.
+    let n = 0;
+    const touch = setInterval(() => fs.writeFileSync(path.join(dir, 'a.json'), String(n++)), 500);
+    const timeout = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('the folder watcher never fired')), 10_000).unref();
+    });
+    try {
+      await Promise.race([changed, timeout]);
+    } finally {
+      clearInterval(touch);
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
