@@ -1,0 +1,213 @@
+{
+  "measured": "2026-10-31",
+  "tool": "Lighthouse 13.6.0 mobile preset, simulated throttling, median of 10",
+  "target": {
+    "lcpDeltaMs": 300,
+    "jsDeltaKb": 35
+  },
+  "verdict": {
+    "route": "/catalog",
+    "encoding": "gzip (level 6, both apps)",
+    "pass": false,
+    "lcpDeltaMs": 160,
+    "jsDeltaKb": 46
+  },
+  "final": {
+    "gzip /catalog": {
+      "page": "/catalog",
+      "runs": 10,
+      "lcpDeltaMs": 160,
+      "jsDeltaKb": 46,
+      "pass": false,
+      "monolith": {
+        "lcpMs": 1835,
+        "jsKb": 94.2,
+        "jsFiles": 7
+      },
+      "shell": {
+        "lcpMs": 1995,
+        "jsKb": 140.1,
+        "jsFiles": 8
+      }
+    },
+    "brotli /catalog": {
+      "page": "/catalog",
+      "runs": 10,
+      "lcpDeltaMs": 7,
+      "jsDeltaKb": 40.1,
+      "pass": false,
+      "monolith": {
+        "lcpMs": 1987,
+        "jsKb": 81.3,
+        "jsFiles": 7
+      },
+      "shell": {
+        "lcpMs": 1994,
+        "jsKb": 121.4,
+        "jsFiles": 8
+      }
+    },
+    "gzip /cart": {
+      "page": "/cart",
+      "runs": 10,
+      "lcpDeltaMs": 133,
+      "jsDeltaKb": 38,
+      "pass": false,
+      "monolith": {
+        "lcpMs": 1821,
+        "jsKb": 93.7,
+        "jsFiles": 6
+      },
+      "shell": {
+        "lcpMs": 1954,
+        "jsKb": 131.7,
+        "jsFiles": 6
+      }
+    },
+    "brotli /cart": {
+      "page": "/cart",
+      "runs": 10,
+      "lcpDeltaMs": -18,
+      "jsDeltaKb": 33,
+      "pass": true,
+      "monolith": {
+        "lcpMs": 1971,
+        "jsKb": 80.8,
+        "jsFiles": 6
+      },
+      "shell": {
+        "lcpMs": 1953,
+        "jsKb": 113.9,
+        "jsFiles": 6
+      }
+    }
+  },
+  "steps": [
+    {
+      "step": "0 baseline: no ESM swap, remote code kept, lazy shared + async boundary, manifests, no injection",
+      "page": "/catalog",
+      "runs": 10,
+      "lcpDeltaMs": 1089,
+      "jsDeltaKb": 75.2,
+      "pass": false,
+      "monolith": {
+        "lcpMs": 1832,
+        "jsKb": 94.2,
+        "jsFiles": 7
+      },
+      "shell": {
+        "lcpMs": 2921,
+        "jsKb": 169.4,
+        "jsFiles": 21
+      }
+    },
+    {
+      "step": "1 + ESM Module Federation runtime",
+      "page": "/catalog",
+      "runs": 10,
+      "lcpDeltaMs": 1081,
+      "jsDeltaKb": 59.3,
+      "pass": false,
+      "monolith": {
+        "lcpMs": 1830,
+        "jsKb": 94.2,
+        "jsFiles": 7
+      },
+      "shell": {
+        "lcpMs": 2911,
+        "jsKb": 153.5,
+        "jsFiles": 21
+      }
+    },
+    {
+      "step": "2 + remotes drop remote-loading code",
+      "page": "/catalog",
+      "runs": 10,
+      "lcpDeltaMs": 929,
+      "jsDeltaKb": 57.9,
+      "pass": false,
+      "monolith": {
+        "lcpMs": 1834,
+        "jsKb": 94.2,
+        "jsFiles": 7
+      },
+      "shell": {
+        "lcpMs": 2763,
+        "jsKb": 152.1,
+        "jsFiles": 21
+      }
+    },
+    {
+      "step": "3 + eager shared singletons, no async boundary",
+      "page": "/catalog",
+      "runs": 10,
+      "lcpDeltaMs": 581,
+      "jsDeltaKb": 47.4,
+      "pass": false,
+      "monolith": {
+        "lcpMs": 1835,
+        "jsKb": 94.2,
+        "jsFiles": 7
+      },
+      "shell": {
+        "lcpMs": 2416,
+        "jsKb": 141.6,
+        "jsFiles": 8
+      }
+    },
+    {
+      "step": "4 + register remoteEntry URLs, snapshot loader dropped",
+      "page": "/catalog",
+      "runs": 10,
+      "lcpDeltaMs": 460,
+      "jsDeltaKb": 46,
+      "pass": false,
+      "monolith": {
+        "lcpMs": 1834,
+        "jsKb": 94.2,
+        "jsFiles": 7
+      },
+      "shell": {
+        "lcpMs": 2294,
+        "jsKb": 140.1,
+        "jsFiles": 8
+      }
+    },
+    {
+      "step": "5 + registry inlined in the HTML",
+      "page": "/catalog",
+      "runs": 10,
+      "lcpDeltaMs": 486,
+      "jsDeltaKb": 46,
+      "pass": false,
+      "monolith": {
+        "lcpMs": 1832,
+        "jsKb": 94.2,
+        "jsFiles": 7
+      },
+      "shell": {
+        "lcpMs": 2318,
+        "jsKb": 140.1,
+        "jsFiles": 8
+      }
+    },
+    {
+      "step": "6 + preload hints for the route (final)",
+      "page": "/catalog",
+      "runs": 10,
+      "lcpDeltaMs": 161,
+      "jsDeltaKb": 46,
+      "pass": false,
+      "monolith": {
+        "lcpMs": 1832,
+        "jsKb": 94.2,
+        "jsFiles": 7
+      },
+      "shell": {
+        "lcpMs": 1993,
+        "jsKb": 140.1,
+        "jsFiles": 8
+      }
+    }
+  ]
+}
