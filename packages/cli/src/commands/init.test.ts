@@ -299,6 +299,39 @@ describe('mfeflow init', () => {
     expect(await fs.readdir(cwd)).toEqual([]);
   });
 
+  it('removes the whole new folder when a real install leaves node_modules and .git behind', async () => {
+    const cwd = await workspace();
+    const rt = testRuntime();
+    rt.system.install = async (root) => {
+      await fs.mkdir(path.join(root, 'node_modules', '.pnpm'), { recursive: true });
+      await fs.mkdir(path.join(root, '.git'));
+      throw new Error('pnpm install exited with 1\nERR_PNPM_FETCH_404');
+    };
+    expect(await main(['init', 'deep/er/app', '--yes', '--cwd', cwd], rt)).toBe(4);
+    const err = rt.io.err.join('\n');
+    expect(err).toContain('ERR_PNPM_FETCH_404');
+    expect(err).toContain('removed');
+    expect(err).not.toContain('run pnpm install');
+    expect(await fs.readdir(cwd)).toEqual([]);
+
+    const again = testRuntime();
+    expect(await main(['init', 'deep/er/app', '--yes', '--no-install', '--cwd', cwd], again)).toBe(
+      0,
+    );
+  });
+
+  it('does not touch a folder it did not create when the install fails', async () => {
+    const cwd = await workspace();
+    await fs.mkdir(path.join(cwd, 'app'));
+    const rt = testRuntime();
+    rt.system.install = async (root) => {
+      await fs.mkdir(path.join(root, 'node_modules'));
+      throw new Error('pnpm install exited with 1');
+    };
+    expect(await main(['init', 'app', '--yes', '--cwd', cwd], rt)).toBe(4);
+    expect(await fs.readdir(path.join(cwd, 'app'))).toEqual(['node_modules']);
+  });
+
   it('links @mfeflow packages from a checkout with --local, and names a bad checkout (E110)', async () => {
     const cwd = await workspace();
     const rt = testRuntime();

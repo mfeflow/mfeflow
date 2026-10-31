@@ -1,6 +1,15 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { applyPlan, renderDiff, summarize, type MfeflowProject, type Plan } from '@mfeflow/core';
+import {
+  applyPlan,
+  isMfeflowError,
+  messageOf,
+  MfeflowError,
+  renderDiff,
+  summarize,
+  type MfeflowProject,
+  type Plan,
+} from '@mfeflow/core';
 import { Cancelled } from './exit';
 import type { Globals } from './args';
 import { withProjectChange } from './pipeline';
@@ -26,20 +35,57 @@ export interface WriteOutcome {
   diff?: string;
 }
 
-/** Removes the folders `mkdir -p` made, from the deepest up to `first`, when they are empty. */
-async function removeCreated(root: string, first: string | undefined): Promise<void> {
-  if (first === undefined) return;
+/** The folders `mkdir -p root` will create, deepest first. Empty when `root` already exists. */
+async function missingFolders(root: string): Promise<string[]> {
+  const missing: string[] = [];
   let dir = root;
-  for (;;) {
+  // oxlint-disable-next-line no-await-in-loop -- a parent is only looked at once its child is missing
+  while (!(await exists(dir))) {
+    missing.push(dir);
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return missing;
+}
+
+/**
+ * Takes back what this run created: `root` with everything an install put in it, then
+ * the parent folders it made, each only while empty. Folders that were there before are
+ * never in `missing`, so they are never touched, whatever form their path takes.
+ */
+async function removeCreated(missing: readonly string[]): Promise<string | undefined> {
+  const [root, ...parents] = missing;
+  if (root === undefined) return undefined;
+  try {
+    await fs.rm(root, { recursive: true, force: true });
+  } catch (error) {
+    return messageOf(error);
+  }
+  for (const dir of parents) {
     try {
       // oxlint-disable-next-line no-await-in-loop -- each folder can only go once its child has
       await fs.rmdir(dir);
     } catch {
-      return;
+      break;
     }
-    if (dir === first) return;
-    dir = path.dirname(dir);
   }
+  return undefined;
+}
+
+/** E213 for a project folder that was just created, so the message does not point into a folder that is gone. */
+function installFailed(error: MfeflowError, root: string, stuck: string | undefined): MfeflowError {
+  const reason = messageOf(error.cause ?? error);
+  if (stuck !== undefined) {
+    return new MfeflowError('E213', `${reason}; could not remove ${root} (${stuck})`, {
+      cause: error.cause,
+      fix: `Delete ${root} by hand, check your network and package manager, then run the command again.`,
+    });
+  }
+  return new MfeflowError('E213', `${reason}; removed the new folder ${root}`, {
+    cause: error.cause,
+    fix: 'Nothing was left behind. Check your network and package manager, then run the command again.',
+  });
 }
 
 async function exists(dir: string): Promise<boolean> {
@@ -72,7 +118,8 @@ export async function writePlan(request: WriteRequest): Promise<WriteOutcome> {
     throw new Cancelled();
   }
   const installing = globals.install && plan.dependencies.length > 0;
-  const created = await fs.mkdir(root, { recursive: true });
+  const missing = await missingFolders(root);
+  await fs.mkdir(root, { recursive: true });
   let result;
   try {
     result = await applyPlan(plan, {
@@ -88,7 +135,10 @@ export async function writePlan(request: WriteRequest): Promise<WriteOutcome> {
         : {}),
     });
   } catch (error) {
-    await removeCreated(root, created);
+    const stuck = await removeCreated(missing);
+    if (missing.length > 0 && isMfeflowError(error) && error.code === 'MFEFLOW_E213') {
+      throw installFailed(error, root, stuck);
+    }
     throw error;
   }
   if (!installing) await request.afterWrite?.();
