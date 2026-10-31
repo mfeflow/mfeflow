@@ -1,4 +1,4 @@
-import { Checker, isObj, type Issue } from './validate.js';
+import { Checker, isObj, isSafeRelativePath, type Issue } from './validate.js';
 import { MFE_NAME } from './mfe-manifest.js';
 
 /** `mfeflow.json`: the CLI's record of a project. */
@@ -13,9 +13,12 @@ export interface MfeflowProject {
   features: Record<string, { version: string; options?: Record<string, unknown> }>;
   /** Hashes of copied files, so `upgrade` can tell when a file was edited. */
   files?: Record<string, string>;
-  /** Third-party feature registries: `{ "@someone": "https://…/{name}.json" }`. */
+  /** Third-party feature registries: `{ "@someone": "https://…/{name}.json" }`. `@mfeflow` is reserved. */
   registries?: Record<string, string>;
 }
+
+export const FILE_HASH = /^sha256-[0-9a-f]{64}$/;
+const REGISTRY_NAMESPACE = /^@[a-z0-9][a-z0-9-]*$/;
 
 const SCOPE = /^@[a-z0-9][a-z0-9-._]*$/;
 const FEATURE = /^(@[a-z0-9-]+\/)?[a-z][a-z0-9-]*$/;
@@ -64,6 +67,25 @@ export function validateMfeflowProject(value: unknown): Issue[] {
         c.string(feature, 'version', at);
         c.object(feature, 'options', at, false);
       }
+    }
+  }
+  const files = c.object(value, 'files', '', false);
+  if (files) {
+    for (const [file, hash] of Object.entries(files)) {
+      const at = `files.${file}`;
+      if (!isSafeRelativePath(file)) c.add(at, 'must be a relative path with forward slashes');
+      if (typeof hash !== 'string' || !FILE_HASH.test(hash))
+        c.add(at, 'must be a hash like "sha256-<64 hex characters>"');
+    }
+  }
+  const registries = c.object(value, 'registries', '', false);
+  if (registries) {
+    for (const [ns, url] of Object.entries(registries)) {
+      const at = `registries.${ns}`;
+      if (ns === '@mfeflow') c.add(at, '@mfeflow is reserved for first-party features');
+      else if (!REGISTRY_NAMESPACE.test(ns)) c.add(at, 'namespaces look like "@someone"');
+      if (typeof url !== 'string' || !url.startsWith('https://') || !url.includes('{name}'))
+        c.add(at, 'must be an https URL containing {name}');
     }
   }
   return c.issues;

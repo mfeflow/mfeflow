@@ -111,3 +111,13 @@ export function isUrl(value: string): boolean {
     return false;
   }
 }
+
+/**
+ * A path inside a project: relative, forward slashes, no `.` or `..` segments,
+ * no drive letters. Features and `mfeflow.json` only ever name files this way.
+ */
+export function isSafeRelativePath(value: string): boolean {
+  if (value === '' || value.includes('\\') || value.includes('\0')) return false;
+  if (value.startsWith('/') || /^[A-Za-z]:/.test(value)) return false;
+  return value.split('/').every((part) => part !== '' && part !== '.' && part !== '..');
+}
