@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GTM_SCRIPT_ATTRIBUTE, createGtmProvider, scrubPii } from './gtm';
+import { GTM_SCRIPT_ATTRIBUTE, TITLE_WAIT_MS, createGtmProvider, scrubPii } from './gtm';
 import { resetWarningsForTests } from './validate';
 
 const layer = () => Reflect.get(globalThis, 'dataLayer') as unknown[];
@@ -102,18 +102,48 @@ describe('createGtmProvider', () => {
     expect(layer().at(-1)).toEqual({ sku: 'A1', mfe: { name: 'cart' }, event: 'add_to_cart' });
   });
 
-  it('sends page_view with the path, the full location and the title', () => {
+  it('sends page_view with the path, the full location and the title', async () => {
     document.title = 'Catalog';
     const provider = createGtmProvider({ containerId: 'GTM-ABC123' });
     provider.init({});
-    provider.page('/catalog', { mfe: { name: 'shell' } });
-    expect(layer().at(-1)).toEqual({
-      mfe: { name: 'shell' },
-      event: 'page_view',
-      page_path: '/catalog',
-      page_location: `${location.origin}/catalog`,
-      page_title: 'Catalog',
+    provider.page('/catalog?utm_source=mail', { mfe: { name: 'shell' } });
+    await vi.waitFor(() => {
+      expect(layer().at(-1)).toEqual({
+        mfe: { name: 'shell' },
+        event: 'page_view',
+        page_path: '/catalog?utm_source=mail',
+        page_location: `${location.origin}/catalog?utm_source=mail`,
+        page_title: 'Catalog',
+      });
     });
+  });
+
+  it('reads the title after the route rendered, not the previous page title', async () => {
+    document.title = 'Home';
+    const provider = createGtmProvider({ containerId: 'GTM-ABC123' });
+    provider.init({});
+    history.pushState(null, '', '/catalog');
+    provider.page('/catalog', {});
+    expect(layer().some((e) => (e as { event?: string }).event === 'page_view')).toBe(false);
+    document.title = 'Catalog';
+    await vi.waitFor(() => {
+      expect(layer().at(-1)).toMatchObject({ event: 'page_view', page_title: 'Catalog' });
+    });
+    history.pushState(null, '', '/');
+  });
+
+  it('still sends the page_view when the title never changes', () => {
+    vi.useFakeTimers();
+    try {
+      document.title = 'Same';
+      const provider = createGtmProvider({ containerId: 'GTM-ABC123' });
+      provider.init({});
+      provider.page('/same', {});
+      vi.advanceTimersByTime(TITLE_WAIT_MS);
+      expect(layer().at(-1)).toMatchObject({ event: 'page_view', page_title: 'Same' });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('updates consent through gtag', () => {

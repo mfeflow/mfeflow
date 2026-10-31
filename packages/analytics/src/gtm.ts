@@ -1,10 +1,8 @@
-import {
-  CONSENT_KEYS,
-  type AnalyticsProvider,
-  type ConsentUpdate,
-  type EventParams,
-} from './types';
+import { CONSENT_KEYS, type AnalyticsProvider, type ConsentUpdate } from './types';
+import { scrubPii } from './pii';
 import { warnOnce } from './validate';
+
+export { scrubPii };
 
 export interface GtmOptions {
   /** The container, e.g. `GTM-ABC123`. From the runtime config, never baked into the bundle. */
@@ -24,12 +22,34 @@ export interface GtmOptions {
 }
 
 const CONTAINER_ID = /^GTM-[A-Z0-9]{4,12}$/;
-const PII_KEY =
-  /^(e-?mail|phone|mobile|first_?name|last_?name|full_?name|name|address|ssn|dob|birth_?date|password|token)$/i;
-const EMAIL = /[^\s@]+@[^\s@]+\.[^\s@]+/;
-
 export const GTM_SCRIPT_URL = 'https://www.googletagmanager.com/gtm.js';
 export const GTM_SCRIPT_ATTRIBUTE = 'data-mfeflow-gtm';
+
+/** The longest a `page_view` waits for the new route to set `document.title`, in milliseconds. */
+export const TITLE_WAIT_MS = 300;
+
+/**
+ * Calls `send` with the page title once the route has rendered: as soon as the title changes after
+ * a navigation, or after `TITLE_WAIT_MS` if the page keeps one title. Reading it right away would
+ * report the previous page's.
+ */
+function settledTitle(send: (title: string) => void): void {
+  const before = document.title;
+  let observer: MutationObserver | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const finish = () => {
+    observer?.disconnect();
+    clearTimeout(timer);
+    send(document.title);
+  };
+  if (typeof MutationObserver === 'function') {
+    observer = new MutationObserver(() => {
+      if (document.title !== before) finish();
+    });
+    observer.observe(document.head, { childList: true, subtree: true, characterData: true });
+  }
+  timer = setTimeout(finish, TITLE_WAIT_MS);
+}
 
 type Layer = unknown[];
 
@@ -39,17 +59,6 @@ function layerOf(name: string): Layer {
   const fresh: Layer = [];
   Reflect.set(globalThis, name, fresh);
   return fresh;
-}
-
-/** Drops personal data from event parameters, and says what it dropped. */
-export function scrubPii(params: EventParams): { clean: EventParams; dropped: string[] } {
-  const clean: EventParams = {};
-  const dropped: string[] = [];
-  for (const [key, value] of Object.entries(params)) {
-    if (PII_KEY.test(key) || (typeof value === 'string' && EMAIL.test(value))) dropped.push(key);
-    else clean[key] = value;
-  }
-  return { clean, dropped };
 }
 
 /**
@@ -99,12 +108,15 @@ export function createGtmProvider(options: GtmOptions): AnalyticsProvider {
       layer().push({ ...clean, event });
     },
     page(path, params) {
-      layer().push({
-        ...params,
-        event: 'page_view',
-        page_path: path,
-        page_location: location.origin + path,
-        page_title: document.title,
+      const pageLocation = location.origin + path;
+      settledTitle((title) => {
+        layer().push({
+          ...params,
+          event: 'page_view',
+          page_path: path,
+          page_location: pageLocation,
+          page_title: title,
+        });
       });
     },
     identify(userId) {

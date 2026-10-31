@@ -12,7 +12,37 @@ describe('onNavigate', () => {
     history.pushState(null, '', '/a');
     history.replaceState(null, '', '/b?x=1');
     dispatchEvent(new PopStateEvent('popstate'));
-    expect(seen).toEqual(['/a', '/b', '/b']);
+    expect(seen).toEqual(['/a', '/b?x=1', '/b?x=1']);
+    stop();
+  });
+
+  it('keeps the query but drops personal data and secrets, and never the hash', () => {
+    const seen: string[] = [];
+    const stop = onNavigate((path) => seen.push(path));
+    history.pushState(
+      null,
+      '',
+      '/q?utm_source=mail&gclid=g1&token=abc&email=a%40b.com&ref=x%40y.zz&access_token=t&page=2#frag',
+    );
+    expect(seen).toEqual(['/q?utm_source=mail&gclid=g1&page=2']);
+    stop();
+  });
+
+  it('treats the same path with another query as another page', () => {
+    const seen: string[] = [];
+    const stop = onNavigate((path) => seen.push(path));
+    history.pushState(null, '', '/list?page=1');
+    history.pushState(null, '', '/list?page=2');
+    expect(seen).toEqual(['/list?page=1', '/list?page=2']);
+    stop();
+  });
+
+  it('follows hash routers', () => {
+    const seen: string[] = [];
+    const stop = onNavigate((path) => seen.push(path));
+    history.pushState(null, '', '/#/catalog?token=abc&sort=asc');
+    dispatchEvent(new HashChangeEvent('hashchange'));
+    expect(seen).toEqual(['/#/catalog?sort=asc', '/#/catalog?sort=asc']);
     stop();
   });
 

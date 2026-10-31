@@ -67,7 +67,7 @@ describe('AnalyticsProvider', () => {
     expect(types('page')).toEqual([]);
   });
 
-  it('under StrictMode with two remotes: one page_view, one event each, one gtm.js', () => {
+  it('under StrictMode with two remotes: one page_view, one event each, one gtm.js', async () => {
     Reflect.deleteProperty(globalThis, 'dataLayer');
     document.head.innerHTML = '';
     resetAnalyticsForTests();
@@ -84,7 +84,9 @@ describe('AnalyticsProvider', () => {
     );
     const layer = Reflect.get(globalThis, 'dataLayer') as { event?: string }[];
     const named = (event: string) => layer.filter((e) => e.event === event);
-    expect(named('page_view')).toHaveLength(1);
+    await vi.waitFor(() => {
+      expect(named('page_view')).toHaveLength(1);
+    });
     expect(named('catalog_opened')).toHaveLength(1);
     expect(named('cart_opened')).toHaveLength(1);
     expect(document.querySelectorAll('script[src*="gtm.js"]')).toHaveLength(1);

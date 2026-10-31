@@ -95,8 +95,16 @@ quiet. In tests, `createRecordingProvider()` records every call and `noopProvide
 ## Page views
 
 `<Analytics>` sends `page_view` (`page_path`, `page_location`, `page_title`) for the first page and after every
-`pushState`, `replaceState` and back/forward, whatever router the shell uses. The same path is never sent twice in a
-row. Only the path is sent, not the query string.
+`pushState`, `replaceState`, back/forward and hash changes, whatever router the shell uses. The same path and query is
+never sent twice in a row.
+
+- `page_path` and `page_location` include the query string, minus anything that looks like personal data or a secret
+  (`email`, `phone`, `name`, `token`, `auth`, `session`, `code`, any value that contains an email address). `utm_*`,
+  `gclid` and `fbclid` are kept. The `#fragment` is never sent.
+- A hash router (`/#/catalog?x=1`) is followed: the hash route goes into the path the same way.
+- `page_title` is read after the route has rendered: as soon as `document.title` changes after the navigation, or 300
+  ms later if the page keeps one title. A page view for a navigation can therefore reach the data layer a moment
+  after the event that triggered it.
 
 Turn off the automatic page view in your GA4 configuration tag, or every page is counted twice.
 

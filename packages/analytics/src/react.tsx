@@ -10,6 +10,7 @@ import {
 import { DENY_ALL, GRANT_ALL } from './consent';
 import { getConsent, pageOnce, subscribeConsent, updateConsent } from './core';
 import { onNavigate } from './history';
+import { currentPath } from './url';
 import {
   createTracker,
   type EventName,
@@ -39,7 +40,7 @@ export interface AnalyticsProviderProps {
 export function AnalyticsProvider({ children, pageViews = true }: AnalyticsProviderProps) {
   useEffect(() => {
     if (!pageViews) return undefined;
-    sendPageView(location.pathname);
+    sendPageView(currentPath());
     return onNavigate(sendPageView);
   }, [pageViews]);
   return <Mounted value={true}>{children}</Mounted>;
