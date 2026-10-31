@@ -16,6 +16,10 @@ const root = path.resolve(import.meta.dirname, '..');
 const remotes = ['catalog', 'cart'];
 const SHELL_PORT = Number(process.env.SHELL_PORT ?? '4300');
 const MONOLITH_PORT = Number(process.env.MONOLITH_PORT ?? '4302');
+// SERVE_ENCODING=br serves brotli (quality 11) instead of gzip (level 6), for both apps.
+const ENCODING = process.env.SERVE_ENCODING === 'br' ? 'br' : 'gzip';
+// SERVE_MANIFEST_ONLY=1 leaves remoteEntry out of the registry, so the shell loads manifests.
+const MANIFEST_ONLY = process.env.SERVE_MANIFEST_ONLY === '1';
 // SERVE_INJECT=0 turns the edge injection off (perf ablations only).
 const INJECT = process.env.SERVE_INJECT !== '0';
 // SERVE_HINTS=0 keeps the inlined registry but drops the preload hints.
@@ -33,15 +37,23 @@ function isFile(file: string): boolean {
   return fs.existsSync(file) && fs.statSync(file).isFile();
 }
 
-const gzipCache = new Map<string, Buffer>();
+const packed = new Map<string, Buffer>();
 
-function gzip(body: Buffer): Buffer {
+function compress(body: Buffer): Buffer {
   const key = crypto.createHash('sha1').update(body).digest('hex');
-  const hit = gzipCache.get(key);
+  const hit = packed.get(key);
   if (hit) return hit;
-  const packed = zlib.gzipSync(body, { level: 6 });
-  gzipCache.set(key, packed);
-  return packed;
+  const out =
+    ENCODING === 'br'
+      ? zlib.brotliCompressSync(body, {
+          params: {
+            [zlib.constants.BROTLI_PARAM_QUALITY]: 11,
+            [zlib.constants.BROTLI_PARAM_SIZE_HINT]: body.length,
+          },
+        })
+      : zlib.gzipSync(body, { level: 6 });
+  packed.set(key, out);
+  return out;
 }
 
 function send(
@@ -58,9 +70,10 @@ function send(
     'Content-Type': types[ext] ?? 'application/octet-stream',
     'Cache-Control': cache,
   };
-  if (compressible.has(ext) && /\bgzip\b/.test(req.headers['accept-encoding'] ?? '')) {
-    res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' });
-    res.end(gzip(body));
+  const accepts = new RegExp(`\\b${ENCODING}\\b`).test(req.headers['accept-encoding'] ?? '');
+  if (compressible.has(ext) && accepts) {
+    res.writeHead(200, { ...headers, 'Content-Encoding': ENCODING, Vary: 'Accept-Encoding' });
+    res.end(compress(body));
     return;
   }
   res.writeHead(200, headers);
@@ -96,7 +109,12 @@ function registryFor(origin: string): RegistryIndex {
         readJson(path.join(root, name, 'dist', 'mf-manifest.json')),
         manifestUrl,
       );
-      return { name, entry: manifestUrl, routes: [`/${name}`], ...assets };
+      return {
+        name,
+        entry: manifestUrl,
+        routes: [`/${name}`],
+        ...(MANIFEST_ONLY ? {} : assets),
+      };
     }),
   };
   indexes.set(origin, index);
@@ -159,5 +177,5 @@ function monolithHandler(req: http.IncomingMessage, res: http.ServerResponse): v
 http.createServer(shellHandler).listen(SHELL_PORT);
 http.createServer(monolithHandler).listen(MONOLITH_PORT);
 console.log(
-  `storefront http://localhost:${String(SHELL_PORT)} (remotes under /mfe/), monolith http://localhost:${String(MONOLITH_PORT)}; gzip, registry + preload injected into the shell`,
+  `storefront http://localhost:${String(SHELL_PORT)} (remotes under /mfe/), monolith http://localhost:${String(MONOLITH_PORT)}; ${ENCODING}, registry + preload injected into the shell`,
 );

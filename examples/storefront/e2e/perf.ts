@@ -5,7 +5,7 @@
 // Lighthouse mobile preset with simulated throttling, median of RUNS.
 //   pnpm --filter @storefront/e2e perf          (after pnpm build)
 // Environment: RUNS (10), PAGE (/catalog), OUT (perf-results.json), LABEL,
-// SERVE_INJECT=0 / SERVE_HINTS=0 (ablations, passed through to serve.ts).
+// SERVE_ENCODING=br, SERVE_INJECT=0, SERVE_HINTS=0, SERVE_MANIFEST_ONLY=1 (passed through to serve.ts).
 /* oxlint-disable no-await-in-loop -- runs are sequential on purpose: parallel Lighthouse runs would distort each other */
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -181,7 +181,7 @@ try {
   server.kill();
 }
 
-fs.writeFileSync(path.join(here, OUT), `${JSON.stringify(report, null, 2)}\n`);
+fs.writeFileSync(path.resolve(here, OUT), `${JSON.stringify(report, null, 2)}\n`);
 console.log(
   JSON.stringify(
     {
