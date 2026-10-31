@@ -1,6 +1,6 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import { useLanguage, useMfeTranslation } from '@mfeflow/i18n/react';
-import { composeProviders, RemoteBoundary, withProps } from '@mfeflow/runtime';
+import { composeProviders, DevOverlay, RemoteBoundary, withProps } from '@mfeflow/runtime';
 import { ThemeProvider, useTheme } from '@mfeflow/theme/react';
 import { themes } from './themes';
 
@@ -86,6 +86,7 @@ export function App() {
           <RemoteBoundary id="catalog/App" loading={<p>…</p>} />
         )}
       </main>
+      <DevOverlay enabled={location.hostname === 'localhost'} />
     </Providers>
   );
 }

@@ -48,6 +48,22 @@ describe('loadRegistryIndex', () => {
     ).resolves.toEqual(index);
   });
 
+  it('uses an inlined index without fetching, unless told not to', async () => {
+    const fetchFn = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ remotes: [] }))));
+    globalThis.mfeflowRegistry = index;
+    try {
+      await expect(loadRegistryIndex('u', { fetch: fetchFn })).resolves.toBe(index);
+      expect(fetchFn).not.toHaveBeenCalled();
+      await expect(loadRegistryIndex('u', { fetch: fetchFn, inline: false })).resolves.toEqual({
+        remotes: [],
+      });
+      globalThis.mfeflowRegistry = { remotes: 'broken' };
+      await expect(loadRegistryIndex('u', { fetch: fetchFn })).resolves.toEqual({ remotes: [] });
+    } finally {
+      globalThis.mfeflowRegistry = undefined;
+    }
+  });
+
   it('throws on HTTP errors and invalid bodies', async () => {
     await expect(
       loadRegistryIndex('u', { fetch: () => Promise.resolve(new Response('x', { status: 503 })) }),

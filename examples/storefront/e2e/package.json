@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "serve": "node serve.ts",
-    "test": "playwright test"
+    "test": "playwright test",
+    "perf": "node perf.ts"
   },
   "devDependencies": {
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
+    "lighthouse": "catalog:",
     "typescript": "catalog:"
   }
 }

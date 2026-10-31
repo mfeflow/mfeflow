@@ -3,6 +3,7 @@ export { REMOTE_ERROR_EVENT, reportRemoteError, type RemoteErrorReport } from '.
 export {
   isRegistryIndex,
   loadRegistryIndex,
+  registeredRemotes,
   registerRemotesFromIndex,
   type LoadRegistryOptions,
   type RegisterOptions,
@@ -18,3 +19,10 @@ export {
   type RemoteOptions,
 } from './remote.js';
 export { checkSingletons, type SingletonCheck } from './singletons.js';
+export {
+  applyDevOverrides,
+  OVERRIDE_PARAM,
+  OVERRIDE_STORAGE_KEY,
+  type DevOverrideOptions,
+} from './overrides.js';
+export { DevOverlay, type DevOverlayProps } from './overlay.js';
