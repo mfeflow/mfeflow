@@ -220,6 +220,52 @@ describe('resolveFeature', () => {
     expect(strict.changes.map((c) => c.path)).toContain('apps/shell/a-both.txt');
   });
 
+  it('applies a part with feature:<name> only when that feature is installed or being added', async () => {
+    const adaptive: FeatureManifest = {
+      name: 'adaptive',
+      version: '1.0.0',
+      files: [
+        { to: 'with-env.txt', target: 'shell', content: 'a', when: { 'feature:env-t3': true } },
+        { to: 'no-env.txt', target: 'shell', content: 'b', when: { 'feature:env-t3': false } },
+      ],
+    };
+    const run = async (extra: Partial<Parameters<typeof resolveFeature>[0]>, installed = false) => {
+      const builder = new PlanBuilder(reader());
+      const withEnv = {
+        ...project,
+        features: installed ? { 'env-t3': { version: '0.1.0' } } : {},
+      };
+      await resolveFeature({ feature: local(adaptive), project: withEnv, builder, ...extra });
+      return builder.build().changes.map((c) => c.path);
+    };
+    expect(await run({})).toEqual(['apps/shell/no-env.txt']);
+    expect(await run({}, true)).toEqual(['apps/shell/with-env.txt']);
+    expect(await run({ alsoAdding: ['env-t3', 'adaptive'] })).toEqual(['apps/shell/with-env.txt']);
+  });
+
+  it('creates runtime-config.json for a first runtime key and adds the next to it', async () => {
+    const key = (name: string): FeatureManifest => ({
+      name: `adds-${name}`,
+      version: '1.0.0',
+      transforms: [
+        {
+          op: 'add-env-key',
+          file: 'public/config/runtime-config.json',
+          target: 'shell',
+          key: name,
+          scope: 'runtime',
+          schema: 'z.string()',
+          value: name === 'b' ? ['x'] : 'v',
+        },
+      ],
+    });
+    const builder = new PlanBuilder(reader());
+    await resolveFeature({ feature: local(key('a')), project, builder });
+    await resolveFeature({ feature: local(key('b')), project, builder });
+    const change = builder.build().changes.find((c) => c.path.endsWith('runtime-config.json'));
+    expect(change?.after).toBe('{\n  "a": "v",\n  "b": [\n    "x"\n  ]\n}\n');
+  });
+
   it('lists a server key in turbo.json when the project has one', async () => {
     const files = { ...tree, 'turbo.json': '{\n  "tasks": {}\n}\n' };
     const builder = new PlanBuilder(reader(files));

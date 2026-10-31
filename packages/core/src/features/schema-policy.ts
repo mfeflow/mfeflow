@@ -11,6 +11,7 @@ import {
   isUnaryExpression,
   type Node,
 } from '@babel/types';
+import type { AddEnvKeyOp } from '@mfeflow/contracts';
 import { MfeflowError, messageOf } from '../errors';
 import { quote } from '../transforms/ast';
 
@@ -95,4 +96,15 @@ export function sanitizeSchema(schema: string, label: string): string {
   }
   if (!isCallExpression(tree)) return deny('must be a call such as z.string().url()');
   return emit(tree, 0);
+}
+
+/** `sanitizeSchema` for a single text or a per-validator map. */
+export function sanitizeSchemas(
+  schema: AddEnvKeyOp['schema'],
+  label: string,
+): AddEnvKeyOp['schema'] {
+  if (typeof schema === 'string') return sanitizeSchema(schema, label);
+  return Object.fromEntries(
+    Object.entries(schema).map(([validator, text]) => [validator, sanitizeSchema(text, label)]),
+  );
 }

@@ -19,8 +19,15 @@ export type FeatureTarget = string;
 
 export type PromptValue = string | boolean;
 
-/** Applies a part only when each named option has this value, for example `{ "validator": "zod" }`. */
+/**
+ * Applies a part only when every entry holds. A plain name is one of the feature's own options and
+ * must have this value, for example `{ "validator": "zod" }`. `feature:<name>` asks whether that
+ * feature is installed (or being added in the same command), for example `{ "feature:env-t3": true }`.
+ */
 export type FeatureCondition = Record<string, PromptValue>;
+
+/** The validators `add-env-key` can write a schema for. */
+export type EnvValidator = 'zod' | 'valibot' | 'arktype';
 
 export interface FeaturePrompt {
   name: string;
@@ -116,10 +123,13 @@ export interface AddEnvKeyOp extends TransformBase {
   op: 'add-env-key';
   key: string;
   scope: 'server' | 'runtime';
-  /** The schema as source text, for example `z.string().url()`. */
-  schema: string;
-  /** Placeholder written to `.env.example` or the runtime config files. Default: empty string. */
-  value?: Literal;
+  /**
+   * The schema as source text, for example `z.string().url()`. A map gives one per validator; the
+   * one matching the validator the schema file imports is used.
+   */
+  schema: string | Partial<Record<EnvValidator, string>>;
+  /** Placeholder written to `.env.example` (a list is joined with commas) or the runtime config files. Default: empty string. */
+  value?: Literal | string[];
   /** The schema object's variable name for `runtime`. Defaults to `runtimeConfigSchema`. */
   object?: string;
   /** `server`: the dotenv example file to add a line to. Defaults to `.env.example`. */
@@ -189,6 +199,9 @@ export interface FeatureManifest {
   migrations?: FeatureMigration[];
 }
 
+/** Prefix of a `when` key that tests whether a feature is installed. */
+export const FEATURE_CONDITION = 'feature:';
+
 export const FEATURE_NAME = /^(@[a-z0-9-]+\/)?[a-z][a-z0-9-]*$/;
 const IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const TARGET = /^(root|shell|remotes|(app:)?[a-z][a-z0-9_]*)$/;
@@ -224,6 +237,13 @@ function checkWhen(c: Checker, obj: Obj, at: string): void {
   if (!isObj(when) || Object.keys(when).length === 0)
     return c.add(`${at}.when`, 'must be an object of option names and values');
   for (const [name, value] of Object.entries(when)) {
+    const feature = name.startsWith(FEATURE_CONDITION) ? name.slice(FEATURE_CONDITION.length) : '';
+    if (feature !== '') {
+      if (!FEATURE_NAME.test(feature))
+        c.add(`${at}.when`, `"${name}" must name a feature, like feature:env-t3`);
+      if (typeof value !== 'boolean') c.add(`${at}.when.${name}`, 'must be true or false');
+      continue;
+    }
     if (!IDENT.test(name)) c.add(`${at}.when`, `"${name}" must be a JavaScript identifier`);
     if (typeof value !== 'string' && typeof value !== 'boolean')
       c.add(`${at}.when.${name}`, 'must be a string or boolean');
@@ -234,6 +254,22 @@ function checkPath(c: Checker, obj: Obj, key: string, at: string): void {
   const value = c.string(obj, key, at);
   if (value !== undefined && !isSafeRelativePath(value))
     c.add(`${at}.${key}`, 'must be a relative path with forward slashes and no ".."');
+}
+
+const VALIDATORS: readonly EnvValidator[] = ['zod', 'valibot', 'arktype'];
+
+function checkSchema(c: Checker, t: Obj, at: string): void {
+  if (!isObj(t.schema)) {
+    c.string(t, 'schema', at);
+    return;
+  }
+  const entries = Object.entries(t.schema);
+  if (entries.length === 0) c.add(`${at}.schema`, 'needs at least one validator');
+  for (const [validator, text] of entries) {
+    if (!VALIDATORS.some((v) => v === validator))
+      c.add(`${at}.schema`, `"${validator}" must be one of ${VALIDATORS.join(', ')}`);
+    else if (typeof text !== 'string') c.add(`${at}.schema.${validator}`, 'must be text');
+  }
 }
 
 function checkTransform(c: Checker, t: unknown, at: string): void {
@@ -297,7 +333,7 @@ function checkTransform(c: Checker, t: unknown, at: string): void {
       const scope = c.string(t, 'scope', at);
       if (scope !== undefined && scope !== 'server' && scope !== 'runtime')
         c.add(`${at}.scope`, 'must be server or runtime');
-      c.string(t, 'schema', at);
+      checkSchema(c, t, at);
       ident('object', false);
       if (t.example !== undefined) checkPath(c, t, 'example', at);
       if (t.configFiles !== undefined) {
@@ -306,8 +342,12 @@ function checkTransform(c: Checker, t: unknown, at: string): void {
             c.add(`${at}.configFiles`, `"${f}" must be a relative path with no ".."`);
         }
       }
-      if (t.value !== undefined && !isLiteral(t.value))
-        c.add(`${at}.value`, 'must be a string, number, boolean or null');
+      if (
+        t.value !== undefined &&
+        !isLiteral(t.value) &&
+        !(Array.isArray(t.value) && t.value.every((v: unknown) => typeof v === 'string'))
+      )
+        c.add(`${at}.value`, 'must be a string, number, boolean, null or a list of strings');
       break;
     }
     case 'add-route':

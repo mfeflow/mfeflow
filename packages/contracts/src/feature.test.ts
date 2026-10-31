@@ -155,6 +155,57 @@ describe('feature.json', () => {
     ]);
   });
 
+  it('accepts feature:<name> conditions that ask for a boolean', () => {
+    const files = (when: unknown) => [{ to: 'a', content: 'x', when }];
+    expect(
+      validateFeatureManifest({
+        ...feature,
+        files: files({ 'feature:env-t3': true, 'feature:analytics-gtm': false, validator: 'zod' }),
+      }),
+    ).toEqual([]);
+    expect(paths({ ...feature, files: files({ 'feature:env-t3': 'yes' }) })).toEqual([
+      'files[0].when.feature:env-t3',
+    ]);
+    expect(paths({ ...feature, files: files({ 'feature:Env_T3': true }) })).toEqual([
+      'files[0].when',
+    ]);
+  });
+
+  it('accepts an add-env-key schema per validator and a list value, and rejects the rest', () => {
+    const envKey = (extra: Record<string, unknown>) => ({
+      op: 'add-env-key',
+      file: 'src/config/schema.ts',
+      key: 'gtmId',
+      scope: 'runtime',
+      schema: 'z.string()',
+      ...extra,
+    });
+    expect(
+      validateFeatureManifest({
+        ...feature,
+        transforms: [
+          envKey({ schema: { zod: 'z.string()', valibot: 'v.string()' }, value: ['a', 'b'] }),
+        ],
+      }),
+    ).toEqual([]);
+    expect(
+      paths({
+        ...feature,
+        transforms: [
+          envKey({ schema: { yup: 'y.string()' } }),
+          envKey({ schema: {} }),
+          envKey({ schema: { zod: 3 } }),
+          envKey({ value: ['a', 2] }),
+        ],
+      }),
+    ).toEqual([
+      'transforms[0].schema',
+      'transforms[1].schema',
+      'transforms[2].schema.zod',
+      'transforms[3].value',
+    ]);
+  });
+
   it('rejects an unknown op and names the built-in ones', () => {
     const issues = validateFeatureManifest({
       ...feature,

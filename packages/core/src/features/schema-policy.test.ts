@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { thrown } from '../testing';
-import { sanitizeSchema } from './schema-policy';
+import { sanitizeSchema, sanitizeSchemas } from './schema-policy';
 
 describe('sanitizeSchema', () => {
   it('re-emits plain validator call chains', () => {
@@ -94,5 +94,25 @@ describe('sanitizeSchema', () => {
     expect(thrown(() => sanitizeSchema(`z.literal('${'a'.repeat(2000)}')`, 'x')).code).toBe(
       'MFEFLOW_E203',
     );
+  });
+});
+
+describe('sanitizeSchemas', () => {
+  it('cleans a single text and every entry of a map', () => {
+    expect(sanitizeSchemas('z.string().min(1)', 'x')).toBe('z.string().min(1)');
+    expect(
+      sanitizeSchemas({ zod: 'z.string()', valibot: 'v.pipe(v.string(), v.url())' }, 'x'),
+    ).toEqual({
+      zod: 'z.string()',
+      valibot: 'v.pipe(v.string(), v.url())',
+    });
+  });
+
+  it('refuses a map with one bad entry, naming the feature', () => {
+    const error = thrown(() =>
+      sanitizeSchemas({ zod: 'z.string()', valibot: 'process.exit(1)' }, 'evil'),
+    );
+    expect(error.code).toBe('MFEFLOW_E203');
+    expect(error.message).toContain('evil');
   });
 });
