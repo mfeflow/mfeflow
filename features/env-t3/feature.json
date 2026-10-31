@@ -1,0 +1,305 @@
+{
+  "name": "env-t3",
+  "version": "0.1.0",
+  "description": "Typed env with t3-env: env.ts per app fails the build on a missing variable, runtime-config schema checked before deploy, no validator or env value in the browser bundle.",
+  "requires": ["core", "tsconfig"],
+  "prompts": [
+    {
+      "name": "validator",
+      "type": "select",
+      "message": "Validator for env.ts and the runtime-config schema",
+      "choices": ["zod", "valibot", "arktype"],
+      "default": "zod"
+    }
+  ],
+  "files": [
+    {
+      "to": "env.ts",
+      "target": "root",
+      "from": "files/env.zod.ts",
+      "when": {
+        "validator": "zod"
+      }
+    },
+    {
+      "to": "env.ts",
+      "target": "root",
+      "from": "files/env.valibot.ts",
+      "when": {
+        "validator": "valibot"
+      }
+    },
+    {
+      "to": "env.ts",
+      "target": "root",
+      "from": "files/env.arktype.ts",
+      "when": {
+        "validator": "arktype"
+      }
+    },
+    {
+      "to": ".env.example",
+      "target": "root",
+      "from": "files/env.example"
+    },
+    {
+      "to": "tsconfig.json",
+      "target": "root",
+      "from": "files/tsconfig.json"
+    },
+    {
+      "to": "scripts/check-runtime-config.ts",
+      "target": "root",
+      "from": "files/check-runtime-config.ts"
+    },
+    {
+      "to": "env.ts",
+      "target": "shell",
+      "from": "files/env.zod.ts",
+      "when": {
+        "validator": "zod"
+      }
+    },
+    {
+      "to": "env.ts",
+      "target": "shell",
+      "from": "files/env.valibot.ts",
+      "when": {
+        "validator": "valibot"
+      }
+    },
+    {
+      "to": "env.ts",
+      "target": "shell",
+      "from": "files/env.arktype.ts",
+      "when": {
+        "validator": "arktype"
+      }
+    },
+    {
+      "to": ".env.example",
+      "target": "shell",
+      "from": "files/env.example"
+    },
+    {
+      "to": "env.ts",
+      "target": "remotes",
+      "from": "files/env.zod.ts",
+      "when": {
+        "validator": "zod"
+      }
+    },
+    {
+      "to": "env.ts",
+      "target": "remotes",
+      "from": "files/env.valibot.ts",
+      "when": {
+        "validator": "valibot"
+      }
+    },
+    {
+      "to": "env.ts",
+      "target": "remotes",
+      "from": "files/env.arktype.ts",
+      "when": {
+        "validator": "arktype"
+      }
+    },
+    {
+      "to": ".env.example",
+      "target": "remotes",
+      "from": "files/env.example"
+    },
+    {
+      "to": "src/config/schema.ts",
+      "target": "shell",
+      "from": "files/schema.zod.ts",
+      "when": {
+        "validator": "zod"
+      }
+    },
+    {
+      "to": "src/config/schema.ts",
+      "target": "shell",
+      "from": "files/schema.valibot.ts",
+      "when": {
+        "validator": "valibot"
+      }
+    },
+    {
+      "to": "src/config/schema.ts",
+      "target": "shell",
+      "from": "files/schema.arktype.ts",
+      "when": {
+        "validator": "arktype"
+      }
+    },
+    {
+      "to": "src/config/runtime.ts",
+      "target": "shell",
+      "from": "files/runtime.ts.eta",
+      "template": true
+    },
+    {
+      "to": "public/config/runtime-config.dev.json",
+      "target": "shell",
+      "content": "{\n  \"environment\": \"dev\"\n}\n"
+    },
+    {
+      "to": "public/config/runtime-config.staging.json",
+      "target": "shell",
+      "content": "{\n  \"environment\": \"staging\"\n}\n"
+    },
+    {
+      "to": "public/config/runtime-config.prod.json",
+      "target": "shell",
+      "content": "{\n  \"environment\": \"prod\"\n}\n"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@t3-oss/env-core",
+      "range": "0.13.11",
+      "target": "root",
+      "dev": true
+    },
+    {
+      "name": "@t3-oss/env-core",
+      "range": "0.13.11",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "@t3-oss/env-core",
+      "range": "0.13.11",
+      "target": "remotes",
+      "dev": true
+    },
+    {
+      "name": "zod",
+      "range": "4.6.7",
+      "target": "root",
+      "dev": true,
+      "when": {
+        "validator": "zod"
+      }
+    },
+    {
+      "name": "zod",
+      "range": "4.6.7",
+      "target": "shell",
+      "dev": true,
+      "when": {
+        "validator": "zod"
+      }
+    },
+    {
+      "name": "zod",
+      "range": "4.6.7",
+      "target": "remotes",
+      "dev": true,
+      "when": {
+        "validator": "zod"
+      }
+    },
+    {
+      "name": "valibot",
+      "range": "1.5.0",
+      "target": "root",
+      "dev": true,
+      "when": {
+        "validator": "valibot"
+      }
+    },
+    {
+      "name": "valibot",
+      "range": "1.5.0",
+      "target": "shell",
+      "dev": true,
+      "when": {
+        "validator": "valibot"
+      }
+    },
+    {
+      "name": "valibot",
+      "range": "1.5.0",
+      "target": "remotes",
+      "dev": true,
+      "when": {
+        "validator": "valibot"
+      }
+    },
+    {
+      "name": "arktype",
+      "range": "2.2.9",
+      "target": "root",
+      "dev": true,
+      "when": {
+        "validator": "arktype"
+      }
+    },
+    {
+      "name": "arktype",
+      "range": "2.2.9",
+      "target": "shell",
+      "dev": true,
+      "when": {
+        "validator": "arktype"
+      }
+    },
+    {
+      "name": "arktype",
+      "range": "2.2.9",
+      "target": "remotes",
+      "dev": true,
+      "when": {
+        "validator": "arktype"
+      }
+    },
+    {
+      "name": "@mfeflow/tsconfig",
+      "range": "latest",
+      "target": "root",
+      "dev": true
+    },
+    {
+      "name": "@types/node",
+      "range": "26.6.6",
+      "target": "root",
+      "dev": true
+    }
+  ],
+  "scripts": [
+    {
+      "name": "check:runtime-config",
+      "command": "node --experimental-strip-types scripts/check-runtime-config.ts",
+      "target": "root"
+    },
+    {
+      "name": "typecheck:tooling",
+      "command": "tsc --noEmit",
+      "target": "root"
+    }
+  ],
+  "transforms": [
+    {
+      "op": "add-import",
+      "file": "rsbuild.config.ts",
+      "target": "shell",
+      "from": "./env"
+    },
+    {
+      "op": "add-import",
+      "file": "rsbuild.config.ts",
+      "target": "remotes",
+      "from": "./env"
+    },
+    {
+      "op": "add-boot-step",
+      "file": "src/bootstrap.tsx",
+      "target": "shell",
+      "call": "loadRuntimeConfig",
+      "from": "./config/runtime"
+    }
+  ]
+}
