@@ -61,6 +61,9 @@ describe('mfeflow features', () => {
       tsconfig: true,
       'lint-oxlint': true,
       'url-factory': true,
+      'env-t3': true,
+      testing: true,
+      'ci-github': false,
       'git-hooks': false,
     });
     const outside = testRuntime();

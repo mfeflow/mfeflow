@@ -24,6 +24,9 @@ export const FIRST_PARTY: readonly FirstPartyFeature[] = [
   { name: 'tsconfig', always: true, default: true },
   { name: 'lint-oxlint', always: false, default: true },
   { name: 'url-factory', always: false, default: true },
+  { name: 'env-t3', always: false, default: true },
+  { name: 'testing', always: false, default: true },
+  { name: 'ci-github', always: false, default: false },
   { name: 'git-hooks', always: false, default: false },
 ];
 

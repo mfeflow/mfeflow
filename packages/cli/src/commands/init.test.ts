@@ -45,6 +45,9 @@ describe('mfeflow init', () => {
         'registry/envs/prod/cart.json',
         '.oxlintrc.json',
         'apps/cart/src/api/endpoints.ts',
+        'apps/cart/env.ts',
+        'apps/shell/src/config/schema.ts',
+        'vitest.config.ts',
       ]),
     );
     expect(tree).not.toHaveProperty(['lefthook.yml']);
@@ -55,6 +58,8 @@ describe('mfeflow init', () => {
       'tsconfig',
       'lint-oxlint',
       'url-factory',
+      'env-t3',
+      'testing',
     ]);
     expect(project.apps.cart).toEqual({ kind: 'remote', path: 'apps/cart', port: 4312 });
     expect(validateMfeflowProject(project)).toEqual([]);
@@ -164,6 +169,8 @@ describe('mfeflow init', () => {
       'tsconfig',
       'lint-oxlint',
       'url-factory',
+      'env-t3',
+      'testing',
     ]);
   });
 

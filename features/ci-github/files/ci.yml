@@ -1,0 +1,63 @@
+name: ci
+
+on:
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Steps for a feature you have not added (lint, tests, runtime config, Playwright) are skipped
+# by their `if`, so this file stays the same as the project grows.
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Lint
+        if: hashFiles('.oxlintrc.json') != ''
+        run: pnpm lint
+      - name: Check formatting
+        if: hashFiles('.prettierrc.json') != ''
+        run: pnpm format:check
+      - run: pnpm typecheck
+      - run: pnpm run --if-present typecheck:tooling
+      - name: Test
+        run: pnpm run --if-present test
+      - run: pnpm build
+      - name: mfeflow doctor
+        run: pnpm exec mfeflow doctor
+      - name: mfeflow validate
+        run: pnpm exec mfeflow validate
+      - name: mfeflow check-compat
+        run: pnpm exec mfeflow check-compat
+      - name: mfeflow budget
+        run: pnpm exec mfeflow budget
+      - name: Check runtime config
+        run: pnpm run --if-present check:runtime-config
+      - name: Install Playwright browser
+        if: hashFiles('playwright.config.ts') != ''
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Playwright smoke test
+        if: hashFiles('playwright.config.ts') != ''
+        run: pnpm run test:e2e
+      - name: Upload Playwright report
+        if: failure() && hashFiles('playwright.config.ts') != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: node_modules/.cache/playwright/report
+          retention-days: 7

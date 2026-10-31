@@ -9,8 +9,15 @@ const roots = assetRoots();
 describe('first-party catalogue', () => {
   it('lists core and tsconfig as always, the rest as choices in order', () => {
     expect(FIRST_PARTY.filter((f) => f.always).map((f) => f.name)).toEqual(['core', 'tsconfig']);
-    expect(OPTIONAL_FEATURES).toEqual(['lint-oxlint', 'url-factory', 'git-hooks']);
-    expect(DEFAULT_FEATURES).toEqual(['lint-oxlint', 'url-factory']);
+    expect(OPTIONAL_FEATURES).toEqual([
+      'lint-oxlint',
+      'url-factory',
+      'env-t3',
+      'testing',
+      'ci-github',
+      'git-hooks',
+    ]);
+    expect(DEFAULT_FEATURES).toEqual(['lint-oxlint', 'url-factory', 'env-t3', 'testing']);
     expect(isFirstParty('git-hooks')).toBe(true);
     expect(isFirstParty('analytics-gtm')).toBe(false);
   });
