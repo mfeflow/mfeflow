@@ -65,13 +65,18 @@ describe('initTelemetry', () => {
     expect(first?.type === 'error' && (first.error as Error).message).toBe('30');
   });
 
-  it('waits for the page to load and the browser to be idle before loading', async () => {
+  it('waits for the page to load, a paint and an idle browser before loading', async () => {
     const load = vi.fn(() => Promise.resolve(createRecordingProvider()));
     const idle = vi.fn((cb: () => void) => {
       cb();
       return 1;
     });
+    const frame = vi.fn((cb: () => void) => {
+      cb();
+      return 1;
+    });
     vi.stubGlobal('requestIdleCallback', idle);
+    vi.stubGlobal('requestAnimationFrame', frame);
     const ready = Object.getOwnPropertyDescriptor(document, 'readyState');
     Object.defineProperty(document, 'readyState', { value: 'loading', configurable: true });
     try {
@@ -80,6 +85,7 @@ describe('initTelemetry', () => {
       expect(load).not.toHaveBeenCalled();
       window.dispatchEvent(new Event('load'));
       await telemetryReady();
+      expect(frame).toHaveBeenCalledTimes(1);
       expect(idle).toHaveBeenCalledTimes(1);
       expect(load).toHaveBeenCalledTimes(1);
     } finally {
@@ -89,8 +95,31 @@ describe('initTelemetry', () => {
     }
   });
 
+  it('does not wait for a paint that never comes, as in a hidden tab', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('requestAnimationFrame', () => 1);
+    vi.stubGlobal('requestIdleCallback', (cb: () => void) => {
+      cb();
+      return 1;
+    });
+    const load = vi.fn(() => Promise.resolve(createRecordingProvider()));
+    try {
+      initTelemetry(load);
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(load).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1500);
+      expect(load).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('falls back to a short timer where requestIdleCallback is missing', async () => {
     vi.stubGlobal('requestIdleCallback', undefined);
+    vi.stubGlobal('requestAnimationFrame', (cb: () => void) => {
+      cb();
+      return 1;
+    });
     const load = vi.fn(() => Promise.resolve(createRecordingProvider()));
     try {
       initTelemetry(load);

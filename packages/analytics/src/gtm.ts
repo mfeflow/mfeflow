@@ -10,17 +10,17 @@ export interface GtmOptions {
   /** The container, e.g. `GTM-ABC123`. From the runtime config, never baked into the bundle. */
   containerId: string;
   /** Default `dataLayer`. */
-  dataLayerName?: string;
+  dataLayerName?: string | undefined;
   /** Default Google's `gtm.js`. Tests and server-side containers point it elsewhere. */
-  scriptUrl?: string;
+  scriptUrl?: string | undefined;
   /** Consent before the visitor chooses. Default: every signal `denied`. */
-  consentDefaults?: ConsentUpdate;
+  consentDefaults?: ConsentUpdate | undefined;
   /** How long tags wait for a consent update, in milliseconds. Default 500. */
-  waitForUpdate?: number;
+  waitForUpdate?: number | undefined;
   /** Send `user_id` on `identify`. Off by default; traits are never sent. */
-  sendUserId?: boolean;
+  sendUserId?: boolean | undefined;
   /** Send parameters that look like personal data. Off by default: they are dropped. */
-  allowPii?: boolean;
+  allowPii?: boolean | undefined;
 }
 
 const CONTAINER_ID = /^GTM-[A-Z0-9]{4,12}$/;

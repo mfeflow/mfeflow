@@ -40,7 +40,7 @@ export type ProviderSource = TelemetryProvider | (() => Promise<TelemetryProvide
 export interface InitOptions {
   /**
    * When to load a provider that comes from a function. `idle` (default) waits for the page to
-   * finish loading and the browser to be idle, so the SDK never competes with first render.
+   * finish loading, the first paint and an idle browser, so the SDK never competes with first render.
    * `now` loads it immediately.
    */
   when?: 'idle' | 'now';
@@ -48,20 +48,37 @@ export interface InitOptions {
   onError?: (error: unknown) => void;
 }
 
-function afterLoad(): Promise<void> {
+/** A hidden tab never paints, so it must not wait for a paint forever. */
+const PAINT_WAIT_MS = 3000;
+
+/** Resolves after the page has loaded, the frame that follows has painted, and the browser is idle. */
+function afterFirstPaint(): Promise<void> {
   return new Promise((resolve) => {
+    let started = false;
     const idle = () => {
-      if (typeof requestIdleCallback === 'function')
+      if (typeof requestIdleCallback === 'function') {
         requestIdleCallback(
           () => {
             resolve();
           },
           { timeout: 2000 },
         );
-      else setTimeout(resolve, 200);
+      } else setTimeout(resolve, 200);
     };
-    if (document.readyState === 'complete') idle();
-    else addEventListener('load', idle, { once: true });
+    const afterPaint = () => {
+      if (started) return;
+      started = true;
+      idle();
+    };
+    const painted = () => {
+      // requestAnimationFrame runs just before the paint; the timer runs after it.
+      requestAnimationFrame(() => {
+        setTimeout(afterPaint, 0);
+      });
+      setTimeout(afterPaint, PAINT_WAIT_MS);
+    };
+    if (document.readyState === 'complete') painted();
+    else addEventListener('load', painted, { once: true });
   });
 }
 
@@ -89,7 +106,7 @@ export function initTelemetry(source: ProviderSource, options: InitOptions = {})
   };
   const start =
     typeof source === 'function' && options.when !== 'now'
-      ? afterLoad().then(activate)
+      ? afterFirstPaint().then(activate)
       : activate();
   s.ready = start;
   return true;
