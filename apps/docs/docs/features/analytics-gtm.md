@@ -108,9 +108,13 @@ Turn off the automatic page view in your GA4 configuration tag, or every page is
 
 ## Runtime config
 
-|                  | `gtmId`                                                                                    |
-| ---------------- | ------------------------------------------------------------------------------------------ |
-| With `env-t3`    | Added to the schema and to every `runtime-config.<env>.json`. Order does not matter.       |
-| Without `env-t3` | Added to `apps/shell/public/config/runtime-config.json`, which the shell fetches as it is. |
+|                  | `gtmId`                                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------ |
+| With `env-t3`    | Added to the schema and to every `runtime-config.<env>.json`, whichever feature was added first. |
+| Without `env-t3` | Added to `apps/shell/public/config/runtime-config.json`, which the shell fetches as it is.       |
 
 The value must be empty or match `GTM-` followed by letters and digits; `pnpm check:runtime-config` checks it.
+
+Adding `env-t3` to a project that already has `analytics-gtm` writes the key into the schema and the environment
+files too. Delete `apps/shell/public/config/runtime-config.json` then: the per-environment files replace it, and
+`mfeflow doctor` reports it as missing `environment` until it is gone.

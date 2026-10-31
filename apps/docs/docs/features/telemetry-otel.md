@@ -106,12 +106,16 @@ If you need `await` to keep the span, capture the context before it and run the 
 | `traceSampleRatio`             | Share of new traces recorded, 0 to 1. A trace that started elsewhere keeps its decision. | `1`     |
 | `propagateTraceHeaderCorsUrls` | URL prefixes of other origins that get `traceparent`.                                    | `[]`    |
 
-|                  | Where the keys live                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------ |
-| With `env-t3`    | In the schema and in every `runtime-config.<env>.json`. Order does not matter.       |
-| Without `env-t3` | In `apps/shell/public/config/runtime-config.json`, which the shell fetches as it is. |
+|                  | Where the keys live                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------ |
+| With `env-t3`    | In the schema and in every `runtime-config.<env>.json`, whichever feature was added first. |
+| Without `env-t3` | In `apps/shell/public/config/runtime-config.json`, which the shell fetches as it is.       |
 
 `pnpm check:runtime-config` checks the URL, the ratio and the list.
+
+Adding `env-t3` later writes the keys into the schema and the environment files too. Delete
+`apps/shell/public/config/runtime-config.json` then: the per-environment files replace it, and `mfeflow doctor`
+reports it as missing `environment` until it is gone.
 
 ## Versions
 

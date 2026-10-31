@@ -382,6 +382,9 @@ importers:
 
   examples/storefront/cart:
     dependencies:
+      '@mfeflow/analytics':
+        specifier: workspace:*
+        version: link:../../../packages/analytics
       '@mfeflow/i18n':
         specifier: workspace:*
         version: link:../../../packages/i18n
@@ -434,6 +437,9 @@ importers:
 
   examples/storefront/catalog:
     dependencies:
+      '@mfeflow/analytics':
+        specifier: workspace:*
+        version: link:../../../packages/analytics
       '@mfeflow/i18n':
         specifier: workspace:*
         version: link:../../../packages/i18n
@@ -443,6 +449,9 @@ importers:
       '@mfeflow/storage':
         specifier: workspace:*
         version: link:../../../packages/storage
+      '@mfeflow/telemetry':
+        specifier: workspace:*
+        version: link:../../../packages/telemetry
       '@mfeflow/theme':
         specifier: workspace:*
         version: link:../../../packages/theme
@@ -504,6 +513,9 @@ importers:
 
   examples/storefront/monolith:
     dependencies:
+      '@mfeflow/analytics':
+        specifier: workspace:*
+        version: link:../../../packages/analytics
       '@mfeflow/i18n':
         specifier: workspace:*
         version: link:../../../packages/i18n
@@ -513,6 +525,9 @@ importers:
       '@mfeflow/storage':
         specifier: workspace:*
         version: link:../../../packages/storage
+      '@mfeflow/telemetry':
+        specifier: workspace:*
+        version: link:../../../packages/telemetry
       '@mfeflow/theme':
         specifier: workspace:*
         version: link:../../../packages/theme
@@ -553,6 +568,9 @@ importers:
 
   examples/storefront/shell:
     dependencies:
+      '@mfeflow/analytics':
+        specifier: workspace:*
+        version: link:../../../packages/analytics
       '@mfeflow/i18n':
         specifier: workspace:*
         version: link:../../../packages/i18n
@@ -562,6 +580,9 @@ importers:
       '@mfeflow/storage':
         specifier: workspace:*
         version: link:../../../packages/storage
+      '@mfeflow/telemetry':
+        specifier: workspace:*
+        version: link:../../../packages/telemetry
       '@mfeflow/theme':
         specifier: workspace:*
         version: link:../../../packages/theme

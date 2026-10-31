@@ -74,7 +74,9 @@ for arktype.
 
 Features add their own runtime keys the same way: [`analytics-gtm`](./analytics-gtm) adds `gtmId` and
 [`telemetry-otel`](./telemetry-otel) adds `otlpEndpoint`, `traceSampleRatio` and `propagateTraceHeaderCorsUrls`, to the
-schema and to every environment file, whichever of the two features was added first.
+schema and to every environment file, whichever of the two features was added first. A
+`public/config/runtime-config.json` that a feature created before env-t3 was added is replaced by the
+per-environment files: delete it.
 
 ## `PUBLIC_*` variables
 
