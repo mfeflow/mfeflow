@@ -8,6 +8,8 @@ one-command rollback, and keep many teams on one React, one tag manager and
 one tracer.
 
 [![ci](https://github.com/mfeflow/mfeflow/actions/workflows/ci.yml/badge.svg)](https://github.com/mfeflow/mfeflow/actions/workflows/ci.yml)
+[![Quality gate](https://sonarcloud.io/api/project_badges/measure?project=mfeflow_mfeflow&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=mfeflow_mfeflow)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=mfeflow_mfeflow&metric=coverage)](https://sonarcloud.io/summary/new_code?id=mfeflow_mfeflow)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/mfeflow/mfeflow/badge)](https://scorecard.dev/viewer/?uri=github.com/mfeflow/mfeflow)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 

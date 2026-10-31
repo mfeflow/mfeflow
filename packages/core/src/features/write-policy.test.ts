@@ -78,7 +78,7 @@ describe('assertWritable for every feature', () => {
   });
 
   it('refuses control and invisible characters, which could hide a protected name', () => {
-    for (const file of ['.git​/hooks/x', 'src/a\u0000.ts', 'src/‮ts.a', 'src/a\n.ts']) {
+    for (const file of ['.git\u200b/hooks/x', 'src/a\u0000.ts', 'src/\u202ets.a', 'src/a\n.ts']) {
       expect(code(file), file).toBe('MFEFLOW_E105');
     }
   });

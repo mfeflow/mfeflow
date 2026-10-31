@@ -60,7 +60,7 @@ test('a missing remote build is a 503 for that request, not a dead server', asyn
   );
   fs.writeFileSync(path.join(root, 'shell/dist/app.js'), 'x');
   const base = 'http://localhost:4391';
-  const server = spawn('node', [path.join(import.meta.dirname, 'serve.ts')], {
+  const server = spawn(process.execPath, [path.join(import.meta.dirname, 'serve.ts')], {
     env: { ...process.env, SERVE_ROOT: root, SHELL_PORT: '4391', MONOLITH_PORT: '4393' },
     stdio: 'ignore',
   });
@@ -114,7 +114,7 @@ async function serving(
   run: (base: string) => Promise<void>,
 ): Promise<string> {
   const root = fakeBuild(shellJs);
-  const server = spawn('node', [path.join(import.meta.dirname, 'serve.ts')], {
+  const server = spawn(process.execPath, [path.join(import.meta.dirname, 'serve.ts')], {
     env: {
       ...process.env,
       SERVE_ROOT: root,
