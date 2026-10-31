@@ -7,7 +7,7 @@ describe('combinations', () => {
     expect(all).toHaveLength(32);
     expect(new Set(all.map((c) => c.id)).size).toBe(32);
     expect(all.filter((c) => !c.env && !c.testing && !c.ci)).toHaveLength(16);
-    expect(all.filter((c) => c.remotes === 1)).toHaveLength(16);
+    expect(all.filter((c) => c.remotes === 1)).toHaveLength(17);
     const ids = all.map((c) => c.id);
     for (const id of [
       'bare-r1',
