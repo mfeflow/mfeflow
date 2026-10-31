@@ -4,11 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "rspress dev",
-    "build": "rspress build",
+    "dev": "node scripts/emit-schemas.mjs && rspress dev",
+    "build": "node scripts/emit-schemas.mjs && rspress build",
     "preview": "rspress preview"
   },
   "devDependencies": {
-    "@rspress/core": "catalog:"
+    "@mfeflow/contracts": "workspace:*",
+    "@rspress/core": "catalog:",
+    "@rspress/plugin-sitemap": "catalog:"
   }
 }
