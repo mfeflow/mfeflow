@@ -1,7 +1,7 @@
 {
   "name": "mfeflow",
   "version": "0.0.0",
-  "description": "React micro-frontend boilerplate and platform kit: scaffold Module Federation apps à la carte, self-host a registry with one-command rollback. Early, not usable yet.",
+  "description": "React micro-frontend boilerplate and platform kit: scaffold Module Federation apps \u00e0 la carte, self-host a registry with one-command rollback. Early, not usable yet.",
   "keywords": [
     "micro-frontend",
     "micro-frontends",
@@ -31,7 +31,8 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "files": [

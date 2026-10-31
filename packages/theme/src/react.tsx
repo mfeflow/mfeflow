@@ -26,7 +26,7 @@ export interface ThemeProviderProps {
   storage?: MfeStorage;
   /** Where CSS variables are written. Defaults to `<html>`. */
   root?: HTMLElement;
-  children: ReactNode;
+  children?: ReactNode;
 }
 
 function isThemeName(value: unknown): value is string | null {

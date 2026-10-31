@@ -3,10 +3,17 @@ import { createRequire } from 'node:module';
 import type { RsbuildConfig } from '@rsbuild/core';
 import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginModuleFederation } from '@module-federation/rsbuild-plugin';
-import { resolvableFrom, sharedSingletons, type SharedConfig } from './shared.js';
+import {
+  installedVersionFrom,
+  resolvableFrom,
+  sharedSingletons,
+  type SharedConfig,
+} from './shared.js';
 
 export {
   DEFAULT_SINGLETONS,
+  installedVersionFrom,
+  packageNameOf,
   resolvableFrom,
   sharedSingletons,
   type SharedConfig,
@@ -56,6 +63,7 @@ export interface FederationOptions {
 export function remoteFederationOptions(
   o: RemoteOptions,
   canResolve: (s: string) => boolean,
+  versionOf?: (s: string) => string | undefined,
 ): FederationOptions {
   checkName(o.name);
   if (Object.keys(o.exposes).length === 0)
@@ -63,7 +71,7 @@ export function remoteFederationOptions(
   return {
     name: o.name,
     exposes: { ...o.exposes },
-    shared: sharedSingletons(canResolve, o.shared),
+    shared: sharedSingletons(canResolve, o.shared, versionOf),
     manifest: true,
     dts: o.types === false ? false : { generateTypes: true, consumeTypes: false },
     // The shell provides the Module Federation runtime; remotes do not bundle their own (spike: 119 KB → 54 KB entry).
@@ -77,7 +85,9 @@ export function createRemoteConfig(o: RemoteOptions): RsbuildConfig {
   return {
     plugins: [
       pluginReact(),
-      pluginModuleFederation(remoteFederationOptions(o, resolvableFrom(cwd))),
+      pluginModuleFederation(
+        remoteFederationOptions(o, resolvableFrom(cwd), installedVersionFrom(cwd)),
+      ),
     ],
     source: { entry: { index: './src/index.ts' } },
     // Assets resolve relative to wherever the remote entry was loaded from (versioned CDN paths).
@@ -107,6 +117,7 @@ export function shellFederationOptions(
   o: ShellOptions,
   canResolve: (s: string) => boolean,
   resolvePath: (s: string) => string,
+  versionOf?: (s: string) => string | undefined,
 ): FederationOptions {
   checkName(o.name);
   const typesBuild = (o.env ?? process.env).MFEFLOW_TYPES === '1' && o.typesFrom !== undefined;
@@ -120,7 +131,7 @@ export function shellFederationOptions(
   return {
     name: o.name,
     remotes,
-    shared: sharedSingletons(canResolve, o.shared),
+    shared: sharedSingletons(canResolve, o.shared, versionOf),
     manifest: true,
     // Production builds skip remote types unless typesOnBuild is set (dts-plugin 2.9.2).
     dts: typesBuild

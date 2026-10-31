@@ -1,0 +1,90 @@
+import { expect, test, type Page } from '@playwright/test';
+
+async function open(page: Page, path = '/catalog'): Promise<void> {
+  await page.goto(path);
+  await expect(page.getByTestId('catalog-heading').or(page.getByTestId('cart'))).toBeVisible();
+}
+
+test.beforeEach(async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => {
+    localStorage.clear();
+  });
+});
+
+test('theme set in the shell reaches every remote, and a reload does not flash', async ({
+  page,
+}) => {
+  await open(page);
+  const card = page.getByTestId('product-1');
+  const light = await card.evaluate((el) => getComputedStyle(el).backgroundColor);
+  await page.getByTestId('theme').selectOption('dark');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect
+    .poll(() => card.evaluate((el) => getComputedStyle(el).backgroundColor))
+    .not.toBe(light);
+  await page.goto('/catalog', { waitUntil: 'domcontentloaded' });
+  expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('dark');
+  expect(
+    await page.evaluate(() => document.documentElement.style.getPropertyValue('--mf-color-bg')),
+  ).toBe('#0b1020');
+});
+
+test('language switch re-renders the shell and each remote, loading remote messages from the remote', async ({
+  page,
+}) => {
+  const remoteMessages: string[] = [];
+  page.on('request', (r) => {
+    if (r.url().includes(':4301/') && r.url().endsWith('.js')) remoteMessages.push(r.url());
+  });
+  await open(page);
+  await expect(page.getByTestId('catalog-heading')).toHaveText('Catalog');
+  await page.getByTestId('language').selectOption('hi');
+  await expect(page.getByTestId('catalog-heading')).toHaveText('कैटलॉग');
+  await expect(page.getByTestId('nav-catalog')).toHaveText('कैटलॉग');
+  await expect(page.getByTestId('mini-cart')).toHaveText('0 आइटम');
+  await page.getByTestId('language').selectOption('ar');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await expect(page.getByTestId('catalog-heading')).toHaveText('الكتالوج');
+  expect(remoteMessages.length).toBeGreaterThan(0);
+});
+
+test('remotes keep their own storage and stay in sync inside the cart remote', async ({ page }) => {
+  await open(page, '/cart');
+  await page.getByTestId('cart-add').click();
+  await page.getByTestId('cart-add').click();
+  await expect(page.getByTestId('mini-cart')).toHaveText('2 items');
+  await page.getByTestId('nav-catalog').click();
+  await page.getByTestId('product-2').getByRole('button').click();
+  const keys = await page.evaluate(() => Object.keys(localStorage).toSorted());
+  expect(keys).toEqual(expect.arrayContaining(['cart:items', 'catalog:lastViewed']));
+});
+
+test('every platform singleton loads once', async ({ page }) => {
+  await open(page);
+  await page.getByTestId('nav-cart').click();
+  await expect(page.getByTestId('cart')).toBeVisible();
+  const result: unknown = await page.evaluate((): unknown => {
+    const check: unknown = Reflect.get(globalThis, 'mfeflowCheckSingletons');
+    return typeof check === 'function' ? Reflect.apply(check, undefined, []) : undefined;
+  });
+  expect(result).toEqual({ missing: [], duplicated: [] });
+});
+
+test('a remote that fails to load shows its fallback and the rest keeps working', async ({
+  page,
+}) => {
+  await page.route('**:4301/cart/**', (route) => route.fulfill({ status: 404, body: 'gone' }));
+  await open(page);
+  await expect(page.locator('[data-mfeflow-fallback="cart"]')).toBeVisible();
+  await expect(page.getByTestId('catalog-heading')).toHaveText('Catalog');
+  const mfes: unknown = await page.evaluate((): unknown => {
+    const reports: unknown = Reflect.get(globalThis, 'mfeflowReports');
+    if (!Array.isArray(reports)) return [];
+    return reports.map((r: unknown): unknown => {
+      const mfe: unknown = typeof r === 'object' && r !== null ? Reflect.get(r, 'mfe') : undefined;
+      return mfe;
+    });
+  });
+  expect(mfes).toContain('cart');
+});

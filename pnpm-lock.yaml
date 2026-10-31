@@ -179,6 +179,9 @@ catalogs:
     '@module-federation/rsbuild-plugin':
       specifier: 2.9.2
       version: 2.9.2
+    '@playwright/test':
+      specifier: 1.64.1
+      version: 1.64.1
     '@rsbuild/core':
       specifier: 2.3.0
       version: 2.3.0
@@ -293,6 +296,174 @@ importers:
         specifier: 'catalog:'
         version: 2.0.23(@module-federation/runtime-tools@2.9.2)(@rspack/core@2.3.0(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(micromark-util-types@2.0.3)(micromark@4.0.3)
 
+  examples/storefront/cart:
+    dependencies:
+      '@mfeflow/i18n':
+        specifier: workspace:*
+        version: link:../../../packages/i18n
+      '@mfeflow/runtime':
+        specifier: workspace:*
+        version: link:../../../packages/runtime
+      '@mfeflow/storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
+      '@mfeflow/theme':
+        specifier: workspace:*
+        version: link:../../../packages/theme
+      '@module-federation/enhanced':
+        specifier: 'catalog:'
+        version: 2.9.2(@rspack/core@2.3.0(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(typescript@7.0.2)
+      i18next:
+        specifier: 'catalog:'
+        version: 26.5.12(typescript@7.0.2)
+      react:
+        specifier: 'catalog:'
+        version: 19.3.1
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.3.1(react@19.3.1)
+      react-i18next:
+        specifier: 'catalog:'
+        version: 17.1.9(i18next@26.5.12(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@7.0.2)
+    devDependencies:
+      '@mfeflow/rsbuild':
+        specifier: workspace:*
+        version: link:../../../packages/rsbuild
+      '@mfeflow/tsconfig':
+        specifier: workspace:*
+        version: link:../../../packages/tsconfig
+      '@rsbuild/core':
+        specifier: 'catalog:'
+        version: 2.3.0(@module-federation/runtime-tools@2.9.2)
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.3.0(@types/react@19.3.0)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
+  examples/storefront/catalog:
+    dependencies:
+      '@mfeflow/i18n':
+        specifier: workspace:*
+        version: link:../../../packages/i18n
+      '@mfeflow/runtime':
+        specifier: workspace:*
+        version: link:../../../packages/runtime
+      '@mfeflow/storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
+      '@mfeflow/theme':
+        specifier: workspace:*
+        version: link:../../../packages/theme
+      '@module-federation/enhanced':
+        specifier: 'catalog:'
+        version: 2.9.2(@rspack/core@2.3.0(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(typescript@7.0.2)
+      i18next:
+        specifier: 'catalog:'
+        version: 26.5.12(typescript@7.0.2)
+      react:
+        specifier: 'catalog:'
+        version: 19.3.1
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.3.1(react@19.3.1)
+      react-i18next:
+        specifier: 'catalog:'
+        version: 17.1.9(i18next@26.5.12(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@7.0.2)
+    devDependencies:
+      '@mfeflow/rsbuild':
+        specifier: workspace:*
+        version: link:../../../packages/rsbuild
+      '@mfeflow/tsconfig':
+        specifier: workspace:*
+        version: link:../../../packages/tsconfig
+      '@rsbuild/core':
+        specifier: 'catalog:'
+        version: 2.3.0(@module-federation/runtime-tools@2.9.2)
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.3.0(@types/react@19.3.0)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
+  examples/storefront/e2e:
+    devDependencies:
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.64.1
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
+  examples/storefront/shell:
+    dependencies:
+      '@mfeflow/i18n':
+        specifier: workspace:*
+        version: link:../../../packages/i18n
+      '@mfeflow/runtime':
+        specifier: workspace:*
+        version: link:../../../packages/runtime
+      '@mfeflow/storage':
+        specifier: workspace:*
+        version: link:../../../packages/storage
+      '@mfeflow/theme':
+        specifier: workspace:*
+        version: link:../../../packages/theme
+      '@module-federation/enhanced':
+        specifier: 'catalog:'
+        version: 2.9.2(@rspack/core@2.3.0(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(typescript@7.0.2)
+      i18next:
+        specifier: 'catalog:'
+        version: 26.5.12(typescript@7.0.2)
+      react:
+        specifier: 'catalog:'
+        version: 19.3.1
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.3.1(react@19.3.1)
+      react-i18next:
+        specifier: 'catalog:'
+        version: 17.1.9(i18next@26.5.12(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@7.0.2)
+    devDependencies:
+      '@mfeflow/rsbuild':
+        specifier: workspace:*
+        version: link:../../../packages/rsbuild
+      '@mfeflow/tsconfig':
+        specifier: workspace:*
+        version: link:../../../packages/tsconfig
+      '@rsbuild/core':
+        specifier: 'catalog:'
+        version: 2.3.0(@module-federation/runtime-tools@2.9.2)
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.3.0(@types/react@19.3.0)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
   packages/cli:
     devDependencies:
       '@rslib/core':
@@ -347,6 +518,9 @@ importers:
         specifier: workspace:*
         version: link:../storage
     devDependencies:
+      '@rsbuild/plugin-react':
+        specifier: 'catalog:'
+        version: 2.1.1(@rsbuild/core@2.3.0(@module-federation/runtime-tools@2.9.2))(@rspack/core@2.3.0(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))
       '@rslib/core':
         specifier: 'catalog:'
         version: 1.0.5(@module-federation/runtime-tools@2.9.2)(typescript@7.0.2)
@@ -436,6 +610,9 @@ importers:
       '@module-federation/enhanced':
         specifier: 'catalog:'
         version: 2.9.2(@rspack/core@2.3.0(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(typescript@7.0.2)
+      '@rsbuild/plugin-react':
+        specifier: 'catalog:'
+        version: 2.1.1(@rsbuild/core@2.3.0(@module-federation/runtime-tools@2.9.2))(@rspack/core@2.3.0(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))
       '@rslib/core':
         specifier: 'catalog:'
         version: 1.0.5(@module-federation/runtime-tools@2.9.2)(typescript@7.0.2)
@@ -469,6 +646,9 @@ importers:
 
   packages/storage:
     devDependencies:
+      '@rsbuild/plugin-react':
+        specifier: 'catalog:'
+        version: 2.1.1(@rsbuild/core@2.3.0(@module-federation/runtime-tools@2.9.2))(@rspack/core@2.3.0(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))
       '@rslib/core':
         specifier: 'catalog:'
         version: 1.0.5(@module-federation/runtime-tools@2.9.2)(typescript@7.0.2)
@@ -509,6 +689,9 @@ importers:
       '@module-federation/enhanced':
         specifier: 'catalog:'
         version: 2.9.2(@rspack/core@2.3.0(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(typescript@7.0.2)
+      '@rsbuild/plugin-react':
+        specifier: 'catalog:'
+        version: 2.1.1(@rsbuild/core@2.3.0(@module-federation/runtime-tools@2.9.2))(@rspack/core@2.3.0(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))
       '@rslib/core':
         specifier: 'catalog:'
         version: 1.0.5(@module-federation/runtime-tools@2.9.2)(typescript@7.0.2)
@@ -546,6 +729,9 @@ importers:
         specifier: workspace:*
         version: link:../storage
     devDependencies:
+      '@rsbuild/plugin-react':
+        specifier: 'catalog:'
+        version: 2.1.1(@rsbuild/core@2.3.0(@module-federation/runtime-tools@2.9.2))(@rspack/core@2.3.0(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))
       '@rslib/core':
         specifier: 'catalog:'
         version: 1.0.5(@module-federation/runtime-tools@2.9.2)(typescript@7.0.2)
@@ -1202,6 +1388,11 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [win32]
+
+  '@playwright/test@1.64.1':
+    resolution: {integrity: sha512-IaYGml/nSOiZWROfPtuIL7neuu9qDOZ3TNvNljUIrhDMxiGTgPjzj/g9p9RxpS2tSepPDRY+UwAaEeiKtUvIAg==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   '@pnpm/deps.graph-sequencer@1100.0.1':
     resolution: {integrity: sha512-pOr5+q1fLYKwFN3LAJuGZEnfXDcQ73zqgDHMtGy+K+uIoUqyY+6MeDCWFwfu+4EFuq76I5EPFofoNAI+Bmmq4A==}
@@ -2654,6 +2845,16 @@ packages:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
     engines: {node: '>=12'}
 
+  playwright-core@1.64.1:
+    resolution: {integrity: sha512-BC4s8y6SEVA6Q1rSxZTto8hI1KUI3xXlHGZgvGqP4IqPdI/a6FX9H29IDNz7vKo9l21b6LfYosScPL6M3xxyDQ==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  playwright@1.64.1:
+    resolution: {integrity: sha512-HCrVhHr5QQuwYoswEUGTb7gGp522yflbv/ST8nF4sFWGuLjQCt17Q/EubpGGSNKYn1tsTCPZxqHhHCfVURu7UA==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   postcss@8.5.32:
     resolution: {integrity: sha512-LJlKCCAUFKOuZxipUdYw1NzIITEsPcgyOG9LkvRJvuKj/bRzbuRY0ARXvL0pWGpsZvn8jku+LMep2eU0seHp8g==}
     engines: {node: ^10 || ^12 || >=14}
@@ -3827,6 +4028,10 @@ snapshots:
 
   '@oxlint/binding-win32-x64-msvc@1.90.0':
     optional: true
+
+  '@playwright/test@1.64.1':
+    dependencies:
+      playwright: 1.64.1
 
   '@pnpm/deps.graph-sequencer@1100.0.1': {}
 
@@ -5471,6 +5676,12 @@ snapshots:
   picocolors@1.1.1: {}
 
   picomatch@4.0.7: {}
+
+  playwright-core@1.64.1: {}
+
+  playwright@1.64.1:
+    dependencies:
+      playwright-core: 1.64.1
 
   postcss@8.5.32:
     dependencies:

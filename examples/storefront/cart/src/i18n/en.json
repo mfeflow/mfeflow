@@ -1,0 +1,6 @@
+{
+  "heading": "Your cart",
+  "empty": "Your cart is empty",
+  "add": "Add sample item",
+  "items": "{{count}} items"
+}

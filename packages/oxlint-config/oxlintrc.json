@@ -23,7 +23,13 @@
     "typescript/switch-exhaustiveness-check": "error",
     "react/rules-of-hooks": "error",
     "react/exhaustive-deps": "error",
-    "react/react-in-jsx-scope": "off"
+    "react/react-in-jsx-scope": "off",
+    "import/no-unassigned-import": [
+      "error",
+      {
+        "allow": ["**/*.css"]
+      }
+    ]
   },
   "ignorePatterns": ["**/dist/**", "**/doc_build/**", "**/coverage/**", "**/.turbo/**"]
 }
