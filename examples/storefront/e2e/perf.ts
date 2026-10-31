@@ -1,17 +1,20 @@
 // Phase 02 performance criterion on the real packages: LCP and transferred JS of
 // the storefront shell vs the same pages built as one app (the monolith), on the
-// shell's main remote route. Both apps are served by the same server code (gzip,
+// shell's main remote route, judged by the cost model (@mfeflow/contracts): LCP at most
+// +300 ms, the shell adds at most 32 KB, each remote on the route at most 10 KB. Both apps are served by the same server code (gzip,
 // immutable caching), the shell's remotes under its own origin at /mfe/<name>/.
 // Lighthouse mobile preset with simulated throttling, median of RUNS.
 //   pnpm --filter @storefront/e2e perf          (after pnpm build)
 // Environment: RUNS (10), PAGE (/catalog), OUT (perf-results.json), LABEL,
 // SERVE_ENCODING=br, SERVE_INJECT=0, SERVE_HINTS=0, SERVE_MANIFEST_ONLY=1 (passed through to serve.ts).
+// PERF_GATE=1 exits 1 when the route is over the cost model (what CI sets).
 /* oxlint-disable no-await-in-loop -- runs are sequential on purpose: parallel Lighthouse runs would distort each other */
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import lighthouse from 'lighthouse';
+import { COST_MODEL, judgeCost, splitScripts } from '@mfeflow/contracts';
 import { chromium } from '@playwright/test';
 
 const here = import.meta.dirname;
@@ -21,7 +24,6 @@ const SHELL_PORT = 4300;
 const MONOLITH_PORT = 4302;
 const PAGE = process.env.PAGE ?? '/catalog';
 const OUT = process.env.OUT ?? 'perf-results.json';
-const TARGET = { lcpDeltaMs: 300, jsDeltaKb: 35 };
 
 function median(xs: number[]): number {
   const s = xs.toSorted((a, b) => a - b);
@@ -166,16 +168,24 @@ try {
   const shell = await measure(`http://localhost:${String(SHELL_PORT)}${PAGE}`);
   const lcpDeltaMs = shell.lcpMs - monolith.lcpMs;
   const jsDeltaKb = Math.round(((shell.jsBytes - monolith.jsBytes) / 1024) * 10) / 10;
+  const { shellBytes, remoteBytes } = splitScripts(shell.requests);
+  const verdict = judgeCost({
+    shellBytes,
+    monolithBytes: monolith.jsBytes,
+    remoteBytes,
+    lcpDeltaMs,
+  });
   report = {
     label: process.env.LABEL ?? 'final',
     page: PAGE,
     runs: RUNS,
-    target: TARGET,
+    target: COST_MODEL,
     monolith,
     shell,
     lcpDeltaMs,
     jsDeltaKb,
-    pass: lcpDeltaMs <= TARGET.lcpDeltaMs && jsDeltaKb <= TARGET.jsDeltaKb,
+    verdict,
+    pass: verdict.pass,
   };
 } finally {
   await browser?.close();
@@ -194,3 +204,7 @@ console.log(
     2,
   ),
 );
+if (process.env.PERF_GATE === '1' && !report.pass) {
+  console.error(`over the cost model on ${PAGE}: ${JSON.stringify(report.verdict)}`);
+  process.exitCode = 1;
+}

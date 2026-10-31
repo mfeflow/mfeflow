@@ -336,6 +336,18 @@ describe('mfeflow.json', () => {
     }
   });
 
+  it('checks the budget overrides', () => {
+    const withBudget = (budget: unknown) => ({ ...project, budget });
+    expect(
+      validateMfeflowProject(withBudget({ shellKb: 40, remoteKb: 12, baselineKb: 90 })),
+    ).toEqual([]);
+    expect(paths(validateMfeflowProject(withBudget({ shellKb: 0, remoteKb: 'big' })))).toEqual([
+      'budget.shellKb',
+      'budget.remoteKb',
+    ]);
+    expect(paths(validateMfeflowProject(withBudget([])))).toEqual(['budget']);
+  });
+
   it('publishes schema URLs', () => {
     expect(SCHEMA_URLS.mfe).toBe('https://mfeflow.dev/schema/mfe.json');
   });
