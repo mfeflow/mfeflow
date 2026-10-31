@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -89,6 +90,30 @@ describe('mfeflow init', () => {
     expect(declared.filter((name) => name !== '')).toEqual(
       [...new Set(declared)].filter((n) => n !== ''),
     );
+  });
+
+  it('keeps every .env.example tracked by git while ignoring .env and .env.*', async () => {
+    const cwd = await workspace();
+    expect(await main(['init', 'app', '--yes', '--no-install', '--cwd', cwd], testRuntime())).toBe(
+      0,
+    );
+    const project = path.join(cwd, 'app');
+    execFileSync('git', ['init', '-q'], { cwd: project });
+    const ignored = (file: string) => {
+      try {
+        execFileSync('git', ['check-ignore', '-q', '--no-index', file], { cwd: project });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    for (const file of ['.env.example', 'apps/shell/.env.example', 'apps/cart/.env.example']) {
+      expect(await fs.stat(path.join(project, file)).then(() => true), file).toBe(true);
+      expect(ignored(file), file).toBe(false);
+    }
+    for (const file of ['.env', '.env.local', 'apps/shell/.env', 'apps/cart/.env.production']) {
+      expect(ignored(file), file).toBe(true);
+    }
   });
 
   it('installs with the package manager, from the project folder, when asked to', async () => {
