@@ -57,7 +57,7 @@ describe('MfeflowError', () => {
     expect(new MfeflowError('E201', 'nope').format().split('\n')).toEqual([
       'MFEFLOW_E201 Feature not found: nope',
       `  Fix: ${ERROR_CATALOGUE.E201.fix}`,
-      '  https://mfeflow.dev/errors/E201',
+      '  https://mfeflow.github.io/mfeflow/errors/E201',
     ]);
   });
 

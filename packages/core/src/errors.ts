@@ -1,3 +1,5 @@
+import { DOCS_URL, SCHEMA_URLS, errorDocsUrl } from '@mfeflow/contracts';
+
 interface ErrorInfo {
   title: string;
   fix: string;
@@ -22,7 +24,7 @@ export const ERROR_CATALOGUE = {
   },
   E104: {
     title: 'mfeflow.json does not match its schema',
-    fix: 'Fix the fields listed above. The schema is at https://mfeflow.dev/schema/mfeflow.json.',
+    fix: `Fix the fields listed above. The schema is at ${SCHEMA_URLS.project}.`,
   },
   E105: {
     title: 'A path points outside the project',
@@ -58,11 +60,11 @@ export const ERROR_CATALOGUE = {
   },
   E113: {
     title: 'mfe.json is missing or invalid',
-    fix: 'Give the app a valid mfe.json (name, owner, shells, routes, exposes). The schema is at https://mfeflow.dev/schema/mfe.json.',
+    fix: `Give the app a valid mfe.json (name, owner, shells, routes, exposes). The schema is at ${SCHEMA_URLS.mfe}.`,
   },
   E114: {
     title: 'A registry entry is missing or invalid',
-    fix: 'Every remote needs registry/envs/<env>/<name>.json for dev, staging and prod (`mfeflow doctor --fix` writes the missing ones). The schema is at https://mfeflow.dev/schema/registry-entry.json.',
+    fix: `Every remote needs registry/envs/<env>/<name>.json for dev, staging and prod (\`mfeflow doctor --fix\` writes the missing ones). The schema is at ${SCHEMA_URLS.registryEntry}.`,
   },
   E115: {
     title: 'Two apps use the same port',
@@ -98,7 +100,7 @@ export const ERROR_CATALOGUE = {
   },
   E202: {
     title: 'feature.json is invalid',
-    fix: 'Fix the fields listed above. The schema is at https://mfeflow.dev/schema/feature.json.',
+    fix: `Fix the fields listed above. The schema is at ${SCHEMA_URLS.feature}.`,
   },
   E203: {
     title: 'A third-party feature uses something third-party features may not',
@@ -188,7 +190,7 @@ export const ERROR_CATALOGUE = {
 
 export type ErrorCode = keyof typeof ERROR_CATALOGUE;
 
-export const DOCS_BASE = 'https://mfeflow.dev/errors';
+export const DOCS_BASE = `${DOCS_URL}/errors`;
 
 export interface MfeflowErrorOptions {
   cause?: unknown;
@@ -208,7 +210,7 @@ export class MfeflowError extends Error {
     this.name = 'MfeflowError';
     this.code = `MFEFLOW_${code}`;
     this.fix = options.fix ?? info.fix;
-    this.docs = `${DOCS_BASE}/${code}`;
+    this.docs = errorDocsUrl(code);
   }
 
   /** The three-line form the CLI prints. */

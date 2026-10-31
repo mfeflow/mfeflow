@@ -48,7 +48,7 @@ describe('exit codes', () => {
     expect(report.code).toBe('MFEFLOW_E102');
     expect(report.message).toBe('No mfeflow.json found: here');
     expect(report.fix).toContain('mfeflow project');
-    expect(report.docs).toBe('https://mfeflow.dev/errors/E102');
+    expect(report.docs).toBe('https://mfeflow.github.io/mfeflow/errors/E102');
   });
 
   it('prints the message, and the stack only with --verbose', () => {
