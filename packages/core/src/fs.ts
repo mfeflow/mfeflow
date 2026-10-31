@@ -7,6 +7,8 @@ export interface FsOps {
   readFile(file: string): Promise<string>;
   writeFile(file: string, content: string): Promise<void>;
   rename(from: string, to: string): Promise<void>;
+  /** The path with every symlink resolved. Rejects with ENOENT when it does not exist. */
+  realpath(file: string): Promise<string>;
   rm(file: string, options?: { recursive?: boolean }): Promise<void>;
   /** Returns the first directory it had to create, if any. */
   mkdir(dir: string): Promise<string | undefined>;
@@ -18,6 +20,7 @@ export const realFs: FsOps = {
   readFile: (file) => fs.readFile(file, 'utf8'),
   writeFile: (file, content) => fs.writeFile(file, content, 'utf8'),
   rename: (from, to) => fs.rename(from, to),
+  realpath: (file) => fs.realpath(file),
   rm: (file, options) => fs.rm(file, { force: true, ...options }),
   mkdir: (dir) => fs.mkdir(dir, { recursive: true }),
   listDirs: async (dir) =>

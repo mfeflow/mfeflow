@@ -172,7 +172,7 @@ describe('applyPlan', () => {
     );
     expect(error.code).toBe('MFEFLOW_E212');
     expect(error.message).toContain('disk full');
-    expect(renames).toBe(3);
+    expect(renames).toBeGreaterThanOrEqual(3);
     expect(await exists('new')).toBe(false);
     expect(await read('edit.txt')).toBe('one\n');
     expect(await read('gone.txt')).toBe('bye\n');
@@ -187,12 +187,11 @@ describe('applyPlan', () => {
       ...realFs,
       rename: (from, to) => {
         renames += 1;
-        return renames === 2 ? Promise.reject(new Error('boom')) : realFs.rename(from, to);
-      },
-      writeFile: (file, content) =>
-        file === at('edit.txt')
+        if (renames === 2) return Promise.reject(new Error('boom'));
+        return to === at('edit.txt') && renames > 2
           ? Promise.reject(new Error('read-only'))
-          : realFs.writeFile(file, content),
+          : realFs.rename(from, to);
+      },
     };
     const error = await rejection(
       applyPlan(planOf(patch('edit.txt', 'one\n', 'two\n'), create('b.txt', 'b')), {
@@ -201,6 +200,90 @@ describe('applyPlan', () => {
       }),
     );
     expect(error.message).toContain('could not restore');
+    expect(error.message).toContain(at('edit.txt'));
+    expect(await leftovers()).toEqual([]);
+  });
+
+  describe('containment', () => {
+    let outside: string;
+    beforeEach(async () => {
+      outside = await fs.mkdtemp(path.join(os.tmpdir(), 'mfeflow-outside-'));
+    });
+    afterEach(async () => {
+      await fs.rm(outside, { recursive: true, force: true });
+    });
+
+    it('refuses to write through a symlinked folder that leaves the project (E105)', async () => {
+      await fs.symlink(outside, at('src'));
+      const error = await rejection(applyPlan(planOf(create('src/new/a.ts', 'x')), { root }));
+      expect(error.code).toBe('MFEFLOW_E105');
+      expect(error.message).toContain('symlink');
+      expect(await fs.readdir(outside)).toEqual([]);
+    });
+
+    it('refuses a symlinked file that points outside, also in a dry run', async () => {
+      await fs.writeFile(path.join(outside, 'secret'), 'secret');
+      await fs.symlink(path.join(outside, 'secret'), at('a.txt'));
+      const errors = await Promise.all(
+        [true, false].map((dryRun) =>
+          rejection(applyPlan(planOf(patch('a.txt', 'secret', 'changed')), { root, dryRun })),
+        ),
+      );
+      expect(errors.map((e) => e.code)).toEqual(['MFEFLOW_E105', 'MFEFLOW_E105']);
+      expect(await fs.readFile(path.join(outside, 'secret'), 'utf8')).toBe('secret');
+    });
+
+    it('checks every target before writing the first one', async () => {
+      await fs.symlink(outside, at('link'));
+      await expect(
+        applyPlan(planOf(create('first.txt', 'x'), create('link/second.txt', 'y')), { root }),
+      ).rejects.toMatchObject({ code: 'MFEFLOW_E105' });
+      expect(await exists('first.txt')).toBe(false);
+    });
+
+    it('allows symlinks that stay inside the project, and a symlinked root', async () => {
+      await fs.mkdir(at('real'));
+      await fs.symlink(at('real'), at('alias'));
+      await applyPlan(planOf(create('alias/a.txt', 'x')), { root });
+      expect(await read('real/a.txt')).toBe('x');
+      const rootLink = path.join(outside, 'root-link');
+      await fs.symlink(root, rootLink);
+      await applyPlan(planOf(create('b.txt', 'y')), { root: rootLink });
+      expect(await read('b.txt')).toBe('y');
+    });
+
+    it('rolls back by replacing files, never by writing through a link made meanwhile', async () => {
+      await fs.writeFile(at('edit.txt'), 'one\n');
+      const secret = path.join(outside, 'secret');
+      await fs.writeFile(secret, 'secret');
+      const error = await rejection(
+        applyPlan(planOf(patch('edit.txt', 'one\n', 'two\n')), {
+          root,
+          install: async () => {
+            await fs.rm(at('edit.txt'));
+            await fs.symlink(secret, at('edit.txt'));
+            throw new Error('install failed');
+          },
+        }),
+      );
+      expect(error.code).toBe('MFEFLOW_E213');
+      expect(await fs.readFile(secret, 'utf8')).toBe('secret');
+      expect(await read('edit.txt')).toBe('one\n');
+      expect((await fs.lstat(at('edit.txt'))).isSymbolicLink()).toBe(false);
+    });
+
+    it('leaves a hard link to a patched file untouched, through apply and rollback', async () => {
+      await fs.writeFile(at('edit.txt'), 'one\n');
+      await fs.link(at('edit.txt'), path.join(outside, 'twin.txt'));
+      await rejection(
+        applyPlan(planOf(patch('edit.txt', 'one\n', 'two\n')), {
+          root,
+          install: () => Promise.reject(new Error('install failed')),
+        }),
+      );
+      expect(await fs.readFile(path.join(outside, 'twin.txt'), 'utf8')).toBe('one\n');
+      expect(await read('edit.txt')).toBe('one\n');
+    });
   });
 
   describe('install step', () => {

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { MfeflowError, messageOf } from './errors.js';
+import { hasErrno, MfeflowError, messageOf } from './errors.js';
 import { readIfExists, realFs, tempSibling, type FsOps } from './fs.js';
 import { hashContent } from './hash.js';
 import { resolveInRoot } from './paths.js';
@@ -49,6 +49,9 @@ export async function applyPlan(plan: Plan, options: ApplyOptions): Promise<Appl
     file: resolveInRoot(options.root, change.path),
   }));
 
+  const realRoot = await ops.realpath(options.root);
+  await inOrder(targets, ({ change, file }) => assertContained(ops, realRoot, file, change.path));
+
   const current = await verifyUnchanged(targets, ops);
   if (options.dryRun) return { written: [], project };
 
@@ -61,6 +64,7 @@ export async function applyPlan(plan: Plan, options: ApplyOptions): Promise<Appl
       if (change.after === null) return;
       const dir = await ops.mkdir(path.dirname(file));
       if (dir) createdDirs.push(dir);
+      await assertContained(ops, realRoot, path.dirname(file), change.path);
       const temp = tempSibling(file);
       staged.set(file, temp);
       await ops.writeFile(temp, change.after);
@@ -140,7 +144,7 @@ async function rollback(
   await inOrder(journal.toReversed(), async (entry) => {
     try {
       if (entry.original === null) await ops.rm(entry.file);
-      else await ops.writeFile(entry.file, entry.original);
+      else await restoreFile(ops, entry.file, entry.original);
     } catch {
       stuck.push(entry.file);
     }
@@ -148,4 +152,46 @@ async function rollback(
   await inOrder(staged, (temp) => ops.rm(temp).catch(() => undefined));
   await inOrder(createdDirs, (dir) => ops.rm(dir, { recursive: true }).catch(() => undefined));
   return stuck;
+}
+
+/** Puts `content` back by staging it beside `file` and renaming over it, so a link planted there is replaced, not written through. */
+async function restoreFile(ops: FsOps, file: string, content: string): Promise<void> {
+  const temp = tempSibling(file);
+  try {
+    await ops.writeFile(temp, content);
+    await ops.rename(temp, file);
+  } catch (error) {
+    await ops.rm(temp).catch(() => undefined);
+    throw error;
+  }
+}
+
+/**
+ * Requires the deepest part of `target` that exists to resolve, symlinks
+ * included, to somewhere inside the project. A symlink in a cloned repo
+ * could otherwise send a write (or a `mkdir -p`) outside it.
+ */
+async function assertContained(
+  ops: FsOps,
+  realRoot: string,
+  target: string,
+  shown: string,
+): Promise<void> {
+  const real = await deepestRealpath(ops, target);
+  const inside = path.relative(realRoot, real);
+  if (inside.startsWith('..') || path.isAbsolute(inside)) {
+    throw new MfeflowError('E105', `"${shown}" resolves through a symlink to ${real}`);
+  }
+}
+
+async function deepestRealpath(ops: FsOps, target: string): Promise<string> {
+  try {
+    return await ops.realpath(target);
+  } catch (error) {
+    const parent = path.dirname(target);
+    if ((hasErrno(error, 'ENOENT') || hasErrno(error, 'ENOTDIR')) && parent !== target) {
+      return deepestRealpath(ops, parent);
+    }
+    throw new MfeflowError('E106', `${target}: ${messageOf(error)}`, { cause: error });
+  }
 }
