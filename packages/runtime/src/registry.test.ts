@@ -6,7 +6,9 @@ vi.mock('@module-federation/enhanced/runtime', () => ({ registerRemotes }));
 
 const {
   DEFAULT_REGISTRY_URL,
+  INVALID_REMOTE,
   isRegistryIndex,
+  isRegistryRemote,
   loadRegistryIndex,
   REGISTRY_GLOBAL,
   registerRemotesFromIndex,
@@ -41,18 +43,27 @@ afterEach(() => {
 });
 
 describe('isRegistryIndex', () => {
-  it('accepts valid indexes and rejects bad shapes', () => {
+  it('checks the envelope only, so one bad remote does not invalidate the index', () => {
     expect(isRegistryIndex(index)).toBe(true);
     expect(isRegistryIndex({ remotes: [] })).toBe(true);
+    expect(isRegistryIndex({ remotes: [{ name: 'bad name' }, null] })).toBe(true);
     expect(isRegistryIndex(null)).toBe(false);
     expect(isRegistryIndex({})).toBe(false);
-    expect(isRegistryIndex({ remotes: [{ name: 'bad name', entry: 'x' }] })).toBe(false);
-    expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 1 }] })).toBe(false);
-    expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', routes: [1] }] })).toBe(false);
-    expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', version: 2 }] })).toBe(false);
-    expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', remoteEntry: 2 }] })).toBe(false);
-    expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', remoteEntry: 'y' }] })).toBe(true);
-    expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', owner: 2 }] })).toBe(false);
+    expect(isRegistryIndex({ remotes: 'broken' })).toBe(false);
+  });
+});
+
+describe('isRegistryRemote', () => {
+  it('accepts valid remotes and rejects bad shapes', () => {
+    expect(isRegistryRemote(index.remotes[0])).toBe(true);
+    expect(isRegistryRemote(null)).toBe(false);
+    expect(isRegistryRemote({ name: 'bad name', entry: 'x' })).toBe(false);
+    expect(isRegistryRemote({ name: 'a', entry: 1 })).toBe(false);
+    expect(isRegistryRemote({ name: 'a', entry: 'x', routes: [1] })).toBe(false);
+    expect(isRegistryRemote({ name: 'a', entry: 'x', version: 2 })).toBe(false);
+    expect(isRegistryRemote({ name: 'a', entry: 'x', remoteEntry: 2 })).toBe(false);
+    expect(isRegistryRemote({ name: 'a', entry: 'x', remoteEntry: 'y' })).toBe(true);
+    expect(isRegistryRemote({ name: 'a', entry: 'x', owner: 2 })).toBe(false);
   });
 });
 
@@ -113,6 +124,60 @@ describe('loadRegistryIndex', () => {
   });
 });
 
+const reported = () => globalThis.mfeflowReports?.map((r) => [r.mfe, r.where]);
+
+const respond = (body: unknown) => () => Promise.resolve(new Response(JSON.stringify(body)));
+
+describe('a bad remote in the index', () => {
+  const mixed = {
+    remotes: [
+      { name: 'cart', entry: 'https://cdn.example.com/cart/mf-manifest.json', type: 'wasm' },
+      { name: 'catalog', entry: 'https://cdn.example.com/catalog/mf-manifest.json' },
+      { name: 'bad name', entry: 'x' },
+    ],
+  };
+  const expected = { remotes: [mixed.remotes[1]] };
+
+  it('is skipped and reported from the fetched index; the good remote stays', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const fetchFn = vi.fn(() => Promise.resolve(new Response(JSON.stringify(mixed))));
+    await expect(loadRegistryIndex('/r.json', { fetch: fetchFn })).resolves.toEqual(expected);
+    expect(reported()).toEqual([
+      ['cart', 'registry'],
+      ['bad name', 'registry'],
+    ]);
+    expect(globalThis.mfeflowReports?.[0]?.message).toContain(INVALID_REMOTE);
+    expect(globalThis.mfeflowReports?.[0]?.message).toContain('type');
+  });
+
+  it('is skipped and reported from the inlined index', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    Reflect.set(globalThis, REGISTRY_GLOBAL, mixed);
+    try {
+      await expect(loadRegistryIndex('u')).resolves.toEqual(expected);
+      expect(reported()).toEqual([
+        ['cart', 'registry'],
+        ['bad name', 'registry'],
+      ]);
+    } finally {
+      Reflect.deleteProperty(globalThis, REGISTRY_GLOBAL);
+    }
+  });
+
+  it('names a remote without a usable name as unnamed', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(
+      loadRegistryIndex('/r.json', { fetch: respond({ remotes: [42, {}] }) }),
+    ).resolves.toEqual({
+      remotes: [],
+    });
+    expect(reported()).toEqual([
+      ['(unnamed)', 'registry'],
+      ['(unnamed)', 'registry'],
+    ]);
+  });
+});
+
 describe('registerRemotesFromIndex', () => {
   it('registers allowed remotes and reports the rest', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -152,14 +217,12 @@ describe('registerRemotesFromIndex', () => {
       },
       { name: 'plain', entry: 'https://cdn.example.com/plain/m.json' },
     ]);
-    expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', type: 1 }] })).toBe(false);
-    expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', entryGlobalName: 1 }] })).toBe(
-      false,
-    );
+    expect(isRegistryRemote({ name: 'a', entry: 'x', type: 1 })).toBe(false);
+    expect(isRegistryRemote({ name: 'a', entry: 'x', entryGlobalName: 1 })).toBe(false);
     for (const bad of [{ type: 'wasm' }, { entryGlobalName: 'a b' }, { entryGlobalName: 'x";' }])
-      expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', ...bad }] })).toBe(false);
+      expect(isRegistryRemote({ name: 'a', entry: 'x', ...bad })).toBe(false);
     for (const type of ['var', 'esm', 'system'])
-      expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', type }] })).toBe(true);
+      expect(isRegistryRemote({ name: 'a', entry: 'x', type })).toBe(true);
   });
 
   it('accepts what a manifest produces and what the contracts validator accepts', () => {
@@ -176,7 +239,7 @@ describe('registerRemotesFromIndex', () => {
         ...assets,
       };
       expect(validateRegistryIndex({ remotes: [remote] })).toEqual([]);
-      expect(isRegistryIndex({ remotes: [remote] })).toBe(true);
+      expect(isRegistryRemote(remote)).toBe(true);
     }
   });
 

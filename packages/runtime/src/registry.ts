@@ -43,38 +43,62 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((v) => typeof v === 'string');
 }
 
-function isRemote(value: unknown): value is RegistryRemote {
-  if (typeof value !== 'object' || value === null) return false;
-  if (!('name' in value) || !('entry' in value)) return false;
-  if (
-    typeof value.name !== 'string' ||
-    !GLOBAL_NAME.test(value.name) ||
-    typeof value.entry !== 'string'
-  )
-    return false;
-  if ('remoteEntry' in value && typeof value.remoteEntry !== 'string') return false;
+/** The first field of a registry remote that is wrong, or undefined when it is valid. */
+function remoteProblem(value: unknown): string | undefined {
+  if (typeof value !== 'object' || value === null) return 'not an object';
+  if (!('name' in value) || typeof value.name !== 'string' || !GLOBAL_NAME.test(value.name))
+    return 'name';
+  if (!('entry' in value) || typeof value.entry !== 'string') return 'entry';
+  if ('remoteEntry' in value && typeof value.remoteEntry !== 'string') return 'remoteEntry';
   if ('type' in value && (typeof value.type !== 'string' || !ENTRY_TYPES.includes(value.type)))
-    return false;
+    return 'type';
   if (
     'entryGlobalName' in value &&
     (typeof value.entryGlobalName !== 'string' || !GLOBAL_NAME.test(value.entryGlobalName))
   )
-    return false;
-  if ('version' in value && typeof value.version !== 'string') return false;
-  if ('owner' in value && typeof value.owner !== 'string') return false;
-  if ('routes' in value && !isStringArray(value.routes)) return false;
-  return true;
+    return 'entryGlobalName';
+  if ('version' in value && typeof value.version !== 'string') return 'version';
+  if ('owner' in value && typeof value.owner !== 'string') return 'owner';
+  if ('routes' in value && !isStringArray(value.routes)) return 'routes';
+  return undefined;
 }
 
-/** True for a valid registry index (what the shell fetches at boot). */
+/** True for a valid registry remote. */
+export function isRegistryRemote(value: unknown): value is RegistryRemote {
+  return remoteProblem(value) === undefined;
+}
+
+/**
+ * True for a registry index envelope (what the shell fetches at boot). Remotes
+ * are checked one by one in `loadRegistryIndex`, so one bad remote does not
+ * take the others down.
+ */
 export function isRegistryIndex(value: unknown): value is RegistryIndex {
   return (
     typeof value === 'object' &&
     value !== null &&
     'remotes' in value &&
-    Array.isArray(value.remotes) &&
-    value.remotes.every(isRemote)
+    Array.isArray(value.remotes)
   );
+}
+
+/** Reported for a registry remote that is skipped because a field is invalid. */
+export const INVALID_REMOTE = 'MFE_INVALID_REMOTE';
+
+/** The index without its invalid remotes, each reported once. The same object when all are valid. */
+function withoutInvalidRemotes(index: RegistryIndex): RegistryIndex {
+  const remotes = index.remotes.filter((remote) => {
+    const problem = remoteProblem(remote);
+    if (problem === undefined) return true;
+    const name = typeof remote?.name === 'string' ? remote.name : '(unnamed)';
+    reportRemoteError(
+      name,
+      'registry',
+      new Error(`${INVALID_REMOTE}: "${name}" is skipped, its ${problem} is invalid`),
+    );
+    return false;
+  });
+  return remotes.length === index.remotes.length ? index : { ...index, remotes };
 }
 
 export interface LoadRegistryOptions {
@@ -103,14 +127,15 @@ function sameOrigin(url: string): boolean {
 /**
  * Reads the registry index: `window.__MFE_REGISTRY__` when the edge inlined it,
  * otherwise a same-origin fetch. Throws on HTTP errors, timeouts, invalid JSON
- * and cross-origin URLs.
+ * and cross-origin URLs. A remote with an invalid field is skipped and reported
+ * (`MFE_INVALID_REMOTE`); the valid ones stay.
  */
 export async function loadRegistryIndex(
   url: string = DEFAULT_REGISTRY_URL,
   options: LoadRegistryOptions = {},
 ): Promise<RegistryIndex> {
   const inlined: unknown = Reflect.get(globalThis, REGISTRY_GLOBAL);
-  if (options.inline !== false && isRegistryIndex(inlined)) return inlined;
+  if (options.inline !== false && isRegistryIndex(inlined)) return withoutInvalidRemotes(inlined);
   if (options.allowCrossOrigin !== true && !sameOrigin(url))
     throw new Error(`registry index ${url}: must be same-origin`);
   const doFetch = options.fetch ?? fetch;
@@ -118,7 +143,7 @@ export async function loadRegistryIndex(
   if (!res.ok) throw new Error(`registry index ${url}: HTTP ${String(res.status)}`);
   const body: unknown = await res.json();
   if (!isRegistryIndex(body)) throw new Error(`registry index ${url}: not a valid index`);
-  return body;
+  return withoutInvalidRemotes(body);
 }
 
 function toMfRemote(r: RegistryRemote) {
