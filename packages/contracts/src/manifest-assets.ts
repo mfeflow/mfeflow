@@ -3,10 +3,20 @@ import { isObj, isUrl } from './validate.js';
 
 /** What the registry needs from a built remote's `mf-manifest.json`. */
 export interface RemoteAssets {
-  /** Absolute URL of the remote's entry script. */
-  remoteEntry: string;
-  /** Per expose (`./App`), absolute URLs of the JS and CSS files it loads before it renders. */
+  /**
+   * URL of the remote's entry script: absolute, or exactly as Module Federation
+   * builds it from a relative `publicPath` (see `assetsFromManifest`). Absent
+   * when `manifestOnly` is set.
+   */
+  remoteEntry?: string;
+  /** Per expose (`./App`), URLs of the JS and CSS files it loads before it renders. Empty when `manifestOnly` is set. */
   exposes: Record<string, string[]>;
+  /**
+   * Why the files' URLs cannot be known at publish time (`metaData.getPublicPath`
+   * computes them in the browser). Keep such a remote manifest-only: publish its
+   * manifest URL, not a `remoteEntry`.
+   */
+  manifestOnly?: string;
   /** How the entry script is loaded (`module` for ESM). Absent when the manifest does not say. */
   type?: string;
   /** The global the entry script defines, when the manifest names one. */
@@ -40,14 +50,15 @@ function joinEntry(dir: string, name: string): string {
 }
 
 /**
- * Where a manifest's files live: an absolute `publicPath` as is, `auto` or empty
- * as the manifest's own directory (the sdk's `inferAutoPublicPath`), a
- * root-relative or relative one resolved against the manifest URL.
+ * Where a manifest's files live: `auto` or empty is the manifest's own
+ * directory (the sdk's `inferAutoPublicPath`). Anything else is used as is, so
+ * `${publicPath}${file}` joins exactly as Module Federation's `getResourceUrl`
+ * does. A root-relative or relative `publicPath` therefore stays relative: the
+ * browser resolves it against the page, not the manifest URL.
  */
-function publicBase(publicPath: string, manifestUrl: string): string {
-  if (isUrl(publicPath)) return publicPath;
-  if (publicPath === '' || publicPath === 'auto') return new URL('.', manifestUrl).href;
-  return new URL(publicPath, manifestUrl).href;
+function resolveFile(publicPath: string, manifestUrl: string, file: string): string {
+  if (publicPath === '' || publicPath === 'auto') return new URL(file, manifestUrl).href;
+  return `${publicPath}${file}`;
 }
 
 function sync(assets: unknown, kind: 'js' | 'css'): string[] {
@@ -58,9 +69,12 @@ function sync(assets: unknown, kind: 'js' | 'css'): string[] {
 /**
  * Reads the entry script and each expose's synchronous files out of a Module
  * Federation `mf-manifest.json`, resolved against where it is served from
- * (`manifestUrl`, or the manifest's absolute `publicPath`). Run at publish or
- * build time; the browser never parses a manifest. Throws on a manifest
- * without an entry, because a registry entry without one cannot be loaded.
+ * (`manifestUrl`) for an `auto` `publicPath`, and joined to the `publicPath`
+ * as is otherwise (so a root-relative one stays root-relative). With
+ * `metaData.getPublicPath` the URLs are computed in the browser and cannot be
+ * known here: the result has `manifestOnly` set and no `remoteEntry`. Run at
+ * publish or build time; the browser never parses a manifest. Throws on a
+ * manifest without an entry.
  */
 export function assetsFromManifest(manifest: unknown, manifestUrl: string): RemoteAssets {
   if (!isUrl(manifestUrl)) fail(`manifest URL "${manifestUrl}" is not an http(s) URL`);
@@ -70,9 +84,14 @@ export function assetsFromManifest(manifest: unknown, manifestUrl: string): Remo
   const entry = meta.remoteEntry;
   if (!isObj(entry) || typeof entry.name !== 'string' || entry.name === '')
     fail('metaData.remoteEntry has no name');
+  if (typeof meta.getPublicPath === 'string' && meta.getPublicPath !== '')
+    return {
+      exposes: {},
+      manifestOnly:
+        'metaData.getPublicPath computes the file URLs in the browser, so they cannot be known at publish time',
+    };
   const publicPath = typeof meta.publicPath === 'string' ? meta.publicPath : '';
-  const base = publicBase(publicPath, manifestUrl);
-  const at = (file: string) => new URL(file, base).href;
+  const at = (file: string) => resolveFile(publicPath, manifestUrl, file);
   const exposes: Record<string, string[]> = {};
   for (const expose of list(manifest.exposes)) {
     if (!isObj(expose) || typeof expose.path !== 'string') continue;

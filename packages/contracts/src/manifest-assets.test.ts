@@ -120,15 +120,55 @@ describe('assetsFromManifest', () => {
   it.each([
     ['auto', 'auto', 'https://cdn.example.com/mfe/cart/1.2.0/e.js'],
     ['empty', '', 'https://cdn.example.com/mfe/cart/1.2.0/e.js'],
-    ['root-relative', '/static/cart/', 'https://cdn.example.com/static/cart/e.js'],
-    ['relative', 'assets/', 'https://cdn.example.com/mfe/cart/1.2.0/assets/e.js'],
     ['absolute', 'https://static.example.com/c/', 'https://static.example.com/c/e.js'],
+    ['root-relative', '/static/cart/', '/static/cart/e.js'],
+    ['relative', 'assets/', 'assets/e.js'],
+    ['without a trailing slash', '/static/cart', '/static/carte.js'],
   ])('resolves a %s publicPath', (_label, publicPath, expected) => {
     const out = assetsFromManifest(
       { metaData: { publicPath, remoteEntry: { name: 'e.js', path: '' } } },
       url,
     );
     expect(out.remoteEntry).toBe(expected);
+  });
+
+  it('leaves a relative publicPath unresolved in the entry and every expose file', () => {
+    const out = assetsFromManifest(
+      {
+        metaData: { publicPath: '/static/cart/', remoteEntry: { name: 'e.js', path: 'js' } },
+        exposes: [{ path: './App', assets: { js: { sync: ['a.js'] }, css: { sync: ['a.css'] } } }],
+      },
+      url,
+    );
+    expect(out.remoteEntry).toBe('/static/cart/js/e.js');
+    expect(out.exposes).toEqual({ './App': ['/static/cart/a.css', '/static/cart/a.js'] });
+  });
+
+  it('keeps a remote manifest-only when metaData.getPublicPath is set, and says why', () => {
+    const out = assetsFromManifest(
+      {
+        metaData: {
+          publicPath: 'auto',
+          getPublicPath: 'return window.cdn + "/cart/"',
+          remoteEntry: { name: 'e.js', path: '', type: 'module' },
+          globalName: 'cart',
+        },
+        exposes: [{ path: './App', assets: { js: { sync: ['a.js'] } } }],
+      },
+      url,
+    );
+    expect(out.remoteEntry).toBeUndefined();
+    expect(out.exposes).toEqual({});
+    expect(out.manifestOnly).toMatch(/getPublicPath/);
+  });
+
+  it('ignores an empty getPublicPath', () => {
+    const out = assetsFromManifest(
+      { metaData: { getPublicPath: '', remoteEntry: { name: 'e.js', path: '' } } },
+      url,
+    );
+    expect(out.remoteEntry).toBe('https://cdn.example.com/mfe/cart/1.2.0/e.js');
+    expect(out.manifestOnly).toBeUndefined();
   });
 
   it('throws a clear error on a manifest it cannot use', () => {
