@@ -39,7 +39,7 @@ function isFile(file: string): boolean {
 
 const packed = new Map<string, Buffer>();
 
-// Keyed by what produced the body: the file, plus the route and origin for the transformed index.html.
+// Keyed by what produced the body: the file, plus the route for the transformed index.html.
 function compress(key: string, body: Buffer): Buffer {
   const hit = packed.get(key);
   if (hit) return hit;
@@ -132,21 +132,20 @@ function readJson(file: string): unknown {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
-const indexes = new Map<string, RegistryIndex>();
+let cachedIndex: RegistryIndex | undefined;
 
 /** A request that cannot be served right now (a remote is not built); answered with 503 for that request only. */
 class Unavailable extends Error {}
 
-/** The registry for one origin: each remote's entry script and per-expose files, read from its built manifest. */
-function registryFor(origin: string): RegistryIndex {
-  const hit = indexes.get(origin);
-  if (hit) return hit;
+/** The registry: each remote's entry script and per-expose files, read from its built manifest. */
+function registry(): RegistryIndex {
+  if (cachedIndex) return cachedIndex;
   try {
     const index: RegistryIndex = {
       shell: 'storefront',
       env: 'e2e',
       remotes: remotes.map((name) => {
-        const manifestUrl = `${origin}/mfe/${name}/mf-manifest.json`;
+        const manifestUrl = `${ORIGIN}/mfe/${name}/mf-manifest.json`;
         const assets = assetsFromManifest(
           readJson(path.join(root, name, 'dist', 'mf-manifest.json')),
           manifestUrl,
@@ -159,7 +158,7 @@ function registryFor(origin: string): RegistryIndex {
         };
       }),
     };
-    indexes.set(origin, index);
+    cachedIndex = index;
     return index;
   } catch (error) {
     throw new Unavailable('registry unavailable (is every remote built?)', { cause: error });
@@ -175,10 +174,11 @@ function needsFor(pathname: string): RouteNeed[] {
   ];
 }
 
-// The registry's URLs and every cache key use this origin, never the client's Host header.
-// SERVE_ORIGIN overrides it when the shell is reached under another name.
-const ORIGIN = process.env.SERVE_ORIGIN ?? `http://localhost:${String(SHELL_PORT)}`;
-const ORIGIN_HOST = new URL(ORIGIN).host;
+// The registry's URLs use this origin, never the client's Host header; any other Host is a 421.
+// SERVE_ORIGIN overrides it when the shell is reached under another name (only its origin is used).
+const { origin: ORIGIN, host: ORIGIN_HOST } = new URL(
+  process.env.SERVE_ORIGIN ?? `http://localhost:${String(SHELL_PORT)}`,
+);
 const HOST = /^[\w.-]+(:\d{1,5})?$/;
 
 function shellHandler(req: http.IncomingMessage, res: http.ServerResponse): void {
@@ -193,9 +193,8 @@ function shellHandler(req: http.IncomingMessage, res: http.ServerResponse): void
     res.end('misdirected request');
     return;
   }
-  const origin = ORIGIN;
   if (url.pathname === '/registry/index.json') {
-    const body = JSON.stringify(registryFor(origin));
+    const body = JSON.stringify(registry());
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
     res.end(body);
     return;
@@ -236,12 +235,12 @@ function shellHandler(req: http.IncomingMessage, res: http.ServerResponse): void
       INJECT
         ? injectIntoHead(
             html,
-            registryInjection(registryFor(origin), HINTS ? needsFor(url.pathname) : [], {
+            registryInjection(registry(), HINTS ? needsFor(url.pathname) : [], {
               snapshot: MANIFEST_ONLY,
             }),
           )
         : html,
-    `${origin}|${needsFor(url.pathname)[0]?.remote ?? ''}`,
+    `index.html|${needsFor(url.pathname)[0]?.remote ?? ''}`,
   );
 }
 
@@ -274,6 +273,23 @@ function guarded(handler: http.RequestListener): http.RequestListener {
       res.end(error instanceof Unavailable ? error.message : 'internal error');
     }
   };
+}
+
+const NO_SNAPSHOT = /snapshot\s*\?\?\s*(?:!1|false)(?![\w$])/;
+
+/** Whether a built shell's bundle defaults to no manifest loader (`snapshot ?? false` in `registerRemotesFromIndex`). */
+function shellLacksSnapshot(): boolean {
+  const js = path.join(root, 'shell', 'dist', 'static', 'js');
+  if (!fs.existsSync(js)) return false;
+  return fs
+    .readdirSync(js)
+    .some((f) => f.endsWith('.js') && NO_SNAPSHOT.test(fs.readFileSync(path.join(js, f), 'utf8')));
+}
+
+if (MANIFEST_ONLY && shellLacksSnapshot()) {
+  console.error(
+    'SERVE_MANIFEST_ONLY=1, but the shell was built without the manifest loader (production default): its remotes will not load. Build the shell with snapshot: true.',
+  );
 }
 
 http.createServer(guarded(shellHandler)).listen(SHELL_PORT);

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
+import { isRegistryIndex } from '@mfeflow/contracts';
 
 test.describe('the test server', () => {
   test('honours q=0 and always varies on Accept-Encoding', async ({ request }) => {
@@ -82,4 +83,98 @@ test('a missing remote build is a 503 for that request, not a dead server', asyn
     server.kill();
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+const manifest = JSON.stringify({
+  metaData: { publicPath: 'auto', remoteEntry: { name: 'entry.js', path: '' } },
+  exposes: [],
+});
+
+/** A storefront build on disk: both remotes built, and a shell whose bundle is `shellJs`. */
+function fakeBuild(shellJs: string): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'storefront-fake-'));
+  for (const name of ['catalog', 'cart']) {
+    fs.mkdirSync(path.join(root, name, 'dist'), { recursive: true });
+    fs.writeFileSync(path.join(root, name, 'dist/mf-manifest.json'), manifest);
+  }
+  fs.mkdirSync(path.join(root, 'shell/dist/static/js'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'shell/dist/index.html'),
+    '<html><head></head><body></body></html>',
+  );
+  fs.writeFileSync(path.join(root, 'shell/dist/static/js/index.js'), shellJs);
+  return root;
+}
+
+/** Runs the server on `port` until it answers, hands back what it wrote to stderr. */
+async function serving(
+  port: number,
+  env: Record<string, string>,
+  shellJs: string,
+  run: (base: string) => Promise<void>,
+): Promise<string> {
+  const root = fakeBuild(shellJs);
+  const server = spawn('node', [path.join(import.meta.dirname, 'serve.ts')], {
+    env: {
+      ...process.env,
+      SERVE_ROOT: root,
+      SHELL_PORT: String(port),
+      MONOLITH_PORT: String(port + 2),
+      ...env,
+    },
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+  let stderr = '';
+  server.stderr.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString();
+  });
+  const base = `http://localhost:${String(port)}`;
+  try {
+    await expect
+      .poll(
+        async () =>
+          fetch(`${base}/static/js/index.js`).then(
+            (r) => r.status,
+            () => 0,
+          ),
+        { timeout: 10_000 },
+      )
+      .toBe(200);
+    await run(base);
+  } finally {
+    server.kill();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+  return stderr;
+}
+
+const nothing = async () => undefined;
+
+test.describe('SERVE_ORIGIN', () => {
+  test('is reduced to its origin, so the registry URLs have no stray path or slash', async () => {
+    let entry = '';
+    await serving(4381, { SERVE_ORIGIN: 'http://localhost:4381/some/path/' }, 'x', async (base) => {
+      const index: unknown = await (await fetch(`${base}/registry/index.json`)).json();
+      entry = isRegistryIndex(index) ? (index.remotes[0]?.entry ?? '') : '';
+    });
+    expect(entry).toBe('http://localhost:4381/mfe/catalog/mf-manifest.json');
+  });
+});
+
+test.describe('SERVE_MANIFEST_ONLY', () => {
+  const noSnapshot = 'o=t.snapshot??!1,n=[];';
+  const withSnapshot = 'o=t.snapshot??!0,n=[];';
+  const warning = /SERVE_MANIFEST_ONLY=1.*without the manifest loader/;
+
+  test('warns when the shell was built without the manifest loader', async () => {
+    const stderr = await serving(4383, { SERVE_MANIFEST_ONLY: '1' }, noSnapshot, nothing);
+    expect(stderr).toMatch(warning);
+  });
+
+  test('stays quiet for a shell that has the loader, or when not in use', async () => {
+    expect(await serving(4385, { SERVE_MANIFEST_ONLY: '1' }, withSnapshot, nothing)).not.toMatch(
+      warning,
+    );
+    expect(await serving(4387, {}, noSnapshot, nothing)).not.toMatch(warning);
+  });
 });
