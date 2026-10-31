@@ -9,7 +9,7 @@ export interface MfeflowProject {
   packageManager: 'pnpm' | 'npm';
   /** npm scope for the project's own packages, e.g. `@shopco`. */
   scope: string;
-  apps: Record<string, { kind: 'shell' | 'remote'; path: string }>;
+  apps: Record<string, { kind: 'shell' | 'remote'; path: string; port?: number }>;
   features: Record<string, { version: string; options?: Record<string, unknown> }>;
   /** Hashes of copied files, so `upgrade` can tell when a file was edited. */
   files?: Record<string, string>;
@@ -53,6 +53,9 @@ export function validateMfeflowProject(value: unknown): Issue[] {
       else if (kind !== undefined && kind !== 'remote')
         c.add(`${at}.kind`, 'must be shell or remote');
       c.string(app, 'path', at);
+      const port = c.number(app, 'port', at, { required: false, min: 1, max: 65535 });
+      if (port !== undefined && !Number.isInteger(port))
+        c.add(`${at}.port`, 'must be a whole number');
     }
     if (shells === 0) c.add('apps', 'needs at least one shell');
   }

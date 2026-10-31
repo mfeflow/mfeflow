@@ -24,6 +24,11 @@ const project: MfeflowProject = {
   features: { tsconfig: { version: '1.0.0' } },
 };
 
+const withPorts: MfeflowProject = {
+  ...project,
+  apps: { ...project.apps, cart: { kind: 'remote', path: 'apps/cart', port: 4312 } },
+};
+
 const pkg = (extra: object = {}) => `${JSON.stringify({ name: 'x', ...extra }, null, 2)}\n`;
 
 const tree: Record<string, string> = {
@@ -150,6 +155,22 @@ describe('resolveFeature', () => {
     expect(plan.scripts).toHaveLength(1);
     expect(summarize(plan)).toContain('analytics:check');
     expect(renderDiff(plan)).toContain('+++ b/apps/shell/src/platform/consent.ts');
+  });
+
+  it('gives templates the dev server port of the app', async () => {
+    const builder = new PlanBuilder(reader());
+    const feature = local(
+      {
+        name: 'ports',
+        version: '1.0.0',
+        files: [{ to: 'port.txt', target: 'remotes', from: 'port.eta', template: true }],
+      },
+      { 'port.eta': '<%= it.app.name %>:<%= it.app.port ?? "none" %>\n' },
+    );
+    await resolveFeature({ feature, project: withPorts, builder });
+    const files = Object.fromEntries(builder.build().changes.map((c) => [c.path, c.after]));
+    expect(files['apps/cart/port.txt']).toBe('cart:4312\n');
+    expect(files['apps/catalog/port.txt']).toBe('catalog:none\n');
   });
 
   it('creates a missing .env.example, and fails clearly when a config file is missing', async () => {

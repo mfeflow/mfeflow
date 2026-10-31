@@ -26,12 +26,15 @@ interface Place {
   name: string;
   dir: string;
   kind: 'root' | 'shell' | 'remote';
+  port?: number;
 }
 
 function placesFor(target: string | undefined, project: MfeflowProject): Place[] {
   const apps = Object.entries(project.apps).map(([name, app]) => {
     if (!isSafeRelativePath(app.path)) throw new MfeflowError('E105', `app ${name}: "${app.path}"`);
-    return { name, dir: app.path, kind: app.kind } satisfies Place;
+    const place: Place = { name, dir: app.path, kind: app.kind };
+    if (app.port !== undefined) place.port = app.port;
+    return place;
   });
   const where = target ?? 'root';
   if (where === 'root') return [{ name: 'root', dir: '', kind: 'root' }];
@@ -130,7 +133,7 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     packageManager: project.packageManager,
     options,
     feature: { name: manifest.name, version: manifest.version },
-    app: { name: place.name, kind: place.kind, path: place.dir },
+    app: { name: place.name, kind: place.kind, path: place.dir, port: place.port },
   });
 
   const steps: (() => Promise<void>)[] = [];

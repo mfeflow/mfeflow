@@ -218,6 +218,11 @@ describe('mfeflow.json', () => {
     },
   };
 
+  const withPort = (port: unknown) => ({
+    ...project,
+    apps: { ...project.apps, cart: { kind: 'remote', path: 'apps/cart', port } },
+  });
+
   it('accepts a valid project', () => {
     expect(isMfeflowProject(project)).toBe(true);
   });
@@ -247,6 +252,14 @@ describe('mfeflow.json', () => {
       'features.x',
     ]);
     expect(validateMfeflowProject('x')).toHaveLength(1);
+  });
+
+  it('checks the dev server port of an app', () => {
+    expect(validateMfeflowProject(withPort(4311))).toEqual([]);
+    expect(paths(validateMfeflowProject(withPort(0)))).toEqual(['apps.cart.port']);
+    expect(paths(validateMfeflowProject(withPort(70000)))).toEqual(['apps.cart.port']);
+    expect(paths(validateMfeflowProject(withPort(43.5)))).toEqual(['apps.cart.port']);
+    expect(paths(validateMfeflowProject(withPort('4311')))).toEqual(['apps.cart.port']);
   });
 
   it('checks copied-file hashes and registries', () => {
