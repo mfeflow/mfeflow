@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import type { RsbuildConfig } from '@rsbuild/core';
+import { parse } from 'es-module-lexer/js';
 import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginModuleFederation } from '@module-federation/rsbuild-plugin';
 import { pluginMfEsmRuntime } from './esm-runtime.js';
@@ -207,55 +208,23 @@ export function shellFederationOptions(
   };
 }
 
-const IDENT = /[\w$]/;
+const RELATIVE_SPECIFIER = /^\.\.?\//;
 
-/** Index after the whitespace and comments starting at `at`. */
-function skipTrivia(source: string, at: number): number {
-  let i = at;
-  for (;;) {
-    while (i < source.length && /\s/.test(source.charAt(i))) i++;
-    if (source.startsWith('//', i)) {
-      const end = source.indexOf('\n', i);
-      i = end === -1 ? source.length : end;
-    } else if (source.startsWith('/*', i)) {
-      const end = source.indexOf('*/', i + 2);
-      i = end === -1 ? source.length : end + 2;
-    } else return i;
-  }
-}
-
-/** Index after the string or template literal opening at `at`, and its text. */
-function readString(source: string, at: number): { end: number; text: string } {
-  const quote = source.charAt(at);
-  let i = at + 1;
-  while (i < source.length && source.charAt(i) !== quote) i += source.charAt(i) === '\\' ? 2 : 1;
-  return { end: i + 1, text: source.slice(at + 1, i) };
-}
-
-/** True when `source` calls `import('./x')` or `import('../x')`, outside comments and strings. */
+/** True when `source` calls `import()` of a relative module, outside comments and strings. */
 function importsRelativeModule(source: string): boolean {
-  let i = 0;
-  while (i < source.length) {
-    const c = source.charAt(i);
-    if (c === '/' && (source.startsWith('//', i) || source.startsWith('/*', i))) {
-      i = skipTrivia(source, i);
-    } else if (c === '"' || c === "'" || c === '`') {
-      i = readString(source, i).end;
-    } else if (
-      source.startsWith('import', i) &&
-      !IDENT.test(source.charAt(i - 1)) &&
-      source.charAt(i - 1) !== '.' &&
-      !IDENT.test(source.charAt(i + 6))
-    ) {
-      const open = skipTrivia(source, i + 6);
-      const arg = skipTrivia(source, open + 1);
-      if (source.charAt(open) === '(' && /["']/.test(source.charAt(arg))) {
-        if (/^\.\.?\//.test(readString(source, arg).text)) return true;
-      }
-      i += 6;
-    } else i++;
+  try {
+    return parse(source)[0].some(
+      (i) =>
+        i.type === 'dynamic' &&
+        !i.glob &&
+        !i.probablyTypeOnly &&
+        i.specifier !== undefined &&
+        RELATIVE_SPECIFIER.test(i.specifier),
+    );
+  } catch {
+    // Source the lexer cannot read is a syntax error; the bundler reports it with its own location.
+    return true;
   }
-  return false;
 }
 
 /**

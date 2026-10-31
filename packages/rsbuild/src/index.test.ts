@@ -271,6 +271,8 @@ describe('eager: false', () => {
     ['a package import', "void import('react');"],
     ['a computed import', 'void import(name);'],
     ['a method named import', "loader.import('./bootstrap');"],
+    ['a template with an expression', 'void import(`./${name}`);'],
+    ['a type position', "type Boot = typeof import('./bootstrap');"],
   ])('does not take %s for a bootstrap boundary', (_label, source) => {
     expect(() => {
       assertAsyncBoundary('/app/src/index.ts', () => source);
@@ -283,9 +285,18 @@ describe('eager: false', () => {
     "void import (\n  /* lazy */ './bootstrap'\n);",
     "// not this: import('react')\nvoid import('./bootstrap');",
     "const s = 'it\\'s';\nvoid import('./bootstrap');",
+    'void import(`./bootstrap`);',
+    "import React from 'react';\nconst el = <App a={1} />;\nvoid import('./bootstrap');",
+    "const n: number = 1;\nvoid import('./bootstrap');",
   ])('accepts a dynamic import of a relative module: %s', (source) => {
     expect(() => {
       assertAsyncBoundary('/app/src/index.ts', () => source);
+    }).not.toThrow();
+  });
+
+  it('leaves source it cannot lex to the bundler to report', () => {
+    expect(() => {
+      assertAsyncBoundary('/app/src/index.ts', () => "void import('./bootstrap");
     }).not.toThrow();
   });
 
