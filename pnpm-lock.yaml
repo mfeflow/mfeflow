@@ -664,6 +664,10 @@ importers:
         version: 7.0.2
 
   packages/runtime:
+    dependencies:
+      '@mfeflow/contracts':
+        specifier: workspace:*
+        version: link:../contracts
     devDependencies:
       '@module-federation/enhanced':
         specifier: 'catalog:'

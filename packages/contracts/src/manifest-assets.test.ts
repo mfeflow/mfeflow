@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { isRegistryEntry, isRegistryIndex } from './registry.js';
 import { assetsFromManifest } from './manifest-assets.js';
 
 const url = 'https://cdn.example.com/mfe/cart/1.2.0/mf-manifest.json';
@@ -18,6 +19,10 @@ const manifest = {
     { notAnExpose: true },
   ],
 };
+
+const meta = (extra: object) => ({
+  metaData: { remoteEntry: { name: 'e.js', path: '' }, ...extra },
+});
 
 describe('assetsFromManifest', () => {
   it('resolves the entry and each expose’s sync files against the manifest URL', () => {
@@ -62,6 +67,40 @@ describe('assetsFromManifest', () => {
     expect(out).toMatchObject({ type: 'module', entryGlobalName: 'cart_v2' });
     expect(assetsFromManifest(manifest, url)).not.toHaveProperty('type');
     expect(assetsFromManifest(manifest, url)).not.toHaveProperty('entryGlobalName');
+  });
+
+  it('keeps a global name with a hyphen or dollar, as Module Federation emits', () => {
+    for (const globalName of ['my-app', '$shell', 'Cart_2']) {
+      const out = assetsFromManifest(
+        { metaData: { globalName, remoteEntry: { name: 'e.js', path: '' } } },
+        url,
+      );
+      expect(out.entryGlobalName).toBe(globalName);
+    }
+  });
+
+  it('rejects a global name or entry type the registry would refuse', () => {
+    expect(() => assetsFromManifest(meta({ globalName: 'a b' }), url)).toThrow(/globalName "a b"/);
+    expect(() => assetsFromManifest(meta({ globalName: 'x";' }), url)).toThrow(/globalName/);
+    expect(() =>
+      assetsFromManifest({ metaData: { remoteEntry: { name: 'e.js', type: 'wasm' } } }, url),
+    ).toThrow(/type "wasm"/);
+  });
+
+  it('produces an entry the registry validators accept', () => {
+    const out = assetsFromManifest(
+      {
+        metaData: {
+          globalName: 'my-app_v2',
+          publicPath: 'auto',
+          remoteEntry: { name: 'e.mjs', path: '', type: 'module' },
+        },
+        exposes: [],
+      },
+      url,
+    );
+    expect(isRegistryEntry({ version: '1.0.0', manifestUrl: url, ...out })).toBe(true);
+    expect(isRegistryIndex({ remotes: [{ name: 'cart', entry: url, ...out }] })).toBe(true);
   });
 
   it.each([

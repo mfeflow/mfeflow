@@ -1,3 +1,4 @@
+import { assetsFromManifest, validateRegistryIndex } from '@mfeflow/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const registerRemotes = vi.fn();
@@ -159,6 +160,24 @@ describe('registerRemotesFromIndex', () => {
       expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', ...bad }] })).toBe(false);
     for (const type of ['var', 'esm', 'system'])
       expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', type }] })).toBe(true);
+  });
+
+  it('accepts what a manifest produces and what the contracts validator accepts', () => {
+    for (const globalName of ['cart', 'my-app', '$shell', 'Cart_2']) {
+      const assets = assetsFromManifest(
+        {
+          metaData: { globalName, remoteEntry: { name: 'e.mjs', path: '', type: 'module' } },
+        },
+        'https://cdn.example.com/cart/mf-manifest.json',
+      );
+      const remote = {
+        name: 'cart',
+        entry: 'https://cdn.example.com/cart/mf-manifest.json',
+        ...assets,
+      };
+      expect(validateRegistryIndex({ remotes: [remote] })).toEqual([]);
+      expect(isRegistryIndex({ remotes: [remote] })).toBe(true);
+    }
   });
 
   it('registers the same remotes from the inlined index and from the fetched one', () => {

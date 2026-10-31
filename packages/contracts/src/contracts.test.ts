@@ -159,6 +159,14 @@ describe('registry index', () => {
     ).toEqual(['remotes[0].remoteEntry', 'remotes[0].exposes']);
   });
 
+  it('accepts the global names Module Federation produces', () => {
+    const entry = { version: '1.0.0', manifestUrl: 'https://cdn.example.com/cart/m.json' };
+    for (const entryGlobalName of ['cart', 'Cart_v2', 'my-app', '$shell', '_x1'])
+      expect(isRegistryEntry({ ...entry, entryGlobalName })).toBe(true);
+    for (const entryGlobalName of ['1cart', 'a b', 'a.b', '-a'])
+      expect(isRegistryEntry({ ...entry, entryGlobalName })).toBe(false);
+  });
+
   it('checks the entry type and global name on remotes', () => {
     const remote = { name: 'cart', entry: 'https://cdn.example.com/cart/m.json' };
     expect(
@@ -169,7 +177,7 @@ describe('registry index', () => {
     ]);
     expect(
       paths(
-        validateRegistryIndex({ remotes: [{ ...remote, type: 'wasm', entryGlobalName: 'A-b' }] }),
+        validateRegistryIndex({ remotes: [{ ...remote, type: 'wasm', entryGlobalName: 'a b' }] }),
       ),
     ).toEqual(['remotes[0].type', 'remotes[0].entryGlobalName']);
   });

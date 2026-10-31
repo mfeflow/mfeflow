@@ -1,3 +1,4 @@
+import { ENTRY_TYPES, GLOBAL_NAME, pickRegistryFields } from '@mfeflow/contracts/entry';
 import { registerRemotes } from '@module-federation/enhanced/runtime';
 import { reportRemoteError } from './report.js';
 
@@ -38,31 +39,6 @@ function builtWithSnapshot(): boolean {
   return typeof __MFEFLOW_SNAPSHOT__ === 'boolean' ? __MFEFLOW_SNAPSHOT__ : true;
 }
 
-const NAME = /^[A-Za-z_$][\w$-]*$/;
-
-/** The remote entry types Module Federation loads (`RemoteEntryType` in its sdk, plus `esm`). */
-const ENTRY_TYPES = new Set([
-  'var',
-  'module',
-  'esm',
-  'assign',
-  'assign-properties',
-  'this',
-  'window',
-  'self',
-  'global',
-  'commonjs',
-  'commonjs2',
-  'commonjs-module',
-  'commonjs-static',
-  'amd',
-  'amd-require',
-  'umd',
-  'umd2',
-  'jsonp',
-  'system',
-]);
-
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((v) => typeof v === 'string');
 }
@@ -70,14 +46,18 @@ function isStringArray(value: unknown): value is string[] {
 function isRemote(value: unknown): value is RegistryRemote {
   if (typeof value !== 'object' || value === null) return false;
   if (!('name' in value) || !('entry' in value)) return false;
-  if (typeof value.name !== 'string' || !NAME.test(value.name) || typeof value.entry !== 'string')
+  if (
+    typeof value.name !== 'string' ||
+    !GLOBAL_NAME.test(value.name) ||
+    typeof value.entry !== 'string'
+  )
     return false;
   if ('remoteEntry' in value && typeof value.remoteEntry !== 'string') return false;
-  if ('type' in value && (typeof value.type !== 'string' || !ENTRY_TYPES.has(value.type)))
+  if ('type' in value && (typeof value.type !== 'string' || !ENTRY_TYPES.includes(value.type)))
     return false;
   if (
     'entryGlobalName' in value &&
-    (typeof value.entryGlobalName !== 'string' || !NAME.test(value.entryGlobalName))
+    (typeof value.entryGlobalName !== 'string' || !GLOBAL_NAME.test(value.entryGlobalName))
   )
     return false;
   if ('version' in value && typeof value.version !== 'string') return false;
@@ -151,20 +131,6 @@ function toMfRemote(r: RegistryRemote) {
   };
 }
 
-/** The fields the runtime and overlay use, so an inlined and a fetched index register alike. */
-function known(r: RegistryRemote): RegistryRemote {
-  return {
-    name: r.name,
-    entry: r.entry,
-    ...(r.remoteEntry === undefined ? {} : { remoteEntry: r.remoteEntry }),
-    ...(r.type === undefined ? {} : { type: r.type }),
-    ...(r.entryGlobalName === undefined ? {} : { entryGlobalName: r.entryGlobalName }),
-    ...(r.version === undefined ? {} : { version: r.version }),
-    ...(r.routes === undefined ? {} : { routes: r.routes }),
-    ...(r.owner === undefined ? {} : { owner: r.owner }),
-  };
-}
-
 let registered: RegistryRemote[] = [];
 
 /** Remotes registered by the last `registerRemotesFromIndex` call (for the dev overlay). */
@@ -220,6 +186,6 @@ export function registerRemotesFromIndex(
     ok.push(remote);
   }
   registerRemotes(ok.map(toMfRemote));
-  registered = ok.map(known);
+  registered = ok.map((r) => pickRegistryFields(r));
   return ok.map((r) => r.name);
 }

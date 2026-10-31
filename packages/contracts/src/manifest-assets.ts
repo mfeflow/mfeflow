@@ -1,3 +1,4 @@
+import { ENTRY_TYPES, GLOBAL_NAME } from './entry.js';
 import { isObj, isUrl } from './validate.js';
 
 /** What the registry needs from a built remote's `mf-manifest.json`. */
@@ -79,12 +80,17 @@ export function assetsFromManifest(manifest: unknown, manifestUrl: string): Remo
     exposes[expose.path] = [...new Set(files)].map(at);
   }
   const entryPath = typeof entry.path === 'string' ? entry.path : '';
+  const type = typeof entry.type === 'string' && entry.type !== '' ? entry.type : undefined;
+  if (type !== undefined && !ENTRY_TYPES.includes(type))
+    fail(`metaData.remoteEntry.type "${type}" is not a Module Federation entry type`);
+  const globalName =
+    typeof meta.globalName === 'string' && meta.globalName !== '' ? meta.globalName : undefined;
+  if (globalName !== undefined && !GLOBAL_NAME.test(globalName))
+    fail(`metaData.globalName "${globalName}" is not a valid global name`);
   return {
     remoteEntry: at(joinEntry(entryPath, entry.name)),
     exposes,
-    ...(typeof entry.type === 'string' && entry.type !== '' ? { type: entry.type } : {}),
-    ...(typeof meta.globalName === 'string' && meta.globalName !== ''
-      ? { entryGlobalName: meta.globalName }
-      : {}),
+    ...(type === undefined ? {} : { type }),
+    ...(globalName === undefined ? {} : { entryGlobalName: globalName }),
   };
 }

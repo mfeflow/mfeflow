@@ -1,3 +1,4 @@
+import { pickRegistryFields } from './entry.js';
 import type { RegistryIndex } from './registry.js';
 
 /** A remote module the current route renders, e.g. `{ remote: 'cart', expose: './MiniCart' }`. */
@@ -40,18 +41,7 @@ const ESM_TYPES = new Set(['module', 'esm']);
  */
 export function registryInjection(index: RegistryIndex, needs: readonly RouteNeed[]): string {
   const inline = {
-    remotes: index.remotes.map(
-      ({ name, entry, remoteEntry, type, entryGlobalName, version, owner, routes }) => ({
-        name,
-        entry,
-        ...(remoteEntry === undefined ? {} : { remoteEntry }),
-        ...(type === undefined ? {} : { type }),
-        ...(entryGlobalName === undefined ? {} : { entryGlobalName }),
-        ...(version === undefined ? {} : { version }),
-        ...(owner === undefined ? {} : { owner }),
-        ...(routes === undefined ? {} : { routes }),
-      }),
-    ),
+    remotes: index.remotes.map((remote) => pickRegistryFields(remote)),
   };
   let html = `<script>window.__MFE_REGISTRY__=${jsonForScript(inline)}</script>`;
   const seen = new Set<string>();

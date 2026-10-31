@@ -1,4 +1,5 @@
 import { Checker, isObj, isUrl, type Issue, type Obj } from './validate.js';
+import { ENTRY_TYPES, GLOBAL_NAME } from './entry.js';
 import { EXPOSE, MFE_NAME, ROUTE } from './mfe-manifest.js';
 
 /** `registry/envs/<env>/<name>.json`: what one remote serves in one environment. */
@@ -43,28 +44,6 @@ export interface RegistryIndexRemote {
   owner?: string;
 }
 
-/** The remote entry types Module Federation loads (`RemoteEntryType` in its sdk, plus `esm`). */
-export const ENTRY_TYPES: readonly string[] = [
-  'var',
-  'module',
-  'esm',
-  'assign',
-  'assign-properties',
-  'this',
-  'window',
-  'self',
-  'global',
-  'commonjs',
-  'commonjs2',
-  'commonjs-module',
-  'commonjs-static',
-  'amd',
-  'amd-require',
-  'umd',
-  'umd2',
-  'jsonp',
-  'system',
-];
 const ENTRY_TYPE = new RegExp(`^(?:${ENTRY_TYPES.join('|')})$`);
 
 const VERSION = /^[0-9A-Za-z.+-]+$/;
@@ -80,8 +59,8 @@ function checkRemoteFiles(c: Checker, obj: Obj, at: string): void {
   });
   c.string(obj, 'entryGlobalName', at, {
     required: false,
-    pattern: MFE_NAME,
-    hint: 'must be a Module Federation name (lowercase letters, digits, _)',
+    pattern: GLOBAL_NAME,
+    hint: 'must be a JavaScript global name (letters, digits, _, $, -; not starting with a digit)',
   });
   const exposes = c.object(obj, 'exposes', at, false);
   if (!exposes) return;
