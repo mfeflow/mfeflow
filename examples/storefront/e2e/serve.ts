@@ -4,7 +4,6 @@
 //   :4302 monolith (SPA)
 // The shell's index.html gets the edge injection: the registry inlined as
 // window.__MFE_REGISTRY__ and preload hints for the current route's remote files.
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -39,8 +38,8 @@ function isFile(file: string): boolean {
 
 const packed = new Map<string, Buffer>();
 
-function compress(body: Buffer): Buffer {
-  const key = crypto.createHash('sha1').update(body).digest('hex');
+// Keyed by what produced the body: the file, plus the route and origin for the transformed index.html.
+function compress(key: string, body: Buffer): Buffer {
   const hit = packed.get(key);
   if (hit) return hit;
   const out =
@@ -62,6 +61,7 @@ function send(
   file: string,
   cache: string,
   transform?: (body: string) => string,
+  variant = '',
 ): void {
   const ext = path.extname(file);
   const source = fs.readFileSync(file);
@@ -73,7 +73,7 @@ function send(
   const accepts = new RegExp(`\\b${ENCODING}\\b`).test(req.headers['accept-encoding'] ?? '');
   if (compressible.has(ext) && accepts) {
     res.writeHead(200, { ...headers, 'Content-Encoding': ENCODING, Vary: 'Accept-Encoding' });
-    res.end(compress(body));
+    res.end(compress(`${file}\0${variant}`, body));
     return;
   }
   res.writeHead(200, headers);
@@ -85,10 +85,28 @@ function notFound(res: http.ServerResponse): void {
   res.end('not found');
 }
 
-const cacheFor = (file: string) =>
-  file.endsWith('.html') || file.endsWith('mf-manifest.json')
-    ? 'no-cache'
-    : 'public, max-age=31536000, immutable';
+// Only content-hashed files (cart.7f57731a50.js) may be cached forever; mf-manifest.json,
+// mf-stats.json, @mf-types.* and the like keep their name across releases.
+const HASHED = /\.[0-9a-f]{8,}\./;
+const cacheFor = (file: string) => {
+  if (file.endsWith('.html') || file.endsWith('mf-manifest.json')) return 'no-cache';
+  return HASHED.test(path.basename(file))
+    ? 'public, max-age=31536000, immutable'
+    : 'public, max-age=60';
+};
+
+function decode(part: string): string | undefined {
+  try {
+    return decodeURIComponent(part);
+  } catch {
+    return undefined;
+  }
+}
+
+function badRequest(res: http.ServerResponse): void {
+  res.writeHead(400);
+  res.end('bad request');
+}
 
 function readJson(file: string): unknown {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -141,7 +159,12 @@ function shellHandler(req: http.IncomingMessage, res: http.ServerResponse): void
   if (url.pathname.startsWith('/mfe/')) {
     const [, , name, ...rest] = url.pathname.split('/');
     const dist = path.join(root, name ?? '', 'dist');
-    const file = path.join(dist, ...rest.map(decodeURIComponent));
+    const parts = rest.map(decode);
+    if (parts.some((p) => p === undefined)) {
+      badRequest(res);
+      return;
+    }
+    const file = path.join(dist, ...parts.map(String));
     if (name && remotes.includes(name) && file.startsWith(dist + path.sep) && isFile(file)) {
       send(req, res, file, cacheFor(file));
       return;
@@ -150,25 +173,41 @@ function shellHandler(req: http.IncomingMessage, res: http.ServerResponse): void
     return;
   }
   const dist = path.join(root, 'shell', 'dist');
-  const file = path.join(dist, decodeURIComponent(url.pathname));
+  const decoded = decode(url.pathname);
+  if (decoded === undefined) {
+    badRequest(res);
+    return;
+  }
+  const file = path.join(dist, decoded);
   if (file.startsWith(dist + path.sep) && isFile(file) && !file.endsWith('.html')) {
     send(req, res, file, cacheFor(file));
     return;
   }
-  send(req, res, path.join(dist, 'index.html'), 'no-cache', (html) =>
-    INJECT
-      ? injectIntoHead(
-          html,
-          registryInjection(registryFor(origin), HINTS ? needsFor(url.pathname) : []),
-        )
-      : html,
+  send(
+    req,
+    res,
+    path.join(dist, 'index.html'),
+    'no-cache',
+    (html) =>
+      INJECT
+        ? injectIntoHead(
+            html,
+            registryInjection(registryFor(origin), HINTS ? needsFor(url.pathname) : []),
+          )
+        : html,
+    `${origin}|${needsFor(url.pathname)[0]?.remote ?? ''}`,
   );
 }
 
 function monolithHandler(req: http.IncomingMessage, res: http.ServerResponse): void {
   const url = new URL(req.url ?? '/', 'http://x');
   const dist = path.join(root, 'monolith', 'dist');
-  const file = path.join(dist, decodeURIComponent(url.pathname));
+  const decoded = decode(url.pathname);
+  if (decoded === undefined) {
+    badRequest(res);
+    return;
+  }
+  const file = path.join(dist, decoded);
   const target =
     file.startsWith(dist + path.sep) && isFile(file) ? file : path.join(dist, 'index.html');
   send(req, res, target, cacheFor(target));

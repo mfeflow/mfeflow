@@ -89,16 +89,40 @@ test('a remote that fails to load shows its fallback and the rest keeps working'
   expect(mfes).toContain('cart');
 });
 
-test('a remote entry that 404s once is retried and then loads', async ({ page }) => {
-  let failed = false;
+test('a remote entry that 404s is retried with ?retry= and then loads', async ({ page }) => {
+  // Every request for the entry without ?retry= fails, the edge preload included,
+  // so the remote can only load through the retry plugin.
+  const attempts: string[] = [];
   await page.route('**/mfe/cart/static/js/cart.*.js*', (route) => {
-    if (failed) return route.continue();
-    failed = true;
+    const url = route.request().url();
+    attempts.push(url);
+    if (new URL(url).searchParams.has('retry')) return route.continue();
     return route.fulfill({ status: 404, body: 'gone' });
   });
   await open(page, '/cart');
   await expect(page.getByTestId('cart')).toBeVisible();
-  expect(failed).toBe(true);
+  expect(attempts.some((u) => u.includes('retry=1'))).toBe(true);
+  expect(attempts.some((u) => !u.includes('retry='))).toBe(true);
+});
+
+test('only content-hashed files are cached forever', async ({ request }) => {
+  const manifest = await request.get('/mfe/cart/mf-manifest.json');
+  expect(manifest.headers()['cache-control']).toBe('no-cache');
+  const stats = await request.get('/mfe/cart/mf-stats.json');
+  expect(stats.headers()['cache-control']).not.toContain('immutable');
+  const html = await request.get('/catalog');
+  const entry = /href="[^"]*\/mfe\/cart\/(static\/js\/cart\.[0-9a-f]+\.js)"/.exec(
+    await html.text(),
+  );
+  expect(entry).not.toBeNull();
+  const hashed = await request.get(`/mfe/cart/${entry?.[1] ?? ''}`);
+  expect(hashed.headers()['cache-control']).toContain('immutable');
+});
+
+test('a malformed URL escape is a 400, not a crash', async ({ request }) => {
+  expect((await request.get('/%E0%A4%A')).status()).toBe(400);
+  expect((await request.get('/mfe/cart/%zz')).status()).toBe(400);
+  expect((await request.get('/catalog')).status()).toBe(200);
 });
 
 test('the registry is read from the page, and fetched from the same origin when the edge did not inline it', async ({
