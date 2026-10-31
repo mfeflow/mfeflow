@@ -153,6 +153,27 @@ describe('mfeflow add remote', () => {
     expect(await readTree(project)).toEqual(before);
   });
 
+  it('takes back the .git that add git-hooks created when the install fails', async () => {
+    const before = await readTree(project);
+    const rt = testRuntime();
+    rt.system.gitInit = async (root) => {
+      await fs.mkdir(path.join(root, '.git'));
+      return true;
+    };
+    rt.system.install = () => Promise.reject(new Error('registry unreachable'));
+    expect((await add(['git-hooks'], rt)).code).toBe(4);
+    expect(await readTree(project)).toEqual(before);
+    expect(await fs.readdir(project)).not.toContain('.git');
+  });
+
+  it('keeps a .git that was already there when the install fails', async () => {
+    await fs.mkdir(path.join(project, '.git'));
+    const rt = testRuntime();
+    rt.system.install = () => Promise.reject(new Error('registry unreachable'));
+    expect((await add(['git-hooks'], rt)).code).toBe(4);
+    expect(await fs.readdir(project)).toContain('.git');
+  });
+
   it('keeps a file of yours that is in the way and reports it (E207)', async () => {
     await fs.writeFile(path.join(project, 'apps/shell/src/remotes/checkout.tsx'), 'mine');
     const { code, rt } = await add(['remote', 'checkout', '--no-install']);

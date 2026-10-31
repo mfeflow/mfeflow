@@ -150,6 +150,8 @@ export async function writePlan(request: WriteRequest): Promise<WriteOutcome> {
   const installing = globals.install && plan.dependencies.length > 0;
   const missing = await missingFolders(root);
   const wasEmpty = missing.length === 0 && (await isEmptyFolder(root));
+  const gitDir = path.join(root, '.git');
+  let madeGit = false;
   await fs.mkdir(root, { recursive: true });
   let result;
   try {
@@ -159,6 +161,7 @@ export async function writePlan(request: WriteRequest): Promise<WriteOutcome> {
       ...(installing
         ? {
             install: async () => {
+              madeGit = request.afterWrite !== undefined && !(await exists(gitDir));
               await request.afterWrite?.();
               await rt.system.install(root, project.packageManager, globals.verbose);
             },
@@ -166,6 +169,7 @@ export async function writePlan(request: WriteRequest): Promise<WriteOutcome> {
         : {}),
     });
   } catch (error) {
+    if (madeGit) await fs.rm(gitDir, { recursive: true, force: true }).catch(() => undefined);
     const stuck = wasEmpty ? await removeContents(root) : await removeCreated(missing);
     const cleaned = missing.length > 0 || wasEmpty;
     if (cleaned && isMfeflowError(error) && error.code === 'MFEFLOW_E213') {
