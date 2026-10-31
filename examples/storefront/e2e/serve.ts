@@ -255,7 +255,7 @@ function guarded(handler: http.RequestListener): http.RequestListener {
     try {
       handler(req, res);
     } catch (error) {
-      console.error(`${req.method ?? 'GET'} ${req.url ?? ''}:`, error);
+      console.error('%s %s:', req.method ?? 'GET', req.url ?? '', error);
       if (res.headersSent) {
         res.destroy();
         return;
