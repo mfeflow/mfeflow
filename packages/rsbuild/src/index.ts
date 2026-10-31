@@ -141,11 +141,19 @@ export interface ShellOptions {
   /**
    * Keep the manifest/snapshot loader. Default: only in non-production builds,
    * where dev overrides point at a local remote's manifest. Production shells
-   * register remote entry URLs and need no snapshot code.
+   * register remote entry URLs and need no snapshot code, so the runtime
+   * refuses (and reports `MFE_NO_REMOTE_ENTRY` for) a registry entry that has
+   * only a manifest URL. Pass `snapshot: true` while publishing does not yet
+   * write `remoteEntry`.
    */
   snapshot?: boolean;
   cwd?: string;
   env?: Readonly<Record<string, string | undefined>>;
+}
+
+/** Whether the shell keeps the manifest/snapshot loader. */
+export function snapshotEnabled(o: Pick<ShellOptions, 'snapshot' | 'env'>): boolean {
+  return o.snapshot ?? (o.env ?? process.env).NODE_ENV !== 'production';
 }
 
 /** Module Federation options for a shell. Exported for tests and custom setups. */
@@ -158,7 +166,7 @@ export function shellFederationOptions(
   checkName(o.name);
   const env = o.env ?? process.env;
   const typesBuild = env.MFEFLOW_TYPES === '1' && o.typesFrom !== undefined;
-  const snapshot = o.snapshot ?? env.NODE_ENV !== 'production';
+  const snapshot = snapshotEnabled(o);
   const remotes: Record<string, string> = {};
   if (typesBuild) {
     for (const [remote, url] of Object.entries(o.typesFrom ?? {})) {
@@ -203,7 +211,11 @@ export function createShellConfig(o: ShellOptions): RsbuildConfig {
         shellFederationOptions(o, resolvableFrom(cwd), (s) => require.resolve(s)),
       ),
     ],
-    source: { entry: { index: './src/index.ts' } },
+    // The runtime reads this flag to refuse a remote with no remoteEntry when the manifest loader is gone.
+    source: {
+      entry: { index: './src/index.ts' },
+      define: { __MFEFLOW_SNAPSHOT__: JSON.stringify(snapshotEnabled(o)) },
+    },
     server: { historyApiFallback: true, ...(o.port === undefined ? {} : { port: o.port }) },
   };
 }

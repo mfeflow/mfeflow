@@ -156,6 +156,41 @@ describe('registerRemotesFromIndex', () => {
     );
   });
 
+  it('refuses and reports a manifest-only remote when the shell has no manifest loader', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const names = registerRemotesFromIndex(
+      {
+        remotes: [
+          { name: 'cart', entry: 'https://cdn.example.com/cart/m.json' },
+          {
+            name: 'catalog',
+            entry: 'https://cdn.example.com/catalog/m.json',
+            remoteEntry: 'https://cdn.example.com/catalog/e.js',
+          },
+        ],
+      },
+      { snapshot: false },
+    );
+    expect(names).toEqual(['catalog']);
+    expect(registerRemotes).toHaveBeenCalledWith([
+      { name: 'catalog', entry: 'https://cdn.example.com/catalog/e.js' },
+    ]);
+    const report = globalThis.mfeflowReports?.[0];
+    expect([report?.mfe, report?.where]).toEqual(['cart', 'registry']);
+    expect(report?.message).toContain('MFE_NO_REMOTE_ENTRY');
+  });
+
+  it('reads the build-time flag when the option is absent', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const manifestOnly = { remotes: [{ name: 'cart', entry: 'https://cdn.example.com/c/m.json' }] };
+    vi.stubGlobal('__MFEFLOW_SNAPSHOT__', false);
+    expect(registerRemotesFromIndex(manifestOnly)).toEqual([]);
+    vi.stubGlobal('__MFEFLOW_SNAPSHOT__', true);
+    expect(registerRemotesFromIndex(manifestOnly)).toEqual(['cart']);
+    vi.unstubAllGlobals();
+    expect(registerRemotesFromIndex(manifestOnly)).toEqual(['cart']);
+  });
+
   it('registers remoteEntry URLs in place of manifests and checks the origin of the URL it registers', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const names = registerRemotesFromIndex(

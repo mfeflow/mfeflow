@@ -13,6 +13,7 @@ import {
   resolvableFrom,
   sharedSingletons,
   shellFederationOptions,
+  snapshotEnabled,
 } from './index.js';
 
 const all = () => true;
@@ -200,6 +201,29 @@ describe('shellFederationOptions', () => {
       generateTypes: false,
       consumeTypes: { typesOnBuild: true, abortOnError: true },
     });
+  });
+});
+
+describe('snapshotEnabled and the runtime flag', () => {
+  it('follows NODE_ENV unless the option says otherwise', () => {
+    expect(snapshotEnabled({ env: { NODE_ENV: 'production' } })).toBe(false);
+    expect(snapshotEnabled({ env: { NODE_ENV: 'development' } })).toBe(true);
+    expect(snapshotEnabled({ env: { NODE_ENV: 'production' }, snapshot: true })).toBe(true);
+    expect(snapshotEnabled({ env: {}, snapshot: false })).toBe(false);
+  });
+
+  it('defines the flag the runtime reads in the shell config', () => {
+    const cwd = path.resolve(import.meta.dirname, '..');
+    const define = (env: Record<string, string>, snapshot?: boolean) =>
+      createShellConfig({
+        name: 'shell',
+        cwd,
+        env,
+        ...(snapshot === undefined ? {} : { snapshot }),
+      }).source?.define;
+    expect(define({ NODE_ENV: 'production' })).toEqual({ __MFEFLOW_SNAPSHOT__: 'false' });
+    expect(define({ NODE_ENV: 'production' }, true)).toEqual({ __MFEFLOW_SNAPSHOT__: 'true' });
+    expect(define({ NODE_ENV: 'development' })).toEqual({ __MFEFLOW_SNAPSHOT__: 'true' });
   });
 });
 

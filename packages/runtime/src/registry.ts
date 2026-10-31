@@ -27,6 +27,17 @@ export interface RegistryIndex {
   remotes: RegistryRemote[];
 }
 
+/** Set by the shell build (`@mfeflow/rsbuild`): false when it shipped without the manifest loader. */
+// oxlint-disable-next-line no-underscore-dangle -- a bundler define, named like one
+declare const __MFEFLOW_SNAPSHOT__: boolean | undefined;
+
+/** Reported for a registry entry that has only a manifest URL in a shell built without the manifest loader. */
+export const NO_REMOTE_ENTRY = 'MFE_NO_REMOTE_ENTRY';
+
+function builtWithSnapshot(): boolean {
+  return typeof __MFEFLOW_SNAPSHOT__ === 'boolean' ? __MFEFLOW_SNAPSHOT__ : true;
+}
+
 const NAME = /^[A-Za-z_$][\w$-]*$/;
 
 function isStringArray(value: unknown): value is string[] {
@@ -122,6 +133,8 @@ export function registeredRemotes(): readonly RegistryRemote[] {
 export interface RegisterOptions {
   /** Only remotes whose registered URL (`remoteEntry`, else `entry`) is on one of these origins are registered. */
   allowedOrigins?: readonly string[];
+  /** Whether the shell can load a manifest URL. Default: what the shell build set. */
+  snapshot?: boolean;
 }
 
 /**
@@ -137,8 +150,19 @@ export function registerRemotesFromIndex(
   options: RegisterOptions = {},
 ): string[] {
   const allowed = options.allowedOrigins?.map((o) => new URL(o).origin);
+  const snapshot = options.snapshot ?? builtWithSnapshot();
   const ok: RegistryRemote[] = [];
   for (const remote of index.remotes) {
+    if (!snapshot && remote.remoteEntry === undefined) {
+      reportRemoteError(
+        remote.name,
+        'registry',
+        new Error(
+          `${NO_REMOTE_ENTRY}: "${remote.name}" has only a manifest URL (${remote.entry}) and this shell was built without the manifest loader; publish its remoteEntry or build the shell with snapshot: true`,
+        ),
+      );
+      continue;
+    }
     const url = remote.remoteEntry ?? remote.entry;
     let origin: string;
     try {
