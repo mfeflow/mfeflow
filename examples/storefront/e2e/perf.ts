@@ -153,12 +153,13 @@ const server = spawn(process.execPath, ['serve.ts'], {
   env: process.env,
   stdio: 'ignore',
 });
-const browser = await chromium.launch({
-  ...(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {}),
-  args: [`--remote-debugging-port=${String(PORT)}`],
-});
+let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 let report;
 try {
+  browser = await chromium.launch({
+    ...(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {}),
+    args: [`--remote-debugging-port=${String(PORT)}`],
+  });
   await waitFor(`http://localhost:${String(MONOLITH_PORT)}/`);
   await waitFor(`http://localhost:${String(SHELL_PORT)}/registry/index.json`);
   const monolith = await measure(`http://localhost:${String(MONOLITH_PORT)}${PAGE}`);
@@ -177,7 +178,7 @@ try {
     pass: lcpDeltaMs <= TARGET.lcpDeltaMs && jsDeltaKb <= TARGET.jsDeltaKb,
   };
 } finally {
-  await browser.close();
+  await browser?.close();
   server.kill();
 }
 
