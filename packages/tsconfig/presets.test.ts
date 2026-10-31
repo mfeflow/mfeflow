@@ -2,10 +2,11 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { binPath } from './bin.ts';
 
 const here = import.meta.dirname;
 const tmp = path.join(here, '__fixture__');
-const tsc = path.resolve(here, '../../node_modules/.bin/tsc');
+const tsc = binPath('typescript', 'tsc', path.resolve(here, '../..'));
 
 function project(name: string, preset: string, files: Record<string, string>): string {
   const dir = path.join(tmp, name);
@@ -19,7 +20,9 @@ function project(name: string, preset: string, files: Record<string, string>): s
 }
 
 function typecheck(dir: string): { status: number | null; out: string } {
-  const r = spawnSync(tsc, ['-p', dir, '--noEmit', '--pretty', 'false'], { encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [tsc, '-p', dir, '--noEmit', '--pretty', 'false'], {
+    encoding: 'utf8',
+  });
   return { status: r.status, out: r.stdout + r.stderr };
 }
 

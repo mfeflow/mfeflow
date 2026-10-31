@@ -2,10 +2,11 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { binPath } from './bin.ts';
 
 const here = import.meta.dirname;
 const tmp = path.join(here, '__fixture__');
-const oxlint = path.resolve(here, '../../node_modules/.bin/oxlint');
+const oxlint = binPath('oxlint', 'oxlint', path.resolve(here, '../..'));
 
 afterAll(() => {
   fs.rmSync(tmp, { recursive: true, force: true });
@@ -35,8 +36,9 @@ describe('@mfeflow/oxlint-config', () => {
       'export async function f(): Promise<number> {\n  return 1;\n}\nexport function g(): void {\n  f();\n}\n',
     );
     const r = spawnSync(
-      oxlint,
+      process.execPath,
       [
+        oxlint,
         '--type-aware',
         '--no-ignore',
         '-c',
