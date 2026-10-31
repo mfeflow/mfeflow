@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { FetchLike } from '@mfeflow/core';
+import type { FetchLike, FetchResponse } from '@mfeflow/core';
 import { loadPreset, parsePreset } from './preset';
 import { failure, thrown } from './testing';
 
@@ -93,5 +93,111 @@ describe('loadPreset', () => {
     expect((await failure(loadPreset('f.json', sources(noNetwork, '{oops')))).message).toContain(
       'not valid JSON',
     );
+  });
+
+  describe('over https', () => {
+    const encoder = new TextEncoder();
+    const answer = (init: Partial<FetchResponse>): FetchResponse => ({
+      ok: true,
+      status: 200,
+      text: () => Promise.reject(new Error('text() must not be used when a body is available')),
+      ...init,
+    });
+    const header =
+      (headers: Record<string, string>) =>
+      (name: string): string | null =>
+        headers[name.toLowerCase()] ?? null;
+
+    /** Replies in order, remembering what was asked for and how. */
+    const script = (...replies: FetchResponse[]) => {
+      const asked: { url: string; redirect: unknown }[] = [];
+      const fetch: FetchLike = (url, init) => {
+        asked.push({ url, redirect: init?.redirect });
+        const reply = replies[asked.length - 1];
+        return reply ? Promise.resolve(reply) : Promise.reject(new Error('unexpected request'));
+      };
+      return { fetch, asked };
+    };
+    const load = (url: string, fetch: FetchLike) => loadPreset(url, { cwd: '/', fetch });
+
+    it('stops reading a body that grows past the cap, without downloading it all', async () => {
+      let pulled = 0;
+      const stream = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          pulled += 1;
+          controller.enqueue(encoder.encode('x'.repeat(40_000)));
+        },
+      });
+      const { fetch } = script(answer({ body: stream }));
+      expect((await failure(load('https://x.dev/p', fetch))).message).toContain('100 KB');
+      expect(pulled).toBeLessThan(10);
+    });
+
+    it('refuses from content-length alone', async () => {
+      let bodyRead = false;
+      const { fetch } = script(
+        answer({
+          headers: { get: header({ 'content-length': '5000000' }) },
+          text: () => {
+            bodyRead = true;
+            return Promise.resolve('{}');
+          },
+        }),
+      );
+      expect((await failure(load('https://x.dev/p', fetch))).message).toContain('100 KB');
+      expect(bodyRead).toBe(false);
+    });
+
+    it('reads a streamed body that fits', async () => {
+      const { fetch } = script(
+        answer({
+          body: new Blob(['{"scope":"@s"}']).stream(),
+        }),
+      );
+      expect((await load('https://x.dev/p', fetch)).scope).toBe('@s');
+    });
+
+    it('follows a redirect that stays on https, asking for it by hand', async () => {
+      const { fetch, asked } = script(
+        answer({ ok: false, status: 302, headers: { get: header({ location: '/final.json' }) } }),
+        answer({ body: new Blob(['{"scope":"@moved"}']).stream() }),
+      );
+      expect((await load('https://x.dev/p', fetch)).scope).toBe('@moved');
+      expect(asked).toEqual([
+        { url: 'https://x.dev/p', redirect: 'manual' },
+        { url: 'https://x.dev/final.json', redirect: 'manual' },
+      ]);
+    });
+
+    it('refuses a redirect to http, and never asks that address', async () => {
+      const { fetch, asked } = script(
+        answer({
+          ok: false,
+          status: 301,
+          headers: { get: header({ location: 'http://evil.example/p.json' }) },
+        }),
+      );
+      const error = await failure(load('https://x.dev/p', fetch));
+      expect(error.code).toBe('MFEFLOW_E109');
+      expect(error.message).toContain('not https');
+      expect(asked).toHaveLength(1);
+    });
+
+    it('refuses a redirect with no address, and one that never ends', async () => {
+      const none = script(answer({ ok: false, status: 302, headers: { get: () => null } }));
+      expect((await failure(load('https://x.dev/p', none.fetch))).message).toContain('no address');
+      const hop = answer({
+        ok: false,
+        status: 302,
+        headers: { get: header({ location: 'https://x.dev/again' }) },
+      });
+      const loop = script(hop, hop, hop, hop, hop, hop, hop);
+      expect((await failure(load('https://x.dev/p', loop.fetch))).message).toContain('too many');
+    });
+
+    it('refuses an answer that ended up off https even if the fetch followed on its own', async () => {
+      const { fetch } = script(answer({ url: 'http://evil.example/p.json', body: null }));
+      expect((await failure(load('https://x.dev/p', fetch))).message).toContain('not https');
+    });
   });
 });

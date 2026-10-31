@@ -11,7 +11,10 @@ export interface FetchResponse {
   text(): Promise<string>;
 }
 
-export type FetchLike = (url: string, init?: { signal?: AbortSignal }) => Promise<FetchResponse>;
+export type FetchLike = (
+  url: string,
+  init?: { signal?: AbortSignal; redirect?: 'follow' | 'manual' },
+) => Promise<FetchResponse>;
 
 const MAX_BYTES = 1_000_000;
 const TIMEOUT_MS = 10_000;
@@ -59,15 +62,31 @@ export async function fetchRemoteText(
       `${url} answered ${String(response.status)}${hint ? `: ${hint}` : ''}`,
     );
   }
-  const tooBig = () => new MfeflowError('E402', `${url} is larger than 1 MB`);
+  return readCappedText(
+    response,
+    MAX_BYTES,
+    () => new MfeflowError('E402', `${url} is larger than 1 MB`),
+  );
+}
+
+/**
+ * The body of `response` as text, refusing more than `maxBytes`: from the declared
+ * length first, then on the bytes actually streamed, so an oversized answer is
+ * cancelled instead of downloaded. `tooBig` builds the error to throw.
+ */
+export async function readCappedText(
+  response: FetchResponse,
+  maxBytes: number,
+  tooBig: () => Error,
+): Promise<string> {
   const declared = Number(response.headers?.get('content-length') ?? Number.NaN);
-  if (declared > MAX_BYTES) {
+  if (declared > maxBytes) {
     await response.body?.cancel().catch(() => undefined);
     throw tooBig();
   }
   if (!response.body) {
     const text = await response.text();
-    if (Buffer.byteLength(text, 'utf8') > MAX_BYTES) throw tooBig();
+    if (Buffer.byteLength(text, 'utf8') > maxBytes) throw tooBig();
     return text;
   }
   const chunks: Uint8Array[] = [];
@@ -75,7 +94,7 @@ export async function fetchRemoteText(
   // Leaving the loop early cancels the stream, so an oversized answer is not downloaded to the end.
   for await (const chunk of response.body) {
     total += chunk.byteLength;
-    if (total > MAX_BYTES) throw tooBig();
+    if (total > maxBytes) throw tooBig();
     chunks.push(chunk);
   }
   return new TextDecoder().decode(Buffer.concat(chunks));

@@ -1,6 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { messageOf, MfeflowError, type FetchLike } from '@mfeflow/core';
+import {
+  messageOf,
+  MfeflowError,
+  readCappedText,
+  type FetchLike,
+  type FetchResponse,
+} from '@mfeflow/core';
 
 /** The options a preset may carry: the same names as the flags of `init`. */
 export interface Preset {
@@ -73,17 +79,52 @@ export interface PresetSources {
   readFile?: (file: string) => Promise<string>;
 }
 
-async function readUrl(url: string, fetchImpl: FetchLike): Promise<string> {
-  let response;
-  try {
-    response = await fetchImpl(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
-  } catch (error) {
-    throw new MfeflowError('E109', `${url}: ${messageOf(error)}`, { cause: error });
+const MAX_REDIRECTS = 5;
+
+/** Follows redirects by hand so one that leaves https is refused before it is requested. */
+async function getHttps(url: string, fetchImpl: FetchLike): Promise<FetchResponse> {
+  let current = url;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    let response: FetchResponse;
+    try {
+      // oxlint-disable-next-line no-await-in-loop -- each hop depends on the last answer
+      response = await fetchImpl(current, {
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+        redirect: 'manual',
+      });
+    } catch (error) {
+      throw new MfeflowError('E109', `${current}: ${messageOf(error)}`, { cause: error });
+    }
+    if (response.url !== undefined && response.url !== '' && !response.url.startsWith('https://')) {
+      bad(url, `ended up at ${response.url}, which is not https`);
+    }
+    if (response.status < 300 || response.status >= 400) return response;
+    const location = response.headers?.get('location');
+    // oxlint-disable-next-line no-await-in-loop -- the redirect body is not wanted
+    await response.body?.cancel().catch(() => undefined);
+    if (location === null || location === undefined || location === '') {
+      bad(current, `redirected (${String(response.status)}) with no address`);
+    }
+    let next: URL;
+    try {
+      next = new URL(location, current);
+    } catch (error) {
+      throw new MfeflowError('E109', `${current}: redirected to a bad address`, { cause: error });
+    }
+    if (next.protocol !== 'https:') bad(url, `redirected to ${next.href}, which is not https`);
+    current = next.href;
   }
+  return bad(url, 'redirected too many times');
+}
+
+async function readUrl(url: string, fetchImpl: FetchLike): Promise<string> {
+  const response = await getHttps(url, fetchImpl);
   if (!response.ok) bad(url, `answered ${String(response.status)}`);
-  const text = await response.text();
-  if (text.length > MAX_BYTES) bad(url, 'is larger than 100 KB');
-  return text;
+  return readCappedText(
+    response,
+    MAX_BYTES,
+    () => new MfeflowError('E109', `${url}: is larger than 100 KB`),
+  );
 }
 
 /** Loads a preset from a file path or an https URL. Plain http is refused. */
