@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import mfeflowEntryRetryPlugin, { createEntryRetryPlugin } from './entry-retry.js';
+import mfeflowEntryRetryPlugin, { createEntryRetryPlugin } from './entry-retry';
 
 type Args = Parameters<NonNullable<ReturnType<typeof createEntryRetryPlugin>['loadEntryError']>>[0];
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { thrown } from '../testing.js';
-import { wrapProvider } from './wrap-provider.js';
+import { thrown } from '../testing';
+import { wrapProvider } from './wrap-provider';
 
 const providers = `import { type ReactNode } from 'react';
 import { ThemeProvider } from '@mfeflow/theme';

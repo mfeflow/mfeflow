@@ -29,7 +29,29 @@
       {
         "allow": ["**/*.css"]
       }
+    ],
+    "import/extensions": [
+      "error",
+      "ignorePackages",
+      {
+        "js": "never",
+        "jsx": "never",
+        "ts": "never",
+        "tsx": "never",
+        "mjs": "never",
+        "cjs": "never",
+        "mts": "never",
+        "cts": "never"
+      }
     ]
   },
-  "ignorePatterns": ["**/dist/**", "**/doc_build/**", "**/coverage/**", "**/.turbo/**"]
+  "ignorePatterns": ["**/dist/**", "**/doc_build/**", "**/coverage/**", "**/.turbo/**"],
+  "overrides": [
+    {
+      "files": ["**/bin/**", "**/scripts/**"],
+      "rules": {
+        "import/extensions": "off"
+      }
+    }
+  ]
 }

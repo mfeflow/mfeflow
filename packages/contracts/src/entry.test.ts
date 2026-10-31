@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ENTRY_TYPES, GLOBAL_NAME, pickRegistryFields, REGISTRY_REMOTE_FIELDS } from './entry.js';
+import { ENTRY_TYPES, GLOBAL_NAME, pickRegistryFields, REGISTRY_REMOTE_FIELDS } from './entry';
 
 describe('entry constants', () => {
   it('has a global name pattern that takes MF names and refuses code', () => {

@@ -3,8 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createRsbuild, type RsbuildConfig, type RsbuildPlugin } from '@rsbuild/core';
-import { esmTwin, isMfCjs, pluginMfEsmRuntime, swapPath } from './esm-runtime.js';
-import { createRemoteConfig, createShellConfig } from './index.js';
+import { esmTwin, isMfCjs, pluginMfEsmRuntime, swapPath } from './esm-runtime';
+import { createRemoteConfig, createShellConfig } from '.';
 
 describe('isMfCjs', () => {
   it('matches CommonJS builds inside @module-federation packages only', () => {

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { hasErrno, MfeflowError, messageOf } from './errors.js';
+import { hasErrno, MfeflowError, messageOf } from './errors';
 
 /** The file system calls the engine makes, so tests can make one of them fail. */
 export interface FsOps {

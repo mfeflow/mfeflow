@@ -11,8 +11,8 @@ import {
   isUnaryExpression,
   type Node,
 } from '@babel/types';
-import { MfeflowError, messageOf } from '../errors.js';
-import { quote } from '../transforms/ast.js';
+import { MfeflowError, messageOf } from '../errors';
+import { quote } from '../transforms/ast';
 
 /** The validator libraries a typed env schema may call: zod, valibot, arktype. */
 const ROOTS = new Set(['z', 'v', 'type']);

@@ -1,7 +1,7 @@
 import { isIdentifier, isObjectProperty, isStringLiteral } from '@babel/types';
 import type { AddEnvKeyOp, Literal } from '@mfeflow/contracts';
-import { MfeflowError } from '../errors.js';
-import { editJsonObject } from '../json.js';
+import { MfeflowError } from '../errors';
+import { editJsonObject } from '../json';
 import {
   appendItem,
   applyEdits,
@@ -10,7 +10,7 @@ import {
   findServerSchema,
   literalSource,
   parseSource,
-} from './ast.js';
+} from './ast';
 
 const IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { thrown } from '../testing.js';
+import { thrown } from '../testing';
 import {
   assertThirdPartyPath,
   assertWritable,
   isProtectedPath,
   isTestFilePath,
   policyKey,
-} from './write-policy.js';
+} from './write-policy';
 
 describe('policyKey', () => {
   it('folds case and Unicode composition so lookalike spellings meet the same rule', () => {

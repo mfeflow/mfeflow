@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { MfeflowError } from './errors.js';
+import { MfeflowError } from './errors';
 
 export interface PackageJson {
   name: string;

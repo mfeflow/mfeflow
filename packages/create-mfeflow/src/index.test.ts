@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { main, notReadyText } from './index.js';
-import { readPackageJson } from './version.js';
+import { main, notReadyText } from '.';
+import { readPackageJson } from './version';
 
 describe('create-mfeflow', () => {
   it('says it is not ready and exits 1', () => {

@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react';
-import type { Guard, MfeStorage } from './index.js';
+import type { Guard, MfeStorage } from '.';
 
 type Next<T> = T | ((prev: T) => T);
 

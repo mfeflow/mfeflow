@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { thrown } from '../testing.js';
-import { sanitizeSchema } from './schema-policy.js';
+import { thrown } from '../testing';
+import { sanitizeSchema } from './schema-policy';
 
 describe('sanitizeSchema', () => {
   it('re-emits plain validator call chains', () => {

@@ -1,5 +1,5 @@
 import { Eta } from 'eta';
-import { MfeflowError, messageOf } from './errors.js';
+import { MfeflowError, messageOf } from './errors';
 
 export type TemplateData = Record<string, unknown>;
 

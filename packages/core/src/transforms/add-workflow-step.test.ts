@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { thrown } from '../testing.js';
-import { addWorkflowStep } from './add-workflow-step.js';
+import { thrown } from '../testing';
+import { addWorkflowStep } from './add-workflow-step';
 
 const workflow = `# CI
 name: ci

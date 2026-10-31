@@ -9,7 +9,7 @@ import {
   messageOf,
   MfeflowError,
   type ErrorCode,
-} from './errors.js';
+} from './errors';
 
 const isCode = (key: string): key is ErrorCode => key in ERROR_CATALOGUE;
 const codes = Object.keys(ERROR_CATALOGUE).filter(isCode);

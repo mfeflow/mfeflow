@@ -2,7 +2,7 @@ import { cleanup, screen } from '@testing-library/react';
 import { createContext, useContext, type ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { withProps } from '@mfeflow/runtime';
-import { renderWithPlatform, resetPlatform } from './index.js';
+import { renderWithPlatform, resetPlatform } from '.';
 
 afterEach(cleanup);
 

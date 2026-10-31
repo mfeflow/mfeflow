@@ -1,12 +1,12 @@
 import path from 'node:path';
-import { hasErrno, MfeflowError, messageOf } from './errors.js';
-import { readIfExists, realFs, tempSibling, type FsOps } from './fs.js';
-import { assertWritable } from './features/write-policy.js';
-import { hashContent } from './hash.js';
-import { resolveInRoot } from './paths.js';
-import { inOrder } from './sequence.js';
-import { PROJECT_FILE, recordPlan, serializeProject, type MfeflowProject } from './project.js';
-import type { FileChange, Plan } from './plan.js';
+import { hasErrno, MfeflowError, messageOf } from './errors';
+import { readIfExists, realFs, tempSibling, type FsOps } from './fs';
+import { assertWritable } from './features/write-policy';
+import { hashContent } from './hash';
+import { resolveInRoot } from './paths';
+import { inOrder } from './sequence';
+import { PROJECT_FILE, recordPlan, serializeProject, type MfeflowProject } from './project';
+import type { FileChange, Plan } from './plan';
 
 export interface InstallContext {
   root: string;

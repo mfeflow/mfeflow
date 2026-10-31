@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const registerRemotes = vi.fn();
 vi.mock('@module-federation/enhanced/runtime', () => ({ registerRemotes }));
 
-const { DevOverlay } = await import('./overlay.js');
-const { registerRemotesFromIndex } = await import('./registry.js');
-const { reportRemoteError } = await import('./report.js');
+const { DevOverlay } = await import('./overlay');
+const { registerRemotesFromIndex } = await import('./registry');
+const { reportRemoteError } = await import('./report');
 
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => undefined);

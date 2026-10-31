@@ -2,12 +2,12 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyPlan } from './apply.js';
-import { realFs, type FsOps } from './fs.js';
-import { hashContent } from './hash.js';
-import { emptyPlan, type FileChange, type Plan } from './plan.js';
-import { loadProject, saveProject, type MfeflowProject } from './project.js';
-import { rejection } from './testing.js';
+import { applyPlan } from './apply';
+import { realFs, type FsOps } from './fs';
+import { hashContent } from './hash';
+import { emptyPlan, type FileChange, type Plan } from './plan';
+import { loadProject, saveProject, type MfeflowProject } from './project';
+import { rejection } from './testing';
 
 const project: MfeflowProject = {
   version: 1,

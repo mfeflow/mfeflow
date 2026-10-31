@@ -1,7 +1,7 @@
 import { isMap, isSeq, parseDocument, stringify, type YAMLSeq } from 'yaml';
 import type { AddWorkflowStepOp } from '@mfeflow/contracts';
-import { MfeflowError } from '../errors.js';
-import { lineEnd, lineStart } from './ast.js';
+import { MfeflowError } from '../errors';
+import { lineEnd, lineStart } from './ast';
 
 const KEY_ORDER = ['name', 'id', 'if', 'uses', 'with', 'run', 'env'] as const;
 

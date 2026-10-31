@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { thrown } from '../testing.js';
-import { addImport } from './add-import.js';
+import { thrown } from '../testing';
+import { addImport } from './add-import';
 
 const run = (source: string, op: Omit<Parameters<typeof addImport>[2], 'op' | 'file'>) =>
   addImport(source, 'a.tsx', { op: 'add-import', file: 'a.tsx', ...op });

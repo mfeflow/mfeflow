@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { rejection } from '../testing.js';
-import { fetchRemoteText, type FetchLike, type FetchResponse } from './remote.js';
+import { rejection } from '../testing';
+import { fetchRemoteText, type FetchLike, type FetchResponse } from './remote';
 
 const registries = { '@acme': 'https://acme.example/{name}.json' };
 const encoder = new TextEncoder();

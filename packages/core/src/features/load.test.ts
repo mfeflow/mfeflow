@@ -2,9 +2,9 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { rejection, thrown } from '../testing.js';
-import { listLocalFeatures, loadFeature, parseFeature } from './load.js';
-import type { FetchLike } from './remote.js';
+import { rejection, thrown } from '../testing';
+import { listLocalFeatures, loadFeature, parseFeature } from './load';
+import type { FetchLike } from './remote';
 
 const good = {
   name: '@acme/segment',
@@ -442,7 +442,7 @@ describe('loadFeature (remote)', () => {
       }),
     );
     expect(seen[0]).toBe('https://acme.dev/a.json');
-    const { registryUrl } = await import('./remote.js');
+    const { registryUrl } = await import('./remote');
     expect(registryUrl('@acme/a/../b', { '@acme': 'https://acme.dev/{name}.json' })).toBe(
       'https://acme.dev/a%2F..%2Fb.json',
     );

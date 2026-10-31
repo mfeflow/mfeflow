@@ -1,36 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "oxc", "import", "node", "react", "jsx-a11y"],
-  "categories": {
-    "correctness": "error",
-    "suspicious": "error",
-    "perf": "error"
-  },
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "typescript/no-floating-promises": "error",
-    "typescript/no-misused-promises": "error",
-    "typescript/await-thenable": "error",
-    "typescript/no-unsafe-assignment": "error",
-    "typescript/no-unsafe-call": "error",
-    "typescript/no-unsafe-member-access": "error",
-    "typescript/no-unsafe-return": "error",
-    "typescript/no-unsafe-argument": "error",
-    "typescript/restrict-template-expressions": "error",
-    "typescript/no-unnecessary-type-assertion": "error",
-    "typescript/switch-exhaustiveness-check": "error",
-    "react/rules-of-hooks": "error",
-    "react/exhaustive-deps": "error",
-    "react/react-in-jsx-scope": "off",
-    "import/no-unassigned-import": [
-      "error",
-      {
-        "allow": ["**/*.css"]
-      }
-    ]
-  },
+  "extends": ["./packages/oxlint-config/oxlintrc.json"],
   "ignorePatterns": [
     "**/dist/**",
     "**/doc_build/**",
@@ -48,6 +18,12 @@
         "typescript/no-unsafe-member-access": "off",
         "typescript/no-unsafe-argument": "off",
         "typescript/no-unsafe-assignment": "off"
+      }
+    },
+    {
+      "files": ["examples/storefront/e2e/**"],
+      "rules": {
+        "import/extensions": "off"
       }
     }
   ]

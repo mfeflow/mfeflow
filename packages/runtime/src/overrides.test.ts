@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyDevOverrides, OVERRIDE_STORAGE_KEY } from './overrides.js';
+import { applyDevOverrides, OVERRIDE_STORAGE_KEY } from './overrides';
 
 const index = {
   remotes: [

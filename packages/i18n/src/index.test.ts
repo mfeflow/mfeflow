@@ -6,7 +6,7 @@ import {
   initI18n,
   loadNamespace,
   resetI18nForTests,
-} from './index.js';
+} from '.';
 
 const languages = [
   { code: 'en', label: 'English' },

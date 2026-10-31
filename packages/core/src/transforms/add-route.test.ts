@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { thrown } from '../testing.js';
-import { addRoute } from './add-route.js';
+import { thrown } from '../testing';
+import { addRoute } from './add-route';
 
 const table = `import { Home } from './Home';
 

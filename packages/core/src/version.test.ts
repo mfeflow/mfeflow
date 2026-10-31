@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isPackageJson, readPackageJson } from './version.js';
+import { isPackageJson, readPackageJson } from './version';
 
 describe('version', () => {
   it('reads this package.json', () => {

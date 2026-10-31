@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { isRegistryEntry, isRegistryIndex } from './registry.js';
-import { assetsFromManifest } from './manifest-assets.js';
+import { isRegistryEntry, isRegistryIndex } from './registry';
+import { assetsFromManifest } from './manifest-assets';
 
 const url = 'https://cdn.example.com/mfe/cart/1.2.0/mf-manifest.json';
 

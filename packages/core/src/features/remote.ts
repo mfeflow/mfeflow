@@ -1,4 +1,4 @@
-import { MfeflowError, messageOf } from '../errors.js';
+import { MfeflowError, messageOf } from '../errors';
 
 /** The part of `Response` the loader uses, so tests can pass a plain object. */
 export interface FetchResponse {

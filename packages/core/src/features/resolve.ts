@@ -1,16 +1,16 @@
 import { isSafeRelativePath, type FeatureFile, type FeatureManifest } from '@mfeflow/contracts';
-import { MfeflowError } from '../errors.js';
-import { joinPosix } from '../paths.js';
-import { inOrder } from '../sequence.js';
-import type { PlanBuilder } from '../plan.js';
-import type { MfeflowProject } from '../project.js';
-import { renderTemplate, substitute, type TemplateData } from '../templates.js';
-import { applyTransform } from '../transforms/index.js';
-import { envKeyFiles } from '../transforms/add-env-key.js';
-import type { LoadedFeature } from './load.js';
-import { assertPlainScript, assertThirdPartyTransform } from './policy.js';
-import { sanitizeSchema } from './schema-policy.js';
-import { assertThirdPartyPath, assertWritable as assertSafeTarget } from './write-policy.js';
+import { MfeflowError } from '../errors';
+import { joinPosix } from '../paths';
+import { inOrder } from '../sequence';
+import type { PlanBuilder } from '../plan';
+import type { MfeflowProject } from '../project';
+import { renderTemplate, substitute, type TemplateData } from '../templates';
+import { applyTransform } from '../transforms';
+import { envKeyFiles } from '../transforms/add-env-key';
+import type { LoadedFeature } from './load';
+import { assertPlainScript, assertThirdPartyTransform } from './policy';
+import { sanitizeSchema } from './schema-policy';
+import { assertThirdPartyPath, assertWritable as assertSafeTarget } from './write-policy';
 
 export interface ResolveInput {
   feature: LoadedFeature;

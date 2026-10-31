@@ -6,11 +6,11 @@ import {
   type Issue,
   type MfeflowProject,
 } from '@mfeflow/contracts';
-import { MfeflowError, messageOf } from './errors.js';
-import { readIfExists, realFs, writeFileAtomic, type FsOps } from './fs.js';
-import { hashContent } from './hash.js';
-import { resolveInRoot } from './paths.js';
-import type { Plan } from './plan.js';
+import { MfeflowError, messageOf } from './errors';
+import { readIfExists, realFs, writeFileAtomic, type FsOps } from './fs';
+import { hashContent } from './hash';
+import { resolveInRoot } from './paths';
+import type { Plan } from './plan';
 
 export const PROJECT_FILE = 'mfeflow.json';
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createStorage } from './index.js';
+import { createStorage } from '.';
 
 const isTheme = (v: unknown): v is 'light' | 'dark' => v === 'light' || v === 'dark';
 

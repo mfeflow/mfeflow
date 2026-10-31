@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useEffectEvent, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import {
-  getI18n,
-  getLanguages,
-  loadNamespace,
-  type LanguageOption,
-  type NamespaceLoader,
-} from './index.js';
+import { getI18n, getLanguages, loadNamespace, type LanguageOption, type NamespaceLoader } from '.';
 
 export interface MfeTranslation {
   t: TFunction;

@@ -6,8 +6,8 @@ import {
   type Node,
 } from '@babel/types';
 import type { Literal, WrapProviderOp } from '@mfeflow/contracts';
-import { MfeflowError } from '../errors.js';
-import { addImport } from './add-import.js';
+import { MfeflowError } from '../errors';
+import { addImport } from './add-import';
 import {
   applyEdits,
   assertIdentifier,
@@ -19,7 +19,7 @@ import {
   indentAt,
   parseSource,
   startOf,
-} from './ast.js';
+} from './ast';
 
 function propSource(name: string, value: Literal): string {
   if (value === true) return name;

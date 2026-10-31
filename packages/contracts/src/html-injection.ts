@@ -1,5 +1,5 @@
-import { pickRegistryFields } from './entry.js';
-import type { RegistryIndex } from './registry.js';
+import { pickRegistryFields } from './entry';
+import type { RegistryIndex } from './registry';
 
 /** A remote module the current route renders, e.g. `{ remote: 'cart', expose: './MiniCart' }`. */
 export interface RouteNeed {

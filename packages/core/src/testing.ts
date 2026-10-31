@@ -1,4 +1,4 @@
-import { isMfeflowError, MfeflowError } from './errors.js';
+import { isMfeflowError, MfeflowError } from './errors';
 
 /** Awaits a promise that must reject with an MfeflowError and returns it. */
 export async function rejection(promise: Promise<unknown>): Promise<MfeflowError> {

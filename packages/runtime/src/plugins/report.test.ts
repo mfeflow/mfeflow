@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import mfeflowReportPlugin from './report.js';
+import mfeflowReportPlugin from './report';
 
 afterEach(() => {
   globalThis.mfeflowReports = undefined;

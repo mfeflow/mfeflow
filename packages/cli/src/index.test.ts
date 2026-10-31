@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { helpText, main, versionText } from './index.js';
-import { readPackageJson } from './version.js';
+import { helpText, main, versionText } from '.';
+import { readPackageJson } from './version';
 
 describe('mfeflow cli', () => {
   it('prints the package version', () => {

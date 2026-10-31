@@ -6,8 +6,8 @@ import {
   type Statement,
 } from '@babel/types';
 import type { AddBootStepOp } from '@mfeflow/contracts';
-import { MfeflowError } from '../errors.js';
-import { addImport } from './add-import.js';
+import { MfeflowError } from '../errors';
+import { addImport } from './add-import';
 import {
   applyEdits,
   assertIdentifier,
@@ -22,7 +22,7 @@ import {
   literalSource,
   parseSource,
   startOf,
-} from './ast.js';
+} from './ast';
 
 const callsFunction = (name: string) => (node: Node) =>
   isCallExpression(node) && isIdentifier(node.callee) && node.callee.name === name;

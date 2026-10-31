@@ -3,13 +3,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { FeatureManifest } from '@mfeflow/contracts';
-import { applyPlan } from '../apply.js';
-import { PlanBuilder, renderDiff, summarize, type ReadFile } from '../plan.js';
-import type { MfeflowProject } from '../project.js';
-import { rejection, thrown } from '../testing.js';
-import type { LoadedFeature } from './load.js';
-import { parseFeature } from './load.js';
-import { resolveFeature, resolveOptions } from './resolve.js';
+import { applyPlan } from '../apply';
+import { PlanBuilder, renderDiff, summarize, type ReadFile } from '../plan';
+import type { MfeflowProject } from '../project';
+import { rejection, thrown } from '../testing';
+import type { LoadedFeature } from './load';
+import { parseFeature } from './load';
+import { resolveFeature, resolveOptions } from './resolve';
 
 const project: MfeflowProject = {
   version: 1,

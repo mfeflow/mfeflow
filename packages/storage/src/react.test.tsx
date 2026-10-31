@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createStorage } from './index.js';
-import { useStoredState } from './react.js';
+import { createStorage } from '.';
+import { useStoredState } from './react';
 
 afterEach(() => {
   cleanup();
