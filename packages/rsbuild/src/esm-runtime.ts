@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import type { RsbuildPlugin } from '@rsbuild/core';
 
-const CJS = /[\\/]@module-federation[\\/][^\\/]+[\\/]dist[\\/].+\.cjs$/;
+const CJS_FILE = /\.cjs$/;
+const MF_DIST = /[\\/]@module-federation[\\/][^\\/]+[\\/]dist[\\/]/;
 
 /** True for a CommonJS build inside an `@module-federation/*` package's `dist`. */
 export function isMfCjs(file: string): boolean {
-  return CJS.test(file);
+  return CJS_FILE.test(file) && MF_DIST.test(file);
 }
 
 /**
@@ -39,7 +40,7 @@ export function pluginMfEsmRuntime(): RsbuildPlugin {
       api.modifyRspackConfig((config, { rspack }) => {
         config.plugins ??= [];
         config.plugins.push(
-          new rspack.NormalModuleReplacementPlugin(CJS, (data) => {
+          new rspack.NormalModuleReplacementPlugin(CJS_FILE, (data) => {
             const created = data.createData;
             if (created?.resource !== undefined && isMfCjs(created.resource)) {
               const cjs = created.resource;

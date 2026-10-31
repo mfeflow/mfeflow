@@ -13,6 +13,14 @@ describe('isMfCjs', () => {
     expect(isMfCjs('/n/@module-federation/runtime-core/dist/index.js')).toBe(false);
     expect(isMfCjs('/n/react/cjs/react.development.cjs')).toBe(false);
     expect(isMfCjs('/n/@module-federation/sdk/package.cjs')).toBe(false);
+    expect(isMfCjs('/n/@module-federation/sdk/dist/')).toBe(false);
+    expect(isMfCjs('/n/@module-federation//dist/x.cjs')).toBe(false);
+  });
+
+  it('stays fast on a long path that nearly matches', () => {
+    const start = Date.now();
+    isMfCjs(`/@module-federation/a/dist/${'/dist/'.repeat(20_000)}x.cjs.js`);
+    expect(Date.now() - start).toBeLessThan(200);
   });
 });
 
