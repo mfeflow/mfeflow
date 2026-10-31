@@ -1,9 +1,14 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   MAX_TARBALL_BYTES,
+  bareImports,
+  fixedGroupProblems,
   formatBytes,
+  isMain,
+  undeclaredImports,
   publicPackages,
   referencedFiles,
   validatePack,
@@ -85,6 +90,174 @@ describe('referencedFiles', () => {
 
   it('accepts a string bin', () => {
     expect(referencedFiles({ bin: './bin/x.js' })).toEqual(['bin/x.js']);
+  });
+});
+
+describe('referencedFiles without ./', () => {
+  it('checks main, module, types and bin written without a leading ./', () => {
+    expect(
+      referencedFiles({
+        main: 'dist/index.cjs',
+        module: 'dist/index.js',
+        types: 'dist/index.d.ts',
+        bin: { a: 'bin/a.js', b: './bin/b.js' },
+      }),
+    ).toEqual(['bin/a.js', 'bin/b.js', 'dist/index.d.ts', 'dist/index.cjs', 'dist/index.js']);
+  });
+
+  it('walks nested export conditions and arrays, bare or not', () => {
+    expect(
+      referencedFiles({
+        exports: {
+          '.': { node: { import: 'dist/n.js', require: './dist/n.cjs' }, default: ['./dist/d.js'] },
+          './off': null,
+        },
+      }),
+    ).toEqual(['dist/n.js', 'dist/n.cjs', 'dist/d.js']);
+  });
+
+  it('reports a bare main that is not in the tarball', () => {
+    const problems = check({
+      manifest: { ...manifest, main: 'dist/missing.js' },
+    });
+    expect(problems).toEqual([
+      'dist/missing.js is referenced by package.json but not in the tarball',
+    ]);
+  });
+});
+
+describe('test and fixture folders', () => {
+  it.each(['test/a.js', 'tests/a.js', 'dist/__tests__/a.js', 'fixtures/a.json', 'dist/fixtures/a'])(
+    'rejects %s',
+    (file) => {
+      expect(check({ files: [...goodFiles, file] }).some((p) => p.startsWith(`${file}:`))).toBe(
+        true,
+      );
+    },
+  );
+
+  it('allows a testing folder and the templates own tests under assets/', () => {
+    const files = [
+      ...goodFiles,
+      'dist/testing/a.js',
+      'assets/templates/monorepo/files/shell/src/App.test.tsx',
+      'assets/templates/monorepo/files/shell/tests/smoke.spec.ts',
+      'assets/templates/monorepo/files/shell/__tests__/a.ts',
+      'assets/features/testing/files/__fixture__/a.json',
+      'assets/features/testing/files/fixtures/a.json',
+    ];
+    expect(check({ files })).toEqual([]);
+  });
+});
+
+describe('bare imports in published code', () => {
+  it('finds static, side-effect, dynamic and require specifiers and skips relative, node: and comments', () => {
+    const source = [
+      "import a from 'react';",
+      "import { b } from '@scope/pkg/sub';",
+      "import './local';",
+      "import 'side-effect';",
+      "export * from 'reexport';",
+      "const c = await import('lazy');",
+      "const d = require('cjs');",
+      "import fs from 'node:fs';",
+      "import path from 'path';",
+      "// import x from 'in-line-comment';",
+      "/* import y from 'in-block-comment'; */",
+      "import type { T } from 'types-only';",
+    ].join('\n');
+    expect(bareImports(source)).toEqual([
+      'react',
+      '@scope/pkg',
+      'side-effect',
+      'reexport',
+      'lazy',
+      'cjs',
+      'types-only',
+    ]);
+  });
+
+  const pkg = {
+    name: '@mfeflow/example',
+    dependencies: { dep: '^1' },
+    peerDependencies: { peer: '^1' },
+    optionalDependencies: { opt: '^1' },
+    devDependencies: { dev: '^1' },
+  };
+
+  it('accepts dependencies, peers, optionals, builtins and the package itself', () => {
+    const contents = {
+      'dist/a.js':
+        "import 'dep'; import 'peer'; import 'opt'; import 'fs'; import '@mfeflow/example/react'; import 'dep/deep';",
+    };
+    expect(undeclaredImports(pkg, contents)).toEqual([]);
+  });
+
+  it('reports an import that is only a devDependency or not declared', () => {
+    const contents = {
+      'dist/a.js': "import 'dev'; import 'nowhere';",
+      'dist/a.d.ts': "import 'dev';",
+    };
+    expect(undeclaredImports(pkg, contents)).toEqual([
+      'dist/a.js imports "dev", which is not a dependency or peerDependency',
+      'dist/a.js imports "nowhere", which is not a dependency or peerDependency',
+      'dist/a.d.ts imports "dev", which is not a dependency or peerDependency',
+    ]);
+  });
+
+  it('ignores assets/, which hold project templates', () => {
+    expect(undeclaredImports(pkg, { 'assets/templates/x/src/a.ts': "import 'nowhere';" })).toEqual(
+      [],
+    );
+  });
+
+  it('is part of validatePack', () => {
+    expect(check({ contents: { 'dist/index.js': "import 'nowhere';" } })).toEqual([
+      'dist/index.js imports "nowhere", which is not a dependency or peerDependency',
+    ]);
+  });
+});
+
+describe('changesets fixed group', () => {
+  const names = ['a', 'b'];
+  it('is fine when every public package is grouped', () => {
+    expect(fixedGroupProblems({ fixed: [['a', 'b']], ignore: [] }, names)).toEqual([]);
+  });
+  it('names a public package missing from the group', () => {
+    expect(fixedGroupProblems({ fixed: [['a']], ignore: [] }, names)).toEqual([
+      'b is not in the "fixed" group of .changeset/config.json',
+    ]);
+    expect(fixedGroupProblems({}, names)).toHaveLength(2);
+  });
+  it('names a grouped package that is also ignored', () => {
+    expect(fixedGroupProblems({ fixed: [['a', 'b']], ignore: ['b'] }, names)).toEqual([
+      'b is both in "fixed" and in "ignore" of .changeset/config.json',
+    ]);
+  });
+});
+
+describe('isMain', () => {
+  const script = path.join(repo, 'scripts/check-pack.mjs');
+
+  it('is true for the script itself and for a symlink to it', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-pack-link-'));
+    try {
+      const link = path.join(dir, 'link.mjs');
+      fs.symlinkSync(script, link);
+      expect(isMain(script, script)).toBe(true);
+      expect(isMain(link, script)).toBe(true);
+      const dirLink = path.join(dir, 'scripts');
+      fs.symlinkSync(path.join(repo, 'scripts'), dirLink);
+      expect(isMain(path.join(dirLink, 'check-pack.mjs'), script)).toBe(true);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('is false for another file, a missing path or no argument', () => {
+    expect(isMain(path.join(repo, 'package.json'), script)).toBe(false);
+    expect(isMain(path.join(repo, 'nope.mjs'), script)).toBe(false);
+    expect(isMain(undefined, script)).toBe(false);
   });
 });
 
