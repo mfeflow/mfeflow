@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createRsbuild, type RsbuildConfig, type RsbuildPlugin } from '@rsbuild/core';
-import { esmTwin, isMfCjs, pluginMfEsmRuntime } from './esm-runtime.js';
+import { esmTwin, isMfCjs, pluginMfEsmRuntime, swapPath } from './esm-runtime.js';
 import { createRemoteConfig, createShellConfig } from './index.js';
 
 describe('isMfCjs', () => {
@@ -21,6 +21,13 @@ describe('isMfCjs', () => {
     const start = Date.now();
     isMfCjs(`/@module-federation/a/dist/${'/dist/'.repeat(20_000)}x.cjs.js`);
     expect(Date.now() - start).toBeLessThan(200);
+  });
+});
+
+describe('swapPath', () => {
+  it('replaces the first occurrence, taking the new path literally', () => {
+    expect(swapPath('a!/x/f.cjs?q', '/x/f.cjs', '/x/f.js')).toBe('a!/x/f.js?q');
+    expect(swapPath('/p/f.cjs', '/p/f.cjs', '/p/$&/$1/f.js')).toBe('/p/$&/$1/f.js');
   });
 });
 

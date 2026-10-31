@@ -12,6 +12,11 @@ export function isMfCjs(file: string): boolean {
   return CJS_FILE.test(file) && MF_DIST.test(file);
 }
 
+/** `value` with the first `from` replaced by `to`, taken literally (no `$&` or `$1` expansion). */
+export function swapPath(value: string, from: string, to: string): string {
+  return value.replace(from, () => to);
+}
+
 /**
  * The ESM twin of a Module Federation `.cjs` file: the same name ending in
  * `.js` or `.mjs` in the same directory. Throws if there is none, so a new
@@ -56,7 +61,7 @@ export function pluginMfEsmRuntime(): RsbuildPlugin {
               // The loader-prefixed request and the user request name the module, so they move with the resource.
               for (const key of ['request', 'userRequest', 'resource'] as const) {
                 const value = created[key];
-                if (typeof value === 'string') created[key] = value.replace(cjs, esm);
+                if (typeof value === 'string') created[key] = swapPath(value, cjs, esm);
               }
             } else if (PATH_REQUEST.test(data.request)) {
               // Before resolving, so rule matching sees the ESM file; relative requests are resolved against the importer.
