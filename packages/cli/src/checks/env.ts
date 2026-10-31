@@ -8,7 +8,7 @@ import {
   type SchemaKey,
 } from '@mfeflow/core';
 import { done, finding, type Check, type CheckOutcome, type Finding } from '../findings';
-import { readText, type ProjectView } from '../inspect';
+import { readText, type AppView, type ProjectView } from '../inspect';
 
 /** Decision 0020. Every check below does nothing until the env-t3 feature is installed. */
 const NOT_INSTALLED = 'the env-t3 feature is not installed';
@@ -25,11 +25,19 @@ interface Place {
   dir: string;
   /** Path from the project root, empty for the root. */
   rel: string;
+  /** The package name, which Turborepo prefixes task ids with (`@scope/app#build`). */
+  pkg?: string;
 }
+
+const placeOf = (a: AppView): Place => {
+  const place: Place = { name: a.name, dir: a.dir, rel: a.rel };
+  if (a.pkg !== undefined) place.pkg = a.pkg.name;
+  return place;
+};
 
 const places = (view: ProjectView): Place[] => [
   { name: 'root', dir: view.root, rel: '' },
-  ...view.apps.filter((a) => a.present).map((a) => ({ name: a.name, dir: a.dir, rel: a.rel })),
+  ...view.apps.filter((a) => a.present).map(placeOf),
 ];
 
 const warning = (app: string, file: string) => ({
@@ -74,7 +82,17 @@ export const envExample: Check = {
   run: (view) =>
     eachPlace(view, async (place) => {
       const server = await serverKeysOf(place);
-      if (server === undefined || server.problem !== undefined) return [];
+      if (server === undefined) return [];
+      if (server.problem !== undefined) {
+        const env = at(place, 'env.ts');
+        return [
+          finding('env.example', 'E118', `${env} cannot be checked: ${server.problem}`, {
+            app: place.name,
+            path: env,
+            severity: 'warning',
+          }),
+        ];
+      }
       const names = new Set(server.keys.map((k) => k.name));
       const required = server.keys.filter((k) => !k.optional).map((k) => k.name);
       const file = at(place, '.env.example');
@@ -241,16 +259,17 @@ export const turboEnv: Check = {
     if (!installed(view)) return { findings: [], skipped: NOT_INSTALLED };
     const source = await readText(path.join(view.root, 'turbo.json'));
     if (source === undefined) return { findings: [], skipped: 'there is no turbo.json' };
-    let listed: string[] = [];
+    let turbo: unknown;
     try {
-      listed = turboEnvNames(JSON.parse(source));
+      turbo = JSON.parse(source);
     } catch {
       return { findings: [], skipped: 'turbo.json is not valid JSON' };
     }
     return eachPlace(view, async (place) => {
       const server = await serverKeysOf(place);
+      const listed = turboBuildEnv(turbo, place);
       return (server?.keys ?? [])
-        .filter((key) => !key.optional && !listed.includes(key.name))
+        .filter((key) => !key.optional && !envListed(listed, key.name))
         .map((key) =>
           finding('env.turbo', 'E121', `${key.name} from ${at(place, 'env.ts')}`, {
             app: place.name,
@@ -262,21 +281,40 @@ export const turboEnv: Check = {
   },
 };
 
-/** Every name under `globalEnv`, `globalPassThroughEnv` and a task's `env` or `passThroughEnv`. */
-function turboEnvNames(turbo: unknown): string[] {
-  const names: string[] = [];
-  const visit = (value: unknown, key: string): void => {
-    if (
-      Array.isArray(value) &&
-      ['globalEnv', 'globalPassThroughEnv', 'env', 'passThroughEnv'].includes(key)
-    ) {
-      names.push(...value.filter((v): v is string => typeof v === 'string'));
-    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      for (const [k, v] of Object.entries(value)) visit(v, k);
-    }
-  };
-  visit(turbo, '');
-  return names;
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const strings = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+
+/**
+ * The env patterns that change the hash of a place's `build` task: `globalEnv`, `tasks.build.env`
+ * and the `env` of its own `<package>#build` task. The pass-through lists are not here: they reach
+ * the task but do not change the hash, so a cached build would be replayed without running env.ts.
+ */
+function turboBuildEnv(turbo: unknown, place: Place): string[] {
+  if (!isRecord(turbo)) return [];
+  const tasks = isRecord(turbo.tasks) ? turbo.tasks : {};
+  const own = place.pkg === undefined ? undefined : tasks[`${place.pkg}#build`];
+  return [
+    ...strings(turbo.globalEnv),
+    ...(isRecord(tasks.build) ? strings(tasks.build.env) : []),
+    ...(isRecord(own) ? strings(own.env) : []),
+  ];
+}
+
+/** Turborepo's wildcard: `*` matches any run of characters. */
+function matchesEnv(pattern: string, name: string): boolean {
+  const parts = pattern
+    .split('*')
+    .map((part) => part.replaceAll(/[$()+.?[\\\]^{|}]/g, String.raw`\$&`));
+  return new RegExp(`^${parts.join('.*')}$`).test(name);
+}
+
+/** A name is listed by a pattern, unless a later `!pattern` excludes it. */
+function envListed(patterns: readonly string[], name: string): boolean {
+  const included = patterns.some((p) => !p.startsWith('!') && matchesEnv(p, name));
+  return included && !patterns.some((p) => p.startsWith('!') && matchesEnv(p.slice(1), name));
 }
 
 export const envChecks: readonly Check[] = [envExample, runtimeConfig, publicPrefix, turboEnv];

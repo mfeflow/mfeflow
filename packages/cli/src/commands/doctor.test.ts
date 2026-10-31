@@ -497,11 +497,21 @@ ${keys}
     expect(codes((await run(root, 'doctor')).result).filter((c) => c !== 'MFEFLOW_E117')).toContain(
       'MFEFLOW_E118',
     );
+  });
+
+  it('warns about an env.ts it cannot read instead of passing it silently', async () => {
+    const root = await project();
     await fs.writeFile(path.join(root, 'apps/cart/env.ts'), 'export const env = {');
     await fs.writeFile(path.join(root, 'apps/catalog/env.ts'), 'export const env = {};\n');
-    expect(
-      codes((await run(root, 'doctor')).result).filter((c) => c !== 'MFEFLOW_E117'),
-    ).not.toContain('MFEFLOW_E118');
+    const found = envFindings((await run(root, 'doctor')).result)
+      .filter((f) => f.code === 'MFEFLOW_E118')
+      .toSorted((a, b) => (a.path ?? '').localeCompare(b.path ?? ''));
+    expect(found.map((f) => [f.severity, f.path, f.app])).toEqual([
+      ['warning', 'apps/cart/env.ts', 'cart'],
+      ['warning', 'apps/catalog/env.ts', 'catalog'],
+    ]);
+    expect(found[0]?.message).toContain('apps/cart/env.ts cannot be checked');
+    expect(found[1]?.message).toContain('it has no createEnv({ server: { … } })');
   });
 
   it('errors on a runtime-config file with a missing key, bad JSON or a non-object, and warns on an unknown key', async () => {
@@ -577,6 +587,67 @@ ${keys}
       doc.tasks = { build: { env: ['API_ORIGIN'] } };
     });
     expect(envFindings((await run(root, 'doctor')).result)).toEqual([]);
+  });
+
+  it.each([
+    ['globalEnv', (doc: Record<string, unknown>) => (doc.globalEnv = ['API_ORIGIN']), true],
+    ['a globalEnv wildcard', (doc: Record<string, unknown>) => (doc.globalEnv = ['API_*']), true],
+    [
+      'tasks.build.env',
+      (doc: Record<string, unknown>) => (doc.tasks = { build: { env: ['API_ORIGIN'] } }),
+      true,
+    ],
+    [
+      'tasks.build.env wildcard',
+      (doc: Record<string, unknown>) => (doc.tasks = { build: { env: ['*_ORIGIN'] } }),
+      true,
+    ],
+    [
+      'the app build task',
+      (doc: Record<string, unknown>) =>
+        (doc.tasks = { '@app/cart#build': { env: ['API_ORIGIN'] } }),
+      true,
+    ],
+    [
+      'another app build task',
+      (doc: Record<string, unknown>) =>
+        (doc.tasks = { '@app/shell#build': { env: ['API_ORIGIN'] } }),
+      false,
+    ],
+    [
+      'globalPassThroughEnv',
+      (doc: Record<string, unknown>) => (doc.globalPassThroughEnv = ['API_ORIGIN']),
+      false,
+    ],
+    [
+      'build passThroughEnv',
+      (doc: Record<string, unknown>) => (doc.tasks = { build: { passThroughEnv: ['API_ORIGIN'] } }),
+      false,
+    ],
+    [
+      'the env of a task that is not build',
+      (doc: Record<string, unknown>) => (doc.tasks = { dev: { env: ['API_ORIGIN'] } }),
+      false,
+    ],
+    [
+      'a wildcard that does not match',
+      (doc: Record<string, unknown>) => (doc.globalEnv = ['API_X*']),
+      false,
+    ],
+    [
+      'a negated wildcard',
+      (doc: Record<string, unknown>) => (doc.globalEnv = ['API_*', '!API_ORIGIN']),
+      false,
+    ],
+  ])('E121 counts %s as listing the key: %s', async (_name, edit, satisfied) => {
+    const root = await project();
+    await fs.writeFile(path.join(root, 'apps/cart/env.ts'), ENV_TS('    API_ORIGIN: z.url(),'));
+    await fs.writeFile(path.join(root, 'apps/cart/.env.example'), 'API_ORIGIN=\n');
+    await editJson(path.join(root, 'turbo.json'), edit);
+    const found = envFindings((await run(root, 'doctor')).result).filter(
+      (f) => f.code === 'MFEFLOW_E121',
+    );
+    expect(found.length).toBe(satisfied ? 0 : 1);
   });
 
   it('skips the turbo check without a turbo.json or with one that is not JSON', async () => {
