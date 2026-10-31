@@ -116,6 +116,11 @@ export function isUrl(value: string): boolean {
  * A path inside a project: relative, forward slashes, no `.` or `..` segments,
  * no drive letters. Features and `mfeflow.json` only ever name files this way.
  */
+const SEGMENT = String.raw`(?!\.\.?(?:/|$))[^/\\\u0000]+`;
+
+/** The regex form of `isSafeRelativePath`, for JSON Schema. */
+export const SAFE_RELATIVE_PATH = new RegExp(`^(?![A-Za-z]:)${SEGMENT}(?:/${SEGMENT})*$`);
+
 export function isSafeRelativePath(value: string): boolean {
   if (value === '' || value.includes('\\') || value.includes('\0')) return false;
   if (value.startsWith('/') || /^[A-Za-z]:/.test(value)) return false;

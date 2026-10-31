@@ -36,6 +36,6 @@ Bucket: **config**. Used at build, lint or test time only, never shipped to the 
 ## Links
 
 - [mfeflow repository](https://github.com/mfeflow/mfeflow) and its README
-- [mfeflow.dev](https://mfeflow.dev) (documentation, coming soon)
+- [Documentation](https://mfeflow.github.io/mfeflow/)
 
 MIT licensed.

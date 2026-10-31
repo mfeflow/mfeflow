@@ -11,7 +11,7 @@
     "hook",
     "rsbuild"
   ],
-  "homepage": "https://mfeflow.dev",
+  "homepage": "https://mfeflow.github.io/mfeflow/",
   "bugs": "https://github.com/mfeflow/mfeflow/issues",
   "repository": {
     "type": "git",

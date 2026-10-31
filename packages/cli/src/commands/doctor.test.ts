@@ -90,7 +90,7 @@ describe('mfeflow doctor', () => {
     const text = rt.io.out.join('\n');
     expect(text).toContain('FAIL  every app has a valid mfe.json');
     expect(text).toContain('error MFEFLOW_E113');
-    expect(text).toContain('https://mfeflow.dev/errors/E113');
+    expect(text).toContain('https://mfeflow.github.io/mfeflow/errors/E113');
   });
 
   it('reports an app that is gone, a missing or broken mfe.json, and names that disagree', async () => {
@@ -484,7 +484,7 @@ ${keys}
     expect(messages.join('\n')).toContain('OLD_KEY is in apps/cart/.env.example but not in');
     expect(messages.join('\n')).not.toContain('LOG_LEVEL');
     expect(envFindings(result).every((f) => f.severity === 'warning')).toBe(true);
-    expect(envFindings(result)[0]?.docs).toBe('https://mfeflow.dev/errors/E118');
+    expect(envFindings(result)[0]?.docs).toBe('https://mfeflow.github.io/mfeflow/errors/E118');
   });
 
   it('reports a missing .env.example only when a key needs one, and an env.ts it cannot read', async () => {

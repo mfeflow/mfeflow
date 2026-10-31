@@ -349,6 +349,6 @@ describe('mfeflow.json', () => {
   });
 
   it('publishes schema URLs', () => {
-    expect(SCHEMA_URLS.mfe).toBe('https://mfeflow.dev/schema/mfe.json');
+    expect(SCHEMA_URLS.mfe).toBe('https://mfeflow.github.io/mfeflow/schema/mfe.json');
   });
 });

@@ -46,7 +46,7 @@ export interface RegistryIndexRemote {
 
 const ENTRY_TYPE = new RegExp(`^(?:${ENTRY_TYPES.join('|')})$`);
 
-const VERSION = /^[0-9A-Za-z.+-]+$/;
+export const VERSION = /^[0-9A-Za-z.+-]+$/;
 
 function checkRemoteFiles(c: Checker, obj: Obj, at: string): void {
   const entry = c.string(obj, 'remoteEntry', at, { required: false });
