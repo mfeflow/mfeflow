@@ -93,4 +93,20 @@ export const x = 1;
   it('reports unparseable source as E208', () => {
     expect(thrown(() => run('import {', { from: 'a', named: ['A'] })).code).toBe('MFEFLOW_E208');
   });
+
+  it('inserts after a #! interpreter line, and after directives that follow it', () => {
+    const cli = '#!/usr/bin/env node\nconsole.log(1);\n';
+    expect(run(cli, { from: './b', named: ['C'] })).toBe(
+      "#!/usr/bin/env node\nimport { C } from './b';\n\nconsole.log(1);\n",
+    );
+    expect(run('#!/usr/bin/env node\n', { from: './b' })).toBe(
+      "#!/usr/bin/env node\nimport './b';\n",
+    );
+    const strict = "#!/usr/bin/env node\n'use strict';\nrun();\n";
+    expect(run(strict, { from: './b', named: ['C'] })).toBe(
+      "#!/usr/bin/env node\n'use strict';\n\nimport { C } from './b';\nrun();\n",
+    );
+    const once = run(cli, { from: './b', named: ['C'] });
+    expect(run(once, { from: './b', named: ['C'] })).toBe(once);
+  });
 });

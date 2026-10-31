@@ -16,7 +16,7 @@ import {
   startOf,
 } from './ast.js';
 
-/** Puts a statement after the last import, after directives, or at the top. */
+/** Puts a statement after the last import, after directives or a `#!` line, or at the top. */
 export function insertStatement(source: string, ast: File, statement: string): string {
   const last = ast.program.body.findLast(isImportDeclaration);
   if (last) {
@@ -27,6 +27,13 @@ export function insertStatement(source: string, ast: File, statement: string): s
   if (directive) {
     const at = endOf(directive);
     return `${source.slice(0, at)}\n\n${statement}${source.slice(at)}`;
+  }
+  const interpreter = ast.program.interpreter;
+  if (interpreter) {
+    const at = endOf(interpreter);
+    const rest = source.slice(at);
+    const spacer = rest === '' ? '\n' : rest.trim() === '' ? '' : '\n';
+    return `${source.slice(0, at)}\n${statement}${spacer}${rest}`;
   }
   return `${statement}\n${source.startsWith('\n') || source === '' ? '' : '\n'}${source}`;
 }
