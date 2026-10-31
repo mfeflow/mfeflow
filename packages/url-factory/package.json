@@ -1,0 +1,53 @@
+{
+  "name": "@mfeflow/url-factory",
+  "version": "0.0.0",
+  "description": "Typed API URLs for micro-frontends: path params are checked from the template at compile time, base URLs come from runtime config, so one build runs in every environment.",
+  "keywords": [
+    "micro-frontend",
+    "mfe",
+    "module-federation",
+    "url",
+    "typescript",
+    "api",
+    "runtime-config"
+  ],
+  "homepage": "https://mfeflow.dev",
+  "bugs": "https://github.com/mfeflow/mfeflow/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfeflow/mfeflow.git",
+    "directory": "packages/url-factory"
+  },
+  "license": "MIT",
+  "author": "Sanjeev Sharma <speedsharma.ai@gmail.com>",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "rslib build",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@rslib/core": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "mfeflow": {
+    "bucket": "stateless"
+  }
+}
