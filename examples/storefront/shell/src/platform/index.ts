@@ -15,27 +15,35 @@ export async function startPlatform(): Promise<void> {
   const config = await runtimeConfig();
   const { gtmId, otlpEndpoint, traceSampleRatio, environment } = config;
   if (typeof gtmId === 'string' && gtmId !== '') {
-    initAnalytics(createGtmProvider({ containerId: gtmId, scriptUrl: scriptUrl(config) }));
+    try {
+      initAnalytics(createGtmProvider({ containerId: gtmId, scriptUrl: scriptUrl(config) }));
+    } catch (error) {
+      console.warn('[analytics] not started', error);
+    }
   }
   if (typeof otlpEndpoint === 'string' && otlpEndpoint !== '') {
-    initTelemetry(
-      async () => {
-        const { createOtelProvider } = await import('@mfeflow/telemetry/otel');
-        return createOtelProvider({
-          serviceName: 'storefront',
-          version: '0.0.0',
-          environment: typeof environment === 'string' ? environment : 'unknown',
-          otlpEndpoint,
-          sampleRatio: typeof traceSampleRatio === 'number' ? traceSampleRatio : undefined,
-          propagateTraceHeaderCorsUrls: strings(config.propagateTraceHeaderCorsUrls),
-        });
-      },
-      {
-        onError: (error) => {
-          console.warn('[telemetry] not started', error);
+    try {
+      initTelemetry(
+        async () => {
+          const { createOtelProvider } = await import('@mfeflow/telemetry/otel');
+          return createOtelProvider({
+            serviceName: 'storefront',
+            version: '0.0.0',
+            environment: typeof environment === 'string' ? environment : 'unknown',
+            otlpEndpoint,
+            sampleRatio: typeof traceSampleRatio === 'number' ? traceSampleRatio : undefined,
+            propagateTraceHeaderCorsUrls: strings(config.propagateTraceHeaderCorsUrls),
+          });
         },
-      },
-    );
+        {
+          onError: (error) => {
+            console.warn('[telemetry] not started', error);
+          },
+        },
+      );
+    } catch (error) {
+      console.warn('[telemetry] not started', error);
+    }
   }
 }
 

@@ -1,5 +1,5 @@
 import { isTelemetryReady, resetTelemetryForTests, telemetryReady } from '@mfeflow/telemetry';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { startTelemetry } from './init';
 
 afterEach(() => {
@@ -13,5 +13,24 @@ describe('startTelemetry', () => {
     await startTelemetry();
     await telemetryReady();
     expect(isTelemetryReady()).toBe(false);
+  });
+
+  it('warns, and does not throw, when telemetry cannot start', async () => {
+    vi.resetModules();
+    vi.doMock('@mfeflow/telemetry', async (original) => ({
+      ...(await original<typeof import('@mfeflow/telemetry')>()),
+      initTelemetry: () => {
+        throw new Error('boom');
+      },
+    }));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    Reflect.set(globalThis, '__MFE_RUNTIME_CONFIG__', {
+      otlpEndpoint: 'https://collector.example.com/v1/traces',
+    });
+    const fresh = await import('./init');
+    await expect(fresh.startTelemetry()).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledWith('[telemetry] not started', expect.any(Error));
+    warn.mockRestore();
+    vi.doUnmock('@mfeflow/telemetry');
   });
 });

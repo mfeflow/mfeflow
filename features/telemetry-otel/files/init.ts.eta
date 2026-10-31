@@ -14,24 +14,28 @@ export async function startTelemetry(): Promise<void> {
   const config = await runtimeConfig();
   const { otlpEndpoint, traceSampleRatio, environment } = config;
   if (typeof otlpEndpoint !== 'string' || otlpEndpoint === '') return;
-  initTelemetry(
-    async () => {
-      const { createOtelProvider } = await import('@mfeflow/telemetry/otel');
-      return createOtelProvider({
-        serviceName: '<%= it.app.name %>',
-        version: pkg.version,
-        environment: typeof environment === 'string' ? environment : 'unknown',
-        otlpEndpoint,
-        sampleRatio: typeof traceSampleRatio === 'number' ? traceSampleRatio : undefined,
-        propagateTraceHeaderCorsUrls: strings(config.propagateTraceHeaderCorsUrls),
-      });
-    },
-    {
-      onError: (error) => {
-        console.warn('[telemetry] not started', error);
+  try {
+    initTelemetry(
+      async () => {
+        const { createOtelProvider } = await import('@mfeflow/telemetry/otel');
+        return createOtelProvider({
+          serviceName: '<%= it.app.name %>',
+          version: pkg.version,
+          environment: typeof environment === 'string' ? environment : 'unknown',
+          otlpEndpoint,
+          sampleRatio: typeof traceSampleRatio === 'number' ? traceSampleRatio : undefined,
+          propagateTraceHeaderCorsUrls: strings(config.propagateTraceHeaderCorsUrls),
+        });
       },
-    },
-  );
+      {
+        onError: (error) => {
+          console.warn('[telemetry] not started', error);
+        },
+      },
+    );
+  } catch (error) {
+    console.warn('[telemetry] not started', error);
+  }
 }
 
 /** The boot step: starts telemetry without holding up first render. */
