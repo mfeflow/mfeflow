@@ -241,6 +241,7 @@ export function packAll(packages, out, cwd) {
   run(
     'pnpm',
     [
+      '--config.ignore-scripts=true',
       '-r',
       ...packages.flatMap((p) => ['--filter', p.manifest.name]),
       'pack',

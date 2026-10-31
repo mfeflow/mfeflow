@@ -51,33 +51,49 @@ Releasing is `.github/workflows/release.yml`, off until the repository variable 
    the workflow token do not start other workflows, so close and reopen that pull request if its
    checks do not appear.
 2. **Merge it.** The merge is the release decision.
-3. **Pack.** With no changesets pending and a version missing from npm, the `pack` job installs with
-   `--ignore-scripts`, builds, runs `pnpm check:pack`, packs every public package with `pnpm pack`
-   (which rewrites `workspace:` and `catalog:` specs) and uploads the tarballs with
-   `release-manifest.json` (name, version, tarball, sha256). It holds no npm access.
-4. **Publish.** The `publish` job runs in the GitHub Environment `npm`, so a required reviewer can
-   gate it. It installs only Node 24 (npm at least 11.5.1, checked), verifies every sha256 and the
-   prerelease policy, and runs `npm publish --provenance --access public --ignore-scripts` per tarball:
-   `@mfeflow/contracts`, `@mfeflow/core`, the other packages after their dependencies, then `mfeflow`
-   and `create-mfeflow`. A version already on npm is skipped, so re-running a failed job is safe.
-5. **Tag and release.** The `tag` job creates `<name>@<version>` for every package and `v<version>`,
-   and one GitHub Release `v<version>` with the notes from `packages/cli/CHANGELOG.md` and the tarballs
-   attached.
+3. **Plan.** With no changesets pending and a version missing from npm, the `plan` job, which installs
+   nothing and runs before any build, outputs the list of what may be published: name, version,
+   dist-tag and tarball file name for every public package, in dependency order.
+4. **Pack.** The `pack` job installs with `--ignore-scripts`, builds, runs `pnpm check:pack`, packs
+   every public package with `pnpm pack` (scripts off; it rewrites `workspace:` and `catalog:` specs)
+   and uploads the tarballs. Its outputs are the sha256 of each tarball. It holds no npm access, and
+   no release job uses the pnpm cache, which CI jobs that run install scripts write.
+5. **Publish.** The `publish` job runs in the GitHub Environment `npm`. It does not check out the
+   repository or run repo code: Node 24.22.2 (exact) and inline shell only. For every tarball it checks
+   the file name (`^[a-z0-9._-]+\.tgz$`), that the plan lists it, the sha256 against the `pack` job's
+   output, and that `package/package.json` has the planned name and version; the dist-tag comes only
+   from the plan, and npm must be at least 11.5.1. Then it runs
+   `npm publish --provenance --access public --ignore-scripts` in plan order, skipping a version
+   already on npm, so re-running a failed job is safe.
+6. **Tag and release.** The `tag` job creates `<name>@<version>` for every package and `v<version>`,
+   and one GitHub Release `v<version>` with the notes from `packages/cli/CHANGELOG.md` and the
+   tarballs attached.
+
+What this does not stop: a build dependency can tamper with both the tarballs and the `pack` job's
+outputs. Its reach is limited to the planned `name@version` under the planned dist-tag, and npm
+provenance shows the build that made it.
 
 The `publish-check` job in `ci.yml` runs the same pack and a `npm publish --dry-run` with a throwaway
 version (`0.0.0-ci.<run id>`, not committed) on every pull request.
 
 ### One-time setup (repository owner)
 
-1. Settings, Secrets and variables, Variables: add `RELEASE_ENABLED` = `true` when ready to release.
-2. Settings, Environments: create an environment named `npm`. Optionally add yourself as a required
-   reviewer, so every publish waits for an approval.
-3. Settings, Secrets and variables, Secrets: add `NPM_TOKEN`, an npm automation token that can publish
-   `mfeflow`, `create-mfeflow` and `@mfeflow/*`. It is read by the publish step only.
-4. After the first publish, on npmjs.com open each package, Settings, Trusted Publisher, and add
-   GitHub Actions with repository `mfeflow/mfeflow`, workflow `release.yml` and environment `npm`.
-5. Then delete the `NPM_TOKEN` secret and the `NODE_AUTH_TOKEN` line in the publish step. The job
-   already has `id-token: write`, so publishing keeps working through OIDC.
+Mandatory before the first publish:
+
+1. Environment `npm` (Settings, Environments): deployment branches `main` only, and a required
+   reviewer.
+2. `NPM_TOKEN` as a secret of the environment `npm`, not a repository secret; delete any
+   repository-level `NPM_TOKEN`. Use an automation token with the shortest expiry that can publish
+   `mfeflow`, `create-mfeflow` and `@mfeflow/*`, and delete it after the first publish.
+3. Trusted publishing on npmjs.com for each public package (Settings, Trusted Publisher, GitHub
+   Actions): repository `mfeflow/mfeflow`, workflow `release.yml`, environment `npm`.
+
+Also needed: the repository variable `RELEASE_ENABLED` = `true` when ready to release.
+
+After the first publish, delete the `NPM_TOKEN` secret and the `NODE_AUTH_TOKEN` line in the
+`Publish` step. The job already has `id-token: write`, so publishing keeps working through OIDC.
+
+Optional: a tag ruleset so only the release workflow can create `v*` and `*@*` tags.
 
 ## Pre-releases
 

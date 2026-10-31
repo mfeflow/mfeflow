@@ -1,4 +1,6 @@
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { publicPackages } from './check-pack.mjs';
@@ -7,11 +9,11 @@ import {
   changelogSection,
   ciVersion,
   distTagFor,
-  hashProblems,
+  expectedPlan,
+  hashesOf,
   isNotFound,
   isPrerelease,
   isPublished,
-  npmAtLeast,
   pendingChangesets,
   policyProblems,
   publishAll,
@@ -41,10 +43,6 @@ const failingNpm = (_c, args) =>
   args[0] === 'view'
     ? { status: 1, stdout: '', stderr: 'E404' }
     : { status: 1, stdout: '', stderr: 'EOTP' };
-
-const missing = () => {
-  throw new Error('ENOENT');
-};
 
 const recorder = (published = []) => {
   const calls = [];
@@ -174,14 +172,6 @@ describe('versions and channels', () => {
     expect(ciVersion(42)).toBe('0.0.0-ci.42');
   });
 
-  it('checks npm is new enough for trusted publishing', () => {
-    expect(npmAtLeast('11.5.1\n')).toBe(true);
-    expect(npmAtLeast('11.10.0')).toBe(true);
-    expect(npmAtLeast('12.0.0')).toBe(true);
-    expect(npmAtLeast('11.5.0')).toBe(false);
-    expect(npmAtLeast('10.9.2')).toBe(false);
-  });
-
   it('names tarballs the way pnpm does', () => {
     expect(tarballName({ name: '@mfeflow/core', version: '0.1.0' })).toBe('mfeflow-core-0.1.0.tgz');
     expect(tarballName({ name: 'mfeflow', version: '0.1.0' })).toBe('mfeflow-0.1.0.tgz');
@@ -196,9 +186,6 @@ const manifestOf = (version = '0.1.0', distTag = 'latest') => ({
     { name: 'mfeflow', version, tarball: 'mfeflow.tgz', sha256: sha256(bytes('cli')) },
   ],
 });
-
-const readTarball = (f) =>
-  ({ 'mfeflow-core.tgz': bytes('core'), 'mfeflow.tgz': bytes('cli') })[f] ?? bytes('other');
 
 describe('buildManifest', () => {
   it('lists name, version, tarball and sha256 in the given order', () => {
@@ -235,24 +222,56 @@ describe('buildManifest', () => {
   });
 });
 
-describe('hashProblems', () => {
-  it('accepts matching hashes', () => {
-    expect(hashProblems(manifestOf(), readTarball)).toEqual([]);
-  });
-
-  it('reports a changed tarball', () => {
-    const problems = hashProblems(manifestOf(), (f) =>
-      f === 'mfeflow.tgz' ? bytes('tampered') : bytes('core'),
-    );
-    expect(problems).toHaveLength(1);
-    expect(problems[0]).toMatch(/^mfeflow\.tgz sha256 is .*, expected /);
-  });
-
-  it('reports a missing tarball', () => {
-    expect(hashProblems(manifestOf(), missing)).toEqual([
-      'mfeflow-core.tgz is missing',
-      'mfeflow.tgz is missing',
+describe('hashesOf', () => {
+  it('maps each tarball file to its sha256', () => {
+    const tarballs = new Map([
+      ['a', { file: 'a-1.0.0.tgz', bytes: bytes('a') }],
+      ['b', { file: 'b-1.0.0.tgz', bytes: bytes('b') }],
     ]);
+    expect(hashesOf(tarballs)).toEqual({
+      'a-1.0.0.tgz': sha256(bytes('a')),
+      'b-1.0.0.tgz': sha256(bytes('b')),
+    });
+  });
+});
+
+describe('expectedPlan', () => {
+  const packages = [
+    { name: 'mfeflow', version: '1.0.0', dependsOn: ['@mfeflow/core'] },
+    { name: '@mfeflow/core', version: '1.0.0', dependsOn: [] },
+  ];
+
+  it('lists name, version, dist-tag and tarball in publish order', () => {
+    expect(expectedPlan(packages)).toEqual([
+      {
+        name: '@mfeflow/core',
+        version: '1.0.0',
+        distTag: 'latest',
+        tarball: 'mfeflow-core-1.0.0.tgz',
+      },
+      { name: 'mfeflow', version: '1.0.0', distTag: 'latest', tarball: 'mfeflow-1.0.0.tgz' },
+    ]);
+  });
+
+  it('takes the pre channel as the dist-tag of a prerelease', () => {
+    const pre = packages.map((p) => ({
+      name: p.name,
+      version: '1.0.0-next.1',
+      dependsOn: p.dependsOn,
+    }));
+    expect(expectedPlan(pre, 'next').every((e) => e.distTag === 'next')).toBe(true);
+    expect(() => expectedPlan(pre)).toThrow(/no pre channel/);
+  });
+
+  it('plans the real workspace', () => {
+    const real = publicPackages(repo).map((p) => ({
+      name: p.manifest.name,
+      version: p.manifest.version,
+      dependsOn: Object.keys(p.manifest.dependencies ?? {}),
+    }));
+    const plan = expectedPlan(real);
+    expect(plan).toHaveLength(real.length);
+    expect(plan.every((e) => /^[a-z0-9._-]+\.tgz$/.test(e.tarball))).toBe(true);
   });
 });
 
@@ -398,7 +417,7 @@ describe('the workflows', () => {
     const steps = release.publish.split(/\n {6}- /);
     const withToken = steps.filter((s) => s.includes('NODE_AUTH_TOKEN'));
     expect(withToken).toHaveLength(1);
-    expect(withToken[0]).toContain('release-plan.mjs publish');
+    expect(withToken[0]).toContain('name: Publish');
     expect(
       Object.entries(release)
         .filter(([, c]) => c.includes('NPM_TOKEN'))
@@ -406,10 +425,28 @@ describe('the workflows', () => {
     ).toEqual(['publish']);
   });
 
-  it('runs publish in the npm environment after pack, and installs nothing there', () => {
+  it('runs publish in the npm environment after plan and pack, with no repo code or install', () => {
     expect(release.publish).toMatch(/environment: npm/);
-    expect(release.publish).toMatch(/needs: pack/);
-    expect(release.publish).not.toMatch(/pnpm|npm (ci|install)/);
+    expect(release.publish).toMatch(/needs: \[plan, pack\]/);
+    expect(release.publish).not.toMatch(/actions\/checkout|node scripts|pnpm|npm (ci|install)/);
+  });
+
+  it('pins the publish Node to the exact version the CI dry run uses', () => {
+    const exact = release.publish.match(/node-version: (\d+\.\d+\.\d+)/)?.[1];
+    expect(exact).toBeDefined();
+    expect(readWorkflow('ci.yml')).toContain(`node-version: ${exact}`);
+    expect(release.publish).toContain('registry-url: https://registry.npmjs.org');
+  });
+
+  it('uses no pnpm cache in any release job', () => {
+    expect(code(readWorkflow('release.yml'))).not.toMatch(/cache:/);
+  });
+
+  it('takes the expectations from plan and the hashes from pack, as job outputs', () => {
+    expect(release.plan).toMatch(/expected: \$\{\{ steps\.plan\.outputs\.expected \}\}/);
+    expect(release.pack).toMatch(/hashes: \$\{\{ steps\.pack\.outputs\.hashes \}\}/);
+    expect(release.publish).toContain('needs.plan.outputs.expected');
+    expect(release.publish).toContain('needs.pack.outputs.hashes');
   });
 
   it('installs with --ignore-scripts in every release job', () => {
@@ -437,11 +474,182 @@ describe('the workflows', () => {
     expect(text).toContain('publish-check:');
     expect(text).toMatch(/--dry-run/);
     expect(text).toContain('release-plan.mjs pack release --tag ci-dry-run');
-    expect(text).toMatch(/node-version: '?24/);
+    expect(text).toMatch(/node-version: 24/);
   });
 
   it('keeps the changesets changelog on the GitHub generator', () => {
     const config = JSON.parse(fs.readFileSync(path.join(repo, '.changeset/config.json'), 'utf8'));
     expect(config.changelog).toEqual(['@changesets/changelog-github', { repo: 'mfeflow/mfeflow' }]);
+  });
+});
+
+const setup = ({ views = [], npmVersion = '11.5.1' } = {}) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'publish-job-'));
+  const bin = path.join(dir, 'bin');
+  fs.mkdirSync(path.join(dir, 'release'), { recursive: true });
+  fs.mkdirSync(bin);
+  const stub = (name, body) => {
+    fs.writeFileSync(path.join(bin, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
+  };
+  stub('sha256sum', 'shasum -a 256 "$@"');
+  stub(
+    'npm',
+    `case "$1" in
+--version) echo ${npmVersion} ;;
+view) case " ${views.join(' ')} " in *" $2 "*) echo "\${2##*@}" ;; *) echo "npm error code E404" >&2; exit 1 ;; esac ;;
+publish) echo "$@" >> "${dir}/published.txt" ;;
+esac`,
+  );
+  return { dir, bin };
+};
+
+const makeTarball = (dir, file, manifest) => {
+  const staging = fs.mkdtempSync(path.join(dir, 'pkg-'));
+  fs.mkdirSync(path.join(staging, 'package'));
+  fs.writeFileSync(path.join(staging, 'package/package.json'), JSON.stringify(manifest));
+  spawnSync('tar', ['-czf', path.join(dir, 'release', file), '-C', staging, 'package']);
+  return sha256(fs.readFileSync(path.join(dir, 'release', file)));
+};
+
+describe('the publish job shell', () => {
+  const steps = code(readWorkflow('release.yml'))
+    .split(/\n  tag:\n/)[0]
+    .split(/\n  publish:\n/)[1]
+    .split(/\n {6}- /);
+  const runOf = (name) => {
+    const step = steps.find((x) => x.includes(`name: ${name}`));
+    const body = step.split('run: |\n')[1].split('\n');
+    const block = [];
+    for (const line of body) {
+      if (line !== '' && !line.startsWith('          ')) break;
+      block.push(line.slice(10));
+    }
+    return block.join('\n');
+  };
+  const verify = runOf('Verify the tarballs against the plan');
+  const publish = runOf('Publish');
+
+  const plan = [
+    {
+      name: '@mfeflow/core',
+      version: '1.0.0',
+      distTag: 'latest',
+      tarball: 'mfeflow-core-1.0.0.tgz',
+    },
+    { name: 'mfeflow', version: '1.0.0', distTag: 'latest', tarball: 'mfeflow-1.0.0.tgz' },
+  ];
+
+  const runJob = ({ planned = plan, tweak, views, npmVersion } = {}) => {
+    const { dir, bin } = setup({ views, npmVersion });
+    const hashes = {};
+    for (const e of plan)
+      hashes[e.tarball] = makeTarball(dir, e.tarball, { name: e.name, version: e.version });
+    tweak?.({ dir, hashes });
+    const env = {
+      ...process.env,
+      PATH: `${bin}:${process.env.PATH}`,
+      RUNNER_TEMP: dir,
+      PLAN: JSON.stringify(planned),
+      HASHES: JSON.stringify(hashes),
+    };
+    const exec = (script) => spawnSync('bash', ['-c', script], { cwd: dir, env, encoding: 'utf8' });
+    const checked = exec(verify);
+    const published = checked.status === 0 ? exec(publish) : undefined;
+    const log = fs.existsSync(path.join(dir, 'published.txt'))
+      ? fs.readFileSync(path.join(dir, 'published.txt'), 'utf8').trim().split('\n')
+      : [];
+    fs.rmSync(dir, { recursive: true, force: true });
+    return { checked, published, log };
+  };
+
+  it('publishes the planned tarballs in plan order with provenance and the planned tag', () => {
+    const { checked, published, log } = runJob();
+    expect(checked.status).toBe(0);
+    expect(published.status).toBe(0);
+    expect(log).toEqual([
+      'publish ./release/mfeflow-core-1.0.0.tgz --provenance --access public --ignore-scripts --tag latest',
+      'publish ./release/mfeflow-1.0.0.tgz --provenance --access public --ignore-scripts --tag latest',
+    ]);
+  });
+
+  it('skips a version that is already on npm', () => {
+    const { log } = runJob({ views: ['@mfeflow/core@1.0.0'] });
+    expect(log).toHaveLength(1);
+    expect(log[0]).toContain('mfeflow-1.0.0.tgz');
+  });
+
+  it('refuses an npm older than 11.5.1', () => {
+    const { checked, log } = runJob({ npmVersion: '11.4.0' });
+    expect(checked.status).not.toBe(0);
+    expect(checked.stdout).toContain('older than 11.5.1');
+    expect(log).toEqual([]);
+  });
+
+  it('refuses a tarball whose bytes changed after the pack job hashed it', () => {
+    const { checked, log } = runJob({
+      tweak: ({ hashes }) => {
+        hashes['mfeflow-1.0.0.tgz'] = '0'.repeat(64);
+      },
+    });
+    expect(checked.status).not.toBe(0);
+    expect(checked.stdout).toContain('does not match');
+    expect(log).toEqual([]);
+  });
+
+  it('refuses a tarball that holds another package or version than planned', () => {
+    for (const manifest of [
+      { name: 'evil', version: '1.0.0' },
+      { name: 'mfeflow', version: '9.9.9' },
+    ]) {
+      const { checked, log } = runJob({
+        tweak: ({ dir, hashes }) => {
+          hashes['mfeflow-1.0.0.tgz'] = makeTarball(dir, 'mfeflow-1.0.0.tgz', manifest);
+        },
+      });
+      expect(checked.status).not.toBe(0);
+      expect(log).toEqual([]);
+    }
+  });
+
+  it('refuses a file in the artifact that is not in the plan or has a bad name', () => {
+    for (const extra of ['other-1.0.0.tgz', 'Bad Name.tgz', 'script.sh']) {
+      const { checked } = runJob({
+        tweak: ({ dir }) => fs.writeFileSync(path.join(dir, 'release', extra), 'x'),
+      });
+      expect(checked.status).not.toBe(0);
+    }
+  });
+
+  it('refuses a plan with a stable version on a pre channel or a prerelease on latest', () => {
+    const stableOnNext = plan.map((e) => ({
+      name: e.name,
+      version: e.version,
+      tarball: e.tarball,
+      distTag: 'next',
+    }));
+    expect(runJob({ planned: stableOnNext }).checked.status).not.toBe(0);
+  });
+
+  it('refuses an empty plan', () => {
+    expect(runJob({ planned: [] }).checked.status).not.toBe(0);
+  });
+
+  it('stops without publishing when npm view fails for a reason other than 404', () => {
+    const { dir, bin } = setup();
+    fs.writeFileSync(path.join(bin, 'npm'), '#!/bin/bash\necho "ETIMEDOUT" >&2\nexit 1\n', {
+      mode: 0o755,
+    });
+    fs.writeFileSync(path.join(dir, 'verified.txt'), 'mfeflow 1.0.0 mfeflow-1.0.0.tgz latest\n');
+    const result = spawnSync(
+      'bash',
+      ['-c', publish.replaceAll('$RUNNER_TEMP/verified.txt', `${dir}/verified.txt`)],
+      {
+        cwd: dir,
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir },
+        encoding: 'utf8',
+      },
+    );
+    fs.rmSync(dir, { recursive: true, force: true });
+    expect(result.status).not.toBe(0);
   });
 });

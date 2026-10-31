@@ -2,12 +2,11 @@
 // are exported and unit-tested; the CLI at the bottom wires them to pnpm, npm and the workflow files.
 // Needs only Node builtins, so the publish job can run it without installing anything.
 //
-//   node scripts/release-plan.mjs plan                       is there a version missing from npm?
+//   node scripts/release-plan.mjs plan                       is a version missing from npm? what may be published?
 //   node scripts/release-plan.mjs pack <dir> [--tag <t>]     pnpm pack every public package, write the manifest
 //                                                            (--tag skips the release policy: for the CI dry run)
-//   node scripts/release-plan.mjs verify <dir>               check hashes, prerelease policy and npm version
 //   node scripts/release-plan.mjs publish <dir> [--dry-run] [--tag <t>]
-//   node scripts/release-plan.mjs tags <dir>                 git tags for a release, one per line
+//   PLAN='<json>' node scripts/release-plan.mjs tags          git tags for a release, one per line
 //   node scripts/release-plan.mjs notes <version> <file>     one version's section of a changelog
 //   node scripts/release-plan.mjs ci-version <version>       set every public package's version in place
 import { spawnSync } from 'node:child_process';
@@ -17,7 +16,6 @@ import path from 'node:path';
 import { isMain, packAll, publicPackages } from './check-pack.mjs';
 
 export const MANIFEST_FILE = 'release-manifest.json';
-export const MIN_NPM = '11.5.1';
 
 const FIRST = ['@mfeflow/contracts', '@mfeflow/core'];
 const LAST = ['mfeflow', 'create-mfeflow'];
@@ -97,16 +95,26 @@ export function sha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
-/** Tarballs whose bytes do not match the manifest. `read(tarball)` returns the file's bytes. */
-export function hashProblems(manifest, read) {
-  return manifest.packages.flatMap((p) => {
-    let actual;
-    try {
-      actual = sha256(read(p.tarball));
-    } catch {
-      return [`${p.tarball} is missing`];
-    }
-    return actual === p.sha256 ? [] : [`${p.tarball} sha256 is ${actual}, expected ${p.sha256}`];
+/** `{ "<tarball file>": "<sha256>" }`, the pack job's output that the publish job checks against. */
+export function hashesOf(tarballs) {
+  return Object.fromEntries([...tarballs.values()].map((t) => [t.file, sha256(t.bytes)]));
+}
+
+/**
+ * What the publish job may publish, decided before anything is built: every public package in
+ * publish order with its version, dist-tag and the tarball file name `pnpm pack` will write.
+ * `packages` is `[{ name, version, dependsOn }]`.
+ */
+export function expectedPlan(packages, preTag) {
+  const byName = new Map(packages.map((p) => [p.name, p]));
+  return publishOrder(packages).map((name) => {
+    const { version } = byName.get(name);
+    return {
+      name,
+      version,
+      distTag: distTagFor(version, preTag),
+      tarball: tarballName({ name, version }),
+    };
   });
 }
 
@@ -146,17 +154,6 @@ export function changelogSection(changelog, version) {
     .join('\n')
     .trim();
   return body === '' ? null : body;
-}
-
-const parts = (v) => v.split('-')[0].split('.').map(Number);
-
-/** `npm --version` output is at least `min` (npm trusted publishing needs 11.5.1). */
-export function npmAtLeast(version, min = MIN_NPM) {
-  const [a, b] = [parts(version.trim()), parts(min)];
-  for (let i = 0; i < 3; i++) {
-    if ((a[i] ?? 0) !== b[i]) return (a[i] ?? 0) > b[i];
-  }
-  return true;
 }
 
 /** The file `pnpm pack` writes: `@scope/name` at 1.2.3 is `scope-name-1.2.3.tgz`. */
@@ -236,9 +233,21 @@ function cmdPlan(repo) {
     console.log(`${pending.length} changeset(s) pending: the version pull request comes first.`);
     return setOutput('release', 'false');
   }
-  const missing = unpublished(publicPackages(repo), exec);
+  const packages = publicPackages(repo);
+  const missing = unpublished(packages, exec);
   for (const p of missing) console.log(`not on npm: ${p.manifest.name}@${p.manifest.version}`);
+  const plan = expectedPlan(
+    packages.map((p) => ({
+      name: p.manifest.name,
+      version: p.manifest.version,
+      dependsOn: dependsOn(p.manifest),
+    })),
+    preTagOf(repo),
+  );
+  const problems = policyProblems({ distTag: plan[0].distTag, packages: plan });
+  if (problems.length > 0) throw new Error(problems.join('\n'));
   setOutput('release', missing.length > 0 ? 'true' : 'false');
+  setOutput('expected', JSON.stringify(plan));
 }
 
 function cmdPack(repo, outDir, flags) {
@@ -265,6 +274,7 @@ function cmdPack(repo, outDir, flags) {
   const problems = flags.includes('--tag') ? [] : policyProblems(manifest);
   if (problems.length > 0) throw new Error(problems.join('\n'));
   fs.writeFileSync(path.join(outDir, MANIFEST_FILE), `${JSON.stringify(manifest, null, 2)}\n`);
+  setOutput('hashes', JSON.stringify(hashesOf(tarballs)));
   console.log(
     `packed ${order.length} packages at ${sharedVersion(manifest)} (dist-tag ${distTag})`,
   );
@@ -272,20 +282,6 @@ function cmdPack(repo, outDir, flags) {
 
 function loadManifest(dir) {
   return readJson(path.join(dir, MANIFEST_FILE));
-}
-
-function cmdVerify(dir) {
-  const manifest = loadManifest(dir);
-  const npm = exec('npm', ['--version']).stdout.trim();
-  const problems = [
-    ...(npmAtLeast(npm)
-      ? []
-      : [`npm ${npm} is older than ${MIN_NPM}, which trusted publishing needs`]),
-    ...policyProblems(manifest),
-    ...hashProblems(manifest, (f) => fs.readFileSync(path.join(dir, f))),
-  ];
-  if (problems.length > 0) throw new Error(problems.join('\n'));
-  console.log(`verified ${manifest.packages.length} tarballs, npm ${npm}`);
 }
 
 function cmdPublish(dir, flags) {
@@ -320,12 +316,10 @@ function main(argv) {
       return cmdPlan(repo);
     case 'pack':
       return cmdPack(repo, path.resolve(rest[0]), rest.slice(1));
-    case 'verify':
-      return cmdVerify(rest[0]);
     case 'publish':
       return cmdPublish(rest[0], rest.slice(1));
     case 'tags':
-      return console.log(tagsFor(loadManifest(rest[0])).join('\n'));
+      return console.log(tagsFor({ packages: JSON.parse(process.env.PLAN) }).join('\n'));
     case 'notes': {
       const section = changelogSection(fs.readFileSync(rest[1], 'utf8'), rest[0]);
       return console.log(section ?? `See packages/cli/CHANGELOG.md for ${rest[0]}.`);
