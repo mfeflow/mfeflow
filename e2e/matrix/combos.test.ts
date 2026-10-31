@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { combinations, featuresOf, find, presetOf, runsE2e, stepsFor } from './combos';
 
@@ -92,5 +94,28 @@ describe('what a combination generates', () => {
     const c = find(['lint-url-env-arktype-testing-r1'])[0]!;
     expect(featuresOf(c)).toEqual(['lint-oxlint', 'url-factory', 'env-t3', 'testing']);
     expect(presetOf(c).options).toEqual({ 'env-t3': { validator: 'arktype' } });
+  });
+});
+
+describe('the matrix workflow', () => {
+  it('installs the browser for exactly the combinations that run the browser test', () => {
+    const yml = fs.readFileSync(
+      path.join(import.meta.dirname, '../../.github/workflows/matrix.yml'),
+      'utf8',
+    );
+    const conditions = [...yml.matchAll(/playwright install.*\n\s*(?:#.*\n\s*)?if: (.+)/g)].map(
+      (m) => m[1]!,
+    );
+    expect(conditions.length).toBeGreaterThan(0);
+    for (const condition of conditions) {
+      const clauses = condition.split(' && ').map((clause) => {
+        const m = /^(endsWith|contains)\(matrix\.combo, '([^']*)'\)$/.exec(clause.trim());
+        if (!m) throw new Error(`the test does not understand "${clause}"`);
+        return { fn: m[1], text: m[2]! };
+      });
+      const installs = (id: string): boolean =>
+        clauses.every((c) => (c.fn === 'endsWith' ? id.endsWith(c.text) : id.includes(c.text)));
+      for (const c of combinations()) expect([c.id, installs(c.id)]).toEqual([c.id, runsE2e(c)]);
+    }
   });
 });
