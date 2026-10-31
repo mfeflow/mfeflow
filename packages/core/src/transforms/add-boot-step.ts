@@ -10,6 +10,7 @@ import { MfeflowError } from '../errors.js';
 import { addImport } from './add-import.js';
 import {
   applyEdits,
+  assertIdentifier,
   bodyOf,
   detectQuote,
   endOf,
@@ -41,6 +42,10 @@ function statementWith(
 
 /** Adds `await call(...)` to the bootstrap function. Does nothing if `call` is already called in it. */
 export function addBootStep(source: string, file: string, op: AddBootStepOp): string {
+  assertIdentifier(op.call, 'call');
+  assertIdentifier(op.function, 'function');
+  assertIdentifier(op.before, 'before');
+  assertIdentifier(op.after, 'after');
   const withImport = addImport(source, file, {
     op: 'add-import',
     file: op.file,

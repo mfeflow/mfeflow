@@ -7,6 +7,7 @@ import {
   isFunctionExpression,
   isIdentifier,
   isNode,
+  isValidIdentifier,
   isObjectExpression,
   isObjectProperty,
   isStringLiteral,
@@ -188,11 +189,31 @@ export function detectQuote(source: string, ast: File): "'" | '"' {
 }
 
 export function quote(value: string, q: "'" | '"'): string {
-  const escaped = value
-    .replace(/\\/g, '\\\\')
-    .replace(new RegExp(q, 'g'), `\\${q}`)
-    .replace(/\n/g, '\\n');
+  const escaped = value.replace(/[\\'"\p{Cc}\u2028\u2029]/gu, (char) => {
+    if (char === '\\' || char === q) return `\\${char}`;
+    if (char === "'" || char === '"') return char;
+    if (char === '\n') return '\\n';
+    if (char === '\r') return '\\r';
+    if (char === '\t') return '\\t';
+    return `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`;
+  });
   return `${q}${escaped}${q}`;
+}
+
+/** Throws E208 unless `value` can be written into code as a binding or property name. */
+export function assertIdentifier(value: string | undefined, what: string): void {
+  if (value !== undefined && !isValidIdentifier(value)) {
+    throw new MfeflowError('E208', `${what} "${value}" is not a JavaScript identifier`);
+  }
+}
+
+export const JSX_ATTRIBUTE = /^[A-Za-z_$][A-Za-z0-9_$]*(-[A-Za-z0-9_$]+)*$/;
+
+/** Throws E208 unless `value` is a plain JSX attribute name (`mode`, `data-id`). */
+export function assertJsxAttribute(value: string): void {
+  if (!JSX_ATTRIBUTE.test(value)) {
+    throw new MfeflowError('E208', `prop "${value}" is not a JSX attribute name`);
+  }
 }
 
 export function literalSource(value: Literal, q: "'" | '"'): string {

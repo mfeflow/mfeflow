@@ -4,6 +4,7 @@ import { MfeflowError, messageOf } from '../errors.js';
 import {
   appendItem,
   applyEdits,
+  assertIdentifier,
   findObject,
   findServerSchema,
   literalSource,
@@ -50,6 +51,7 @@ function addToDotenv(source: string, op: AddEnvKeyOp): string {
 }
 
 function addToSchema(source: string, file: string, op: AddEnvKeyOp): string {
+  assertIdentifier(op.object, 'object');
   const ast = parseSource(source, file);
   const target =
     op.scope === 'server'

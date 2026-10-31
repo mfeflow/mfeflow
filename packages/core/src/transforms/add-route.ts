@@ -2,10 +2,20 @@ import { isIdentifier, isObjectExpression, isObjectProperty, isStringLiteral } f
 import type { AddRouteOp } from '@mfeflow/contracts';
 import { MfeflowError } from '../errors.js';
 import { addImport } from './add-import.js';
-import { appendItem, applyEdits, detectQuote, findArray, parseSource, quote } from './ast.js';
+import {
+  appendItem,
+  applyEdits,
+  assertIdentifier,
+  detectQuote,
+  findArray,
+  parseSource,
+  quote,
+} from './ast.js';
 
 /** Adds `{ path, Component }` to the routes array. Does nothing if the path is already routed. */
 export function addRoute(source: string, file: string, op: AddRouteOp): string {
+  assertIdentifier(op.component, 'component');
+  assertIdentifier(op.routes, 'routes');
   const withImport = addImport(source, file, {
     op: 'add-import',
     file: op.file,

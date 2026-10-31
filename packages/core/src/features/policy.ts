@@ -1,7 +1,8 @@
-import { TRANSFORM_OPS, type FeatureManifest } from '@mfeflow/contracts';
+import { TRANSFORM_OPS, type FeatureManifest, type TransformOp } from '@mfeflow/contracts';
 import { validRange } from 'semver';
 import { MfeflowError } from '../errors.js';
 import { envKeyFiles } from '../transforms/add-env-key.js';
+import { JSX_ATTRIBUTE } from '../transforms/ast.js';
 import { assertThirdPartyPath } from './write-policy.js';
 
 /** Where a feature came from decides what it may do. */
@@ -45,6 +46,17 @@ const LIFECYCLE_SCRIPTS = new Set([
   'stop',
   'restart',
 ]);
+
+const SPECIFIER_CHARS = '[A-Za-z0-9._~@+-]+';
+/** A package (`react`, `@scope/pkg/sub`), a relative path or an `@/` alias. Never a URL, protocol or absolute path. */
+const MODULE_SPECIFIER = new RegExp(
+  `^(?:(?:@${SPECIFIER_CHARS}/)?${SPECIFIER_CHARS}(?:/${SPECIFIER_CHARS})*` +
+    `|(?:\\.\\.?/)+(?:${SPECIFIER_CHARS}/)*${SPECIFIER_CHARS}|\\.\\.?|@/(?:${SPECIFIER_CHARS}/)*${SPECIFIER_CHARS})$`,
+);
+
+export function isModuleSpecifier(value: string): boolean {
+  return MODULE_SPECIFIER.test(value);
+}
 
 /** An npm dist-tag such as `latest` or `next`. Nothing with a colon, slash or dot can be one. */
 const DIST_TAG = /^[a-z][a-z0-9-]*$/;
@@ -130,5 +142,21 @@ export function assertThirdPartyContent(manifest: FeatureManifest, label: string
       );
     }
   }
+  for (const t of manifest.transforms ?? []) assertThirdPartyTransform(t, label);
   for (const script of manifest.scripts ?? []) assertPlainScript(script.name, label);
+}
+
+/** What a third-party transform op may carry beyond the shape the schema already checks. */
+export function assertThirdPartyTransform(t: TransformOp, label: string): void {
+  const deny = (why: string): never => {
+    throw new MfeflowError('E203', `${label}: ${t.op} ${why}`);
+  };
+  if ('from' in t && !isModuleSpecifier(t.from)) {
+    deny(`imports "${t.from}", which is not a package name or relative path`);
+  }
+  if (t.op === 'wrap-provider') {
+    for (const key of Object.keys(t.props ?? {})) {
+      if (!JSX_ATTRIBUTE.test(key)) deny(`has a prop "${key}" that is not a JSX attribute name`);
+    }
+  }
 }

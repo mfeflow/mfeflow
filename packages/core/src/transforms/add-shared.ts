@@ -1,10 +1,19 @@
 import { isStringLiteral } from '@babel/types';
 import type { AddSharedOp } from '@mfeflow/contracts';
 import { MfeflowError } from '../errors.js';
-import { appendItem, applyEdits, detectQuote, findArray, parseSource, quote } from './ast.js';
+import {
+  appendItem,
+  applyEdits,
+  assertIdentifier,
+  detectQuote,
+  findArray,
+  parseSource,
+  quote,
+} from './ast.js';
 
 /** Adds a package to the singletons array. Does nothing if it is already listed. */
 export function addShared(source: string, file: string, op: AddSharedOp): string {
+  assertIdentifier(op.list, 'list');
   const ast = parseSource(source, file);
   const list = op.list ?? 'singletons';
   const array = findArray(ast, list);

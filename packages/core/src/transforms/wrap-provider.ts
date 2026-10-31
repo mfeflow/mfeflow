@@ -10,6 +10,8 @@ import { MfeflowError } from '../errors.js';
 import { addImport } from './add-import.js';
 import {
   applyEdits,
+  assertIdentifier,
+  assertJsxAttribute,
   bodyOf,
   endOf,
   findAll,
@@ -34,6 +36,9 @@ function isJsx(node: Node | null | undefined): node is Node {
  * provider becomes the outermost one. Does nothing if the component is already used there.
  */
 export function wrapProvider(source: string, file: string, op: WrapProviderOp): string {
+  assertIdentifier(op.component, 'component');
+  assertIdentifier(op.function, 'function');
+  for (const key of Object.keys(op.props ?? {})) assertJsxAttribute(key);
   const withImport = addImport(source, file, {
     op: 'add-import',
     file: op.file,
