@@ -141,6 +141,20 @@ describe('helpers', () => {
     expect(pattern.test('https://evil.test/?u=https://api.example.com')).toBe(false);
   });
 
+  it('prefixPattern does not let another host start with the same text', () => {
+    const pattern = prefixPattern('https://api.example.com');
+    expect(pattern.test('https://api.example.com')).toBe(true);
+    expect(pattern.test('https://api.example.com?x=1')).toBe(true);
+    expect(pattern.test('https://api.example.com.evil.test/v1')).toBe(false);
+    expect(pattern.test('https://api.example.community')).toBe(false);
+    expect(
+      prefixPattern('https://api.example.com/v1/').test('https://api.example.com/v1/orders'),
+    ).toBe(true);
+    expect(
+      prefixPattern('https://api.example.com/v1/').test('https://api.example.com/v2/orders'),
+    ).toBe(false);
+  });
+
   it('clampRatio keeps the ratio between 0 and 1 and defaults to everything', () => {
     expect([
       clampRatio(undefined),

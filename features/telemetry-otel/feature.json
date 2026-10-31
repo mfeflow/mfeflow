@@ -70,7 +70,7 @@
       "schema": {
         "zod": "z.string().regex(/^(https?:[/][/][^\\s]+)?$/)",
         "valibot": "v.pipe(v.string(), v.regex(/^(https?:[/][/][^\\s]+)?$/))",
-        "arktype": "'/^(https?:[/][/][^\\s]+)?$/'"
+        "arktype": "\"'' | string.url\""
       },
       "value": "",
       "configFiles": [

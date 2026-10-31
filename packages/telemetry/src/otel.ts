@@ -50,8 +50,13 @@ export interface OtelOptions {
 
 const escape = (text: string) => text.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
-/** A prefix as an anchored pattern: the fetch instrumentation compares plain strings for equality. */
-export const prefixPattern = (prefix: string): RegExp => new RegExp(`^${escape(prefix)}`);
+/**
+ * A URL prefix as an anchored pattern (the fetch instrumentation compares plain strings for
+ * equality). A prefix that does not end in `/` must be followed by a path, a query, a fragment or the
+ * end, so `https://api.example.com` does not match `https://api.example.com.evil.test`.
+ */
+export const prefixPattern = (prefix: string): RegExp =>
+  new RegExp(`^${escape(prefix)}${prefix.endsWith('/') ? '' : '(?:$|[/?#])'}`);
 
 export function clampRatio(ratio: number | undefined): number {
   if (ratio === undefined || Number.isNaN(ratio)) return 1;
