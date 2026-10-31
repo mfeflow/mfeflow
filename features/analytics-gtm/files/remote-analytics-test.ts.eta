@@ -1,0 +1,18 @@
+import { createRecordingProvider, initAnalytics, resetAnalyticsForTests } from '@mfeflow/analytics';
+import { afterEach, describe, expect, it } from 'vitest';
+import { tracker } from './analytics';
+
+afterEach(resetAnalyticsForTests);
+
+describe('the <%= it.app.name %> tracker', () => {
+  it('stamps its events with the remote name', () => {
+    const provider = createRecordingProvider();
+    initAnalytics(provider);
+    tracker.track('<%= it.app.name %>_viewed');
+    expect(provider.calls.at(-1)).toMatchObject({
+      type: 'track',
+      event: '<%= it.app.name %>_viewed',
+      params: { mfe: { name: '<%= it.app.name %>' } },
+    });
+  });
+});

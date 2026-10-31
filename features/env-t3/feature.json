@@ -289,6 +289,90 @@
       "target": "shell",
       "call": "loadRuntimeConfig",
       "from": "./config/runtime"
+    },
+    {
+      "op": "add-env-key",
+      "file": "src/config/schema.ts",
+      "target": "shell",
+      "key": "gtmId",
+      "scope": "runtime",
+      "schema": {
+        "zod": "z.string().regex(/^(GTM-[A-Z0-9]{4,12})?$/)",
+        "valibot": "v.pipe(v.string(), v.regex(/^(GTM-[A-Z0-9]{4,12})?$/))",
+        "arktype": "'/^(GTM-[A-Z0-9]{4,12})?$/'"
+      },
+      "value": "",
+      "configFiles": [
+        "public/config/runtime-config.dev.json",
+        "public/config/runtime-config.staging.json",
+        "public/config/runtime-config.prod.json"
+      ],
+      "when": {
+        "feature:analytics-gtm": true
+      }
+    },
+    {
+      "op": "add-env-key",
+      "file": "src/config/schema.ts",
+      "target": "shell",
+      "key": "otlpEndpoint",
+      "scope": "runtime",
+      "schema": {
+        "zod": "z.string().regex(/^(https?:[/][/][^\\s]+)?$/)",
+        "valibot": "v.pipe(v.string(), v.regex(/^(https?:[/][/][^\\s]+)?$/))",
+        "arktype": "'/^(https?:[/][/][^\\s]+)?$/'"
+      },
+      "value": "",
+      "configFiles": [
+        "public/config/runtime-config.dev.json",
+        "public/config/runtime-config.staging.json",
+        "public/config/runtime-config.prod.json"
+      ],
+      "when": {
+        "feature:telemetry-otel": true
+      }
+    },
+    {
+      "op": "add-env-key",
+      "file": "src/config/schema.ts",
+      "target": "shell",
+      "key": "traceSampleRatio",
+      "scope": "runtime",
+      "schema": {
+        "zod": "z.number().min(0).max(1)",
+        "valibot": "v.pipe(v.number(), v.minValue(0), v.maxValue(1))",
+        "arktype": "'0 <= number <= 1'"
+      },
+      "value": 1,
+      "configFiles": [
+        "public/config/runtime-config.dev.json",
+        "public/config/runtime-config.staging.json",
+        "public/config/runtime-config.prod.json"
+      ],
+      "when": {
+        "feature:telemetry-otel": true
+      }
+    },
+    {
+      "op": "add-env-key",
+      "file": "src/config/schema.ts",
+      "target": "shell",
+      "key": "propagateTraceHeaderCorsUrls",
+      "scope": "runtime",
+      "schema": {
+        "zod": "z.array(z.string())",
+        "valibot": "v.array(v.string())",
+        "arktype": "'string[]'"
+      },
+      "value": [],
+      "configFiles": [
+        "public/config/runtime-config.dev.json",
+        "public/config/runtime-config.staging.json",
+        "public/config/runtime-config.prod.json"
+      ],
+      "when": {
+        "feature:telemetry-otel": true
+      }
     }
   ]
 }

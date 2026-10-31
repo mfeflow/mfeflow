@@ -36,38 +36,43 @@ async function forget(feature: string): Promise<void> {
   await fs.writeFile(path.join(project, 'mfeflow.json'), serializeProject({ ...saved, features }));
 }
 
-describe.each(['env-t3', 'testing', 'ci-github'])('mfeflow add %s', (feature) => {
-  it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
-    expect(await add(feature)).toBe(0);
-    const once = await readTree(project);
-    expect(parseProject(once['mfeflow.json'] ?? '').features).toHaveProperty(feature);
-    await forget(feature);
-    expect(await add(feature)).toBe(0);
-    expect(await readTree(project)).toEqual(once);
-  });
+describe.each(['env-t3', 'testing', 'ci-github', 'analytics-gtm', 'telemetry-otel'])(
+  'mfeflow add %s',
+  (feature) => {
+    it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
+      expect(await add(feature)).toBe(0);
+      const once = await readTree(project);
+      expect(parseProject(once['mfeflow.json'] ?? '').features).toHaveProperty(feature);
+      await forget(feature);
+      expect(await add(feature)).toBe(0);
+      expect(await readTree(project)).toEqual(once);
+    });
 
-  it('with --dry-run prints the diff and writes nothing', async () => {
-    const before = await readTree(project);
-    const rt = testRuntime();
-    expect(await main(['add', feature, '--dry-run', '--cwd', project], rt)).toBe(0);
-    expect(await readTree(project)).toEqual(before);
-    expect(rt.io.out.join('\n')).toContain('Dry run: nothing was written.');
-  });
+    it('with --dry-run prints the diff and writes nothing', async () => {
+      const before = await readTree(project);
+      const rt = testRuntime();
+      expect(await main(['add', feature, '--dry-run', '--cwd', project], rt)).toBe(0);
+      expect(await readTree(project)).toEqual(before);
+      expect(rt.io.out.join('\n')).toContain('Dry run: nothing was written.');
+    });
 
-  it('gives a remote added later the same per-app files', async () => {
-    expect(await add(feature)).toBe(0);
-    expect(
-      await main(['add', 'remote', 'checkout', '--no-install', '--cwd', project], testRuntime()),
-    ).toBe(0);
-    const tree = await readTree(project);
-    const perApp = {
-      'env-t3': ['env.ts', '.env.example'],
-      testing: ['vitest.config.ts', 'src/test/setup.ts', 'src/exposed/App.test.tsx'],
-      'ci-github': [],
-    }[feature];
-    for (const file of perApp ?? []) expect(tree, file).toHaveProperty([`apps/checkout/${file}`]);
-  });
-});
+    it('gives a remote added later the same per-app files', async () => {
+      expect(await add(feature)).toBe(0);
+      expect(
+        await main(['add', 'remote', 'checkout', '--no-install', '--cwd', project], testRuntime()),
+      ).toBe(0);
+      const tree = await readTree(project);
+      const perApp = {
+        'env-t3': ['env.ts', '.env.example'],
+        testing: ['vitest.config.ts', 'src/test/setup.ts', 'src/exposed/App.test.tsx'],
+        'ci-github': [],
+        'analytics-gtm': ['src/analytics.ts'],
+        'telemetry-otel': ['src/telemetry.ts'],
+      }[feature];
+      for (const file of perApp ?? []) expect(tree, file).toHaveProperty([`apps/checkout/${file}`]);
+    });
+  },
+);
 
 describe('env-t3', () => {
   it.each([
@@ -261,5 +266,164 @@ describe('ci-github', () => {
     const docs = await read('docs/ci.md');
     expect(docs).toContain('id-token: write');
     expect(docs).toContain('Preview deploys');
+  });
+});
+
+const runtimeKeys = async (file: string): Promise<string[]> =>
+  Object.keys(JSON.parse(await read(file)) as Record<string, unknown>);
+
+describe('analytics-gtm', () => {
+  it('starts analytics from the boot sequence without holding up render, and wraps the shell', async () => {
+    await add('analytics-gtm');
+    const boot = await read('apps/shell/src/bootstrap.tsx');
+    expect(boot).toContain("import { initAnalyticsFromConfig } from './analytics/init';");
+    expect(boot.indexOf('initAnalyticsFromConfig();')).toBeLessThan(boot.indexOf('.render('));
+    expect(boot).not.toContain('await initAnalyticsFromConfig');
+    const app = await read('apps/shell/src/App.tsx');
+    expect(app).toContain("import { Analytics } from './analytics/Analytics';");
+    expect(app).toMatch(/<Analytics>[\s\S]*<\/Analytics>/);
+    const dependencies = (await json('apps/cart/package.json')).dependencies;
+    expect(dependencies).toHaveProperty(['@mfeflow/analytics']);
+  });
+
+  it('gives a remote an analytics.ts that merges its events into the platform map', async () => {
+    await add('analytics-gtm');
+    const analytics = await read('apps/cart/src/analytics.ts');
+    expect(analytics).toContain("declare module '@mfeflow/analytics'");
+    expect(analytics).toContain("createTracker('cart', { events })");
+    expect(analytics).toContain('cart_viewed: undefined;');
+  });
+
+  it('names the first event after a remote with an underscore in its name', async () => {
+    await add('analytics-gtm');
+    expect(
+      await main(['add', 'remote', 'my_shop', '--no-install', '--cwd', project], testRuntime()),
+    ).toBe(0);
+    const analytics = await read('apps/my_shop/src/analytics.ts');
+    expect(analytics).toContain('my_shop_viewed');
+    expect(analytics).toContain("createTracker('my_shop'");
+  });
+
+  it('without env-t3 puts gtmId in public/config/runtime-config.json', async () => {
+    await add('analytics-gtm');
+    expect(await json('apps/shell/public/config/runtime-config.json')).toEqual({ gtmId: '' });
+  });
+
+  it.each(['zod', 'valibot', 'arktype'])(
+    'with env-t3 (%s) adds gtmId to the schema and every environment file',
+    async (validator) => {
+      await add('env-t3', '--option', `env-t3.validator=${validator}`);
+      await add('analytics-gtm');
+      expect(await read('apps/shell/src/config/schema.ts')).toContain('gtmId:');
+      for (const env of ['dev', 'staging', 'prod']) {
+        expect(await runtimeKeys(`apps/shell/public/config/runtime-config.${env}.json`)).toEqual([
+          'environment',
+          'gtmId',
+        ]);
+      }
+      expect(
+        (await readTree(project))['apps/shell/public/config/runtime-config.json'],
+      ).toBeUndefined();
+    },
+  );
+
+  it('ends up the same whichever of env-t3 and analytics-gtm is added first', async () => {
+    await add('analytics-gtm');
+    await add('env-t3');
+    const schema = await read('apps/shell/src/config/schema.ts');
+    expect(schema).toContain('gtmId:');
+    expect(await runtimeKeys('apps/shell/public/config/runtime-config.dev.json')).toEqual([
+      'environment',
+      'gtmId',
+    ]);
+  });
+
+  it('adds the key once when both are added in one command', async () => {
+    expect(await add('env-t3', 'analytics-gtm')).toBe(0);
+    expect((await read('apps/shell/src/config/schema.ts')).match(/gtmId:/g)).toHaveLength(1);
+    expect(await runtimeKeys('apps/shell/public/config/runtime-config.prod.json')).toEqual([
+      'environment',
+      'gtmId',
+    ]);
+  });
+
+  it('writes a unit test for the shell and each remote when testing is installed', async () => {
+    await add('testing');
+    await add('analytics-gtm');
+    const tree = await readTree(project);
+    expect(tree['apps/shell/src/analytics/init.test.ts']).toContain('startAnalytics');
+    expect(tree['apps/cart/src/analytics.test.ts']).toContain('cart_viewed');
+  });
+});
+
+describe('telemetry-otel', () => {
+  it('starts telemetry from the boot sequence and loads the SDK only through a dynamic import', async () => {
+    await add('telemetry-otel');
+    const boot = await read('apps/shell/src/bootstrap.tsx');
+    expect(boot).toContain("import { initTelemetryFromConfig } from './telemetry/init';");
+    expect(boot).not.toContain('await initTelemetryFromConfig');
+    const init = await read('apps/shell/src/telemetry/init.ts');
+    expect(init).toContain("import('@mfeflow/telemetry/otel')");
+    expect(init).not.toMatch(/from '@mfeflow\/telemetry\/otel'/);
+    expect(init).toContain("serviceName: 'shell'");
+  });
+
+  it('gives a remote a tracer tagged with its name', async () => {
+    await add('telemetry-otel');
+    expect(await read('apps/cart/src/telemetry.ts')).toContain("getTracer('cart')");
+  });
+
+  it('without env-t3 puts the three keys in public/config/runtime-config.json', async () => {
+    await add('telemetry-otel');
+    expect(await json('apps/shell/public/config/runtime-config.json')).toEqual({
+      otlpEndpoint: '',
+      traceSampleRatio: 1,
+      propagateTraceHeaderCorsUrls: [],
+    });
+  });
+
+  it('shares runtime-config.json with analytics-gtm', async () => {
+    await add('analytics-gtm', 'telemetry-otel');
+    expect(await runtimeKeys('apps/shell/public/config/runtime-config.json')).toEqual([
+      'gtmId',
+      'otlpEndpoint',
+      'traceSampleRatio',
+      'propagateTraceHeaderCorsUrls',
+    ]);
+  });
+
+  it.each(['zod', 'valibot', 'arktype'])(
+    'with env-t3 (%s) adds the keys to the schema and every environment file',
+    async (validator) => {
+      await add('env-t3', '--option', `env-t3.validator=${validator}`);
+      await add('telemetry-otel');
+      const schema = await read('apps/shell/src/config/schema.ts');
+      for (const key of ['otlpEndpoint', 'traceSampleRatio', 'propagateTraceHeaderCorsUrls']) {
+        expect(schema, key).toContain(`${key}:`);
+      }
+      expect(await runtimeKeys('apps/shell/public/config/runtime-config.staging.json')).toEqual([
+        'environment',
+        'otlpEndpoint',
+        'traceSampleRatio',
+        'propagateTraceHeaderCorsUrls',
+      ]);
+      expect(
+        (
+          JSON.parse(await read('apps/shell/public/config/runtime-config.dev.json')) as Record<
+            string,
+            unknown
+          >
+        ).propagateTraceHeaderCorsUrls,
+      ).toEqual([]);
+    },
+  );
+
+  it('ends up the same whichever of env-t3 and telemetry-otel is added first', async () => {
+    await add('telemetry-otel');
+    await add('env-t3');
+    expect(await read('apps/shell/src/config/schema.ts')).toContain('otlpEndpoint:');
+    expect(await runtimeKeys('apps/shell/public/config/runtime-config.prod.json')).toContain(
+      'traceSampleRatio',
+    );
   });
 });

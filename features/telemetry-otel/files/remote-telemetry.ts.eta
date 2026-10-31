@@ -1,0 +1,11 @@
+import { getTracer } from '@mfeflow/telemetry';
+
+// Spans started with this tracer carry mfe.name = <%= it.app.name %>. Take it once, at import time:
+// it records as soon as the shell has started telemetry.
+//
+//   tracer.startActiveSpan('checkout.click', (span) => {
+//     void fetch('/api/orders').finally(() => span.end());
+//   });
+//
+// Start the fetch inside the callback, before any await: the context follows synchronous calls only.
+export const tracer = getTracer('<%= it.app.name %>');

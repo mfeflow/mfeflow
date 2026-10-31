@@ -1,0 +1,13 @@
+import { createTracker } from '@mfeflow/analytics';
+
+// Every event this remote sends, with its parameters. The map is merged into the platform's, so
+// tracker.track('<%= it.app.name %>_viewed') is checked here and nowhere else.
+declare module '@mfeflow/analytics' {
+  interface AnalyticsEvents {
+    <%= it.app.name %>_viewed: undefined;
+  }
+}
+
+export const events = ['<%= it.app.name %>_viewed'] as const;
+
+export const tracker = createTracker('<%= it.app.name %>', { events });

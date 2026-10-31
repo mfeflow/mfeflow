@@ -365,7 +365,7 @@ describe('mfeflow init', () => {
     ['a remote called shell', ['--remotes', 'shell'], 2, 'MFEFLOW_E215'],
     ['a repeated remote', ['--remotes', 'a,a'], 2, 'MFEFLOW_E215'],
     ['a badly named remote', ['--remotes', 'My-App'], 2, 'MFEFLOW_E215'],
-    ['an unknown feature', ['--features', 'analytics-gtm'], 4, 'MFEFLOW_E201'],
+    ['an unknown feature', ['--features', 'analytics-segment'], 4, 'MFEFLOW_E201'],
     ['an option nothing declares', ['--option', 'core.nothing=1'], 4, 'MFEFLOW_E214'],
     ['an option for a feature not in this run', ['--option', 'git-hooks.x=1'], 4, 'MFEFLOW_E214'],
     ['a malformed option', ['--option', 'nothing'], 2, 'MFEFLOW_E107'],

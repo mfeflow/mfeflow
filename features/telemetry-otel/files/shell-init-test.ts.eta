@@ -1,0 +1,17 @@
+import { isTelemetryReady, resetTelemetryForTests, telemetryReady } from '@mfeflow/telemetry';
+import { afterEach, describe, expect, it } from 'vitest';
+import { startTelemetry } from './init';
+
+afterEach(() => {
+  Reflect.deleteProperty(globalThis, '__MFE_RUNTIME_CONFIG__');
+  resetTelemetryForTests();
+});
+
+describe('startTelemetry', () => {
+  it('stays off without an otlpEndpoint', async () => {
+    Reflect.set(globalThis, '__MFE_RUNTIME_CONFIG__', { environment: 'dev', otlpEndpoint: '' });
+    await startTelemetry();
+    await telemetryReady();
+    expect(isTelemetryReady()).toBe(false);
+  });
+});

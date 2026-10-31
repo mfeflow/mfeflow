@@ -1,0 +1,164 @@
+{
+  "name": "telemetry-otel",
+  "version": "0.1.0",
+  "description": "OpenTelemetry for the browser behind @mfeflow/telemetry: spans per remote tagged with mfe.name, fetch tracing with trace headers, web vitals and remote failures sent to an OTLP endpoint. The SDK loads after first render; endpoint, sampling and CORS origins come from the runtime config.",
+  "requires": ["core", "tsconfig"],
+  "files": [
+    {
+      "to": "src/telemetry/runtime-config.ts",
+      "target": "shell",
+      "from": "files/runtime-config.ts"
+    },
+    {
+      "to": "src/telemetry/init.ts",
+      "target": "shell",
+      "from": "files/init.ts.eta",
+      "template": true
+    },
+    {
+      "to": "src/telemetry/init.test.ts",
+      "target": "shell",
+      "from": "files/shell-init-test.ts.eta",
+      "template": true,
+      "when": {
+        "feature:testing": true
+      }
+    },
+    {
+      "to": "src/telemetry.ts",
+      "target": "remotes",
+      "from": "files/remote-telemetry.ts.eta",
+      "template": true
+    },
+    {
+      "to": "src/telemetry.test.ts",
+      "target": "remotes",
+      "from": "files/remote-telemetry-test.ts.eta",
+      "template": true,
+      "when": {
+        "feature:testing": true
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@mfeflow/telemetry",
+      "range": "latest",
+      "target": "shell"
+    },
+    {
+      "name": "@mfeflow/telemetry",
+      "range": "latest",
+      "target": "remotes"
+    }
+  ],
+  "transforms": [
+    {
+      "op": "add-boot-step",
+      "file": "src/bootstrap.tsx",
+      "target": "shell",
+      "call": "initTelemetryFromConfig",
+      "from": "./telemetry/init",
+      "await": false
+    },
+    {
+      "op": "add-env-key",
+      "file": "src/config/schema.ts",
+      "target": "shell",
+      "key": "otlpEndpoint",
+      "scope": "runtime",
+      "schema": {
+        "zod": "z.string().regex(/^(https?:[/][/][^\\s]+)?$/)",
+        "valibot": "v.pipe(v.string(), v.regex(/^(https?:[/][/][^\\s]+)?$/))",
+        "arktype": "'/^(https?:[/][/][^\\s]+)?$/'"
+      },
+      "value": "",
+      "configFiles": [
+        "public/config/runtime-config.dev.json",
+        "public/config/runtime-config.staging.json",
+        "public/config/runtime-config.prod.json"
+      ],
+      "when": {
+        "feature:env-t3": true
+      }
+    },
+    {
+      "op": "add-env-key",
+      "file": "src/config/schema.ts",
+      "target": "shell",
+      "key": "traceSampleRatio",
+      "scope": "runtime",
+      "schema": {
+        "zod": "z.number().min(0).max(1)",
+        "valibot": "v.pipe(v.number(), v.minValue(0), v.maxValue(1))",
+        "arktype": "'0 <= number <= 1'"
+      },
+      "value": 1,
+      "configFiles": [
+        "public/config/runtime-config.dev.json",
+        "public/config/runtime-config.staging.json",
+        "public/config/runtime-config.prod.json"
+      ],
+      "when": {
+        "feature:env-t3": true
+      }
+    },
+    {
+      "op": "add-env-key",
+      "file": "src/config/schema.ts",
+      "target": "shell",
+      "key": "propagateTraceHeaderCorsUrls",
+      "scope": "runtime",
+      "schema": {
+        "zod": "z.array(z.string())",
+        "valibot": "v.array(v.string())",
+        "arktype": "'string[]'"
+      },
+      "value": [],
+      "configFiles": [
+        "public/config/runtime-config.dev.json",
+        "public/config/runtime-config.staging.json",
+        "public/config/runtime-config.prod.json"
+      ],
+      "when": {
+        "feature:env-t3": true
+      }
+    },
+    {
+      "op": "add-env-key",
+      "file": "public/config/runtime-config.json",
+      "target": "shell",
+      "key": "otlpEndpoint",
+      "scope": "runtime",
+      "schema": "z.string().regex(/^(https?:[/][/][^\\s]+)?$/)",
+      "value": "",
+      "when": {
+        "feature:env-t3": false
+      }
+    },
+    {
+      "op": "add-env-key",
+      "file": "public/config/runtime-config.json",
+      "target": "shell",
+      "key": "traceSampleRatio",
+      "scope": "runtime",
+      "schema": "z.number().min(0).max(1)",
+      "value": 1,
+      "when": {
+        "feature:env-t3": false
+      }
+    },
+    {
+      "op": "add-env-key",
+      "file": "public/config/runtime-config.json",
+      "target": "shell",
+      "key": "propagateTraceHeaderCorsUrls",
+      "scope": "runtime",
+      "schema": "z.array(z.string())",
+      "value": [],
+      "when": {
+        "feature:env-t3": false
+      }
+    }
+  ]
+}

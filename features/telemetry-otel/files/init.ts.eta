@@ -1,0 +1,40 @@
+import { initTelemetry } from '@mfeflow/telemetry';
+import pkg from '../../package.json';
+import { runtimeConfig } from './runtime-config';
+
+const strings = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+
+/**
+ * Starts telemetry from the runtime config. With no `otlpEndpoint` it stays off. The OpenTelemetry
+ * SDK is a separate chunk that loads after the page has loaded and the browser is idle, so it is
+ * never on the path to first render.
+ */
+export async function startTelemetry(): Promise<void> {
+  const config = await runtimeConfig();
+  const { otlpEndpoint, traceSampleRatio, environment } = config;
+  if (typeof otlpEndpoint !== 'string' || otlpEndpoint === '') return;
+  initTelemetry(
+    async () => {
+      const { createOtelProvider } = await import('@mfeflow/telemetry/otel');
+      return createOtelProvider({
+        serviceName: '<%= it.app.name %>',
+        version: pkg.version,
+        environment: typeof environment === 'string' ? environment : 'unknown',
+        otlpEndpoint,
+        sampleRatio: typeof traceSampleRatio === 'number' ? traceSampleRatio : undefined,
+        propagateTraceHeaderCorsUrls: strings(config.propagateTraceHeaderCorsUrls),
+      });
+    },
+    {
+      onError: (error) => {
+        console.warn('[telemetry] not started', error);
+      },
+    },
+  );
+}
+
+/** The boot step: starts telemetry without holding up first render. */
+export function initTelemetryFromConfig(): void {
+  void startTelemetry();
+}

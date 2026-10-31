@@ -1,0 +1,13 @@
+import { resetTelemetryForTests } from '@mfeflow/telemetry';
+import { afterEach, describe, expect, it } from 'vitest';
+import { tracer } from './telemetry';
+
+afterEach(resetTelemetryForTests);
+
+describe('the <%= it.app.name %> tracer', () => {
+  it('can be used before the shell has started telemetry, and records nothing', () => {
+    const span = tracer.startSpan('work');
+    expect(span.isRecording()).toBe(false);
+    span.end();
+  });
+});

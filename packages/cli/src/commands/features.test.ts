@@ -63,6 +63,8 @@ describe('mfeflow features', () => {
       'url-factory': true,
       'env-t3': true,
       testing: true,
+      'analytics-gtm': false,
+      'telemetry-otel': false,
       'ci-github': false,
       'git-hooks': false,
     });
