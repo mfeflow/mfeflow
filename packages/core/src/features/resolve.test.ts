@@ -328,6 +328,25 @@ const third = (extra: object) =>
     trust: 'third-party',
   }) as LoadedFeature;
 
+const env = (schema: string): LoadedFeature => ({
+  manifest: {
+    name: '@acme/x',
+    version: '1',
+    transforms: [
+      {
+        op: 'add-env-key',
+        file: 'src/config/schema.ts',
+        target: 'shell',
+        key: 'SEGMENT_URL',
+        scope: 'runtime',
+        schema,
+        configFiles: ['public/config/runtime-config.dev.json'],
+      },
+    ],
+  },
+  trust: 'third-party',
+});
+
 describe('third-party features at resolve time', () => {
   it('substitutes {{options}} and never evaluates template syntax', async () => {
     Reflect.deleteProperty(globalThis, 'pwned');
@@ -432,6 +451,26 @@ describe('third-party features at resolve time', () => {
     expect((await rejection(resolveFeature({ feature, project, builder }))).code).toBe(
       'MFEFLOW_E203',
     );
+  });
+
+  it('writes the env schema from the parsed tree, not the text it was given', async () => {
+    const builder = new PlanBuilder(reader());
+    await resolveFeature({
+      feature: env('z.string( ).url() /* }, EVIL: process.exit() */'),
+      project,
+      builder,
+    });
+    const schema = builder.build().changes.find((c) => c.path.endsWith('schema.ts'));
+    expect(schema?.after).toContain('SEGMENT_URL: z.string().url()');
+    expect(schema?.after).not.toContain('EVIL');
+    const attack = rejection(
+      resolveFeature({
+        feature: env('z.constructor.constructor("return process")()'),
+        project,
+        builder: new PlanBuilder(reader()),
+      }),
+    );
+    expect((await attack).code).toBe('MFEFLOW_E203');
   });
 
   it('refuses protected files at resolve time even if the loader was bypassed', async () => {

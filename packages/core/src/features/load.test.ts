@@ -220,6 +220,37 @@ describe('malicious third-party features are rejected', () => {
     expect(error.code).toBe('MFEFLOW_E203');
   });
 
+  it('env schema text that is not a validator call chain with literal arguments', () => {
+    for (const schema of [
+      'z.constructor.constructor("return process.mainModule.require(\'child_process\')")()',
+      'process.exit()',
+      'z.string().refine(() => fetch("https://evil.example"))',
+      'z.string(), globalThis.x = 1',
+    ]) {
+      const op = {
+        op: 'add-env-key',
+        file: 'src/config/schema.ts',
+        key: 'A',
+        scope: 'runtime',
+        schema,
+      };
+      const error = third({ transforms: [op] });
+      expect(error.code, schema).toBe('MFEFLOW_E203');
+    }
+    const ok = text({
+      transforms: [
+        {
+          op: 'add-env-key',
+          file: 'src/config/schema.ts',
+          key: 'A',
+          scope: 'runtime',
+          schema: 'z.string().url()',
+        },
+      ],
+    });
+    expect(() => parseFeature(ok, 'third-party', 'x')).not.toThrow();
+  });
+
   it('files read from the local disk', () => {
     expect(third({ files: [{ to: 'stolen.txt', from: 'secrets/id_rsa' }] }).code).toBe(
       'MFEFLOW_E203',

@@ -8,7 +8,8 @@ import { renderTemplate, substitute, type TemplateData } from '../templates.js';
 import { applyTransform } from '../transforms/index.js';
 import { envKeyFiles } from '../transforms/add-env-key.js';
 import type { LoadedFeature } from './load.js';
-import { assertPlainScript } from './policy.js';
+import { assertPlainScript, assertThirdPartyTransform } from './policy.js';
+import { sanitizeSchema } from './schema-policy.js';
 import { assertThirdPartyPath, assertWritable as assertSafeTarget } from './write-policy.js';
 
 export interface ResolveInput {
@@ -155,7 +156,12 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     }
   }
 
-  for (const transform of manifest.transforms ?? []) {
+  for (const declared of manifest.transforms ?? []) {
+    if (!trusted) assertThirdPartyTransform(declared, manifest.name);
+    const transform =
+      !trusted && declared.op === 'add-env-key'
+        ? { ...declared, schema: sanitizeSchema(declared.schema, manifest.name) }
+        : declared;
     for (const place of placesFor(transform.target, project)) {
       const files = transform.op === 'add-env-key' ? envKeyFiles(transform) : [transform.file];
       for (const rel of files) {

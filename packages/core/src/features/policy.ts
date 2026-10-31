@@ -3,6 +3,7 @@ import { validRange } from 'semver';
 import { MfeflowError } from '../errors.js';
 import { envKeyFiles } from '../transforms/add-env-key.js';
 import { JSX_ATTRIBUTE } from '../transforms/ast.js';
+import { sanitizeSchema } from './schema-policy.js';
 import { assertThirdPartyPath } from './write-policy.js';
 
 /** Where a feature came from decides what it may do. */
@@ -154,6 +155,7 @@ export function assertThirdPartyTransform(t: TransformOp, label: string): void {
   if ('from' in t && !isModuleSpecifier(t.from)) {
     deny(`imports "${t.from}", which is not a package name or relative path`);
   }
+  if (t.op === 'add-env-key') sanitizeSchema(t.schema, label);
   if (t.op === 'wrap-provider') {
     for (const key of Object.keys(t.props ?? {})) {
       if (!JSX_ATTRIBUTE.test(key)) deny(`has a prop "${key}" that is not a JSX attribute name`);
