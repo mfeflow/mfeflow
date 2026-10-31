@@ -426,6 +426,32 @@ describe('mfeflow add @namespace/feature', () => {
       expect(await readTree(project)).toEqual(before);
     });
 
+    it('fetches the installed registry features together, not one after another', async () => {
+      const file = path.join(project, 'mfeflow.json');
+      const saved = parseProject(await fs.readFile(file, 'utf8'));
+      saved.features['@acme/other'] = { version: '1.0.0' };
+      await fs.writeFile(file, `${JSON.stringify(saved, null, 2)}\n`);
+      let inFlight = 0;
+      let peak = 0;
+      const fetch: FetchLike = async (url) => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        inFlight -= 1;
+        const name = url.endsWith('other.json') ? '@acme/other' : '@acme/hello';
+        const files = [{ to: `src/${name.slice(6)}.ts`, target: 'shell', content: 'x' }];
+        return {
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify({ ...manifest, name, files })),
+        };
+      };
+      const rt = testRuntime({ fetch });
+      expect((await add(['shell', 'admin', '--yes', '--no-install'], rt)).code).toBe(0);
+      expect(peak).toBe(2);
+      expect(await read('apps/admin/src/other.ts')).toBe('x');
+    });
+
     it('asks a registry that can pin for the recorded version', async () => {
       const file = path.join(project, 'mfeflow.json');
       const saved = parseProject(await fs.readFile(file, 'utf8'));

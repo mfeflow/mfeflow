@@ -83,18 +83,24 @@ async function addAppParts(
 ): Promise<LoadedFeature> {
   const names = ['core', ...Object.keys(project.features).filter((n) => n !== 'core')];
   const canPrompt = rt.io.interactive && !globals.yes && !globals.json;
+  const loadedAll = await Promise.all(
+    names.map((feature) =>
+      loadAny(feature, {
+        roots: rt.roots,
+        registries: project.registries,
+        fetch: rt.fetch,
+        version: project.features[feature]?.version,
+      }),
+    ),
+  );
   let core: LoadedFeature | undefined;
   const fromRegistry: string[] = [];
   const planned: { feature: string; parts: LoadedFeature }[] = [];
-  await inOrder(names, async (feature) => {
-    const recorded = project.features[feature]?.version;
-    const loaded = await loadAny(feature, {
-      roots: rt.roots,
-      registries: project.registries,
-      fetch: rt.fetch,
-      version: recorded,
-    });
+  names.forEach((feature, index) => {
+    const loaded = loadedAll[index];
+    if (loaded === undefined) return;
     if (feature === 'core') core = loaded;
+    const recorded = project.features[feature]?.version;
     const parts = partsForApp(loaded, kind, name);
     if (!parts) return;
     if (loaded.trust === 'third-party') {
