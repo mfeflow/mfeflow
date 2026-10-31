@@ -82,26 +82,48 @@ describe('mfeflow', () => {
     expect(rt.io.err).toEqual([]);
   });
 
-  // A NUL byte in a path makes Node throw a plain TypeError, which is no MfeflowError.
-  const unexpected = ['init', 'x', '--yes', '--cwd', 'bad\0dir'];
+  // Reading the working folder throws a plain TypeError, which is no MfeflowError.
+  const unexpected = ['init', 'x', '--yes'];
+  const broken = () => {
+    const rt = testRuntime();
+    Object.defineProperty(rt.io, 'cwd', {
+      get: () => {
+        throw new TypeError('cwd is broken: no null bytes allowed');
+      },
+    });
+    return rt;
+  };
 
   it('turns an unexpected error into exit 1 without a stack, and with one under --verbose', async () => {
-    const rt = testRuntime();
+    const rt = broken();
     expect(await main(unexpected, rt)).toBe(1);
     expect(rt.io.err.join('\n')).toContain('Unexpected error:');
     expect(rt.io.err.join('\n')).toContain('--verbose');
-    const loud = testRuntime();
+    const loud = broken();
     await main([...unexpected, '--verbose'], loud);
     expect(loud.io.err.join('\n')).toContain('TypeError');
   });
 
   it('prints an unexpected error as JSON under --json', async () => {
-    const rt = testRuntime();
+    const rt = broken();
     expect(await main([...unexpected, '--json'], rt)).toBe(1);
     const result: unknown = JSON.parse(rt.io.out.join(''));
     expect(validateResult(result)).toEqual([]);
-    expect(result).toMatchObject({ ok: false, exitCode: 1 });
+    expect(result).toMatchObject({ ok: false, exitCode: 1, error: { code: 'UNEXPECTED' } });
     expect(rt.io.err).toEqual([]);
+  });
+
+  it('gives an unexpected error under --json its own fix and no E107 docs', async () => {
+    const rt = broken();
+    await main([...unexpected, '--json'], rt);
+    const { error } = JSON.parse(rt.io.out.join('')) as {
+      error: { code: string; message: string; fix: string; docs: string };
+    };
+    expect(error.message).toContain('null bytes');
+    expect(error.fix).not.toContain('--help');
+    expect(error.fix).toContain('--verbose');
+    expect(error.docs).not.toContain('E107');
+    expect(error.docs).toContain('github.com/mfeflow/mfeflow/issues');
   });
 
   it('exits 130 and writes nothing when the person backs out of a prompt', async () => {

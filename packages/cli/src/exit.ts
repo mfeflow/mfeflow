@@ -51,6 +51,16 @@ export function reportOf(error: MfeflowError): ErrorReport {
   return { code: error.code, message: error.message, fix: error.fix, docs: error.docs };
 }
 
+/** What `--json` reports for an error that is no MfeflowError: a bug, so no code from the catalogue. */
+export function unexpectedReport(error: unknown): ErrorReport {
+  return {
+    code: 'UNEXPECTED',
+    message: messageOf(error),
+    fix: 'This is a bug in mfeflow. Run again with --verbose for the stack, and report it.',
+    docs: 'https://github.com/mfeflow/mfeflow/issues',
+  };
+}
+
 /** What an unexpected (non-mfeflow) error prints: the message, and the stack with --verbose. */
 export function unexpectedText(error: unknown, verbose: boolean): string {
   const stack =

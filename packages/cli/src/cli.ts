@@ -4,7 +4,7 @@ import { defineCommand, runCommand, type CommandDef } from 'citty';
 import { ADD_ARGS, runAdd } from './commands/add';
 import { FEATURES_ARGS, runFeatures } from './commands/features';
 import { INIT_ARGS, runInit } from './commands/init';
-import { Cancelled, EXIT, exitCodeFor, reportOf, unexpectedText } from './exit';
+import { Cancelled, EXIT, exitCodeFor, reportOf, unexpectedReport, unexpectedText } from './exit';
 import { commandHelp, rootHelp, type CommandHelp } from './help';
 import type { CliResult, FailureResult } from './output';
 import { realRuntime, type Runtime } from './runtime';
@@ -95,23 +95,13 @@ function fail(error: unknown, rt: Runtime, json: boolean, verbose: boolean): num
     if (verbose && mfe.cause !== undefined) rt.io.stderr(unexpectedText(mfe.cause, true));
     return exitCodeFor(mfe);
   }
-  const wrapped = new MfeflowError('E107', 'unexpected');
   if (json) {
-    rt.io.stdout(
-      JSON.stringify(
-        {
-          ok: false,
-          error: {
-            ...reportOf(wrapped),
-            code: 'UNEXPECTED',
-            message: error instanceof Error ? error.message : String(error),
-          },
-          exitCode: EXIT.unexpected,
-        },
-        null,
-        2,
-      ),
-    );
+    const failed: FailureResult = {
+      ok: false,
+      error: unexpectedReport(error),
+      exitCode: EXIT.unexpected,
+    };
+    rt.io.stdout(JSON.stringify(failed, null, 2));
   } else {
     rt.io.stderr(unexpectedText(error, verbose));
   }
