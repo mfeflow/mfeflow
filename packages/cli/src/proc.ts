@@ -87,15 +87,12 @@ const realKiller: TreeKiller = {
   graceMs: GRACE_MS,
 };
 
-function wrap(child: ChildProcess, killer: TreeKiller): DevProcess {
-  let exited = false;
+export function wrap(child: ChildProcess, killer: TreeKiller): DevProcess {
   const exit = new Promise<void>((resolve) => {
     child.once('close', () => {
-      exited = true;
       resolve();
     });
     child.once('error', () => {
-      exited = true;
       resolve();
     });
   });
@@ -117,7 +114,8 @@ function wrap(child: ChildProcess, killer: TreeKiller): DevProcess {
       });
     },
     async stop() {
-      if (child.pid !== undefined && !exited) await killTree(child.pid, killer);
+      // The leader may be gone while its children still run, so the group is always signalled.
+      if (child.pid !== undefined) await killTree(child.pid, killer);
       await Promise.race([exit, sleep(2000)]);
     },
   };

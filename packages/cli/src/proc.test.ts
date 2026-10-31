@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { EventEmitter } from 'node:events';
+import type { ChildProcess } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { killTree, portFree, spawnDev, watchPaths, type TreeKiller } from './proc';
+import { killTree, portFree, spawnDev, watchPaths, wrap, type TreeKiller } from './proc';
 import net from 'node:net';
 
 const killer = (overrides: Partial<TreeKiller>): TreeKiller => ({
@@ -66,6 +68,25 @@ describe('killTree', () => {
         },
       }),
     );
+  });
+});
+
+describe('wrap', () => {
+  it('signals the process group on stop even when the leader already exited', async () => {
+    const child = Object.assign(new EventEmitter(), { pid: 99 }) as unknown as ChildProcess;
+    const sent: [number, string | number][] = [];
+    const proc = wrap(
+      child,
+      killer({
+        kill: (pid, signal) => {
+          sent.push([pid, signal]);
+          if (signal === 0) throw new Error('ESRCH');
+        },
+      }),
+    );
+    child.emit('close', 0);
+    await proc.stop();
+    expect(sent[0]).toEqual([-99, 'SIGTERM']);
   });
 });
 
