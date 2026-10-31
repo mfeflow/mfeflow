@@ -12,6 +12,8 @@ export interface FsOps {
   rm(file: string, options?: { recursive?: boolean }): Promise<void>;
   /** Returns the first directory it had to create, if any. */
   mkdir(dir: string): Promise<string | undefined>;
+  /** Whether `file` is itself a symlink. False when it does not exist. */
+  isSymlink(file: string): Promise<boolean>;
   /** Names of the sub-folders of `dir`. */
   listDirs(dir: string): Promise<string[]>;
 }
@@ -23,6 +25,14 @@ export const realFs: FsOps = {
   realpath: (file) => fs.realpath(file),
   rm: (file, options) => fs.rm(file, { force: true, ...options }),
   mkdir: (dir) => fs.mkdir(dir, { recursive: true }),
+  isSymlink: async (file) => {
+    try {
+      return (await fs.lstat(file)).isSymbolicLink();
+    } catch (error) {
+      if (hasErrno(error, 'ENOENT') || hasErrno(error, 'ENOTDIR')) return false;
+      throw new MfeflowError('E106', `${file}: ${messageOf(error)}`, { cause: error });
+    }
+  },
   listDirs: async (dir) =>
     (await fs.readdir(dir, { withFileTypes: true }))
       .filter((e) => e.isDirectory())

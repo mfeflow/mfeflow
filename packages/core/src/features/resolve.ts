@@ -109,7 +109,8 @@ async function contentOf(
  * scripts and transform ops. Nothing is written to disk and nothing is run.
  */
 export async function resolveFeature(input: ResolveInput): Promise<void> {
-  const { feature, project, builder } = input;
+  const { feature, project } = input;
+  const builder = input.builder.scoped(feature.trust);
   const { manifest } = feature;
   await builder.captureProject();
   const trusted = feature.trust === 'first-party';

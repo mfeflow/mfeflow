@@ -47,7 +47,14 @@ describe('PlanBuilder files', () => {
     await b.create('a.ts', 'a');
     await b.patch('a.ts', (s) => `${s}b`);
     expect(b.build().changes).toEqual([
-      { path: 'a.ts', action: 'create', before: null, after: 'ab', track: true },
+      {
+        path: 'a.ts',
+        action: 'create',
+        before: null,
+        after: 'ab',
+        track: true,
+        trust: 'first-party',
+      },
     ]);
   });
 

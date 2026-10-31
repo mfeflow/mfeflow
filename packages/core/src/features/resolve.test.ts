@@ -411,6 +411,28 @@ describe('third-party features at resolve time', () => {
     expect(Reflect.get(globalThis, 'pwned')).toBeUndefined();
   });
 
+  it('marks every file a third-party feature touched as third-party, and keeps it so', async () => {
+    const builder = new PlanBuilder(reader());
+    await resolveFeature({
+      feature: local(analytics, assets),
+      project,
+      builder,
+      options: { consent: 'granted' },
+    });
+    await resolveFeature({
+      feature: third({
+        files: [{ to: 'src/a.ts', target: 'shell', content: 'a' }],
+        dependencies: [{ name: 'left-pad', range: '^1.0.0', target: 'shell' }],
+      }),
+      project,
+      builder,
+    });
+    const trust = Object.fromEntries(builder.build().changes.map((c) => [c.path, c.trust]));
+    expect(trust['apps/shell/src/a.ts']).toBe('third-party');
+    expect(trust['apps/shell/package.json']).toBe('third-party');
+    expect(trust['apps/shell/src/platform/consent.ts']).toBe('first-party');
+  });
+
   it('copies untemplated content byte for byte', async () => {
     const body = '<%= globalThis.pwned = 1 %> {{ not.substituted }}';
     const builder = new PlanBuilder(reader());

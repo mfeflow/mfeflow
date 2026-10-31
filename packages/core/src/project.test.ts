@@ -100,8 +100,22 @@ describe('recordPlan', () => {
     const next = recordPlan(
       project,
       plan([
-        { path: 'a.ts', action: 'create', before: null, after: 'A', track: true },
-        { path: 'b.ts', action: 'create', before: null, after: 'B', track: false },
+        {
+          path: 'a.ts',
+          action: 'create',
+          before: null,
+          after: 'A',
+          track: true,
+          trust: 'first-party',
+        },
+        {
+          path: 'b.ts',
+          action: 'create',
+          before: null,
+          after: 'B',
+          track: false,
+          trust: 'first-party',
+        },
       ]),
     );
     expect(next.features['analytics-gtm']).toEqual({
@@ -116,9 +130,30 @@ describe('recordPlan', () => {
     const next = recordPlan(
       tracked,
       plan([
-        { path: 'a.ts', action: 'patch', before: 'A', after: 'A2', track: false },
-        { path: 'e.ts', action: 'patch', before: 'E-edited-by-user', after: 'E2', track: false },
-        { path: 'untracked.ts', action: 'patch', before: 'U', after: 'U2', track: false },
+        {
+          path: 'a.ts',
+          action: 'patch',
+          before: 'A',
+          after: 'A2',
+          track: false,
+          trust: 'first-party',
+        },
+        {
+          path: 'e.ts',
+          action: 'patch',
+          before: 'E-edited-by-user',
+          after: 'E2',
+          track: false,
+          trust: 'first-party',
+        },
+        {
+          path: 'untracked.ts',
+          action: 'patch',
+          before: 'U',
+          after: 'U2',
+          track: false,
+          trust: 'first-party',
+        },
       ]),
     );
     expect(next.files).toEqual({ 'a.ts': hashContent('A2'), 'e.ts': hashContent('E') });
@@ -128,7 +163,16 @@ describe('recordPlan', () => {
     const tracked = { ...project, files: { 'a.ts': hashContent('A') } };
     const next = recordPlan(tracked, {
       ...emptyPlan(),
-      changes: [{ path: 'a.ts', action: 'delete', before: 'A', after: null, track: false }],
+      changes: [
+        {
+          path: 'a.ts',
+          action: 'delete',
+          before: 'A',
+          after: null,
+          track: false,
+          trust: 'first-party',
+        },
+      ],
     });
     expect(next.files).toBeUndefined();
   });

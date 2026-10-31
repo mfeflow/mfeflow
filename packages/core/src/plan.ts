@@ -2,6 +2,7 @@ import { formatPatch, structuredPatch } from 'diff';
 import { isMap, parseDocument } from 'yaml';
 import { MfeflowError } from './errors.js';
 import { asRecord, editJsonObject } from './json.js';
+import type { Trust } from './features/policy.js';
 import { PROJECT_FILE } from './project.js';
 
 export type ChangeAction = 'create' | 'patch' | 'delete';
@@ -16,6 +17,8 @@ export interface FileChange {
   after: string | null;
   /** True for files copied from a feature: their hash is recorded for `upgrade`. */
   track: boolean;
+  /** Who asked for the change; a file any third-party feature touched is third-party. `applyPlan` holds third-party changes to a stricter symlink rule than first-party ones. */
+  trust: Trust;
 }
 
 export interface PlanFeature {
@@ -85,6 +88,13 @@ interface Tracked {
   original: string | null;
   current: string | null;
   track: boolean;
+  trust: Trust;
+}
+
+interface BuilderState {
+  files: Map<string, Tracked>;
+  plan: Plan;
+  projectBefore: string | null | undefined;
 }
 
 /**
@@ -92,20 +102,44 @@ interface Tracked {
  * disk; `build()` turns the edits into a {@link Plan}.
  */
 export class PlanBuilder {
-  private readonly files = new Map<string, Tracked>();
-  private readonly plan = emptyPlan();
-  private projectBefore: string | null | undefined;
+  private readonly state: BuilderState;
 
   constructor(
     private readonly read: ReadFile,
     private readonly options: PlanBuilderOptions = {},
-  ) {}
+    private readonly trust: Trust = 'first-party',
+    state?: BuilderState,
+  ) {
+    this.state = state ?? { files: new Map(), plan: emptyPlan(), projectBefore: undefined };
+  }
+
+  private get files(): Map<string, Tracked> {
+    return this.state.files;
+  }
+
+  private get plan(): Plan {
+    return this.state.plan;
+  }
+
+  /** A view on the same plan whose edits are recorded as made by `trust`. */
+  scoped(trust: Trust): PlanBuilder {
+    return new PlanBuilder(this.read, this.options, trust, this.state);
+  }
+
+  private touch(entry: Tracked): void {
+    if (this.trust === 'third-party') entry.trust = 'third-party';
+  }
 
   private async open(file: string): Promise<Tracked> {
     const known = this.files.get(file);
     if (known) return known;
     const content = (await this.read(file)) ?? null;
-    const entry: Tracked = { original: content, current: content, track: false };
+    const entry: Tracked = {
+      original: content,
+      current: content,
+      track: false,
+      trust: 'first-party',
+    };
     this.files.set(file, entry);
     return entry;
   }
@@ -120,7 +154,7 @@ export class PlanBuilder {
 
   /** Remembers `mfeflow.json` as it is now; `applyPlan` refuses to continue if it changes before the write. */
   async captureProject(): Promise<void> {
-    this.projectBefore = (await this.read(PROJECT_FILE)) ?? null;
+    this.state.projectBefore = (await this.read(PROJECT_FILE)) ?? null;
   }
 
   addFeature(feature: PlanFeature): void {
@@ -134,6 +168,7 @@ export class PlanBuilder {
   /** Creates a file. Asking for the same content again is fine; different content is a conflict. */
   async create(file: string, content: string, track = true): Promise<void> {
     const entry = await this.open(file);
+    this.touch(entry);
     if (entry.current !== null && entry.current !== content) {
       throw new MfeflowError('E207', file);
     }
@@ -145,11 +180,13 @@ export class PlanBuilder {
   async patch(file: string, edit: (source: string) => string): Promise<void> {
     const entry = await this.open(file);
     if (entry.current === null) throw new MfeflowError('E208', `${file} does not exist`);
+    this.touch(entry);
     entry.current = edit(entry.current);
   }
 
   async delete(file: string): Promise<void> {
     const entry = await this.open(file);
+    this.touch(entry);
     entry.current = null;
   }
 
@@ -235,12 +272,15 @@ export class PlanBuilder {
         before: entry.original,
         after: entry.current,
         track: action === 'create' && entry.track,
+        trust: entry.trust,
       });
     }
     return {
       ...this.plan,
       changes,
-      ...(this.projectBefore === undefined ? {} : { projectBefore: this.projectBefore }),
+      ...(this.state.projectBefore === undefined
+        ? {}
+        : { projectBefore: this.state.projectBefore }),
     };
   }
 }
