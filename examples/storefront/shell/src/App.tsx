@@ -86,7 +86,7 @@ export function App() {
           <RemoteBoundary id="catalog/App" loading={<p>…</p>} />
         )}
       </main>
-      <DevOverlay enabled={location.hostname === 'localhost'} />
+      <DevOverlay enabled={process.env.NODE_ENV !== 'production'} />
     </Providers>
   );
 }

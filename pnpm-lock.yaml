@@ -405,6 +405,9 @@ importers:
 
   examples/storefront/e2e:
     devDependencies:
+      '@mfeflow/contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1

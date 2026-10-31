@@ -35,7 +35,7 @@ test('language switch re-renders the shell and each remote, loading remote messa
 }) => {
   const remoteMessages: string[] = [];
   page.on('request', (r) => {
-    if (r.url().includes(':4301/') && r.url().endsWith('.js')) remoteMessages.push(r.url());
+    if (r.url().includes('/mfe/catalog/') && r.url().endsWith('.js')) remoteMessages.push(r.url());
   });
   await open(page);
   await expect(page.getByTestId('catalog-heading')).toHaveText('Catalog');
@@ -61,7 +61,7 @@ test('remotes keep their own storage and stay in sync inside the cart remote', a
 });
 
 test('every platform singleton loads once', async ({ page }) => {
-  await open(page);
+  await open(page, '/catalog?mfeflow-assert');
   await page.getByTestId('nav-cart').click();
   await expect(page.getByTestId('cart')).toBeVisible();
   const result: unknown = await page.evaluate((): unknown => {
@@ -74,7 +74,7 @@ test('every platform singleton loads once', async ({ page }) => {
 test('a remote that fails to load shows its fallback and the rest keeps working', async ({
   page,
 }) => {
-  await page.route('**:4301/cart/**', (route) => route.fulfill({ status: 404, body: 'gone' }));
+  await page.route('**/mfe/cart/**', (route) => route.fulfill({ status: 404, body: 'gone' }));
   await open(page);
   await expect(page.locator('[data-mfeflow-fallback="cart"]')).toBeVisible();
   await expect(page.getByTestId('catalog-heading')).toHaveText('Catalog');
@@ -87,4 +87,52 @@ test('a remote that fails to load shows its fallback and the rest keeps working'
     });
   });
   expect(mfes).toContain('cart');
+});
+
+test('a remote entry that 404s once is retried and then loads', async ({ page }) => {
+  let failed = false;
+  await page.route('**/mfe/cart/static/js/cart.*.js*', (route) => {
+    if (failed) return route.continue();
+    failed = true;
+    return route.fulfill({ status: 404, body: 'gone' });
+  });
+  await open(page, '/cart');
+  await expect(page.getByTestId('cart')).toBeVisible();
+  expect(failed).toBe(true);
+});
+
+test('the registry is read from the page, and fetched from the same origin when the edge did not inline it', async ({
+  page,
+}) => {
+  const inlined = await page.request.get('/catalog').then((r) => r.text());
+  expect(inlined).toContain('window.__MFE_REGISTRY__=');
+  expect(inlined).toMatch(/<link rel="preload" as="script" href="http:\/\/[^"]*\/mfe\/catalog\//);
+  expect(inlined).not.toContain('crossorigin');
+
+  const fetched: string[] = [];
+  page.on('request', (r) => {
+    if (r.url().endsWith('/registry/index.json')) fetched.push(r.url());
+  });
+  await open(page);
+  expect(fetched).toEqual([]);
+
+  await page.route('**/catalog', async (route) => {
+    const res = await route.fetch();
+    const body = (await res.text()).replace(/<script>window\.__MFE_REGISTRY__=.*?<\/script>/, '');
+    await route.fulfill({ response: res, body });
+  });
+  await open(page);
+  expect(fetched).toHaveLength(1);
+});
+
+test('a production shell ignores ?mfe-override and says so', async ({ page }) => {
+  await open(page, '/catalog?mfe-override=cart@http://localhost:4312/mf-manifest.json');
+  const reports: unknown = await page.evaluate((): unknown => {
+    const all: unknown = Reflect.get(globalThis, 'mfeflowReports');
+    return Array.isArray(all)
+      ? all.map((r: unknown) => String(Reflect.get(Object(r), 'where')))
+      : [];
+  });
+  expect(reports).toContain('override');
+  expect(await page.evaluate(() => sessionStorage.getItem('shell:mfe-overrides'))).toBeNull();
 });
