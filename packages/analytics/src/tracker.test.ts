@@ -55,7 +55,7 @@ describe('createTracker', () => {
 
   it('never leaves one remote’s version on another remote’s event', () => {
     createTracker('cart', { mfeVersion: '1.4.0' }).track('cart_viewed');
-    createTracker('catalog').track('catalog_viewed');
+    createTracker('catalog').track('cart_viewed');
     const [first, second] = tracked();
     expect(first?.params).toMatchObject({ mfe_name: 'cart', mfe_version: '1.4.0' });
     expect(second?.params).toEqual({ mfe_name: 'catalog', mfe_version: null });
