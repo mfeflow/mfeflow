@@ -175,17 +175,25 @@ function needsFor(pathname: string): RouteNeed[] {
   ];
 }
 
-// Only plain host[:port] values become part of the registry's URLs and its cache key.
+// The registry's URLs and every cache key use this origin, never the client's Host header.
+// SERVE_ORIGIN overrides it when the shell is reached under another name.
+const ORIGIN = process.env.SERVE_ORIGIN ?? `http://localhost:${String(SHELL_PORT)}`;
+const ORIGIN_HOST = new URL(ORIGIN).host;
 const HOST = /^[\w.-]+(:\d{1,5})?$/;
 
 function shellHandler(req: http.IncomingMessage, res: http.ServerResponse): void {
   const url = new URL(req.url ?? '/', 'http://x');
-  const host = req.headers.host ?? `localhost:${String(SHELL_PORT)}`;
+  const host = req.headers.host ?? ORIGIN_HOST;
   if (!HOST.test(host)) {
     badRequest(res);
     return;
   }
-  const origin = `http://${host}`;
+  if (host !== ORIGIN_HOST) {
+    res.writeHead(421);
+    res.end('misdirected request');
+    return;
+  }
+  const origin = ORIGIN;
   if (url.pathname === '/registry/index.json') {
     const body = JSON.stringify(registryFor(origin));
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });

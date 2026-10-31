@@ -34,6 +34,20 @@ test.describe('the test server', () => {
     expect(res.status()).toBe(400);
     expect((await request.get('/catalog')).status()).toBe(200);
   });
+
+  test('a valid but foreign Host is a 421 and never reaches the registry or its cache', async ({
+    request,
+  }) => {
+    const statuses = await Promise.all(
+      ['/catalog', '/registry/index.json'].map(async (url) =>
+        (await request.get(url, { headers: { host: 'evil.test' } })).status(),
+      ),
+    );
+    expect(statuses).toEqual([421, 421]);
+    const index = await (await request.get('/registry/index.json')).text();
+    expect(index).not.toContain('evil.test');
+    expect(index).toContain('http://localhost:4300/mfe/cart/');
+  });
 });
 
 test('a missing remote build is a 503 for that request, not a dead server', async () => {
@@ -44,7 +58,7 @@ test('a missing remote build is a 503 for that request, not a dead server', asyn
     '<html><head><meta charset="utf-8"></head><body></body></html>',
   );
   fs.writeFileSync(path.join(root, 'shell/dist/app.js'), 'x');
-  const base = 'http://127.0.0.1:4391';
+  const base = 'http://localhost:4391';
   const server = spawn('node', [path.join(import.meta.dirname, 'serve.ts')], {
     env: { ...process.env, SERVE_ROOT: root, SHELL_PORT: '4391', MONOLITH_PORT: '4393' },
     stdio: 'ignore',
