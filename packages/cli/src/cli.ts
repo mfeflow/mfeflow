@@ -2,11 +2,21 @@ import { stripVTControlCharacters } from 'node:util';
 import { isMfeflowError, MfeflowError } from '@mfeflow/core';
 import { defineCommand, runCommand, type CommandDef } from 'citty';
 import { ADD_ARGS, runAdd } from './commands/add';
+import {
+  COMPAT_ARGS,
+  DOCTOR_ARGS,
+  runCheckCompat,
+  runDoctor,
+  runValidate,
+  VALIDATE_ARGS,
+} from './commands/doctor';
+import { BUDGET_ARGS, runBudget } from './commands/budget';
+import { DEV_ARGS, runDev } from './commands/dev';
 import { FEATURES_ARGS, runFeatures } from './commands/features';
 import { INIT_ARGS, runInit } from './commands/init';
 import { Cancelled, EXIT, exitCodeFor, reportOf, unexpectedReport, unexpectedText } from './exit';
 import { commandHelp, rootHelp, type CommandHelp } from './help';
-import type { CliResult, FailureResult } from './output';
+import { exitOf, type CliResult, type FailureResult } from './output';
 import { realRuntime, type Runtime } from './runtime';
 import { readPackageJson } from './version';
 
@@ -57,6 +67,58 @@ export const COMMANDS: readonly Command[] = [
     args: FEATURES_ARGS,
     examples: ['mfeflow features', 'mfeflow features lint', 'mfeflow features --json'],
     run: runFeatures,
+  },
+  {
+    name: 'doctor',
+    summary: 'check singletons, compatibility, config and drift; --fix repairs the safe ones',
+    usage: 'mfeflow doctor [options]',
+    args: DOCTOR_ARGS,
+    examples: [
+      'mfeflow doctor',
+      'mfeflow doctor --fix',
+      'mfeflow doctor --json',
+      'mfeflow doctor --fix --dry-run',
+    ],
+    run: runDoctor,
+  },
+  {
+    name: 'validate',
+    summary: 'check mfeflow.json, every mfe.json and every registry entry against their schemas',
+    usage: 'mfeflow validate [options]',
+    args: VALIDATE_ARGS,
+    examples: ['mfeflow validate', 'mfeflow validate --json'],
+    run: runValidate,
+  },
+  {
+    name: 'check-compat',
+    summary: "check each remote's shared ranges against the shells it runs in",
+    usage: 'mfeflow check-compat [options]',
+    args: COMPAT_ARGS,
+    examples: ['mfeflow check-compat', 'mfeflow check-compat --json'],
+    run: runCheckCompat,
+  },
+  {
+    name: 'budget',
+    summary: 'measure the built JS of the shell and each remote against the cost-model budget',
+    usage: 'mfeflow budget [options]',
+    args: BUDGET_ARGS,
+    examples: ['mfeflow budget', 'mfeflow budget --json', 'mfeflow budget --dist build'],
+    run: runBudget,
+  },
+  {
+    name: 'dev',
+    summary:
+      'run the shell and every remote together, with a dev registry that follows the project',
+    usage: 'mfeflow dev [options]',
+    args: DEV_ARGS,
+    examples: [
+      'mfeflow dev',
+      'mfeflow dev --only shell,catalog',
+      'mfeflow dev --remote checkout=http://localhost:3001',
+      'mfeflow dev --remote checkout=https://dev.example.com --allow-origin https://dev.example.com',
+      'mfeflow dev --dry-run',
+    ],
+    run: runDev,
   },
 ];
 
@@ -149,7 +211,7 @@ export async function main(argv: readonly string[], rt: Runtime = realRuntime())
       { rawArgs: rest },
     );
     if (json && result) rt.io.stdout(JSON.stringify(result, null, 2));
-    return EXIT.ok;
+    return result ? exitOf(result) : EXIT.ok;
   } catch (error) {
     return fail(error, rt, json, verbose);
   }

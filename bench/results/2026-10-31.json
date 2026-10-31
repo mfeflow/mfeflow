@@ -1,0 +1,57 @@
+{
+  "measured": "2026-10-31T15:57:11.998Z",
+  "what": "create-mfeflow my-app --yes --local, pnpm install (warm store), first pnpm dev until the shell and every remote entry answer",
+  "fixture": {
+    "remotes": ["catalog", "cart"],
+    "features": ["lint-oxlint", "url-factory"]
+  },
+  "commit": "93dae56",
+  "machine": {
+    "os": "Darwin 25.5.0",
+    "arch": "arm64",
+    "cpus": 8,
+    "node": "v22.23.4"
+  },
+  "pnpm": "12.16.1",
+  "runs": [
+    {
+      "createMs": 164.3476669999999,
+      "installMs": 297.7322079999999,
+      "devMs": 5919.911625,
+      "totalMs": 6381.991499999999
+    },
+    {
+      "createMs": 161.8430840000001,
+      "installMs": 323.0256249999984,
+      "devMs": 5070.352167000001,
+      "totalMs": 5555.220875999999
+    },
+    {
+      "createMs": 162.57837500000096,
+      "installMs": 329.6247500000027,
+      "devMs": 4311.741249999999,
+      "totalMs": 4803.944375000003
+    },
+    {
+      "createMs": 193.6163749999978,
+      "installMs": 455.36362499999814,
+      "devMs": 4544.082792000001,
+      "totalMs": 5193.062791999997
+    },
+    {
+      "createMs": 179.89887499999895,
+      "installMs": 349.3151249999937,
+      "devMs": 4407.125708,
+      "totalMs": 4936.339707999992
+    }
+  ],
+  "medianMs": {
+    "createMs": 164,
+    "installMs": 330,
+    "devMs": 4544,
+    "totalMs": 5193
+  },
+  "medianTotalOfRuns": 5193,
+  "targetMs": 60000,
+  "pass": true
+}

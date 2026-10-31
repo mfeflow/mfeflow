@@ -55,11 +55,15 @@
     "@clack/prompts": "catalog:",
     "@mfeflow/contracts": "workspace:*",
     "@mfeflow/core": "workspace:*",
-    "citty": "catalog:"
+    "citty": "catalog:",
+    "semver": "catalog:",
+    "yaml": "catalog:"
   },
   "devDependencies": {
+    "@mfeflow/rsbuild": "workspace:*",
     "@rslib/core": "catalog:",
     "@types/node": "catalog:",
+    "@types/semver": "catalog:",
     "typescript": "catalog:"
   }
 }

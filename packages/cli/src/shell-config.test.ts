@@ -13,16 +13,21 @@ vi.mock('@mfeflow/rsbuild', () => ({ createShellConfig: () => ({}) }));
 
 interface ShellConfig {
   html: { tags: { children: string }[] };
+  dev: { watchFiles: { paths: string; type: string } };
 }
 
 const dirs: string[] = [];
 afterEach(async () => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   await Promise.all(dirs.splice(0).map(removeDir));
 });
 
 /** Generates a project with `remotes`, then runs the shell's `rsbuild dev` config from apps/shell. */
-async function devRegistryOf(remotes: string[]): Promise<{ root: string; script: string }> {
+async function devRegistryOf(
+  remotes: string[],
+  generated?: (root: string) => Promise<string>,
+): Promise<{ root: string; script: string; config: ShellConfig }> {
   const cwd = await tempDir();
   dirs.push(cwd);
   await fs.writeFile(path.join(cwd, 'preset.json'), JSON.stringify({ remotes }));
@@ -35,12 +40,14 @@ async function devRegistryOf(remotes: string[]): Promise<{ root: string; script:
   const shell = path.join(root, 'apps/shell');
   vi.spyOn(process, 'cwd').mockReturnValue(shell);
   // The query keeps each run's copy of the config out of the module cache.
-  const url = `${path.join(shell, 'rsbuild.config.ts')}?${String(Date.now())}${remotes.join()}`;
+  const url = `${path.join(shell, 'rsbuild.config.ts')}?${String(Date.now())}${remotes.join()}${generated ? 'g' : ''}`;
+  const file = generated && (await generated(root));
+  if (file) vi.stubEnv('MFEFLOW_DEV_REGISTRY', file);
   const loaded = (await import(/* @vite-ignore */ url)) as {
     default: (env: { command: string }) => ShellConfig;
   };
   const config = loaded.default({ command: 'dev' });
-  return { root, script: config.html.tags[0]?.children ?? '' };
+  return { root, script: config.html.tags[0]?.children ?? '', config };
 }
 
 describe('the generated shell config', () => {
@@ -54,5 +61,30 @@ describe('the generated shell config', () => {
     const { script } = await devRegistryOf(['cart']);
     expect(script).toContain('"name":"cart"');
     expect(script).toContain('http://localhost:4311/mf-manifest.json');
+  });
+
+  it('watches the registry folder, and restarts the dev server when it changes', async () => {
+    const { root, config } = await devRegistryOf(['cart']);
+    expect(config.dev.watchFiles).toEqual({
+      paths: path.join(root, 'registry/envs/dev'),
+      type: 'restart',
+    });
+  });
+
+  it('reads the registry mfeflow dev generated, and watches that file instead', async () => {
+    const file = path.join(await tempDir(), 'dev-registry.json');
+    dirs.push(path.dirname(file));
+    const index = {
+      remotes: [
+        { name: 'checkout', entry: 'http://localhost:3001/mf-manifest.json', version: 'override' },
+      ],
+    };
+    const { script, config } = await devRegistryOf(['cart'], async () => {
+      await fs.writeFile(file, JSON.stringify(index));
+      return file;
+    });
+    expect(script).toBe(`window.__MFE_REGISTRY__=${JSON.stringify(index)}`);
+    expect(script).not.toContain('"cart"');
+    expect(config.dev.watchFiles).toEqual({ paths: file, type: 'restart' });
   });
 });

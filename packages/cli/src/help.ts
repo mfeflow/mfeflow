@@ -55,7 +55,7 @@ export function exitCodesText(): string {
     `  ${String(EXIT.build)}    build or runtime problem (MFEFLOW_E3xx)`,
     `  ${String(EXIT.registry)}    registry problem (MFEFLOW_E4xx)`,
     `  ${String(EXIT.upgrade)}    upgrade problem (MFEFLOW_E5xx)`,
-    `  ${String(EXIT.cancelled)}  cancelled at a prompt`,
+    `  ${String(EXIT.cancelled)}  cancelled at a prompt, or Ctrl+C in mfeflow dev`,
   ].join('\n');
 }
 

@@ -1,6 +1,8 @@
 import type { Issue } from '@mfeflow/contracts';
 import { type Plan } from '@mfeflow/core';
-import type { ErrorReport } from './exit';
+import { EXIT, type ErrorReport } from './exit';
+import type { Finding } from './findings';
+import { exitForFindings, type CheckReport, type Summary } from './report';
 
 export interface PlanReport {
   features: { name: string; version: string }[];
@@ -61,13 +63,89 @@ export interface FeaturesResult {
   features: FeatureInfo[];
 }
 
+/** What `doctor`, `validate` and `check-compat` print with `--json`. `ok` is false when any finding is an error. */
+export interface ReportResult {
+  ok: boolean;
+  command: 'doctor' | 'validate' | 'check-compat';
+  root: string;
+  summary: Summary;
+  checks: CheckReport[];
+  findings: Finding[];
+}
+
+export interface ShellBudget {
+  name: string;
+  /** Gzip KB of the scripts index.html loads. */
+  initialKb: number;
+  scripts: number;
+  /** Your pages built as one app (budget.baselineKb), or null when not set. */
+  baselineKb: number | null;
+  /** baselineKb plus what the shell may add; null without a baseline. */
+  budgetKb: number | null;
+  /** Null when there is nothing to compare with. */
+  pass: boolean | null;
+}
+
+export interface RouteBudget {
+  route: string;
+  expose: string | null;
+  /** Entry plus the expose's synchronous JS, gzip KB. */
+  kb: number;
+  /** mfe.json budgets.initialJsKb, or null. */
+  budgetKb: number | null;
+  pass: boolean | null;
+}
+
+export interface RemoteBudget {
+  name: string;
+  entryKb: number;
+  /** What a remote may add (cost model, 10 KB). */
+  budgetKb: number;
+  pass: boolean;
+  routes: RouteBudget[];
+}
+
+export interface BudgetResult {
+  ok: boolean;
+  command: 'budget';
+  root: string;
+  model: { lcpDeltaMs: number; shellKb: number; remoteKb: number };
+  shells: ShellBudget[];
+  remotes: RemoteBudget[];
+  findings: Finding[];
+}
+
+export interface DevApp {
+  name: string;
+  kind: 'shell' | 'remote';
+  port: number | null;
+  url: string | null;
+  command: string;
+  /** `overridden`: a server you run yourself, given with --remote. */
+  status: 'started' | 'overridden';
+}
+
+export interface DevResult {
+  ok: boolean;
+  command: 'dev';
+  root: string;
+  /** The generated dev registry the shell reads. */
+  registry: string;
+  apps: DevApp[];
+  overrides: Record<string, string>;
+  dryRun: boolean;
+  /** Stopped with Ctrl+C or a termination signal. */
+  interrupted: boolean;
+}
+
 export interface FailureResult {
   ok: false;
   error: ErrorReport;
   exitCode: number;
 }
 
-export type CliResult = InitResult | AddResult | FeaturesResult | FailureResult;
+export type CliResult =
+  InitResult | AddResult | FeaturesResult | ReportResult | BudgetResult | DevResult | FailureResult;
 
 /** The plan as plain data for `--json`, without file contents. Features are listed once. */
 export function planReport(plan: Plan): PlanReport {
@@ -167,6 +245,61 @@ function checkWrite(c: Check, value: Obj): void {
   }
 }
 
+function checkReport(c: Check, value: Obj): void {
+  c.string(value, 'root', '');
+  const summary = value.summary;
+  if (!isObj(summary)) c.add('summary', 'must be an object');
+  else
+    for (const key of ['errors', 'warnings', 'skipped', 'fixed']) {
+      if (typeof summary[key] !== 'number') c.add(`summary.${key}`, 'must be a number');
+    }
+  c.objects(value, 'checks', '', (check, p) => {
+    for (const key of ['id', 'title']) c.string(check, key, p);
+    if (!['pass', 'warn', 'fail', 'skipped'].includes(String(check.status))) {
+      c.add(`${p}status`, 'must be pass, warn, fail or skipped');
+    }
+    if (typeof check.findings !== 'number') c.add(`${p}findings`, 'must be a number');
+  });
+  c.objects(value, 'findings', '', (f, p) => {
+    for (const key of ['code', 'check', 'message', 'fix', 'docs']) c.string(f, key, p);
+    if (f.severity !== 'error' && f.severity !== 'warning')
+      c.add(`${p}severity`, 'must be error or warning');
+    c.boolean(f, 'fixable', p);
+  });
+  if (value.ok !== (isObj(summary) && summary.errors === 0))
+    c.add('ok', 'must be true exactly when there are no errors');
+}
+
+function checkBudget(c: Check, value: Obj): void {
+  c.string(value, 'root', '');
+  const model = value.model;
+  if (!isObj(model)) c.add('model', 'must be an object');
+  else
+    for (const key of ['lcpDeltaMs', 'shellKb', 'remoteKb']) {
+      if (typeof model[key] !== 'number') c.add(`model.${key}`, 'must be a number');
+    }
+  c.objects(value, 'shells', '', (s, p) => {
+    c.string(s, 'name', p);
+    for (const key of ['initialKb', 'scripts']) {
+      if (typeof s[key] !== 'number') c.add(`${p}${key}`, 'must be a number');
+    }
+  });
+  c.objects(value, 'remotes', '', (r, p) => {
+    c.string(r, 'name', p);
+    c.boolean(r, 'pass', p);
+    for (const key of ['entryKb', 'budgetKb']) {
+      if (typeof r[key] !== 'number') c.add(`${p}${key}`, 'must be a number');
+    }
+    c.objects(r, 'routes', p, (route, q) => {
+      c.string(route, 'route', q);
+      if (typeof route.kb !== 'number') c.add(`${q}kb`, 'must be a number');
+    });
+  });
+  c.objects(value, 'findings', '', (f, p) => {
+    for (const key of ['code', 'message', 'fix', 'docs']) c.string(f, key, p);
+  });
+}
+
 /** Checks a document the CLI printed with `--json`. Returns the problems; empty means valid. */
 export function validateResult(value: unknown): Issue[] {
   const c = new Check();
@@ -174,13 +307,13 @@ export function validateResult(value: unknown): Issue[] {
     c.add('', 'must be an object');
     return c.issues;
   }
-  if (value.ok === false) {
+  if (value.ok === false && value.command === undefined) {
     if (!isObj(value.error)) c.add('error', 'must be an object');
     else for (const key of ['code', 'message', 'fix', 'docs']) c.string(value.error, key, 'error.');
     if (typeof value.exitCode !== 'number') c.add('exitCode', 'must be a number');
     return c.issues;
   }
-  if (value.ok !== true) c.add('ok', 'must be true or false');
+  if (typeof value.ok !== 'boolean') c.add('ok', 'must be true or false');
   switch (value.command) {
     case 'init':
       checkWrite(c, value);
@@ -212,8 +345,40 @@ export function validateResult(value: unknown): Issue[] {
         for (const key of ['always', 'default', 'installed']) c.boolean(f, key, p);
       });
       break;
+    case 'doctor':
+    case 'validate':
+    case 'check-compat':
+      checkReport(c, value);
+      break;
+    case 'budget':
+      checkBudget(c, value);
+      break;
+    case 'dev':
+      c.string(value, 'root', '');
+      c.string(value, 'registry', '');
+      c.boolean(value, 'dryRun', '');
+      c.boolean(value, 'interrupted', '');
+      c.objects(value, 'apps', '', (app, p) => {
+        c.string(app, 'name', p);
+        c.string(app, 'command', p);
+        if (app.status !== 'started' && app.status !== 'overridden') {
+          c.add(`${p}status`, 'must be started or overridden');
+        }
+      });
+      if (!isObj(value.overrides)) c.add('overrides', 'must be an object');
+      break;
     default:
-      c.add('command', 'must be init, add or features');
+      c.add(
+        'command',
+        'must be init, add, features, doctor, validate, check-compat, budget or dev',
+      );
   }
   return c.issues;
+}
+
+/** Exit code for a result that printed normally: findings decide for the checks, Ctrl+C is 130. */
+export function exitOf(result: CliResult): number {
+  if ('findings' in result) return exitForFindings(result.findings);
+  if (result.ok && 'interrupted' in result && result.interrupted) return EXIT.cancelled;
+  return result.ok ? EXIT.ok : EXIT.unexpected;
 }

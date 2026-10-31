@@ -4,6 +4,7 @@ import path from 'node:path';
 import { isMfeflowError, type MfeflowError } from '@mfeflow/core';
 import { assetRoots } from './assets';
 import type { Io } from './io';
+import type { DevHost, DevProcess, DevSpec, WaitPolicy } from './proc';
 import type { Prompter } from './prompter';
 import type { Runtime } from './runtime';
 import type { System } from './system';
@@ -74,7 +75,90 @@ export function fakeSystem(
   };
 }
 
-export type TestRuntime = Runtime & { io: Io & Recorded; system: System & SystemCalls };
+export interface FakeProc extends DevProcess {
+  spec: DevSpec;
+  stopped: boolean;
+  /** What the process prints. */
+  print(text: string): void;
+  /** The process ends by itself. */
+  exit(code: number | null): void;
+}
+
+export interface FakeDev extends DevHost {
+  procs: FakeProc[];
+  /** Ports `portFree` reports as taken. */
+  busy: Set<number>;
+  watched: string[][];
+  /** The watched files changed. */
+  change(): void;
+  /** Ctrl+C. */
+  interrupt(): void;
+  waitPolicy: WaitPolicy;
+}
+
+export function fakeDev(): FakeDev {
+  const procs: FakeProc[] = [];
+  const listeners = { watch: [] as (() => void)[], interrupt: [] as (() => void)[] };
+  const watched: string[][] = [];
+  return {
+    procs,
+    busy: new Set(),
+    watched,
+    waitPolicy: { intervalMs: 20, timeoutMs: 60_000 },
+    change: () => {
+      for (const listener of listeners.watch) listener();
+    },
+    interrupt: () => {
+      for (const listener of listeners.interrupt) listener();
+    },
+    spawn: (spec) => {
+      const out: ((chunk: string) => void)[] = [];
+      const ends: ((code: number | null) => void)[] = [];
+      const proc: FakeProc = {
+        spec,
+        stopped: false,
+        pid: 1000 + procs.length,
+        onOutput: (listener) => out.push(listener),
+        onExit: (listener) => ends.push(listener),
+        print: (text) => {
+          for (const listener of out) listener(text);
+        },
+        exit: (code) => {
+          for (const listener of ends) listener(code);
+        },
+        stop: () => {
+          proc.stopped = true;
+          proc.exit(0);
+          return Promise.resolve();
+        },
+      };
+      procs.push(proc);
+      return proc;
+    },
+    onInterrupt: (listener) => {
+      listeners.interrupt.push(listener);
+      return () => {
+        listeners.interrupt.splice(listeners.interrupt.indexOf(listener), 1);
+      };
+    },
+    watch: (paths, listener) => {
+      watched.push([...paths]);
+      listeners.watch.push(listener);
+      return () => {
+        listeners.watch.splice(listeners.watch.indexOf(listener), 1);
+      };
+    },
+    portFree(port) {
+      return Promise.resolve(!this.busy.has(port));
+    },
+  };
+}
+
+export type TestRuntime = Runtime & {
+  io: Io & Recorded;
+  system: System & SystemCalls;
+  dev: FakeDev;
+};
 
 export function testRuntime(
   overrides: Partial<Pick<Runtime, 'prompter' | 'fetch' | 'roots'>> = {},
@@ -85,6 +169,7 @@ export function testRuntime(
     prompter: scriptedPrompter(),
     fetch: () => Promise.reject(new Error('no network in tests')),
     roots: assetRoots(),
+    dev: fakeDev(),
     ...overrides,
   };
 }

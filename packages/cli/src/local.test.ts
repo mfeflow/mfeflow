@@ -127,4 +127,27 @@ describe('chooseLocal', () => {
     const linked = { ...project, local: elsewhere.split(path.sep).join('/') };
     expect(chooseLocal(linked, root, root, undefined).checkout).toBe(elsewhere);
   });
+
+  it('compares real paths when the root is reached through a symlink', async () => {
+    const base = await tempDir('mfeflow-local-');
+    dirs.push(base);
+    const realRoot = path.join(base, 'real', 'app');
+    await fs.mkdir(realRoot, { recursive: true });
+    await fs.mkdir(path.join(base, 'src', 'mfeflow'), { recursive: true });
+    const viaRoot = path.join(base, 'via');
+    await fs.symlink(path.join(base, 'real'), viaRoot);
+    const chosen = chooseLocal(
+      project,
+      path.join(viaRoot, 'app'),
+      base,
+      path.join('src', 'mfeflow'),
+    );
+    const real = await fs.realpath(base);
+    expect(chosen.project.local).toBe('../../src/mfeflow');
+    expect(chosen.checkout).toBe(path.join(real, 'src', 'mfeflow'));
+    const linked = chosen.project;
+    expect(chooseLocal(linked, path.join(viaRoot, 'app'), base, undefined).checkout).toBe(
+      chosen.checkout,
+    );
+  });
 });

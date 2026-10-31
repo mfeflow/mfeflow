@@ -4,7 +4,9 @@ Guidance for coding agents working in this repo.
 
 - Package manager: pnpm (via corepack). Never npm or yarn. Versions live in the `catalog` of
   `pnpm-workspace.yaml`; add dependencies there and reference them as `catalog:`.
-- `pnpm dev` runs the shell and every remote. `pnpm build` builds all of them.
+- `pnpm dev` runs the shell and every remote. `pnpm build` builds all of them. `mfeflow dev` does the same with
+  per-app logs and picks up new remotes without a restart.
+- Before finishing: `mfeflow doctor` (and `mfeflow validate`, `mfeflow check-compat`, `mfeflow budget` after a build) must exit 0.
 - TypeScript 7, strict. Relative imports have no file extension (`./plan`, not `./plan.js`).
 - Each remote is deployed on its own. A remote must not import from another remote or from
   the shell; talk through the registry, events or URLs.

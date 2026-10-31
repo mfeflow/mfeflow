@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    projects: ['packages/*'],
+    projects: ['packages/*', 'e2e/matrix', 'bench'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],

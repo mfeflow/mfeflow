@@ -17,6 +17,19 @@ export interface MfeflowProject {
   registries?: Record<string, string>;
   /** Built mfeflow checkout, relative to the project root, that `@mfeflow/*` dependencies link to. Set by `--local` only. */
   local?: string;
+  /** Overrides of the cost-model budget `mfeflow budget` and the perf job check. */
+  budget?: ProjectBudget;
+}
+
+export interface ProjectBudget {
+  /** JS the shell may add over a one-app build, in KB. Default 32. */
+  shellKb?: number;
+  /** JS each remote on a route may add, in KB. Default 10. */
+  remoteKb?: number;
+  /** LCP the shell may add, in ms. Measured by the perf job, not by `mfeflow budget`. Default 300. */
+  lcpDeltaMs?: number;
+  /** Initial JS of your pages built as one app, in KB. Turns on the shell check in `mfeflow budget`. */
+  baselineKb?: number;
 }
 
 export const FILE_HASH = /^sha256-[0-9a-f]{64}$/;
@@ -115,6 +128,12 @@ export function validateMfeflowProject(value: unknown): Issue[] {
         'local',
         'must be a path with forward slashes: relative like "../mfeflow", or absolute when no relative path exists',
       );
+    }
+  }
+  const budget = c.object(value, 'budget', '', false);
+  if (budget) {
+    for (const key of ['shellKb', 'remoteKb', 'lcpDeltaMs', 'baselineKb']) {
+      c.number(budget, key, 'budget', { required: false, min: 1 });
     }
   }
   return c.issues;

@@ -20,12 +20,30 @@ pnpm dev
 `pnpm dev` starts the shell on http://localhost:4300 and every remote on its own port
 (see `registry/envs/dev`). The shell reads that dev registry and renders the remotes.
 
+`mfeflow dev` does the same with a prefixed, coloured log per app, and it follows the project:
+add a remote with `mfeflow add remote checkout` and it starts, and the shell lists it, without a restart.
+Use a remote you already run elsewhere with `mfeflow dev --remote checkout=http://localhost:3001`,
+or run a few apps with `--only shell,catalog`. Ctrl+C stops everything.
+
 ## Change it
 
 ```sh
 mfeflow add remote checkout     # a new remote, its registry files and its shell route
 mfeflow add <feature>           # see `mfeflow features`
 ```
+
+## Check it
+
+```sh
+mfeflow doctor              # singletons, compatibility, config, drift; --fix repairs the safe ones
+mfeflow validate            # mfeflow.json, every mfe.json and every registry entry
+mfeflow check-compat        # each remote's shared ranges against its shell
+mfeflow budget              # after `pnpm build`: first-load JS per shell and remote
+```
+
+All of them take `--json` and exit non-zero on errors, so they can run in CI. `mfeflow budget` checks each remote's entry
+against the 10 KB a remote may add; set `budget.baselineKb` in `mfeflow.json` (your pages built as one app) to check
+the shell against baseline + 32 KB too.
 
 ## Before you deploy
 

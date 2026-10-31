@@ -1,6 +1,7 @@
 import type { FetchLike } from '@mfeflow/core';
 import { assetRoots, type AssetRoots } from './assets';
 import { processIo, type Io } from './io';
+import { realDevHost, type DevHost } from './proc';
 import { clackPrompter, type Prompter } from './prompter';
 import { createSystem, type System } from './system';
 
@@ -11,6 +12,8 @@ export interface Runtime {
   system: System;
   fetch: FetchLike;
   roots: AssetRoots;
+  /** Processes, signals and file watching for `mfeflow dev`. Defaults to the real ones. */
+  dev?: DevHost;
 }
 
 export function realRuntime(io: Io = processIo()): Runtime {
@@ -20,5 +23,6 @@ export function realRuntime(io: Io = processIo()): Runtime {
     system: createSystem(io),
     fetch: (url, init) => fetch(url, init),
     roots: assetRoots(),
+    dev: realDevHost(),
   };
 }

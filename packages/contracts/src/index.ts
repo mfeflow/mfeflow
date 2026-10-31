@@ -30,7 +30,18 @@ export {
   isMfeflowProject,
   validateMfeflowProject,
   type MfeflowProject,
+  type ProjectBudget,
 } from './project';
+export {
+  COST_MODEL,
+  judgeCost,
+  round1,
+  splitScripts,
+  type CostLine,
+  type CostModel,
+  type CostSample,
+  type CostVerdict,
+} from './cost-model';
 export {
   FEATURE_NAME,
   isFeatureManifest,
