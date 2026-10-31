@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { composeProviders, withProps } from './index.js';
+import { composeProviders, withProps } from './providers.js';
 
 afterEach(cleanup);
 
