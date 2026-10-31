@@ -448,6 +448,31 @@ describe('loadFeature (remote)', () => {
     );
   });
 
+  it('fills {version} in a registry URL with the version asked for, or latest', async () => {
+    const { registryUrl } = await import('./remote');
+    const pinned = { '@acme': 'https://acme.dev/{name}/{version}.json' };
+    expect(registryUrl('@acme/a', pinned, '1.2.3')).toBe('https://acme.dev/a/1.2.3.json');
+    expect(registryUrl('@acme/a', pinned)).toBe('https://acme.dev/a/latest.json');
+    expect(registryUrl('@acme/a', pinned, '1.0.0/../x')).toBe(
+      'https://acme.dev/a/1.0.0%2F..%2Fx.json',
+    );
+  });
+
+  it('loads the version a project recorded when the registry URL can pin it', async () => {
+    const seen: string[] = [];
+    await rejection(
+      loadFeature('@acme/a', {
+        registries: { '@acme': 'https://acme.dev/{name}@{version}.json' },
+        version: '1.4.0',
+        fetch: (u) => {
+          seen.push(u);
+          return respond('{}')(u);
+        },
+      }),
+    );
+    expect(seen).toEqual(['https://acme.dev/a@1.4.0.json']);
+  });
+
   it('turns network and HTTP failures into E401', async () => {
     expect((await remote(() => Promise.reject(new Error('ENOTFOUND')))).code).toBe('MFEFLOW_E401');
     const notFound = await remote(respond('', { status: 404 }));

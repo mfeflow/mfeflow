@@ -21,14 +21,23 @@ const TIMEOUT_MS = 10_000;
 
 const realFetch: FetchLike = (url, init) => fetch(url, init);
 
-/** The URL a namespaced feature lives at. `{name}` is the part after the slash, URL-encoded. */
-export function registryUrl(name: string, registries: Record<string, string>): string {
+/**
+ * The URL a namespaced feature lives at. `{name}` is the part after the slash and
+ * `{version}` the version asked for (`latest` when none), both URL-encoded.
+ */
+export function registryUrl(
+  name: string,
+  registries: Record<string, string>,
+  version?: string,
+): string {
   const slash = name.indexOf('/');
   const namespace = name.slice(0, slash);
   const bare = name.slice(slash + 1);
   const template = registries[namespace];
   if (template === undefined) throw new MfeflowError('E210', namespace);
-  const url = template.replaceAll('{name}', encodeURIComponent(bare));
+  const url = template
+    .replaceAll('{name}', encodeURIComponent(bare))
+    .replaceAll('{version}', encodeURIComponent(version ?? 'latest'));
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -44,8 +53,9 @@ export async function fetchRemoteText(
   name: string,
   registries: Record<string, string>,
   fetchImpl: FetchLike = realFetch,
+  version?: string,
 ): Promise<string> {
-  const url = registryUrl(name, registries);
+  const url = registryUrl(name, registries, version);
   let response: FetchResponse;
   try {
     response = await fetchImpl(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });

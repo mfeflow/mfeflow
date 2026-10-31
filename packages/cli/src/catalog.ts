@@ -63,6 +63,8 @@ export interface FeatureSource {
   roots: AssetRoots;
   registries?: Record<string, string> | undefined;
   fetch?: FetchLike | undefined;
+  /** The version to ask a registry for, when its URL template can pin one. */
+  version?: string | undefined;
 }
 
 /** A first-party feature by name, or `@namespace/name` from a configured registry. */
@@ -72,5 +74,6 @@ export function loadAny(name: string, source: FeatureSource): Promise<LoadedFeat
     featuresDir: source.roots.features,
     ...(source.registries ? { registries: source.registries } : {}),
     ...(source.fetch ? { fetch: source.fetch } : {}),
+    ...(source.version === undefined ? {} : { version: source.version }),
   });
 }

@@ -313,4 +313,63 @@ describe('mfeflow add @namespace/feature', () => {
     expect(code).toBe(4);
     expect(rt.io.err.join('\n')).toContain('MFEFLOW_E210');
   });
+
+  describe('when a new app is added to a project that has it installed', () => {
+    const serving =
+      (version: string, urls: string[] = []): FetchLike =>
+      (url) => {
+        urls.push(url);
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify({ ...manifest, version })),
+        });
+      };
+
+    beforeEach(async () => {
+      const { code } = await add(
+        ['@acme/hello', '--yes', '--no-install'],
+        testRuntime({ fetch: fetchManifest }),
+      );
+      expect(code).toBe(0);
+    });
+
+    it('asks for the same confirmation before applying it, and writes nothing without it', async () => {
+      const before = await readTree(project);
+      const rt = testRuntime({ fetch: fetchManifest });
+      const { code } = await add(['shell', 'admin', '--no-install'], rt);
+      expect(code).toBe(2);
+      expect(rt.io.err.join('\n')).toContain('@acme/hello');
+      expect(await readTree(project)).toEqual(before);
+    });
+
+    it('applies it to the new app with --yes when the registry still serves the recorded version', async () => {
+      const rt = testRuntime({ fetch: fetchManifest });
+      expect((await add(['shell', 'admin', '--yes', '--no-install'], rt)).code).toBe(0);
+      expect(await read('apps/admin/src/hello.ts')).toContain('hello');
+    });
+
+    it('refuses, even with --yes, when the registry now serves another version (E401)', async () => {
+      const before = await readTree(project);
+      const rt = testRuntime({ fetch: serving('2.0.0') });
+      const { code } = await add(['shell', 'admin', '--yes', '--no-install'], rt);
+      expect(code).toBe(6);
+      const err = rt.io.err.join('\n');
+      expect(err).toContain('MFEFLOW_E401');
+      expect(err).toContain('1.0.0');
+      expect(err).toContain('2.0.0');
+      expect(await readTree(project)).toEqual(before);
+    });
+
+    it('asks a registry that can pin for the recorded version', async () => {
+      const file = path.join(project, 'mfeflow.json');
+      const saved = parseProject(await fs.readFile(file, 'utf8'));
+      saved.registries = { '@acme': 'https://acme.dev/{name}/{version}.json' };
+      await fs.writeFile(file, `${JSON.stringify(saved, null, 2)}\n`);
+      const urls: string[] = [];
+      const rt = testRuntime({ fetch: serving('1.0.0', urls) });
+      expect((await add(['shell', 'admin', '--yes', '--no-install'], rt)).code).toBe(0);
+      expect(urls).toEqual(['https://acme.dev/hello/1.0.0.json']);
+    });
+  });
 });

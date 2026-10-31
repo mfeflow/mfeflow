@@ -60,9 +60,15 @@ async function nameFrom(
   throw new MfeflowError('E107', `add ${what} needs a name: mfeflow add ${what} <name>`);
 }
 
-/** What a new app of `kind` gets: the app-level parts of `core` and of every feature already installed. */
+/**
+ * What a new app of `kind` gets: the app-level parts of `core` and of every feature already
+ * installed. A registry feature is fetched at the version the project recorded, and applied
+ * only past the same gate as `add <feature>`; if the registry no longer serves that version
+ * nothing is written.
+ */
 async function addAppParts(
   rt: Runtime,
+  globals: Globals,
   builder: PlanBuilder,
   project: MfeflowProject,
   next: MfeflowProject,
@@ -70,23 +76,44 @@ async function addAppParts(
   name: string,
 ): Promise<LoadedFeature> {
   const names = ['core', ...Object.keys(project.features).filter((n) => n !== 'core')];
+  const canPrompt = rt.io.interactive && !globals.yes && !globals.json;
   let core: LoadedFeature | undefined;
+  const fromRegistry: string[] = [];
+  const planned: { feature: string; parts: LoadedFeature }[] = [];
   await inOrder(names, async (feature) => {
+    const recorded = project.features[feature]?.version;
     const loaded = await loadAny(feature, {
       roots: rt.roots,
       registries: project.registries,
       fetch: rt.fetch,
+      version: recorded,
     });
     if (feature === 'core') core = loaded;
     const parts = partsForApp(loaded, kind, name);
     if (!parts) return;
-    await resolveFeature({
+    if (loaded.trust === 'third-party') {
+      if (recorded !== undefined && loaded.manifest.version !== recorded) {
+        throw new MfeflowError(
+          'E401',
+          `${feature} is installed at ${recorded} but the registry now serves ${loaded.manifest.version}`,
+          {
+            fix: `Nothing was written. Use a registry URL with {version} so ${recorded} can be fetched, or add the app by hand.`,
+          },
+        );
+      }
+      fromRegistry.push(feature);
+    }
+    planned.push({ feature, parts });
+  });
+  assertThirdPartyAllowed(fromRegistry, globals, canPrompt);
+  await inOrder(planned, ({ feature, parts }) =>
+    resolveFeature({
       feature: parts,
       project: next,
       builder,
       options: project.features[feature]?.options ?? {},
-    });
-  });
+    }),
+  );
   if (core === undefined) throw new MfeflowError('E201', 'core');
   return core;
 }
@@ -110,6 +137,7 @@ async function addApp(
   const builder = createBuilder(root, globals.local, globals.cwd);
   const core = await addAppParts(
     rt,
+    globals,
     builder,
     project,
     next,
@@ -211,6 +239,16 @@ async function askOptions(
   return answers;
 }
 
+/** A feature from a registry is code nobody here wrote: it needs a person's yes, or --yes. */
+function assertThirdPartyAllowed(names: readonly string[], globals: Globals, canPrompt: boolean) {
+  if (names.length > 0 && !globals.yes && !canPrompt) {
+    throw new MfeflowError(
+      'E107',
+      `${names.join(', ')} comes from a registry; pass --yes to apply it without a terminal to confirm in`,
+    );
+  }
+}
+
 async function addFeatures(
   rt: Runtime,
   globals: Globals,
@@ -268,12 +306,7 @@ async function addFeatures(
     ),
   );
   const thirdParty = loaded.filter((f) => f.trust === 'third-party').map((f) => f.manifest.name);
-  if (thirdParty.length > 0 && !globals.yes && !canPrompt) {
-    throw new MfeflowError(
-      'E107',
-      `${thirdParty.join(', ')} comes from a registry; pass --yes to apply it without a terminal to confirm in`,
-    );
-  }
+  assertThirdPartyAllowed(thirdParty, globals, canPrompt);
   const builder = createBuilder(root, globals.local, globals.cwd);
   await inOrder(loaded, async (feature) => {
     const given = await askOptions(rt, feature, options[feature.manifest.name] ?? {}, canPrompt);

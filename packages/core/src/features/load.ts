@@ -55,6 +55,8 @@ export interface LoadOptions {
   /** From mfeflow.json `registries`. */
   registries?: Record<string, string>;
   fetch?: FetchLike;
+  /** The version to ask a registry for, when its URL template has `{version}`. */
+  version?: string;
   fs?: FsOps;
 }
 
@@ -98,7 +100,12 @@ async function loadLocal(name: string, options: LoadOptions): Promise<LoadedFeat
 }
 
 async function loadRemote(name: string, options: LoadOptions): Promise<LoadedFeature> {
-  const text = await fetchRemoteText(name, options.registries ?? {}, options.fetch);
+  const text = await fetchRemoteText(
+    name,
+    options.registries ?? {},
+    options.fetch,
+    options.version,
+  );
   const manifest = parseFeature(text, 'third-party', name);
   if (manifest.name !== name) {
     throw new MfeflowError('E402', `asked for ${name}, got ${manifest.name}`);
