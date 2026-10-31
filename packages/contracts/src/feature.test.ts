@@ -117,6 +117,16 @@ describe('feature.json', () => {
     ]);
   });
 
+  it('accepts a group, an app name and app:<name> as a target, and rejects app: alone', () => {
+    const files = (target: string) => [{ to: 'a', content: 'x', target }];
+    for (const target of ['root', 'shell', 'remotes', 'cart', 'app:shell', 'app:cart']) {
+      expect(paths({ ...feature, files: files(target) }), target).toEqual([]);
+    }
+    for (const target of ['app:', 'app:Cart', 'app:a-b']) {
+      expect(paths({ ...feature, files: files(target) }), target).toEqual(['files[0].target']);
+    }
+  });
+
   it('accepts a when on every kind of part and rejects a malformed one', () => {
     const when = { validator: 'zod', strict: true };
     expect(

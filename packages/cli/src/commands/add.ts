@@ -55,8 +55,13 @@ export const ADD_ARGS = {
   },
   app: {
     type: 'string',
-    description: 'add env-key: one app, or root (default: every app; runtime: every shell)',
+    description: 'add env-key: exactly this app (default: every app; runtime: every shell)',
     valueHint: 'name',
+  },
+  group: {
+    type: 'string',
+    description: 'add env-key: root, every shell or every remote, instead of --app',
+    valueHint: 'root|shell|remotes',
   },
   ...GLOBAL_ARGS,
 } as const satisfies ArgsDef;

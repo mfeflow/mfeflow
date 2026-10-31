@@ -28,6 +28,8 @@ export interface ResolveInput {
 }
 
 const TURBO_FILE = 'turbo.json';
+/** `app:shell` is the app called shell, where plain `shell` is every shell. */
+const EXACT_APP = 'app:';
 
 interface Place {
   name: string;
@@ -47,7 +49,9 @@ function placesFor(target: string | undefined, project: MfeflowProject): Place[]
   if (where === 'root') return [{ name: 'root', dir: '', kind: 'root' }];
   if (where === 'shell') return apps.filter((a) => a.kind === 'shell');
   if (where === 'remotes') return apps.filter((a) => a.kind === 'remote');
-  const app = apps.find((a) => a.name === where);
+  const app = apps.find(
+    (a) => a.name === (where.startsWith(EXACT_APP) ? where.slice(EXACT_APP.length) : where),
+  );
   if (!app)
     throw new MfeflowError(
       'E208',

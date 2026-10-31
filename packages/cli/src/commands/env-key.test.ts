@@ -59,7 +59,7 @@ describe('mfeflow add env-key --scope server', () => {
     await envKey(['CART_ONLY', ...SERVER, '--app', 'cart']);
     expect(await read('apps/cart/env.ts')).toContain('CART_ONLY');
     expect(await read('apps/shell/env.ts')).not.toContain('CART_ONLY:');
-    await envKey(['ROOT_ONLY', ...SERVER, '--app', 'root']);
+    await envKey(['ROOT_ONLY', ...SERVER, '--group', 'root']);
     expect(await read('env.ts')).toContain('ROOT_ONLY');
     expect(await read('.env.example')).toContain('ROOT_ONLY=');
     expect(await read('apps/cart/env.ts')).not.toContain('ROOT_ONLY:');
@@ -68,7 +68,39 @@ describe('mfeflow add env-key --scope server', () => {
   it('refuses an app that does not exist, naming the choices', async () => {
     const { code, rt } = await envKey(['X', ...SERVER, '--app', 'nope']);
     expect(code).toBe(2);
-    expect(rt.io.err.join('\n')).toContain('--app nope is not an app (root, shell, catalog, cart)');
+    expect(rt.io.err.join('\n')).toContain('--app nope is not an app (shell, catalog, cart)');
+  });
+
+  it('--app names exactly one app even when the app is called like a group', async () => {
+    expect(
+      await main(['add', 'shell', 'admin', '--no-install', '--cwd', project], testRuntime()),
+    ).toBe(0);
+    await envKey(['ONLY_SHELL', ...SERVER, '--app', 'shell']);
+    expect(await read('apps/shell/env.ts')).toContain('ONLY_SHELL:');
+    expect(await read('apps/admin/env.ts')).not.toContain('ONLY_SHELL:');
+    expect(await read('apps/cart/env.ts')).not.toContain('ONLY_SHELL:');
+    await envKey(['ONLY_ADMIN', ...SERVER, '--app', 'admin']);
+    expect(await read('apps/admin/env.ts')).toContain('ONLY_ADMIN:');
+    expect(await read('apps/shell/env.ts')).not.toContain('ONLY_ADMIN:');
+  });
+
+  it('--app does not accept root, and --group takes root, shell or remotes only', async () => {
+    const root = await envKey(['X', ...SERVER, '--app', 'root']);
+    expect(root.code).toBe(2);
+    expect(root.rt.io.err.join('\n')).toContain('--app root is not an app');
+    const bad = await envKey(['X', ...SERVER, '--group', 'cart']);
+    expect(bad.code).toBe(2);
+    expect(bad.rt.io.err.join('\n')).toContain('--group must be root, shell or remotes');
+    const both = await envKey(['X', ...SERVER, '--app', 'cart', '--group', 'remotes']);
+    expect(both.code).toBe(2);
+    expect(both.rt.io.err.join('\n')).toContain('--app and --group cannot be used together');
+  });
+
+  it('--group remotes reaches every remote and no shell', async () => {
+    await envKey(['REMOTE_ONLY', ...SERVER, '--group', 'remotes']);
+    expect(await read('apps/cart/env.ts')).toContain('REMOTE_ONLY:');
+    expect(await read('apps/catalog/env.ts')).toContain('REMOTE_ONLY:');
+    expect(await read('apps/shell/env.ts')).not.toContain('REMOTE_ONLY:');
   });
 });
 
@@ -85,6 +117,16 @@ describe('mfeflow add env-key --scope runtime', () => {
     }
     expect(await read('apps/cart/env.ts')).not.toContain('GTM_ID:');
     expect(JSON.parse(await read('turbo.json'))).not.toHaveProperty('globalEnv');
+  });
+
+  it('writes to exactly the shell named by --app when there are two', async () => {
+    expect(
+      await main(['add', 'shell', 'admin', '--no-install', '--cwd', project], testRuntime()),
+    ).toBe(0);
+    const { code } = await envKey(['GTM_ID', ...RUNTIME, '--app', 'shell']);
+    expect(code).toBe(0);
+    expect(await read('apps/shell/src/config/schema.ts')).toContain('GTM_ID:');
+    expect(await read('apps/admin/src/config/schema.ts')).not.toContain('GTM_ID:');
   });
 
   it('only lives in a shell', async () => {
@@ -130,6 +172,20 @@ describe('mfeflow add env-key, when it cannot', () => {
     const { code, rt } = await envKey(['API_ORIGIN', '--scope', 'server', '--schema', 'z.url(']);
     expect(code).toBe(4);
     expect(rt.io.err.join('\n')).toContain('MFEFLOW_E208');
+    expect(await readTree(project)).toEqual(before);
+  });
+
+  it('says so when there is no app to put the key in, instead of "already present"', async () => {
+    const file = path.join(project, 'mfeflow.json');
+    const doc = JSON.parse(await fs.readFile(file, 'utf8')) as { apps: Record<string, unknown> };
+    delete doc.apps.cart;
+    delete doc.apps.catalog;
+    await fs.writeFile(file, JSON.stringify(doc, null, 2));
+    const before = await readTree(project);
+    const { code, rt } = await envKey(['X', ...SERVER, '--group', 'remotes']);
+    expect(code).toBe(2);
+    expect(rt.io.err.join('\n')).toContain('MFEFLOW_E107');
+    expect(rt.io.err.join('\n')).toContain('the project has no remotes to add a key to');
     expect(await readTree(project)).toEqual(before);
   });
 

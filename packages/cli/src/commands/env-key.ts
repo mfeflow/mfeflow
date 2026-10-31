@@ -17,25 +17,78 @@ import { writePlan } from '../write';
 
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-/** Where a server key goes: `--app` names one app or `root`; by default every app. */
-function serverTargets(project: MfeflowProject, app: string | undefined): string[] {
-  if (app === undefined) return ['shell', 'remotes'];
-  if (app === 'root' || app in project.apps) return [app];
-  throw new MfeflowError(
-    'E107',
-    `--app ${app} is not an app (${['root', ...Object.keys(project.apps)].join(', ')})`,
-  );
+const GROUPS = ['root', 'shell', 'remotes'] as const;
+type Group = (typeof GROUPS)[number];
+
+function groupOf(value: string | undefined): Group | undefined {
+  if (value === undefined) return undefined;
+  const group = GROUPS.find((g) => g === value);
+  if (group === undefined) {
+    throw new MfeflowError('E107', '--group must be root, shell or remotes');
+  }
+  return group;
+}
+
+/** `app:<name>` names one app exactly, so an app called `shell` is not the group of shells. */
+const exactApp = (name: string) => `app:${name}`;
+
+/** Where a server key goes: `--app` names one app, `--group` root, the shells or the remotes; by default every app. */
+function serverTargets(
+  project: MfeflowProject,
+  app: string | undefined,
+  group: Group | undefined,
+): string[] {
+  if (app !== undefined) {
+    if (!(app in project.apps)) {
+      throw new MfeflowError(
+        'E107',
+        `--app ${app} is not an app (${Object.keys(project.apps).join(', ')})`,
+      );
+    }
+    return [exactApp(app)];
+  }
+  const kinds = new Set(Object.values(project.apps).map((a) => a.kind));
+  if (group === undefined) {
+    const targets = [
+      ...(kinds.has('shell') ? ['shell'] : []),
+      ...(kinds.has('remote') ? ['remotes'] : []),
+    ];
+    if (targets.length === 0)
+      throw new MfeflowError('E107', 'the project has no app to add a key to');
+    return targets;
+  }
+  if (group === 'shell' && !kinds.has('shell')) {
+    throw new MfeflowError('E107', 'the project has no shell to add a key to');
+  }
+  if (group === 'remotes' && !kinds.has('remote')) {
+    throw new MfeflowError('E107', 'the project has no remotes to add a key to');
+  }
+  return [group];
 }
 
 /** Runtime config belongs to a shell, which serves /config/runtime-config.json. */
-function runtimeTargets(project: MfeflowProject, app: string | undefined): string[] {
-  const shells = Object.entries(project.apps).filter(([, a]) => a.kind === 'shell');
-  if (app === undefined) return shells.map(([name]) => name);
-  if (shells.some(([name]) => name === app)) return [app];
-  throw new MfeflowError(
-    'E107',
-    `--app ${app} is not a shell; runtime config lives in a shell (${shells.map(([n]) => n).join(', ')})`,
-  );
+function runtimeTargets(
+  project: MfeflowProject,
+  app: string | undefined,
+  group: Group | undefined,
+): Array<{ target: string; path: string }> {
+  const shells = Object.entries(project.apps)
+    .filter(([, a]) => a.kind === 'shell')
+    .map(([name, a]) => ({ name, path: a.path }));
+  if (app !== undefined) {
+    const shell = shells.find((s) => s.name === app);
+    if (shell === undefined) {
+      throw new MfeflowError(
+        'E107',
+        `--app ${app} is not a shell; runtime config lives in a shell (${shells.map((s) => s.name).join(', ')})`,
+      );
+    }
+    return [{ target: exactApp(app), path: shell.path }];
+  }
+  if (group !== undefined && group !== 'shell') {
+    throw new MfeflowError('E107', `--group ${group} has no runtime config; it lives in a shell`);
+  }
+  return shells.map((s) => ({ target: exactApp(s.name), path: s.path }));
 }
 
 async function configFilesOf(root: string, dir: string): Promise<string[]> {
@@ -96,14 +149,25 @@ export async function addEnvKey(
   }
   const value = text(args, 'value');
   const app = text(args, 'app');
-  const targets = scope === 'server' ? serverTargets(project, app) : runtimeTargets(project, app);
-  const configs = await Promise.all(
-    targets.map(async (target) =>
-      scope === 'runtime' ? await configFilesOf(root, project.apps[target]?.path ?? '') : [],
+  const group = groupOf(text(args, 'group'));
+  if (app !== undefined && group !== undefined) {
+    throw new MfeflowError('E107', '--app and --group cannot be used together');
+  }
+  const targets =
+    scope === 'server'
+      ? serverTargets(project, app, group).map((target) => ({ target, path: '' }))
+      : runtimeTargets(project, app, group);
+  const transforms = await Promise.all(
+    targets.map(async ({ target, path: dir }) =>
+      envKeyOp({
+        target,
+        key,
+        scope,
+        schema,
+        value,
+        configFiles: scope === 'runtime' ? await configFilesOf(root, dir) : [],
+      }),
     ),
-  );
-  const transforms = targets.map((target, i) =>
-    envKeyOp({ target, key, scope, schema, value, configFiles: configs[i] ?? [] }),
   );
   const builder = createBuilder(root, chosen.checkout);
   await resolveFeature({

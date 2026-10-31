@@ -191,7 +191,7 @@ export interface FeatureManifest {
 
 export const FEATURE_NAME = /^(@[a-z0-9-]+\/)?[a-z][a-z0-9-]*$/;
 const IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
-const TARGET = /^(root|shell|remotes|[a-z][a-z0-9_]*)$/;
+const TARGET = /^(root|shell|remotes|(app:)?[a-z][a-z0-9_]*)$/;
 const PACKAGE = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
 
 function isTransformOp(op: string): op is TransformOpName {
@@ -206,7 +206,7 @@ function checkTarget(c: Checker, obj: Obj, at: string): void {
   c.string(obj, 'target', at, {
     required: false,
     pattern: TARGET,
-    hint: 'must be root, shell, remotes or an app name',
+    hint: 'must be root, shell, remotes, an app name or app:<name>',
   });
 }
 

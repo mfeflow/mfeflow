@@ -31,7 +31,8 @@ interface Place {
 
 const placeOf = (a: AppView): Place => {
   const place: Place = { name: a.name, dir: a.dir, rel: a.rel };
-  if (a.pkg !== undefined) place.pkg = a.pkg.name;
+  const pkg = a.pkg?.name;
+  if (pkg !== undefined) place.pkg = pkg;
   return place;
 };
 
