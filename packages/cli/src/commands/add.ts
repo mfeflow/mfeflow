@@ -11,11 +11,12 @@ import {
   type PlanBuilder,
 } from '@mfeflow/core';
 import type { ArgsDef } from 'citty';
-import { assertKnownFlags, GLOBAL_ARGS, readGlobals, repeated, type Globals } from '../args';
+import { assertKnownFlags, GLOBAL_ARGS, readGlobals, repeated, text, type Globals } from '../args';
 import { loadAny, OPTIONAL_FEATURES } from '../catalog';
 import { assertAppName, freePort, partsForApp, remoteGlue, REMOTE_PORT, SHELL_PORT } from '../glue';
 import { mergeOptions, parseFeatureOptions, type FeatureOptions } from '../options';
 import { planReport, type AddResult } from '../output';
+import { chooseLocal } from '../local';
 import { createBuilder } from '../pipeline';
 import { loadPreset } from '../preset';
 import type { Runtime } from '../runtime';
@@ -126,7 +127,8 @@ async function addApp(
   given: string | undefined,
 ): Promise<AddResult> {
   const root = await findProjectRoot(globals.cwd);
-  const project = await loadProject(root);
+  const chosen = chooseLocal(await loadProject(root), root, globals.cwd, text(args, 'local'));
+  const { project } = chosen;
   const name = await nameFrom(rt, globals, given, kind);
   assertAppName(name, project.apps);
   const port = portFor(args, project, kind === 'remote' ? REMOTE_PORT : SHELL_PORT);
@@ -134,7 +136,7 @@ async function addApp(
     ...project,
     apps: { ...project.apps, [name]: { kind, path: `apps/${name}`, port } },
   };
-  const builder = createBuilder(root, globals.local, globals.cwd);
+  const builder = createBuilder(root, chosen.checkout);
   const core = await addAppParts(
     rt,
     globals,
@@ -252,11 +254,13 @@ function assertThirdPartyAllowed(names: readonly string[], globals: Globals, can
 async function addFeatures(
   rt: Runtime,
   globals: Globals,
+  local: string | undefined,
   requested: string[],
   options: FeatureOptions,
 ): Promise<AddResult> {
   const root = await findProjectRoot(globals.cwd);
-  const project = await loadProject(root);
+  const chosen = chooseLocal(await loadProject(root), root, globals.cwd, local);
+  const { project } = chosen;
   const canPrompt = rt.io.interactive && !globals.yes && !globals.json;
   let names = [...new Set(requested)];
   if (names.length === 0 && canPrompt) {
@@ -307,7 +311,7 @@ async function addFeatures(
   );
   const thirdParty = loaded.filter((f) => f.trust === 'third-party').map((f) => f.manifest.name);
   assertThirdPartyAllowed(thirdParty, globals, canPrompt);
-  const builder = createBuilder(root, globals.local, globals.cwd);
+  const builder = createBuilder(root, chosen.checkout);
   await inOrder(loaded, async (feature) => {
     const given = await askOptions(rt, feature, options[feature.manifest.name] ?? {}, canPrompt);
     resolveOptions(feature.manifest, given);
@@ -341,5 +345,5 @@ export async function runAdd(
     ? await loadPreset(globals.preset, { cwd: globals.cwd, fetch: rt.fetch })
     : {};
   const options = mergeOptions(preset.options ?? {}, parseFeatureOptions(repeated(raw, 'option')));
-  return addFeatures(rt, globals, positional, options);
+  return addFeatures(rt, globals, text(args, 'local'), positional, options);
 }

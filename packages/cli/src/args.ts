@@ -40,7 +40,7 @@ export interface Globals {
 
 type Parsed = Record<string, unknown>;
 
-function text(args: Parsed, key: string): string | undefined {
+export function text(args: Parsed, key: string): string | undefined {
   const value = args[key];
   return typeof value === 'string' && value !== '' ? value : undefined;
 }

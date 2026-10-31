@@ -15,10 +15,22 @@ export interface MfeflowProject {
   files?: Record<string, string>;
   /** Third-party feature registries: `{ "@someone": "https://…/{name}.json" }`. `@mfeflow` is reserved. */
   registries?: Record<string, string>;
+  /** Built mfeflow checkout, relative to the project root, that `@mfeflow/*` dependencies link to. Set by `--local` only. */
+  local?: string;
 }
 
 export const FILE_HASH = /^sha256-[0-9a-f]{64}$/;
 const REGISTRY_NAMESPACE = /^@[a-z0-9][a-z0-9-]*$/;
+
+/** A relative path with forward slashes whose only `..` segments come first, so it may leave the project. */
+function isCheckoutPath(value: string): boolean {
+  if (value === '' || value.includes('\\') || value.includes('\0')) return false;
+  if (value.startsWith('/') || /^[A-Za-z]:/.test(value)) return false;
+  const parts = value.split('/');
+  const climbing = parts.findIndex((part) => part !== '..');
+  const rest = climbing === -1 ? [] : parts.slice(climbing);
+  return rest.every((part) => part !== '' && part !== '.' && part !== '..');
+}
 
 const SCOPE = /^@[a-z0-9][a-z0-9-._]*$/;
 const FEATURE = /^(@[a-z0-9-]+\/)?[a-z][a-z0-9-]*$/;
@@ -89,6 +101,12 @@ export function validateMfeflowProject(value: unknown): Issue[] {
       else if (!REGISTRY_NAMESPACE.test(ns)) c.add(at, 'namespaces look like "@someone"');
       if (typeof url !== 'string' || !url.startsWith('https://') || !url.includes('{name}'))
         c.add(at, 'must be an https URL containing {name}');
+    }
+  }
+  if ('local' in value) {
+    const local = c.string(value, 'local', '');
+    if (local !== undefined && !isCheckoutPath(local)) {
+      c.add('local', 'must be a relative path with forward slashes, like "../mfeflow"');
     }
   }
   return c.issues;

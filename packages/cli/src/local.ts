@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { MfeflowError } from '@mfeflow/core';
+import { MfeflowError, type MfeflowProject } from '@mfeflow/core';
 
 /** Range first-party features declare for `@mfeflow/*` packages; the CLI swaps in the real one. */
 export const PLACEHOLDER_RANGE = 'latest';
@@ -68,4 +68,34 @@ export function createRangeRewriter(
     if (!found) throw new MfeflowError('E110', `${name} is not in ${local ?? ''}/packages`);
     return `link:${posix(found.dir)}`;
   };
+}
+
+/** `--local none`: stop linking and go back to the published packages. */
+export const LOCAL_NONE = 'none';
+
+/**
+ * The checkout a command links `@mfeflow/*` from, and the project recording it. An explicit
+ * `flag` (a path, or `none`) changes the project's mode; without one the project's own mode
+ * stays, so a project is never half linked and half published.
+ */
+export function chooseLocal(
+  project: MfeflowProject,
+  root: string,
+  cwd: string,
+  flag: string | undefined,
+): { checkout: string | undefined; project: MfeflowProject } {
+  const { local: recorded, ...rest } = project;
+  if (flag === LOCAL_NONE) return { checkout: undefined, project: rest };
+  if (flag === undefined) {
+    return {
+      checkout: recorded === undefined ? undefined : path.resolve(root, ...recorded.split('/')),
+      project,
+    };
+  }
+  const checkout = path.resolve(cwd, flag);
+  const relative = path.relative(root, checkout);
+  if (relative === '' || path.isAbsolute(relative)) {
+    throw new MfeflowError('E107', `--local ${flag} cannot be recorded relative to ${root}`);
+  }
+  return { checkout, project: { ...rest, local: posix(relative) } };
 }

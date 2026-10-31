@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parseProject } from '@mfeflow/core';
 import type { FetchLike } from '@mfeflow/core';
 import { main, validateResult, type AddResult } from '..';
-import { readTree, removeDir, scriptedPrompter, tempDir, testRuntime } from '../testing';
+import { REPO, readTree, removeDir, scriptedPrompter, tempDir, testRuntime } from '../testing';
 
 let cwd = '';
 let project = '';
@@ -397,5 +397,64 @@ describe('mfeflow add @namespace/feature', () => {
       expect((await add(['shell', 'admin', '--yes', '--no-install'], rt)).code).toBe(0);
       expect(urls).toEqual(['https://acme.dev/hello/1.0.0.json']);
     });
+  });
+});
+
+describe('a project linked with --local', () => {
+  const linkedDir = () => path.join(cwd, 'linked');
+  const dependenciesOf = (app: string) =>
+    fs.readFile(path.join(linkedDir(), 'apps', app, 'package.json'), 'utf8');
+
+  beforeEach(async () => {
+    const code = await main(
+      ['init', 'linked', '--yes', '--no-install', '--local', REPO, '--cwd', cwd],
+      testRuntime(),
+    );
+    expect(code).toBe(0);
+  });
+
+  it('records the checkout, relative to the project', async () => {
+    const recorded = parseProject(
+      await fs.readFile(path.join(linkedDir(), 'mfeflow.json'), 'utf8'),
+    );
+    expect(recorded.local).toBe(path.relative(linkedDir(), REPO).split(path.sep).join('/'));
+  });
+
+  it('keeps linking for later adds that pass no flag', async () => {
+    const code = await main(
+      ['add', 'remote', 'checkout', '--no-install', '--cwd', linkedDir()],
+      testRuntime(),
+    );
+    expect(code).toBe(0);
+    expect(await dependenciesOf('checkout')).toContain('"@mfeflow/rsbuild": "link:');
+    expect(await dependenciesOf('checkout')).not.toContain('^0.0.0');
+  });
+
+  it('keeps linking for a feature added without the flag', async () => {
+    const code = await main(
+      ['add', 'git-hooks', '--no-install', '--cwd', linkedDir()],
+      testRuntime(),
+    );
+    expect(code).toBe(0);
+    expect(await dependenciesOf('shell')).not.toContain('^0.0.0');
+  });
+
+  it('goes back to the published packages with --local none', async () => {
+    const code = await main(
+      ['add', 'remote', 'checkout', '--local', 'none', '--no-install', '--cwd', linkedDir()],
+      testRuntime(),
+    );
+    expect(code).toBe(0);
+    expect(await dependenciesOf('checkout')).toContain('"@mfeflow/rsbuild": "^0.0.0"');
+    const recorded = parseProject(
+      await fs.readFile(path.join(linkedDir(), 'mfeflow.json'), 'utf8'),
+    );
+    expect(recorded).not.toHaveProperty('local');
+  });
+
+  it('does not link a project that was not created with --local, unless asked', async () => {
+    expect(await add(['remote', 'checkout', '--no-install']).then((r) => r.code)).toBe(0);
+    expect(await read('apps/checkout/package.json')).toContain('"@mfeflow/rsbuild": "^0.0.0"');
+    expect(await load()).not.toHaveProperty('local');
   });
 });

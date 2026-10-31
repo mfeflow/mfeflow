@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createRangeRewriter, PLACEHOLDER_RANGE, scanCheckout } from './local';
+import { chooseLocal, createRangeRewriter, PLACEHOLDER_RANGE, scanCheckout } from './local';
 import { REPO, removeDir, tempDir } from './testing';
 import { thrown } from './testing';
 
@@ -84,5 +84,41 @@ describe('createRangeRewriter', () => {
     await fs.mkdir(path.join(root, 'packages', 'noname'));
     await fs.writeFile(path.join(root, 'packages', 'noname', 'package.json'), '{}');
     expect([...scanCheckout(root).keys()]).toEqual(['@mfeflow/runtime']);
+  });
+});
+
+describe('chooseLocal', () => {
+  const root = path.resolve('/work/app');
+  const project = {
+    version: 1,
+    topology: 'monorepo',
+    packageManager: 'pnpm',
+    scope: '@a',
+    apps: {},
+    features: {},
+  } as const;
+
+  it('records a path given as a flag, relative to the project root', () => {
+    const chosen = chooseLocal(project, root, path.resolve('/work'), '../src/mfeflow');
+    expect(chosen.checkout).toBe(path.resolve('/src/mfeflow'));
+    expect(chosen.project.local).toBe('../../src/mfeflow');
+  });
+
+  it('keeps the project mode when there is no flag', () => {
+    const linked = { ...project, local: '../mfeflow' };
+    expect(chooseLocal(linked, root, root, undefined)).toEqual({
+      checkout: path.resolve('/work/mfeflow'),
+      project: linked,
+    });
+    expect(chooseLocal(project, root, root, undefined)).toEqual({ checkout: undefined, project });
+  });
+
+  it('clears the mode with none', () => {
+    const linked = { ...project, local: '../mfeflow' };
+    expect(chooseLocal(linked, root, root, 'none')).toEqual({ checkout: undefined, project });
+  });
+
+  it('refuses a checkout it cannot record relative to the project (E107)', () => {
+    expect(thrown(() => chooseLocal(project, root, root, '.')).code).toBe('MFEFLOW_E107');
   });
 });

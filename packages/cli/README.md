@@ -80,6 +80,7 @@ pnpm dev        # http://localhost:4300 renders the shell with both remotes
 ```
 
 `--local` needs the checkout built (`pnpm build`); it says so (`MFEFLOW_E110`) if a package has no `dist/`.
-`MFEFLOW_LOCAL=/path/to/mfeflow` does the same for every command, including `mfeflow add`.
+`MFEFLOW_LOCAL=/path/to/mfeflow` does the same for `init`.
+The checkout is recorded in `mfeflow.json` as `"local"` (a path relative to the project), so later `mfeflow add` commands keep writing `link:` without the flag. `--local none` removes it; dependencies already written stay as they are.
 
 MIT licensed.

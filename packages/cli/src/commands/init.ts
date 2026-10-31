@@ -27,6 +27,7 @@ import {
 import { assertAppName, remoteGlue, REMOTE_PORT, SHELL_PORT } from '../glue';
 import { mergeOptions, parseFeatureOptions, type FeatureOptions } from '../options';
 import { planReport, type InitResult } from '../output';
+import { chooseLocal } from '../local';
 import { createBuilder } from '../pipeline';
 import { loadPreset, type Preset } from '../preset';
 import type { Runtime } from '../runtime';
@@ -256,8 +257,9 @@ export async function runInit(
   const root = path.resolve(globals.cwd, options.dir);
   await assertEmpty(root);
 
-  const project = skeleton(options);
-  const builder = createBuilder(root, globals.local, globals.cwd);
+  const chosen = chooseLocal(skeleton(options), root, globals.cwd, globals.local);
+  const { project } = chosen;
+  const builder = createBuilder(root, chosen.checkout);
   const names = ['core', 'tsconfig', ...options.features];
   const loaded: LoadedFeature[] = await Promise.all(
     names.map((name) => loadAny(name, { roots: rt.roots })),

@@ -305,6 +305,16 @@ describe('mfeflow.json', () => {
     ]);
   });
 
+  it('checks the local checkout path', () => {
+    const withLocal = (local: unknown) => ({ ...project, local });
+    for (const ok of ['../mfeflow', '../../a/b', '..', 'vendor/mfeflow']) {
+      expect(validateMfeflowProject(withLocal(ok)), ok).toEqual([]);
+    }
+    for (const bad of ['', '/abs', 'C:/x', '..\\x', './a', 'a/../b', 'a//b', 'a/', 'a/..', 4]) {
+      expect(paths(validateMfeflowProject(withLocal(bad))), String(bad)).toEqual(['local']);
+    }
+  });
+
   it('publishes schema URLs', () => {
     expect(SCHEMA_URLS.mfe).toBe('https://mfeflow.dev/schema/mfe.json');
   });

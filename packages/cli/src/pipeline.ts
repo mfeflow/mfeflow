@@ -24,13 +24,10 @@ export function projectReader(root: string): (file: string) => Promise<string | 
 }
 
 /** A plan builder that reads `root`, keeps dependency versions in the catalog and resolves `@mfeflow/*` ranges. */
-export function createBuilder(root: string, local: string | undefined, cwd: string): PlanBuilder {
+export function createBuilder(root: string, checkout: string | undefined): PlanBuilder {
   return new PlanBuilder(projectReader(root), {
     catalog: true,
-    rewriteRange: createRangeRewriter(
-      readPackageJson().version,
-      local === undefined ? undefined : path.resolve(cwd, local),
-    ),
+    rewriteRange: createRangeRewriter(readPackageJson().version, checkout),
   });
 }
 
