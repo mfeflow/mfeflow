@@ -33,6 +33,13 @@ async function start(root: string, count: number, ...argv: string[]) {
   return { rt, done };
 }
 
+/** What `pnpm install` leaves in an app: its linked binaries. */
+async function fakeInstall(root: string, app: string): Promise<void> {
+  const bin = path.join(root, 'apps', app, 'node_modules', '.bin');
+  await fs.mkdir(bin, { recursive: true });
+  await fs.writeFile(path.join(bin, 'rsbuild'), '');
+}
+
 const registryOf = async (
   root: string,
 ): Promise<{ remotes: { name: string; entry: string; version: string }[] }> =>
@@ -61,6 +68,7 @@ describe('mfeflow dev', () => {
     expect(rt.dev.watched[0]?.map((p) => path.relative(root, p))).toEqual([
       'mfeflow.json',
       path.join('registry', 'envs', 'dev'),
+      'pnpm-lock.yaml',
     ]);
     rt.dev.interrupt();
     expect(await done).toBe(130);
@@ -223,6 +231,7 @@ describe('mfeflow dev', () => {
       expect(
         await main(['add', 'remote', 'checkout', '--no-install', '--cwd', root], testRuntime()),
       ).toBe(0);
+      await fakeInstall(root, 'checkout');
       rt.dev.change();
       await until(() => rt.dev.procs.length === 4, 'checkout');
       expect(path.basename(rt.dev.procs[3]?.spec.cwd ?? '')).toBe('checkout');
@@ -235,6 +244,41 @@ describe('mfeflow dev', () => {
       expect(rt.io.out.join('\n')).toContain('dev registry updated (cart, catalog, checkout)');
       rt.dev.interrupt();
       await done;
+    });
+
+    it('waits for a new remote to be installed, then starts it when the install ends', async () => {
+      const root = await project();
+      const { rt, done } = await start(root, 3);
+      await main(['add', 'remote', 'checkout', '--no-install', '--cwd', root], testRuntime());
+      rt.dev.change();
+      await until(
+        () => rt.io.out.some((l) => l.includes('checkout is waiting for its install')),
+        'waiting message',
+      );
+      rt.dev.change();
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      expect(rt.dev.procs).toHaveLength(3);
+      expect(rt.io.out.filter((l) => l.includes('waiting for its install'))).toHaveLength(1);
+      await fakeInstall(root, 'checkout');
+      rt.dev.change();
+      await until(() => rt.dev.procs.length === 4, 'checkout');
+      rt.dev.interrupt();
+      expect(await done).toBe(130);
+    });
+
+    it('starts a crashed remote again on the next change, and the crash stops counting', async () => {
+      const root = await project();
+      const { rt, done } = await start(root, 3);
+      await main(['add', 'remote', 'checkout', '--no-install', '--cwd', root], testRuntime());
+      await fakeInstall(root, 'checkout');
+      rt.dev.change();
+      await until(() => rt.dev.procs.length === 4, 'checkout');
+      rt.dev.procs[3]?.exit(1);
+      expect(rt.io.out).toContain('checkout | exited with code 1');
+      rt.dev.change();
+      await until(() => rt.dev.procs.length === 5, 'checkout again');
+      rt.dev.interrupt();
+      expect(await done).toBe(130);
     });
 
     it('does not start the same app twice, or an app outside --only', async () => {
@@ -283,6 +327,7 @@ describe('mfeflow dev', () => {
       const root = await project();
       const { rt, done } = await start(root, 3);
       await main(['add', 'remote', 'checkout', '--no-install', '--cwd', root], testRuntime());
+      await fakeInstall(root, 'checkout');
       rt.dev.busy.add(4313);
       rt.dev.change();
       await until(

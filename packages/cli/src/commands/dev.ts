@@ -47,7 +47,7 @@ class Session {
   private readonly running = new Map<string, DevProcess>();
   private readonly buffers = new Map<string, string>();
   private stopping = false;
-  private failed = false;
+  private readonly failed = new Set<string>();
   private finish: (() => void) | undefined;
   readonly done = new Promise<void>((resolve) => {
     this.finish = resolve;
@@ -68,7 +68,7 @@ class Session {
   }
 
   get hasFailed(): boolean {
-    return this.failed;
+    return this.failed.size > 0;
   }
 
   has(name: string): boolean {
@@ -114,6 +114,7 @@ class Session {
       },
     });
     this.running.set(app.name, child);
+    this.failed.delete(app.name);
     child.onOutput((chunk) => {
       this.feed(app.name, chunk);
     });
@@ -123,7 +124,7 @@ class Session {
       this.running.delete(app.name);
       if (!this.stopping) {
         this.line(app.name, code === 0 ? 'stopped' : `exited with code ${String(code)}`);
-        if (code !== 0) this.failed = true;
+        if (code !== 0) this.failed.add(app.name);
         if (this.running.size === 0) this.finish?.();
       }
     });
@@ -153,6 +154,15 @@ function describe(app: AppView, packageManager: string): DevApp {
     command: `${packageManager} run dev`,
     status: 'started',
   };
+}
+
+/** Has the app's package manager linked its binaries yet? A remote added by `mfeflow add` is not runnable until its install ends. */
+async function hasDependencies(app: AppView): Promise<boolean> {
+  try {
+    return (await fs.readdir(path.join(app.dir, 'node_modules', '.bin'))).length > 0;
+  } catch {
+    return false;
+  }
 }
 
 async function busyPorts(host: DevHost, apps: readonly AppView[]): Promise<AppView[]> {
@@ -257,6 +267,7 @@ export async function runDev(
   await writeIfChanged(registryFile, serializeIndex(devIndex(view, overrides)));
   const session = new Session(host, rt.io, out, registryFile, known);
   let busy = Promise.resolve();
+  const waiting = new Set<string>();
   const reload = (): void => {
     busy = busy.then(async () => {
       let next: ProjectView;
@@ -284,7 +295,19 @@ export async function runDev(
           await session.stopOne(name);
         }
       }
-      const fresh = now.filter((a) => !session.has(a.name));
+      const candidates = now.filter((a) => !session.has(a.name));
+      const installed = await Promise.all(candidates.map(hasDependencies));
+      const fresh = candidates.filter((app, i) => {
+        if (installed[i] === true) {
+          waiting.delete(app.name);
+          return true;
+        }
+        if (!waiting.has(app.name)) {
+          out(`mfeflow: ${app.name} is waiting for its install to finish`);
+          waiting.add(app.name);
+        }
+        return false;
+      });
       const stuck = await busyPorts(host, fresh);
       for (const app of fresh) {
         if (stuck.includes(app)) {
@@ -300,7 +323,12 @@ export async function runDev(
   };
 
   const stopWatching = host.watch(
-    [path.join(root, 'mfeflow.json'), path.join(root, 'registry', 'envs', 'dev')],
+    // The lockfile is written when an install ends, which is when a new remote can start.
+    [
+      path.join(root, 'mfeflow.json'),
+      path.join(root, 'registry', 'envs', 'dev'),
+      path.join(root, 'pnpm-lock.yaml'),
+    ],
     reload,
   );
   let interrupted = false;
