@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/@changesets/config/schema.json",
-  "changelog": "@changesets/cli/changelog",
+  "changelog": ["@changesets/changelog-github", { "repo": "mfeflow/mfeflow" }],
   "commit": false,
   "access": "public",
   "baseBranch": "main",

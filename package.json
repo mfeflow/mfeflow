@@ -21,6 +21,7 @@
     "e2e": "pnpm --filter @storefront/e2e test"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "catalog:",
     "@changesets/cli": "catalog:",
     "@commitlint/cli": "catalog:",
     "@commitlint/config-conventional": "catalog:",
