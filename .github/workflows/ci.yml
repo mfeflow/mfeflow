@@ -32,6 +32,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run ci
+      - name: Check the npm tarballs
+        if: matrix.os == 'ubuntu-latest'
+        run: pnpm check:pack
 
   e2e:
     name: e2e
