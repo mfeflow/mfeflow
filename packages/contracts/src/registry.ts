@@ -43,6 +43,30 @@ export interface RegistryIndexRemote {
   owner?: string;
 }
 
+/** The remote entry types Module Federation loads (`RemoteEntryType` in its sdk, plus `esm`). */
+export const ENTRY_TYPES: readonly string[] = [
+  'var',
+  'module',
+  'esm',
+  'assign',
+  'assign-properties',
+  'this',
+  'window',
+  'self',
+  'global',
+  'commonjs',
+  'commonjs2',
+  'commonjs-module',
+  'commonjs-static',
+  'amd',
+  'amd-require',
+  'umd',
+  'umd2',
+  'jsonp',
+  'system',
+];
+const ENTRY_TYPE = new RegExp(`^(?:${ENTRY_TYPES.join('|')})$`);
+
 const VERSION = /^[0-9A-Za-z.+-]+$/;
 
 function checkRemoteFiles(c: Checker, obj: Obj, at: string): void {
@@ -51,13 +75,13 @@ function checkRemoteFiles(c: Checker, obj: Obj, at: string): void {
     c.add(at ? `${at}.remoteEntry` : 'remoteEntry', 'must be an http(s) URL');
   c.string(obj, 'type', at, {
     required: false,
-    pattern: /^\S+$/,
-    hint: 'must be a non-empty entry type like "module"',
+    pattern: ENTRY_TYPE,
+    hint: `must be a Module Federation entry type: ${ENTRY_TYPES.join(', ')}`,
   });
   c.string(obj, 'entryGlobalName', at, {
     required: false,
-    pattern: /^\S+$/,
-    hint: 'must be a non-empty global name',
+    pattern: MFE_NAME,
+    hint: 'must be a Module Federation name (lowercase letters, digits, _)',
   });
   const exposes = c.object(obj, 'exposes', at, false);
   if (!exposes) return;

@@ -117,6 +117,14 @@ describe('registry entry', () => {
       'type',
       'entryGlobalName',
     ]);
+    expect(
+      paths(validateRegistryEntry({ ...entry, type: 'wasm', entryGlobalName: 'a b' })),
+    ).toEqual(['type', 'entryGlobalName']);
+    expect(paths(validateRegistryEntry({ ...entry, entryGlobalName: 'x"];alert(1);//' }))).toEqual([
+      'entryGlobalName',
+    ]);
+    for (const type of ['var', 'esm', 'commonjs2', 'system'])
+      expect(isRegistryEntry({ ...entry, type })).toBe(true);
   });
 });
 
@@ -159,6 +167,11 @@ describe('registry index', () => {
     expect(paths(validateRegistryIndex({ remotes: [{ ...remote, type: 'a b' }] }))).toEqual([
       'remotes[0].type',
     ]);
+    expect(
+      paths(
+        validateRegistryIndex({ remotes: [{ ...remote, type: 'wasm', entryGlobalName: 'A-b' }] }),
+      ),
+    ).toEqual(['remotes[0].type', 'remotes[0].entryGlobalName']);
   });
 
   it('catches duplicates, route collisions and bad entries', () => {

@@ -9,6 +9,7 @@ const {
   loadRegistryIndex,
   REGISTRY_GLOBAL,
   registerRemotesFromIndex,
+  registeredRemotes,
 } = await import('./registry.js');
 
 const index = {
@@ -154,6 +155,30 @@ describe('registerRemotesFromIndex', () => {
     expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', entryGlobalName: 1 }] })).toBe(
       false,
     );
+    for (const bad of [{ type: 'wasm' }, { entryGlobalName: 'a b' }, { entryGlobalName: 'x";' }])
+      expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', ...bad }] })).toBe(false);
+    for (const type of ['var', 'esm', 'system'])
+      expect(isRegistryIndex({ remotes: [{ name: 'a', entry: 'x', type }] })).toBe(true);
+  });
+
+  it('registers the same remotes from the inlined index and from the fetched one', () => {
+    const remote = {
+      name: 'cart',
+      entry: 'https://cdn.example.com/cart/m.json',
+      remoteEntry: 'https://cdn.example.com/cart/e.mjs',
+      type: 'module',
+      entryGlobalName: 'cart_g',
+      version: '1.2.3',
+      owner: 'checkout',
+      routes: ['/cart'],
+    };
+    registerRemotesFromIndex({ remotes: [remote] });
+    const inlined = registeredRemotes();
+    const exposes = { './App': ['https://cdn.example.com/cart/a.js'] };
+    const fetched = { remotes: [{ ...remote, exposes }] };
+    registerRemotesFromIndex(fetched);
+    expect(registeredRemotes()).toEqual(inlined);
+    expect(inlined).toEqual([remote]);
   });
 
   it('refuses and reports a manifest-only remote when the shell has no manifest loader', () => {
