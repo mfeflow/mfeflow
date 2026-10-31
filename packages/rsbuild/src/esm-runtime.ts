@@ -3,6 +3,8 @@ import path from 'node:path';
 import type { RsbuildPlugin } from '@rsbuild/core';
 
 const CJS_FILE = /\.cjs$/;
+/** A relative (`./x`, `../x`) or absolute request; anything else is a package specifier. */
+const PATH_REQUEST = /^(?:\.\.?(?:[\\/]|$)|[\\/]|[A-Za-z]:[\\/])/;
 const MF_DIST = /[\\/]@module-federation[\\/][^\\/]+[\\/]dist[\\/]/;
 
 /** True for a CommonJS build inside an `@module-federation/*` package's `dist`. */
@@ -39,6 +41,11 @@ export function pluginMfEsmRuntime(): RsbuildPlugin {
     name: 'mfeflow:mf-esm-runtime',
     setup(api) {
       api.modifyRspackConfig((config, { rspack }) => {
+        // A `.cjs` is parsed as `javascript/dynamic` (no `export`). A bare request only resolves to its
+        // `.cjs` after rule matching, so the module keeps that type when swapped; make it accept ESM.
+        config.module ??= {};
+        config.module.rules ??= [];
+        config.module.rules.push({ test: CJS_FILE, include: MF_DIST, type: 'javascript/auto' });
         config.plugins ??= [];
         config.plugins.push(
           new rspack.NormalModuleReplacementPlugin(CJS_FILE, (data) => {
@@ -51,8 +58,9 @@ export function pluginMfEsmRuntime(): RsbuildPlugin {
                 const value = created[key];
                 if (typeof value === 'string') created[key] = value.replace(cjs, esm);
               }
-            } else {
+            } else if (PATH_REQUEST.test(data.request)) {
               // Before resolving, so rule matching sees the ESM file; relative requests are resolved against the importer.
+              // Bare requests are left to the resolved-resource branch above.
               const target = path.resolve(data.context ?? '', data.request);
               if (isMfCjs(target)) data.request = esmTwin(target);
             }

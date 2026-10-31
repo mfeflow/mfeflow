@@ -134,3 +134,57 @@ describe('a relative request to a sibling .cjs inside a Module Federation dist',
     }
   }, 60_000);
 });
+
+/** Builds a throwaway app whose entry is `source` and whose fake MF package has the given files. */
+async function buildApp(
+  pkgFiles: Record<string, string>,
+  pkgJson: object,
+  source: string,
+): Promise<string[]> {
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), 'mfeflow-bare-'));
+  const pkg = path.join(app, 'node_modules/@module-federation/fake');
+  fs.mkdirSync(path.join(pkg, 'dist'), { recursive: true });
+  fs.mkdirSync(path.join(app, 'src'));
+  fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify(pkgJson));
+  for (const [file, body] of Object.entries(pkgFiles)) fs.writeFileSync(path.join(pkg, file), body);
+  fs.writeFileSync(path.join(app, 'src/index.js'), source);
+  fs.writeFileSync(path.join(app, 'package.json'), '{"name":"app","private":true}\n');
+  try {
+    return await bundledModules(
+      { source: { entry: { index: './src/index.js' } }, plugins: [pluginMfEsmRuntime()] },
+      app,
+    );
+  } finally {
+    fs.rmSync(app, { recursive: true, force: true });
+  }
+}
+
+describe('a bare request that resolves to a .cjs inside a Module Federation dist', () => {
+  const files = {
+    'dist/index.cjs': "module.exports = { value: 'cjs' };\n",
+    'dist/index.js': "export const value = 'esm';\n",
+  };
+
+  it('does not break the build for a bare specifier with an explicit .cjs path', async () => {
+    const modules = await buildApp(
+      files,
+      { name: '@module-federation/fake', exports: { './dist/index.cjs': './dist/index.cjs' } },
+      "const fake = require('@module-federation/fake/dist/index.cjs');\nconsole.log(fake.value);\n",
+    );
+    expect(modules.some((m) => m.endsWith('/fake/dist/index.js'))).toBe(true);
+    expect(modules.filter((m) => m.endsWith('.cjs'))).toEqual([]);
+  }, 60_000);
+
+  it('swaps a require-condition .cjs for its twin and parses the twin as ESM', async () => {
+    const modules = await buildApp(
+      files,
+      {
+        name: '@module-federation/fake',
+        exports: { '.': { import: './dist/index.js', require: './dist/index.cjs' } },
+      },
+      "const fake = require('@module-federation/fake');\nconsole.log(fake.value);\n",
+    );
+    expect(modules.some((m) => m.endsWith('/fake/dist/index.js'))).toBe(true);
+    expect(modules.filter((m) => m.endsWith('.cjs'))).toEqual([]);
+  }, 60_000);
+});
