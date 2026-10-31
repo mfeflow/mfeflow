@@ -139,4 +139,15 @@ describe('envKeyFiles', () => {
     ]);
     expect(envKeyFiles(op())).toEqual(['env.ts']);
   });
+
+  it('inserts inside the object when the closing brace shares the last property line', () => {
+    const source = `export const env = createEnv({\n  server: {\n    PORT: z.number(),\n    HOST: z.string()},\n});\n`;
+    expect(run(source, 'env.ts', { scope: 'server', key: 'GTM_ID' })).toBe(
+      `export const env = createEnv({\n  server: {\n    PORT: z.number(),\n    HOST: z.string(),\n    GTM_ID: z.string().min(1)},\n});\n`,
+    );
+    const runtime = `export const runtimeConfigSchema = z.object({\n  API: z.string()});\n`;
+    expect(run(runtime, 'src/config/schema.ts')).toBe(
+      `export const runtimeConfigSchema = z.object({\n  API: z.string(),\n  GTM_ID: z.string().min(1)});\n`,
+    );
+  });
 });

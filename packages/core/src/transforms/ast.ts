@@ -222,7 +222,8 @@ export function literalSource(value: Literal, q: "'" | '"'): string {
 
 /**
  * Edits that append `text` as a new item of an array or object literal, in
- * the layout the literal already has: one per line when it spans lines.
+ * the layout the literal already has: one per line when it spans lines. A
+ * closing bracket on the last item's line stays where it is, after the new item.
  */
 export function appendItem(
   source: string,
@@ -237,6 +238,14 @@ export function appendItem(
   const multiline = source.slice(start, end).includes('\n');
   if (!multiline) return [{ start: endOf(last), end: endOf(last), text: `, ${text}` }];
   const indent = indentAt(source, startOf(last));
+  const between = source.slice(endOf(last), end - 1);
+  if (!between.includes('\n')) {
+    const comma = between.indexOf(',');
+    const at = endOf(last) + comma + 1;
+    return comma === -1
+      ? [{ start: endOf(last), end: endOf(last), text: `,\n${indent}${text}` }]
+      : [{ start: at, end: at, text: `\n${indent}${text},` }];
+  }
   const eol = lineEnd(source, endOf(last));
   const tail = source.slice(endOf(last), eol);
   const trailingComma = tail.trimStart().startsWith(',');

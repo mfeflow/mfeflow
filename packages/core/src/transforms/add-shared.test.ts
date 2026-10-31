@@ -49,4 +49,27 @@ describe('add-shared', () => {
   it('fails with E208 when the array is missing', () => {
     expect(thrown(() => run('export const other = [];\n', 'zod')).code).toBe('MFEFLOW_E208');
   });
+
+  it('inserts inside the array when the closing bracket shares the last item line', () => {
+    expect(run("export const singletons = [\n  'a',\n  'b'];\n", 'zod')).toBe(
+      "export const singletons = [\n  'a',\n  'b',\n  'zod'];\n",
+    );
+    expect(run("export const singletons = [\n  'a',\n  'b',];\n", 'zod')).toBe(
+      "export const singletons = [\n  'a',\n  'b',\n  'zod',];\n",
+    );
+    expect(run("export const singletons = [\n  'a',\n  'b' ] as const;\n", 'zod')).toBe(
+      "export const singletons = [\n  'a',\n  'b',\n  'zod' ] as const;\n",
+    );
+    const once = run("export const singletons = [\n  'a',\n  'b'];\n", 'zod');
+    expect(run(once, 'zod')).toBe(once);
+  });
+
+  it('keeps a comment after the last item where it was', () => {
+    const out = addShared("export const singletons = [\n  'a', // react\n];\n", 's.ts', {
+      op: 'add-shared',
+      file: 's.ts',
+      name: 'zod',
+    });
+    expect(out).toBe("export const singletons = [\n  'a', // react\n  'zod',\n];\n");
+  });
 });
