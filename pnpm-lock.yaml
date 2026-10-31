@@ -337,6 +337,9 @@ importers:
       '@mfeflow/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@mfeflow/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@rspress/core':
         specifier: 'catalog:'
         version: 2.0.23(@module-federation/runtime-tools@2.9.2)(@rspack/core@2.3.0(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(micromark-util-types@2.0.3)(micromark@4.0.3(supports-color@8.1.1))(supports-color@8.1.1)

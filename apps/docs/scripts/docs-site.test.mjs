@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DOCS_URL, SCHEMA_URLS } from '@mfeflow/contracts';
 import { ERROR_CATALOGUE } from '@mfeflow/core';
 import config from '../rspress.config';
+import { emitErrorPages, errorPage, generatedCodes } from './emit-error-pages.mjs';
 import { emitSchemas, schemaPath } from './emit-schemas.mjs';
 
 const DOCS_DIR = path.join(import.meta.dirname, '../docs');
@@ -32,8 +33,8 @@ describe('schemas', () => {
     const written = await emitSchemas(publicDir);
     expect(written).toHaveLength(Object.keys(SCHEMA_URLS).length);
     for (const [name, url] of Object.entries(SCHEMA_URLS)) {
-      const file = path.join(publicDir, schemaPath(name));
-      expect(`${DOCS_URL}/${path.relative(publicDir, file)}`).toBe(url);
+      expect(`${DOCS_URL}/${schemaPath(name)}`).toBe(url);
+      const file = path.join(publicDir, ...schemaPath(name).split('/'));
       const schema = JSON.parse(await fs.readFile(file, 'utf8'));
       expect(schema.$id).toBe(url);
     }
@@ -62,6 +63,36 @@ describe('error pages', () => {
       f.replace(/\.md$/, ''),
     );
     expect(pages.toSorted()).toEqual(Object.keys(ERROR_CATALOGUE).toSorted());
+  });
+});
+
+describe('generated error pages', () => {
+  it('cover the codes whose fix names a docs URL, and match the committed files', async () => {
+    const codes = generatedCodes();
+    expect(codes).toEqual(expect.arrayContaining(['E104', 'E113', 'E114', 'E202']));
+    for (const code of codes) {
+      const committed = await fs.readFile(path.join(DOCS_DIR, 'errors', `${code}.md`), 'utf8');
+      expect(committed, `${code}: run pnpm --filter @mfeflow/docs generate`).toBe(errorPage(code));
+    }
+  });
+
+  it('writes the pages to a folder', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'mfeflow-errors-'));
+    try {
+      const codes = await emitErrorPages(dir);
+      expect((await fs.readdir(dir)).toSorted()).toEqual(codes.map((c) => `${c}.md`).toSorted());
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("has the catalogue fix text under each generated page's Fix heading", async () => {
+    for (const code of generatedCodes()) {
+      const { fix } = ERROR_CATALOGUE[code];
+      const page = await fs.readFile(path.join(DOCS_DIR, 'errors', `${code}.md`), 'utf8');
+      const section = /\n## Fix\n\n([^\n]+)/.exec(page);
+      expect(section?.[1], code).toBe(fix);
+    }
   });
 });
 

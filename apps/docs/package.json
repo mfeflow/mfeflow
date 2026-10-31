@@ -4,12 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node scripts/emit-schemas.mjs && rspress dev",
-    "build": "node scripts/emit-schemas.mjs && rspress build",
+    "generate": "node scripts/emit-schemas.mjs && node scripts/emit-error-pages.mjs",
+    "dev": "turbo run build --filter=@mfeflow/docs^... && pnpm generate && rspress dev",
+    "build": "pnpm generate && rspress build",
     "preview": "rspress preview"
   },
   "devDependencies": {
     "@mfeflow/contracts": "workspace:*",
+    "@mfeflow/core": "workspace:*",
     "@rspress/core": "catalog:",
     "@rspress/plugin-sitemap": "catalog:"
   }

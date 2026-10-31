@@ -15,7 +15,7 @@ export default defineConfig({
   description,
   lang: 'en',
   llms: true,
-  plugins: [pluginSitemap({ siteUrl: DOCS_URL })],
+  plugins: [pluginSitemap()],
   head: [
     ['meta', { property: 'og:site_name', content: 'mfeflow' }],
     ['meta', { property: 'og:type', content: 'website' }],

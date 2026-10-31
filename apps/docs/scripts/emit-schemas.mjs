@@ -1,5 +1,5 @@
 // Writes the JSON Schemas @mfeflow/contracts defines to docs/public/schema, so the site serves them at the
-// URLs in SCHEMA_URLS. Runs before every docs build; the output is not committed.
+// URLs in SCHEMA_URLS. Runs before every docs build and dev start (restart dev after changing contracts); the output is not committed.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
