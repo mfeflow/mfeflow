@@ -18,6 +18,7 @@ export type FetchLike = (
 
 const MAX_BYTES = 1_000_000;
 const TIMEOUT_MS = 10_000;
+const MAX_REDIRECTS = 5;
 
 const realFetch: FetchLike = (url, init) => fetch(url, init);
 
@@ -48,6 +49,52 @@ export function registryUrl(
   return parsed.href;
 }
 
+/**
+ * GETs `url`, following redirects by hand so one that leaves https is refused before it is
+ * requested. `code` is the error every failure here throws.
+ */
+export async function getHttps(
+  url: string,
+  fetchImpl: FetchLike,
+  code: 'E109' | 'E401',
+): Promise<FetchResponse> {
+  const fail = (at: string, why: string, cause?: unknown): never => {
+    throw new MfeflowError(code, `${at}: ${why}`, cause === undefined ? {} : { cause });
+  };
+  let current = url;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    let response: FetchResponse;
+    try {
+      // oxlint-disable-next-line no-await-in-loop -- each hop depends on the last answer
+      response = await fetchImpl(current, {
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+        redirect: 'manual',
+      });
+    } catch (error) {
+      return fail(current, messageOf(error), error);
+    }
+    if (response.url !== undefined && response.url !== '' && !response.url.startsWith('https://')) {
+      fail(url, `ended up at ${response.url}, which is not https`);
+    }
+    if (response.status < 300 || response.status >= 400) return response;
+    const location = response.headers?.get('location');
+    // oxlint-disable-next-line no-await-in-loop -- the redirect body is not wanted
+    await response.body?.cancel().catch(() => undefined);
+    if (location === null || location === undefined || location === '') {
+      fail(current, `redirected (${String(response.status)}) with no address`);
+    }
+    let next: URL;
+    try {
+      next = new URL(location ?? '', current);
+    } catch (error) {
+      return fail(current, 'redirected to a bad address', error);
+    }
+    if (next.protocol !== 'https:') fail(url, `redirected to ${next.href}, which is not https`);
+    current = next.href;
+  }
+  return fail(url, 'redirected too many times');
+}
+
 /** Downloads the feature.json text for `@ns/name`. */
 export async function fetchRemoteText(
   name: string,
@@ -56,15 +103,7 @@ export async function fetchRemoteText(
   version?: string,
 ): Promise<string> {
   const url = registryUrl(name, registries, version);
-  let response: FetchResponse;
-  try {
-    response = await fetchImpl(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
-  } catch (error) {
-    throw new MfeflowError('E401', `${url} (${messageOf(error)})`, { cause: error });
-  }
-  if (response.url !== undefined && response.url !== '' && !response.url.startsWith('https://')) {
-    throw new MfeflowError('E401', `${url} redirected away from https`);
-  }
+  const response = await getHttps(url, fetchImpl, 'E401');
   if (!response.ok) {
     const hint = response.status === 404 ? `${name} is not in that registry` : undefined;
     throw new MfeflowError(

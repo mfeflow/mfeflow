@@ -7,6 +7,7 @@ export {
 } from './load';
 export {
   fetchRemoteText,
+  getHttps,
   readCappedText,
   registryUrl,
   type FetchLike,

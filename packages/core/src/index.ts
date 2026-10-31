@@ -61,6 +61,7 @@ export {
   listLocalFeatures,
   loadFeature,
   parseFeature,
+  getHttps,
   readCappedText,
   registryUrl,
   resolveFeature,
