@@ -67,8 +67,17 @@ describe('sharedSingletons', () => {
       'react/jsx-runtime',
       '@mfeflow/theme/react',
       '@mfeflow/i18n/react',
+      '@mfeflow/analytics',
+      '@mfeflow/analytics/react',
+      '@mfeflow/telemetry',
     ]) {
       expect(DEFAULT_SINGLETONS).toContain(s);
+    }
+  });
+
+  it('leaves the vendor providers out: only the shell imports them, after first render', () => {
+    for (const s of ['@mfeflow/analytics/gtm', '@mfeflow/telemetry/otel']) {
+      expect(DEFAULT_SINGLETONS).not.toContain(s);
     }
   });
 

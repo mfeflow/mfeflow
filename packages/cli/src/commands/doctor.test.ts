@@ -218,6 +218,22 @@ describe('mfeflow doctor', () => {
     expect(single?.message).toContain('shell 19.3.1');
   });
 
+  it.each(['@mfeflow/analytics', '@mfeflow/telemetry'])(
+    'finds %s installed in two versions',
+    async (name) => {
+      const root = await project();
+      await install(path.join(root, 'apps/shell'), name, '1.0.0');
+      await install(path.join(root, 'apps/cart'), name, '1.1.0');
+      const { code, result } = await run(root, 'doctor');
+      expect(code).toBe(5);
+      const found = result.findings.filter((f) => f.code === 'MFEFLOW_E301');
+      expect(found).toHaveLength(1);
+      expect(found[0]?.message).toContain(`${name} (`);
+      expect(found[0]?.message).toContain('shell 1.0.0');
+      expect(found[0]?.message).toContain('cart 1.1.0');
+    },
+  );
+
   it.each(['link:../react', 'workspace:*', 'catalog:missing', 'latest'])(
     'warns, and does not crash, when react is %s and nothing is installed',
     async (spec) => {
