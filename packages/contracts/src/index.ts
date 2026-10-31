@@ -1,7 +1,28 @@
-import { readPackageJson } from './version.js';
+export type { Issue } from './validate.js';
+export {
+  ANALYTICS_EVENT,
+  EVENT_NAME,
+  EXPOSE,
+  isMfeManifest,
+  MFE_NAME,
+  ROUTE,
+  validateMfeManifest,
+  type MfeManifest,
+} from './mfe-manifest.js';
+export {
+  isRegistryEntry,
+  isRegistryIndex,
+  validateRegistryEntry,
+  validateRegistryIndex,
+  type RegistryEntry,
+  type RegistryIndex,
+} from './registry.js';
+export { isMfeflowProject, validateMfeflowProject, type MfeflowProject } from './project.js';
 
-/** Name and version of this package. */
-export function packageInfo(): { name: string; version: string } {
-  const { name, version } = readPackageJson();
-  return { name, version };
-}
+/** Where the JSON Schemas are published, for `$schema` in editors. */
+export const SCHEMA_URLS = {
+  mfe: 'https://mfeflow.dev/schema/mfe.json',
+  project: 'https://mfeflow.dev/schema/mfeflow.json',
+  registryEntry: 'https://mfeflow.dev/schema/registry-entry.json',
+  registryIndex: 'https://mfeflow.dev/schema/registry-index.json',
+} as const;

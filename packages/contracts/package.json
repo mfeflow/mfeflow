@@ -1,19 +1,15 @@
 {
   "name": "@mfeflow/contracts",
   "version": "0.0.0",
-  "description": "JSON schemas and types for mfeflow.json, mfe.json and the remote registry. Early, not usable yet.",
+  "description": "Types, validators and JSON Schemas for mfeflow: mfe.json ownership manifests, mfeflow.json project state, and the remote registry (entries and index).",
   "keywords": [
     "micro-frontend",
-    "micro-frontends",
     "mfe",
     "module-federation",
-    "module-federation-2",
-    "react",
-    "rsbuild",
-    "rspack",
-    "cli",
-    "scaffolding",
-    "boilerplate"
+    "json-schema",
+    "manifest",
+    "registry",
+    "validation"
   ],
   "homepage": "https://mfeflow.dev",
   "bugs": "https://github.com/mfeflow/mfeflow/issues",
@@ -49,5 +45,9 @@
     "@rslib/core": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"
+  },
+  "sideEffects": false,
+  "mfeflow": {
+    "bucket": "stateless"
   }
 }
