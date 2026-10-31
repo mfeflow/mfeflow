@@ -22,6 +22,15 @@ function attribute(value: string): string {
 
 const ESM_TYPES = new Set(['module', 'esm']);
 
+export interface InjectionOptions {
+  /**
+   * Whether the shell keeps Module Federation's manifest loader. Default false, like the
+   * production shell preset: a manifest-only remote then gets no hint, because the shell
+   * never fetches its manifest.
+   */
+  snapshot?: boolean;
+}
+
 /**
  * The HTML an edge function or server adds to the shell's `index.html` for one
  * route: the registry as `window.__MFE_REGISTRY__` (so the shell fetches no
@@ -35,11 +44,15 @@ const ESM_TYPES = new Set(['module', 'esm']);
  * files of a `module`/`esm` remote are `rel="modulepreload"` (CORS anonymous
  * by default, as `import()` fetches them); a remote with no `remoteEntry`
  * (manifest only) gets its manifest as `preload as="fetch" crossorigin`,
- * matching Module Federation's `fetch()`. Nothing here injects a `<script
- * src>` for a remote entry: it needs the shell's runtime first. A remote the
- * registry does not know gets no hints.
+ * matching Module Federation's `fetch()`, but only when `snapshot` is set.
+ * Nothing here injects a `<script src>` for a remote entry: it needs the
+ * shell's runtime first. A remote the registry does not know gets no hints.
  */
-export function registryInjection(index: RegistryIndex, needs: readonly RouteNeed[]): string {
+export function registryInjection(
+  index: RegistryIndex,
+  needs: readonly RouteNeed[],
+  options: InjectionOptions = {},
+): string {
   const inline = {
     remotes: index.remotes.map((remote) => pickRegistryFields(remote)),
   };
@@ -55,7 +68,7 @@ export function registryInjection(index: RegistryIndex, needs: readonly RouteNee
     const remote = index.remotes.find((r) => r.name === need.remote);
     if (remote === undefined) continue;
     if (remote.remoteEntry === undefined) {
-      hint('rel="preload" as="fetch" crossorigin', remote.entry);
+      if (options.snapshot === true) hint('rel="preload" as="fetch" crossorigin', remote.entry);
       continue;
     }
     const esm = remote.type !== undefined && ESM_TYPES.has(remote.type);

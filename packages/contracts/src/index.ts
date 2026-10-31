@@ -10,7 +10,12 @@ export {
   type MfeManifest,
 } from './mfe-manifest.js';
 export { assetsFromManifest, type RemoteAssets } from './manifest-assets.js';
-export { injectIntoHead, registryInjection, type RouteNeed } from './html-injection.js';
+export {
+  injectIntoHead,
+  registryInjection,
+  type InjectionOptions,
+  type RouteNeed,
+} from './html-injection.js';
 export {
   isRegistryEntry,
   isRegistryIndex,

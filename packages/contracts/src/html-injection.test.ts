@@ -69,11 +69,21 @@ describe('registryInjection', () => {
     expect(registryInjection(index, []).includes('<link')).toBe(false);
   });
 
+  it('preloads nothing for a manifest-only remote when the shell has no manifest loader (the default)', () => {
+    const needs = [{ remote: 'legacy', expose: './App' }];
+    expect(registryInjection(index, needs).includes('<link')).toBe(false);
+    expect(registryInjection(index, needs, { snapshot: false }).includes('<link')).toBe(false);
+  });
+
   it('preloads the manifest, with credentials matching fetch(), for a remote with no remoteEntry', () => {
-    const html = registryInjection(index, [
-      { remote: 'legacy', expose: './App' },
-      { remote: 'legacy', expose: './Other' },
-    ]);
+    const html = registryInjection(
+      index,
+      [
+        { remote: 'legacy', expose: './App' },
+        { remote: 'legacy', expose: './Other' },
+      ],
+      { snapshot: true },
+    );
     expect(html.match(/<link [^>]*>/g)).toEqual([
       '<link rel="preload" as="fetch" crossorigin href="https://x.test/mfe/legacy/mf-manifest.json">',
     ]);

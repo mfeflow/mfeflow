@@ -228,7 +228,9 @@ function shellHandler(req: http.IncomingMessage, res: http.ServerResponse): void
       INJECT
         ? injectIntoHead(
             html,
-            registryInjection(registryFor(origin), HINTS ? needsFor(url.pathname) : []),
+            registryInjection(registryFor(origin), HINTS ? needsFor(url.pathname) : [], {
+              snapshot: MANIFEST_ONLY,
+            }),
           )
         : html,
     `${origin}|${needsFor(url.pathname)[0]?.remote ?? ''}`,
