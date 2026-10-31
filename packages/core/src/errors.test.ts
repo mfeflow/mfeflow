@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -31,6 +31,14 @@ describe('error catalogue', () => {
   it('keeps feature errors in E2xx, registry errors in E4xx', () => {
     expect(codes.filter((c) => c.startsWith('E2')).length).toBeGreaterThan(5);
     expect(codes.filter((c) => c.startsWith('E4'))).toEqual(['E401', 'E402']);
+  });
+});
+
+describe('error docs', () => {
+  it('has a docs page stub for every code', () => {
+    const docs = path.resolve(import.meta.dirname, '../../../apps/docs/docs/errors');
+    const missing = codes.filter((code) => !existsSync(path.join(docs, `${code}.md`)));
+    expect(missing).toEqual([]);
   });
 });
 

@@ -1,6 +1,8 @@
 import type { Issue } from '@mfeflow/contracts';
 import { type Plan } from '@mfeflow/core';
 import type { ErrorReport } from './exit';
+import type { Finding } from './findings';
+import type { CheckReport, Summary } from './report';
 
 export interface PlanReport {
   features: { name: string; version: string }[];
@@ -61,13 +63,23 @@ export interface FeaturesResult {
   features: FeatureInfo[];
 }
 
+/** What `doctor`, `validate` and `check-compat` print with `--json`. `ok` is false when any finding is an error. */
+export interface ReportResult {
+  ok: boolean;
+  command: 'doctor' | 'validate' | 'check-compat';
+  root: string;
+  summary: Summary;
+  checks: CheckReport[];
+  findings: Finding[];
+}
+
 export interface FailureResult {
   ok: false;
   error: ErrorReport;
   exitCode: number;
 }
 
-export type CliResult = InitResult | AddResult | FeaturesResult | FailureResult;
+export type CliResult = InitResult | AddResult | FeaturesResult | ReportResult | FailureResult;
 
 /** The plan as plain data for `--json`, without file contents. Features are listed once. */
 export function planReport(plan: Plan): PlanReport {
@@ -167,6 +179,31 @@ function checkWrite(c: Check, value: Obj): void {
   }
 }
 
+function checkReport(c: Check, value: Obj): void {
+  c.string(value, 'root', '');
+  const summary = value.summary;
+  if (!isObj(summary)) c.add('summary', 'must be an object');
+  else
+    for (const key of ['errors', 'warnings', 'skipped', 'fixed']) {
+      if (typeof summary[key] !== 'number') c.add(`summary.${key}`, 'must be a number');
+    }
+  c.objects(value, 'checks', '', (check, p) => {
+    for (const key of ['id', 'title']) c.string(check, key, p);
+    if (!['pass', 'warn', 'fail', 'skipped'].includes(String(check.status))) {
+      c.add(`${p}status`, 'must be pass, warn, fail or skipped');
+    }
+    if (typeof check.findings !== 'number') c.add(`${p}findings`, 'must be a number');
+  });
+  c.objects(value, 'findings', '', (f, p) => {
+    for (const key of ['code', 'check', 'message', 'fix', 'docs']) c.string(f, key, p);
+    if (f.severity !== 'error' && f.severity !== 'warning')
+      c.add(`${p}severity`, 'must be error or warning');
+    c.boolean(f, 'fixable', p);
+  });
+  if (value.ok !== (isObj(summary) && summary.errors === 0))
+    c.add('ok', 'must be true exactly when there are no errors');
+}
+
 /** Checks a document the CLI printed with `--json`. Returns the problems; empty means valid. */
 export function validateResult(value: unknown): Issue[] {
   const c = new Check();
@@ -174,13 +211,13 @@ export function validateResult(value: unknown): Issue[] {
     c.add('', 'must be an object');
     return c.issues;
   }
-  if (value.ok === false) {
+  if (value.ok === false && value.command === undefined) {
     if (!isObj(value.error)) c.add('error', 'must be an object');
     else for (const key of ['code', 'message', 'fix', 'docs']) c.string(value.error, key, 'error.');
     if (typeof value.exitCode !== 'number') c.add('exitCode', 'must be a number');
     return c.issues;
   }
-  if (value.ok !== true) c.add('ok', 'must be true or false');
+  if (typeof value.ok !== 'boolean') c.add('ok', 'must be true or false');
   switch (value.command) {
     case 'init':
       checkWrite(c, value);
@@ -212,8 +249,13 @@ export function validateResult(value: unknown): Issue[] {
         for (const key of ['always', 'default', 'installed']) c.boolean(f, key, p);
       });
       break;
+    case 'doctor':
+    case 'validate':
+    case 'check-compat':
+      checkReport(c, value);
+      break;
     default:
-      c.add('command', 'must be init, add or features');
+      c.add('command', 'must be init, add, features, doctor, validate or check-compat');
   }
   return c.issues;
 }

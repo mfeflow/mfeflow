@@ -48,6 +48,34 @@ export const ERROR_CATALOGUE = {
     title: '--local does not point at a built mfeflow checkout',
     fix: 'Pass the folder of a mfeflow/mfeflow clone where `pnpm install && pnpm build` has run.',
   },
+  E111: {
+    title: 'A workspace package has no version',
+    fix: 'Add a "version" to its package.json (`mfeflow doctor --fix` writes 0.0.0). Without one Module Federation never shares the package and each app loads its own copy.',
+  },
+  E112: {
+    title: 'An app in mfeflow.json is not on disk',
+    fix: 'Restore the folder, or remove the app from "apps" in mfeflow.json.',
+  },
+  E113: {
+    title: 'mfe.json is missing or invalid',
+    fix: 'Give the app a valid mfe.json (name, owner, shells, routes, exposes). The schema is at https://mfeflow.dev/schema/mfe.json.',
+  },
+  E114: {
+    title: 'A registry entry is missing or invalid',
+    fix: 'Every remote needs registry/envs/<env>/<name>.json for dev, staging and prod (`mfeflow doctor --fix` writes the missing ones). The schema is at https://mfeflow.dev/schema/registry-entry.json.',
+  },
+  E115: {
+    title: 'Two apps use the same port',
+    fix: 'Give one of them another port in its rsbuild config and in "apps" in mfeflow.json.',
+  },
+  E116: {
+    title: 'Two remotes claim the same route, or an mfe.json disagrees with mfeflow.json',
+    fix: 'Give each route to one remote, and keep the name in mfe.json equal to the app name.',
+  },
+  E117: {
+    title: 'A copied file changed since mfeflow wrote it',
+    fix: 'Nothing is wrong if you changed it on purpose. `mfeflow upgrade` will show a diff before touching it.',
+  },
   E201: {
     title: 'Feature not found',
     fix: 'List what is available with `mfeflow features`, or check the spelling.',
@@ -107,6 +135,30 @@ export const ERROR_CATALOGUE = {
   E215: {
     title: 'The app name cannot be used',
     fix: 'Use lowercase words of letters and digits joined by single underscores (order_history), starting with a letter, and a name no app has yet.',
+  },
+  E301: {
+    title: 'A singleton resolves to more than one version',
+    fix: 'Pin one version of the package in every app (the pnpm catalog is the place), then reinstall. Two copies of React break hooks.',
+  },
+  E302: {
+    title: 'A remote is not compatible with its shell',
+    fix: 'Align the remote and the shell on the same major of the package, or update the "platform" range in the remote\'s mfe.json.',
+  },
+  E303: {
+    title: 'A runtime plugin imports a shared module',
+    fix: 'Runtime plugins run before the share scope exists. Keep them dependency free and report through `window`.',
+  },
+  E304: {
+    title: 'A bundle is over its budget',
+    fix: 'Cut what the app ships on first load, or raise the budget in mfeflow.json ("budget") or mfe.json ("budgets") on purpose.',
+  },
+  E305: {
+    title: 'There is no build output to measure',
+    fix: 'Run `pnpm build` first.',
+  },
+  E306: {
+    title: 'A dev server could not start',
+    fix: "Free the port or change it in mfeflow.json and the app's rsbuild config, then run `mfeflow dev` again.",
   },
   E401: {
     title: 'Could not fetch from the registry',

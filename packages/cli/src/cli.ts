@@ -2,9 +2,18 @@ import { stripVTControlCharacters } from 'node:util';
 import { isMfeflowError, MfeflowError } from '@mfeflow/core';
 import { defineCommand, runCommand, type CommandDef } from 'citty';
 import { ADD_ARGS, runAdd } from './commands/add';
+import {
+  COMPAT_ARGS,
+  DOCTOR_ARGS,
+  runCheckCompat,
+  runDoctor,
+  runValidate,
+  VALIDATE_ARGS,
+} from './commands/doctor';
 import { FEATURES_ARGS, runFeatures } from './commands/features';
 import { INIT_ARGS, runInit } from './commands/init';
 import { Cancelled, EXIT, exitCodeFor, reportOf, unexpectedReport, unexpectedText } from './exit';
+import { exitForFindings } from './report';
 import { commandHelp, rootHelp, type CommandHelp } from './help';
 import type { CliResult, FailureResult } from './output';
 import { realRuntime, type Runtime } from './runtime';
@@ -57,6 +66,35 @@ export const COMMANDS: readonly Command[] = [
     args: FEATURES_ARGS,
     examples: ['mfeflow features', 'mfeflow features lint', 'mfeflow features --json'],
     run: runFeatures,
+  },
+  {
+    name: 'doctor',
+    summary: 'check singletons, compatibility, config and drift; --fix repairs the safe ones',
+    usage: 'mfeflow doctor [options]',
+    args: DOCTOR_ARGS,
+    examples: [
+      'mfeflow doctor',
+      'mfeflow doctor --fix',
+      'mfeflow doctor --json',
+      'mfeflow doctor --fix --dry-run',
+    ],
+    run: runDoctor,
+  },
+  {
+    name: 'validate',
+    summary: 'check mfeflow.json, every mfe.json and every registry entry against their schemas',
+    usage: 'mfeflow validate [options]',
+    args: VALIDATE_ARGS,
+    examples: ['mfeflow validate', 'mfeflow validate --json'],
+    run: runValidate,
+  },
+  {
+    name: 'check-compat',
+    summary: "check each remote's shared ranges against the shells it runs in",
+    usage: 'mfeflow check-compat [options]',
+    args: COMPAT_ARGS,
+    examples: ['mfeflow check-compat', 'mfeflow check-compat --json'],
+    run: runCheckCompat,
   },
 ];
 
@@ -149,7 +187,7 @@ export async function main(argv: readonly string[], rt: Runtime = realRuntime())
       { rawArgs: rest },
     );
     if (json && result) rt.io.stdout(JSON.stringify(result, null, 2));
-    return EXIT.ok;
+    return result && 'findings' in result ? exitForFindings(result.findings) : EXIT.ok;
   } catch (error) {
     return fail(error, rt, json, verbose);
   }

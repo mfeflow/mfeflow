@@ -566,13 +566,25 @@ importers:
       citty:
         specifier: 'catalog:'
         version: 0.2.2
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.5
+      yaml:
+        specifier: 'catalog:'
+        version: 2.9.1
     devDependencies:
+      '@mfeflow/rsbuild':
+        specifier: workspace:*
+        version: link:../rsbuild
       '@rslib/core':
         specifier: 'catalog:'
         version: 1.0.5(@module-federation/runtime-tools@2.9.2)(typescript@7.0.2)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.8.0
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

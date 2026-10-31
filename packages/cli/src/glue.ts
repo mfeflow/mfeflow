@@ -48,6 +48,8 @@ export function routeComponent(remote: string): string {
   return `${pascal(remote)}Route`;
 }
 
+export const REGISTRY_ENVS = ['dev', 'staging', 'prod'] as const;
+
 const ENV_HOSTS = {
   staging: 'https://staging.example.com',
   prod: 'https://app.example.com',
@@ -73,26 +75,52 @@ export interface GlueOptions {
   shells: readonly string[];
 }
 
+export interface RegistryEntryFile {
+  path: string;
+  content: string;
+}
+
+const asFeatureFile = (file: RegistryEntryFile): FeatureFile => ({
+  to: file.path,
+  content: file.content,
+});
+
+/** `registry/envs/<env>/<name>.json` for dev, staging and prod: dev points at the remote's dev server. */
+export async function registryEntryFiles(
+  roots: AssetRoots,
+  remote: RemoteSpec,
+  envs: readonly string[] = REGISTRY_ENVS,
+): Promise<RegistryEntryFile[]> {
+  const { name, port } = remote;
+  const template = await glueTemplate(roots, 'registry-entry.json.eta');
+  const urls: Record<string, { version: string; manifestUrl: string }> = {
+    dev: { version: 'dev', manifestUrl: `http://localhost:${String(port)}/mf-manifest.json` },
+    staging: { version: '0.0.0', manifestUrl: `${ENV_HOSTS.staging}/mfe/${name}/mf-manifest.json` },
+    prod: { version: '0.0.0', manifestUrl: `${ENV_HOSTS.prod}/mfe/${name}/mf-manifest.json` },
+  };
+  return envs.flatMap((env) => {
+    const entry = urls[env];
+    if (entry === undefined) return [];
+    return [
+      {
+        path: `registry/envs/${env}/${name}.json`,
+        content: renderTemplate(template, { name, ...entry }, `registry/${env}`),
+      },
+    ];
+  });
+}
+
 /**
  * The parts of adding a remote that belong to no single app: its registry
  * entries, and a route in each shell. Returned as a feature so the engine
  * applies it like any other, with the same checks and the same plan.
  */
 export async function remoteGlue(options: GlueOptions): Promise<LoadedFeature> {
-  const { name, port } = options.remote;
+  const { name } = options.remote;
   const files: FeatureFile[] = [];
   const transforms: TransformOp[] = [];
   if (options.registry) {
-    const template = await glueTemplate(options.roots, 'registry-entry.json.eta');
-    const entry = (env: string, version: string, manifestUrl: string): FeatureFile => ({
-      to: `registry/envs/${env}/${name}.json`,
-      content: renderTemplate(template, { name, version, manifestUrl }, `registry/${env}`),
-    });
-    files.push(
-      entry('dev', 'dev', `http://localhost:${String(port)}/mf-manifest.json`),
-      entry('staging', '0.0.0', `${ENV_HOSTS.staging}/mfe/${name}/mf-manifest.json`),
-      entry('prod', '0.0.0', `${ENV_HOSTS.prod}/mfe/${name}/mf-manifest.json`),
-    );
+    files.push(...(await registryEntryFiles(options.roots, options.remote)).map(asFeatureFile));
   }
   if (options.shells.length > 0) {
     const route = await glueTemplate(options.roots, 'route.tsx.eta');

@@ -10,6 +10,7 @@ export type {
   FeaturesResult,
   InitResult,
   PlanReport,
+  ReportResult,
 } from './output';
 export { realRuntime, type Runtime } from './runtime';
 export type { Io } from './io';
