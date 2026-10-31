@@ -52,11 +52,13 @@
     "@mfeflow/contracts": "workspace:*",
     "diff": "catalog:",
     "eta": "catalog:",
+    "semver": "catalog:",
     "yaml": "catalog:"
   },
   "devDependencies": {
     "@rslib/core": "catalog:",
     "@types/node": "catalog:",
+    "@types/semver": "catalog:",
     "typescript": "catalog:"
   }
 }

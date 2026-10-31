@@ -1,4 +1,5 @@
 import { TRANSFORM_OPS, type FeatureManifest } from '@mfeflow/contracts';
+import { validRange } from 'semver';
 import { MfeflowError } from '../errors.js';
 import { envKeyFiles } from '../transforms/add-env-key.js';
 import { assertThirdPartyPath } from './write-policy.js';
@@ -45,8 +46,18 @@ const LIFECYCLE_SCRIPTS = new Set([
   'restart',
 ]);
 
-/** Registry version ranges and dist-tags only: no URLs, git, file, link, npm: aliases or `catalog:`. */
-const SAFE_RANGE = /^[A-Za-z0-9.^~<>=*|+\- ]+$/;
+/** An npm dist-tag such as `latest` or `next`. Nothing with a colon, slash or dot can be one. */
+const DIST_TAG = /^[a-z][a-z0-9-]*$/;
+
+/**
+ * True for a semver range or a dist-tag, the only things a registry resolves.
+ * Everything else (file:, link:, git, URLs, `npm:` aliases, `workspace:`,
+ * `catalog:`, paths) is refused because it is parsed by the package manager.
+ */
+export function isRegistryRange(range: string): boolean {
+  if (range === '' || range !== range.trim()) return false;
+  return DIST_TAG.test(range) || validRange(range) !== null;
+}
 
 /**
  * Throws E203 unless `name` is a plain, namespaced script name that no package
@@ -112,7 +123,7 @@ export function assertThirdPartyContent(manifest: FeatureManifest, label: string
     for (const file of files) assertThirdPartyPath(file, file);
   }
   for (const dep of manifest.dependencies ?? []) {
-    if (!SAFE_RANGE.test(dep.range)) {
+    if (!isRegistryRange(dep.range)) {
       throw new MfeflowError(
         'E203',
         `${label}: ${dep.name}@${dep.range} is not a registry version range`,

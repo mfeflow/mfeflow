@@ -145,14 +145,28 @@ export class PlanBuilder {
     let wanted = range;
     if (this.options.catalog && !isPinnedElsewhere(range))
       wanted = await this.useCatalog(name, range);
+    let added = true;
     await this.patch(file, (source) =>
       editJsonObject(file, source, (pkg) => {
+        const existing = [pkg.dependencies, pkg.devDependencies]
+          .map((section) => asRecord(section)[name])
+          .find((value) => value !== undefined);
+        if (existing === wanted || existing === range) {
+          added = false;
+          return false;
+        }
+        if (existing !== undefined) {
+          throw new MfeflowError(
+            'E207',
+            `${file}: ${name} is already ${JSON.stringify(existing)}; the feature wants ${wanted}`,
+          );
+        }
         const key = dev ? 'devDependencies' : 'dependencies';
         pkg[key] = sortedWith(pkg[key], name, wanted);
         return true;
       }),
     );
-    this.plan.dependencies.push({ file, name, range: wanted, dev });
+    if (added) this.plan.dependencies.push({ file, name, range: wanted, dev });
   }
 
   /** Adds a script. An identical one already there is a no-op; a different command under the same name is a conflict. */

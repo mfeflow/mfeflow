@@ -80,6 +80,30 @@ describe('PlanBuilder package.json', () => {
     ]);
   });
 
+  it('never changes the range of a dependency that is already there (E207)', async () => {
+    const source = pkg({
+      dependencies: { react: '^18.0.0' },
+      devDependencies: { vitest: '^4.0.0' },
+    });
+    const b = new PlanBuilder(reader({ 'package.json': source }));
+    const errors = await Promise.all([
+      rejection(b.addDependency('package.json', 'react', '^19.0.0')),
+      rejection(b.addDependency('package.json', 'vitest', '^5.0.0', true)),
+      rejection(b.addDependency('package.json', 'react', '^19.0.0', true)),
+    ]);
+    expect(errors.map((e) => e.code)).toEqual(['MFEFLOW_E207', 'MFEFLOW_E207', 'MFEFLOW_E207']);
+    expect(errors[0]?.message).toContain('react');
+    expect(b.build().changes).toEqual([]);
+  });
+
+  it('adding a dependency at the range it already has changes nothing', async () => {
+    const source = pkg({ dependencies: { react: '^19.0.0' } });
+    const b = new PlanBuilder(reader({ 'package.json': source }));
+    await b.addDependency('package.json', 'react', '^19.0.0');
+    expect(b.build().changes).toEqual([]);
+    expect(b.build().dependencies).toEqual([]);
+  });
+
   it('adds scripts and records them as shown-not-run', async () => {
     const b = new PlanBuilder(
       reader({ 'package.json': pkg({ scripts: { build: 'rsbuild build' } }) }),

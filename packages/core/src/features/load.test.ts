@@ -134,10 +134,43 @@ describe('malicious third-party features are rejected', () => {
       'file:../x',
       'link:../x',
       'npm:evil@1',
+      'jsr:@x/y',
       'catalog:',
+      'catalog:default',
       'workspace:*',
+      '../x',
+      './x.tgz',
+      '/etc/x',
+      'x.tgz',
+      '^1.0.0 || file:../x',
+      '^1.0.0\n',
+      ' ^1.0.0',
+      'Latest',
+      '',
+      '1.0.0-',
     ]) {
-      expect(third({ dependencies: [{ name: 'x', range }] }).code).toBe('MFEFLOW_E203');
+      const error = third({ dependencies: [{ name: 'x', range }] });
+      expect(error.code, JSON.stringify(range)).toMatch(/^MFEFLOW_E20[23]$/);
+    }
+  });
+
+  it('accepts registry version ranges and dist-tags', () => {
+    for (const range of [
+      '^1.0.0',
+      '~1.2.3',
+      '1.2.3',
+      '1.x',
+      '>=1 <2',
+      '1.2.3 - 2.0.0',
+      '*',
+      '^19',
+    ]) {
+      const manifest = text({ dependencies: [{ name: 'x', range }] });
+      expect(() => parseFeature(manifest, 'third-party', 'x'), range).not.toThrow();
+    }
+    for (const tag of ['latest', 'next', 'beta-1', 'canary']) {
+      const manifest = text({ dependencies: [{ name: 'x', range: tag }] });
+      expect(() => parseFeature(manifest, 'third-party', 'x'), tag).not.toThrow();
     }
   });
 
