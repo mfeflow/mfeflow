@@ -3,7 +3,9 @@
 Guidance for coding agents working in this repo.
 
 - Package manager: pnpm (via corepack). Never npm or yarn.
-- Before finishing: `pnpm ci` must pass (format, lint, typecheck, test, build).
+- Before finishing: `pnpm ci` must pass (format, build, lint, typecheck, test).
+  Type-aware lint reads other workspace packages' `dist` types, so run
+  `pnpm build` once after cloning or after changing a package's exports.
 - Versions are pinned in the `catalog` in `pnpm-workspace.yaml`; add new
   dependencies there and reference them as `catalog:`.
 - TypeScript 7 (native compiler). Linting is oxlint with type-aware rules

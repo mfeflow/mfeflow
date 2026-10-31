@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "oxc", "import", "node"],
+  "plugins": ["typescript", "unicorn", "oxc", "import", "node", "react", "jsx-a11y"],
   "categories": {
     "correctness": "error",
     "suspicious": "error",
@@ -20,7 +20,10 @@
     "typescript/no-unsafe-argument": "error",
     "typescript/restrict-template-expressions": "error",
     "typescript/no-unnecessary-type-assertion": "error",
-    "typescript/switch-exhaustiveness-check": "error"
+    "typescript/switch-exhaustiveness-check": "error",
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    "react/react-in-jsx-scope": "off"
   },
   "ignorePatterns": ["**/dist/**", "**/doc_build/**", "**/coverage/**", "**/.turbo/**"],
   "overrides": [
