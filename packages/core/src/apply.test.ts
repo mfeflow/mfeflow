@@ -1,0 +1,280 @@
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { applyPlan } from './apply.js';
+import { realFs, type FsOps } from './fs.js';
+import { hashContent } from './hash.js';
+import { emptyPlan, type FileChange, type Plan } from './plan.js';
+import { loadProject, saveProject, type MfeflowProject } from './project.js';
+import { rejection } from './testing.js';
+
+const project: MfeflowProject = {
+  version: 1,
+  topology: 'monorepo',
+  packageManager: 'pnpm',
+  scope: '@shopco',
+  apps: { shell: { kind: 'shell', path: 'apps/shell' } },
+  features: {},
+};
+
+let root: string;
+beforeEach(async () => {
+  root = await fs.mkdtemp(path.join(os.tmpdir(), 'mfeflow-apply-'));
+});
+afterEach(async () => {
+  await fs.rm(root, { recursive: true, force: true });
+});
+
+const at = (file: string) => path.join(root, file);
+const read = (file: string) => fs.readFile(at(file), 'utf8');
+const exists = (file: string) =>
+  fs.access(at(file)).then(
+    () => true,
+    () => false,
+  );
+
+const create = (file: string, after: string, track = true): FileChange => ({
+  path: file,
+  action: 'create',
+  before: null,
+  after,
+  track,
+});
+const patch = (file: string, before: string, after: string): FileChange => ({
+  path: file,
+  action: 'patch',
+  before,
+  after,
+  track: false,
+});
+const remove = (file: string, before: string): FileChange => ({
+  path: file,
+  action: 'delete',
+  before,
+  after: null,
+  track: false,
+});
+const planOf = (...changes: FileChange[]): Plan => ({ ...emptyPlan(), changes });
+
+async function leftovers(): Promise<string[]> {
+  const entries = await fs.readdir(root, { recursive: true });
+  return entries.filter((e) => e.endsWith('.tmp'));
+}
+
+describe('applyPlan', () => {
+  it('creates, patches and deletes', async () => {
+    await fs.writeFile(at('edit.txt'), 'one\n');
+    await fs.writeFile(at('gone.txt'), 'bye\n');
+    const result = await applyPlan(
+      planOf(
+        create('apps/shell/src/new.ts', 'new\n'),
+        patch('edit.txt', 'one\n', 'one\ntwo\n'),
+        remove('gone.txt', 'bye\n'),
+      ),
+      { root },
+    );
+    expect(await read('apps/shell/src/new.ts')).toBe('new\n');
+    expect(await read('edit.txt')).toBe('one\ntwo\n');
+    expect(await exists('gone.txt')).toBe(false);
+    expect(result.written).toEqual(['apps/shell/src/new.ts', 'edit.txt', 'gone.txt']);
+    expect(await leftovers()).toEqual([]);
+  });
+
+  it('accepts a target that only differs in line endings', async () => {
+    await fs.writeFile(at('a.txt'), 'one\r\ntwo\r\n');
+    await applyPlan(planOf(patch('a.txt', 'one\ntwo\n', 'one\ntwo\nthree\n')), { root });
+    expect(await read('a.txt')).toBe('one\ntwo\nthree\n');
+  });
+
+  it('writes nothing in a dry run, but still checks the targets', async () => {
+    await applyPlan(planOf(create('a.txt', 'a')), { root, dryRun: true });
+    expect(await exists('a.txt')).toBe(false);
+    await fs.writeFile(at('b.txt'), 'changed');
+    const error = await rejection(
+      applyPlan(planOf(patch('b.txt', 'old', 'new')), { root, dryRun: true }),
+    );
+    expect(error.code).toBe('MFEFLOW_E211');
+  });
+
+  it('refuses when a patched file changed since the plan, and writes nothing (E211)', async () => {
+    await fs.writeFile(at('edit.txt'), 'user edit\n');
+    const error = await rejection(
+      applyPlan(planOf(create('first.txt', 'x'), patch('edit.txt', 'one\n', 'one\ntwo\n')), {
+        root,
+      }),
+    );
+    expect(error.code).toBe('MFEFLOW_E211');
+    expect(error.message).toContain('edit.txt');
+    expect(await exists('first.txt')).toBe(false);
+    expect(await read('edit.txt')).toBe('user edit\n');
+  });
+
+  it('refuses when a file to create now exists, or a file to patch or delete vanished', async () => {
+    await fs.writeFile(at('a.txt'), 'there');
+    await expect(applyPlan(planOf(create('a.txt', 'x')), { root })).rejects.toMatchObject({
+      code: 'MFEFLOW_E211',
+    });
+    await expect(applyPlan(planOf(patch('nope.txt', 'a', 'b')), { root })).rejects.toMatchObject({
+      code: 'MFEFLOW_E211',
+    });
+    await expect(applyPlan(planOf(remove('nope.txt', 'a')), { root })).rejects.toMatchObject({
+      code: 'MFEFLOW_E211',
+    });
+  });
+
+  it('refuses a path that leaves the project (E105)', async () => {
+    await expect(applyPlan(planOf(create('../evil.txt', 'x')), { root })).rejects.toMatchObject({
+      code: 'MFEFLOW_E105',
+    });
+  });
+
+  it('rolls back when a create cannot be written (parent is a file)', async () => {
+    await fs.writeFile(at('blocker'), 'i am a file');
+    await fs.writeFile(at('edit.txt'), 'one\n');
+    await expect(
+      applyPlan(
+        planOf(
+          create('fresh/dir/a.txt', 'a'),
+          patch('edit.txt', 'one\n', 'two\n'),
+          create('blocker/child.txt', 'b'),
+        ),
+        { root },
+      ),
+    ).rejects.toMatchObject({ code: 'MFEFLOW_E212' });
+    expect(await exists('fresh')).toBe(false);
+    expect(await read('edit.txt')).toBe('one\n');
+    expect(await read('blocker')).toBe('i am a file');
+    expect(await leftovers()).toEqual([]);
+  });
+
+  it('rolls back everything already renamed when a later rename fails', async () => {
+    await fs.writeFile(at('edit.txt'), 'one\n');
+    await fs.writeFile(at('gone.txt'), 'bye\n');
+    let renames = 0;
+    const failing: FsOps = {
+      ...realFs,
+      rename: (from, to) => {
+        renames += 1;
+        return renames === 3 ? Promise.reject(new Error('disk full')) : realFs.rename(from, to);
+      },
+    };
+    const error = await rejection(
+      applyPlan(
+        planOf(
+          create('new/a.txt', 'a'),
+          patch('edit.txt', 'one\n', 'two\n'),
+          remove('gone.txt', 'bye\n'),
+          create('b.txt', 'b'),
+        ),
+        { root, fs: failing },
+      ),
+    );
+    expect(error.code).toBe('MFEFLOW_E212');
+    expect(error.message).toContain('disk full');
+    expect(renames).toBe(3);
+    expect(await exists('new')).toBe(false);
+    expect(await read('edit.txt')).toBe('one\n');
+    expect(await read('gone.txt')).toBe('bye\n');
+    expect(await exists('b.txt')).toBe(false);
+    expect(await leftovers()).toEqual([]);
+  });
+
+  it('says which files it could not restore if the rollback itself fails', async () => {
+    await fs.writeFile(at('edit.txt'), 'one\n');
+    let renames = 0;
+    const failing: FsOps = {
+      ...realFs,
+      rename: (from, to) => {
+        renames += 1;
+        return renames === 2 ? Promise.reject(new Error('boom')) : realFs.rename(from, to);
+      },
+      writeFile: (file, content) =>
+        file === at('edit.txt')
+          ? Promise.reject(new Error('read-only'))
+          : realFs.writeFile(file, content),
+    };
+    const error = await rejection(
+      applyPlan(planOf(patch('edit.txt', 'one\n', 'two\n'), create('b.txt', 'b')), {
+        root,
+        fs: failing,
+      }),
+    );
+    expect(error.message).toContain('could not restore');
+  });
+
+  describe('install step', () => {
+    it('runs after the files are written, with the root and plan', async () => {
+      const seen: string[] = [];
+      const plan = planOf(create('a.txt', 'a'));
+      await applyPlan(plan, {
+        root,
+        install: async (ctx) => {
+          seen.push(await fs.readFile(path.join(ctx.root, 'a.txt'), 'utf8'));
+          expect(ctx.plan).toBe(plan);
+        },
+      });
+      expect(seen).toEqual(['a']);
+    });
+
+    it('does not run in a dry run or when the plan is stale', async () => {
+      const install = vi.fn(() => Promise.resolve());
+      await applyPlan(planOf(create('a.txt', 'a')), { root, install, dryRun: true });
+      await fs.writeFile(at('b.txt'), 'x');
+      await rejection(applyPlan(planOf(create('b.txt', 'b')), { root, install }));
+      expect(install).not.toHaveBeenCalled();
+    });
+
+    it('rolls everything back when it fails (E213), including mfeflow.json', async () => {
+      await saveProject(root, project);
+      const before = await read('mfeflow.json');
+      await fs.writeFile(at('edit.txt'), 'one\n');
+      const error = await rejection(
+        applyPlan(
+          {
+            ...planOf(create('a.txt', 'a'), patch('edit.txt', 'one\n', 'two\n')),
+            features: [{ name: 'tsconfig', version: '1.0.0' }],
+          },
+          { root, project, install: () => Promise.reject(new Error('ENOTFOUND registry')) },
+        ),
+      );
+      expect(error.code).toBe('MFEFLOW_E213');
+      expect(error.message).toContain('ENOTFOUND');
+      expect(await exists('a.txt')).toBe(false);
+      expect(await read('edit.txt')).toBe('one\n');
+      expect(await read('mfeflow.json')).toBe(before);
+    });
+  });
+
+  describe('mfeflow.json', () => {
+    it('records the feature and file hashes in the same transaction', async () => {
+      await saveProject(root, project);
+      const result = await applyPlan(
+        {
+          ...planOf(create('apps/shell/src/consent.ts', 'consent\n')),
+          features: [{ name: 'analytics-gtm', version: '0.3.0', options: { consent: 'denied' } }],
+        },
+        { root, project },
+      );
+      const saved = await loadProject(root);
+      expect(saved.features['analytics-gtm']).toEqual({
+        version: '0.3.0',
+        options: { consent: 'denied' },
+      });
+      expect(saved.files).toEqual({ 'apps/shell/src/consent.ts': hashContent('consent\n') });
+      expect(saved).toMatchObject(result.project ?? {});
+      expect(result.written).toContain('mfeflow.json');
+    });
+
+    it('creates mfeflow.json for a new project', async () => {
+      await applyPlan(planOf(create('a.txt', 'a')), { root, project });
+      expect((await loadProject(root)).scope).toBe('@shopco');
+    });
+
+    it('does not rewrite mfeflow.json when nothing changes in it', async () => {
+      await saveProject(root, project);
+      const result = await applyPlan(planOf(create('a.txt', 'a', false)), { root, project });
+      expect(result.written).toEqual(['a.txt']);
+    });
+  });
+});
