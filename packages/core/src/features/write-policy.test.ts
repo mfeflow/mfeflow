@@ -4,6 +4,7 @@ import {
   assertThirdPartyPath,
   assertWritable,
   isProtectedPath,
+  isTestFilePath,
   policyKey,
 } from './write-policy.js';
 
@@ -92,6 +93,53 @@ describe('assertWritable for every feature', () => {
 const thirdPartyCode = (relative: string, joined = relative) =>
   thrown(() => assertThirdPartyPath(relative, joined)).code;
 
+describe('isTestFilePath', () => {
+  it('matches the names and folders a test runner collects, in any case', () => {
+    for (const file of [
+      'src/test.js',
+      'src/spec.js',
+      'src/Test.JS',
+      'src/a.test.ts',
+      'src/a.SPEC.tsx',
+      'src/a.test.d.ts',
+      'src/a-test.js',
+      'src/a_test.js',
+      'src/a_spec.js',
+      'src/a-spec.ts',
+      'src/test-utils.ts',
+      'src/test_helpers.ts',
+      'src/spec-a.ts',
+      'src/test/a.ts',
+      'src/tests/deep/a.ts',
+      'src/__tests__/a.ts',
+      'src/Tests/a.ts',
+      'src/spec/a.ts',
+      'src/specs/a.ts',
+      'src/a.bench.ts',
+      'src/vitest.config.ts',
+    ]) {
+      expect(isTestFilePath(file), file).toBe(true);
+    }
+  });
+
+  it('leaves ordinary names alone, including ones that merely contain the word', () => {
+    for (const file of [
+      'src/a.ts',
+      'src/latest.ts',
+      'src/contest.ts',
+      'src/attestation.ts',
+      'src/inspect.ts',
+      'src/specimen.ts',
+      'src/testing.ts',
+      'src/test',
+      'src/protest/a.ts',
+      'docs/x.md',
+    ]) {
+      expect(isTestFilePath(file), file).toBe(false);
+    }
+  });
+});
+
 describe('assertThirdPartyPath', () => {
   it('allows source, public assets and docs, in any depth', () => {
     for (const file of ['src/a.ts', 'src/platform/consent.tsx', 'public/logo.svg', 'docs/x.md']) {
@@ -139,6 +187,9 @@ describe('assertThirdPartyPath', () => {
       'src/a.SPEC.tsx',
       'src/__tests__/a.ts',
       'src/vitest.config.ts',
+      'src/test.js',
+      'src/a_test.js',
+      'src/tests/a.ts',
     ]) {
       expect(thirdPartyCode(file), file).toBe('MFEFLOW_E203');
     }

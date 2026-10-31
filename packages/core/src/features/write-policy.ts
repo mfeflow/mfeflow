@@ -76,8 +76,18 @@ export function assertWritable(file: string): void {
 const THIRD_PARTY_FOLDERS = new Set(['src', 'public', 'docs']);
 const PLAIN_SEGMENT = /^[a-z0-9][a-z0-9._-]*$/;
 const WINDOWS_SHORT_NAME = /~[0-9]/;
-/** Files a test runner or a tool config loader would pick up by name. */
-const PICKED_UP_BY_NAME = /\.(test|spec|bench|config)\.[a-z0-9]+$/;
+/** File names a test runner or a tool config loader would pick up: `test.js`, `a.test.ts`, `a-spec.js`, `test-utils.ts`, `vite.config.ts`. */
+const TEST_OR_CONFIG_NAME =
+  /^(?:test|spec)(?:[._-].*)?\.[a-z0-9]+$|[._-](?:test|spec)(?:\.[a-z0-9]+)+$|\.(?:bench|config)\.[a-z0-9]+$/;
+/** Folders a test runner collects everything from. */
+const TEST_FOLDERS = new Set(['test', 'tests', '__tests__', 'spec', 'specs', '__specs__']);
+
+/** True for a file a test runner or tool config loader would pick up by name or by folder. */
+export function isTestFilePath(file: string): boolean {
+  const segments = policyKey(file).split('/');
+  const name = segments.pop() ?? '';
+  return TEST_OR_CONFIG_NAME.test(name) || segments.some((segment) => TEST_FOLDERS.has(segment));
+}
 
 function deny(file: string, why: string): never {
   throw new MfeflowError('E203', `"${file}" ${why}`);
@@ -100,7 +110,7 @@ export function assertThirdPartyPath(relative: string, joined: string): void {
       deny(relative, 'has a name that is not plain lower-case ASCII (letters, digits, . _ -)');
     }
   }
-  if (isProtectedPath(relative) || PICKED_UP_BY_NAME.test(key)) {
+  if (isProtectedPath(relative) || isTestFilePath(relative)) {
     deny(relative, 'is a protected file (package manager, git hook, test or tool config)');
   }
   if (policyKey(joined).split('/')[0] === 'features') {
