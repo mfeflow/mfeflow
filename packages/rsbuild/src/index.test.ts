@@ -263,6 +263,32 @@ describe('eager: false', () => {
     }).not.toThrow();
   });
 
+  it.each([
+    ['a line comment', "// import('./bootstrap')\nimport './bootstrap';"],
+    ['a block comment', "/* void import('./bootstrap'); */\nimport './bootstrap';"],
+    ['a string', "const hint = \"call import('./bootstrap')\";\nimport './bootstrap';"],
+    ['a template', "const hint = `import('./bootstrap')`;\nimport './bootstrap';"],
+    ['a package import', "void import('react');"],
+    ['a computed import', 'void import(name);'],
+    ['a method named import', "loader.import('./bootstrap');"],
+  ])('does not take %s for a bootstrap boundary', (_label, source) => {
+    expect(() => {
+      assertAsyncBoundary('/app/src/index.ts', () => source);
+    }).toThrow(/needs an async bootstrap boundary/);
+  });
+
+  it.each([
+    "void import('./bootstrap');",
+    'void import("../bootstrap.js");',
+    "void import (\n  /* lazy */ './bootstrap'\n);",
+    "// not this: import('react')\nvoid import('./bootstrap');",
+    "const s = 'it\\'s';\nvoid import('./bootstrap');",
+  ])('accepts a dynamic import of a relative module: %s', (source) => {
+    expect(() => {
+      assertAsyncBoundary('/app/src/index.ts', () => source);
+    }).not.toThrow();
+  });
+
   it('is checked by createShellConfig against the real entry file', () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'mfeflow-eager-'));
     fs.mkdirSync(path.join(cwd, 'src'));

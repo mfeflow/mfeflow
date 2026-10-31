@@ -207,6 +207,57 @@ export function shellFederationOptions(
   };
 }
 
+const IDENT = /[\w$]/;
+
+/** Index after the whitespace and comments starting at `at`. */
+function skipTrivia(source: string, at: number): number {
+  let i = at;
+  for (;;) {
+    while (i < source.length && /\s/.test(source.charAt(i))) i++;
+    if (source.startsWith('//', i)) {
+      const end = source.indexOf('\n', i);
+      i = end === -1 ? source.length : end;
+    } else if (source.startsWith('/*', i)) {
+      const end = source.indexOf('*/', i + 2);
+      i = end === -1 ? source.length : end + 2;
+    } else return i;
+  }
+}
+
+/** Index after the string or template literal opening at `at`, and its text. */
+function readString(source: string, at: number): { end: number; text: string } {
+  const quote = source.charAt(at);
+  let i = at + 1;
+  while (i < source.length && source.charAt(i) !== quote) i += source.charAt(i) === '\\' ? 2 : 1;
+  return { end: i + 1, text: source.slice(at + 1, i) };
+}
+
+/** True when `source` calls `import('./x')` or `import('../x')`, outside comments and strings. */
+function importsRelativeModule(source: string): boolean {
+  let i = 0;
+  while (i < source.length) {
+    const c = source.charAt(i);
+    if (c === '/' && (source.startsWith('//', i) || source.startsWith('/*', i))) {
+      i = skipTrivia(source, i);
+    } else if (c === '"' || c === "'" || c === '`') {
+      i = readString(source, i).end;
+    } else if (
+      source.startsWith('import', i) &&
+      !IDENT.test(source.charAt(i - 1)) &&
+      source.charAt(i - 1) !== '.' &&
+      !IDENT.test(source.charAt(i + 6))
+    ) {
+      const open = skipTrivia(source, i + 6);
+      const arg = skipTrivia(source, open + 1);
+      if (source.charAt(open) === '(' && /["']/.test(source.charAt(arg))) {
+        if (/^\.\.?\//.test(readString(source, arg).text)) return true;
+      }
+      i += 6;
+    } else i++;
+  }
+  return false;
+}
+
 /**
  * Throws when a shell built with `eager: false` has an entry that never calls
  * `import()`: its shared singletons would not be ready when the entry runs.
@@ -218,9 +269,9 @@ export function assertAsyncBoundary(
     fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : undefined,
 ): void {
   const source = read(entryFile);
-  if (source === undefined || /\bimport\s*\(/.test(source)) return;
+  if (source === undefined || importsRelativeModule(source)) return;
   throw new Error(
-    `@mfeflow/rsbuild: eager: false needs an async bootstrap boundary, but ${entryFile} has no import(). ` +
+    `@mfeflow/rsbuild: eager: false needs an async bootstrap boundary, but ${entryFile} has no import() of a relative module. ` +
       `Make it \`import('./bootstrap')\` (shared singletons load asynchronously, so a synchronous bootstrap fails with ` +
       `"Shared module is not available for eager consumption"), or drop eager: false.`,
   );
