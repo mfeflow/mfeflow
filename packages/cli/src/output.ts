@@ -73,13 +73,56 @@ export interface ReportResult {
   findings: Finding[];
 }
 
+export interface ShellBudget {
+  name: string;
+  /** Gzip KB of the scripts index.html loads. */
+  initialKb: number;
+  scripts: number;
+  /** Your pages built as one app (budget.baselineKb), or null when not set. */
+  baselineKb: number | null;
+  /** baselineKb plus what the shell may add; null without a baseline. */
+  budgetKb: number | null;
+  /** Null when there is nothing to compare with. */
+  pass: boolean | null;
+}
+
+export interface RouteBudget {
+  route: string;
+  expose: string | null;
+  /** Entry plus the expose's synchronous JS, gzip KB. */
+  kb: number;
+  /** mfe.json budgets.initialJsKb, or null. */
+  budgetKb: number | null;
+  pass: boolean | null;
+}
+
+export interface RemoteBudget {
+  name: string;
+  entryKb: number;
+  /** What a remote may add (cost model, 10 KB). */
+  budgetKb: number;
+  pass: boolean;
+  routes: RouteBudget[];
+}
+
+export interface BudgetResult {
+  ok: boolean;
+  command: 'budget';
+  root: string;
+  model: { lcpDeltaMs: number; shellKb: number; remoteKb: number };
+  shells: ShellBudget[];
+  remotes: RemoteBudget[];
+  findings: Finding[];
+}
+
 export interface FailureResult {
   ok: false;
   error: ErrorReport;
   exitCode: number;
 }
 
-export type CliResult = InitResult | AddResult | FeaturesResult | ReportResult | FailureResult;
+export type CliResult =
+  InitResult | AddResult | FeaturesResult | ReportResult | BudgetResult | FailureResult;
 
 /** The plan as plain data for `--json`, without file contents. Features are listed once. */
 export function planReport(plan: Plan): PlanReport {
@@ -204,6 +247,36 @@ function checkReport(c: Check, value: Obj): void {
     c.add('ok', 'must be true exactly when there are no errors');
 }
 
+function checkBudget(c: Check, value: Obj): void {
+  c.string(value, 'root', '');
+  const model = value.model;
+  if (!isObj(model)) c.add('model', 'must be an object');
+  else
+    for (const key of ['lcpDeltaMs', 'shellKb', 'remoteKb']) {
+      if (typeof model[key] !== 'number') c.add(`model.${key}`, 'must be a number');
+    }
+  c.objects(value, 'shells', '', (s, p) => {
+    c.string(s, 'name', p);
+    for (const key of ['initialKb', 'scripts']) {
+      if (typeof s[key] !== 'number') c.add(`${p}${key}`, 'must be a number');
+    }
+  });
+  c.objects(value, 'remotes', '', (r, p) => {
+    c.string(r, 'name', p);
+    c.boolean(r, 'pass', p);
+    for (const key of ['entryKb', 'budgetKb']) {
+      if (typeof r[key] !== 'number') c.add(`${p}${key}`, 'must be a number');
+    }
+    c.objects(r, 'routes', p, (route, q) => {
+      c.string(route, 'route', q);
+      if (typeof route.kb !== 'number') c.add(`${q}kb`, 'must be a number');
+    });
+  });
+  c.objects(value, 'findings', '', (f, p) => {
+    for (const key of ['code', 'message', 'fix', 'docs']) c.string(f, key, p);
+  });
+}
+
 /** Checks a document the CLI printed with `--json`. Returns the problems; empty means valid. */
 export function validateResult(value: unknown): Issue[] {
   const c = new Check();
@@ -254,8 +327,11 @@ export function validateResult(value: unknown): Issue[] {
     case 'check-compat':
       checkReport(c, value);
       break;
+    case 'budget':
+      checkBudget(c, value);
+      break;
     default:
-      c.add('command', 'must be init, add, features, doctor, validate or check-compat');
+      c.add('command', 'must be init, add, features, doctor, validate, check-compat or budget');
   }
   return c.issues;
 }

@@ -10,6 +10,7 @@ import {
   runValidate,
   VALIDATE_ARGS,
 } from './commands/doctor';
+import { BUDGET_ARGS, runBudget } from './commands/budget';
 import { FEATURES_ARGS, runFeatures } from './commands/features';
 import { INIT_ARGS, runInit } from './commands/init';
 import { Cancelled, EXIT, exitCodeFor, reportOf, unexpectedReport, unexpectedText } from './exit';
@@ -95,6 +96,14 @@ export const COMMANDS: readonly Command[] = [
     args: COMPAT_ARGS,
     examples: ['mfeflow check-compat', 'mfeflow check-compat --json'],
     run: runCheckCompat,
+  },
+  {
+    name: 'budget',
+    summary: 'measure the built JS of the shell and each remote against the cost-model budget',
+    usage: 'mfeflow budget [options]',
+    args: BUDGET_ARGS,
+    examples: ['mfeflow budget', 'mfeflow budget --json', 'mfeflow budget --dist build'],
+    run: runBudget,
   },
 ];
 

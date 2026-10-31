@@ -4,6 +4,7 @@ export { EXIT, exitCodeFor } from './exit';
 export { validateResult } from './output';
 export type {
   AddResult,
+  BudgetResult,
   CliResult,
   FailureResult,
   FeatureInfo,
