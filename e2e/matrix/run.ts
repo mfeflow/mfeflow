@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { combinations, find, presetOf, stepsFor, type Combo } from './combos.ts';
+import { envChecks } from './env-checks.ts';
 
 const repo = path.resolve(import.meta.dirname, '../..');
 const cli = path.join(repo, 'packages/cli/bin/mfeflow.js');
@@ -56,6 +57,14 @@ async function check(combo: Combo, work: string): Promise<string | undefined> {
   if (generate !== 0) return 'generate';
   for (const step of stepsFor(combo)) {
     console.log(`\n--- ${combo.id}: ${step.name}`);
+    if (step.command === 'internal') {
+      const problem = envChecks(project, cli, combo.validator);
+      if (problem) {
+        console.error(problem);
+        return step.name;
+      }
+      continue;
+    }
     const code =
       step.command === 'mfeflow'
         ? // oxlint-disable-next-line no-await-in-loop -- the steps depend on each other
