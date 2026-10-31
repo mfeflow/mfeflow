@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { versionIn } from './inspect';
+import { expandGlobs, versionIn } from './inspect';
 import { removeDir, tempDir } from './testing';
 
 const dirs: string[] = [];
@@ -49,5 +49,53 @@ describe('versionIn', () => {
     expect(await versionIn(view(app), 'left-pad', root)).toBeUndefined();
     expect(await versionIn(view(app, { 'left-pad': '^1.0.0' }), 'left-pad', root)).toBe('1.0.0');
     expect(await versionIn({ dir: app, pkg: undefined }, 'react', root)).toBe('19.3.1');
+  });
+});
+
+describe('expandGlobs', () => {
+  async function folders(...rels: string[]): Promise<string> {
+    const root = await tempDir();
+    dirs.push(root);
+    await Promise.all(rels.map((rel) => fs.mkdir(path.join(root, rel), { recursive: true })));
+    return root;
+  }
+
+  it('expands dir/* and plain paths, once each', async () => {
+    const root = await folders('apps/a', 'apps/b', 'packages/ui', 'node_modules/x');
+    expect(await expandGlobs(root, ['apps/*', 'packages/ui', 'apps/a'])).toEqual([
+      'apps/a',
+      'apps/b',
+      'packages/ui',
+    ]);
+  });
+
+  it('applies ! exclusions, by path and by pattern', async () => {
+    const root = await folders(
+      'apps/a',
+      'apps/b',
+      'packages/ui',
+      'packages/legacy',
+      'tools/x/fixtures',
+    );
+    expect(
+      await expandGlobs(root, ['apps/*', 'packages/*', 'tools/*', '!packages/legacy', '!apps/b']),
+    ).toEqual(['apps/a', 'packages/ui', 'tools/x']);
+    expect(await expandGlobs(root, ['apps/*', 'packages/*', '!**/l*'])).toEqual([
+      'apps/a',
+      'apps/b',
+      'packages/ui',
+    ]);
+    expect(await expandGlobs(root, ['apps/*', 'tools/x/fixtures', '!tools/**'])).toEqual([
+      'apps/a',
+      'apps/b',
+    ]);
+  });
+
+  it('does not let an exclusion match part of a name or an unrelated folder', async () => {
+    const root = await folders('packages/ui', 'packages/ui-kit', 'other/ui');
+    expect(await expandGlobs(root, ['packages/*', 'other/*', '!packages/ui'])).toEqual([
+      'packages/ui-kit',
+      'other/ui',
+    ]);
   });
 });

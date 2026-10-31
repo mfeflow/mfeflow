@@ -126,9 +126,27 @@ async function subfolders(dir: string): Promise<string[]> {
   }
 }
 
-/** Workspace folders for the simple globs pnpm projects use: `dir/*` and plain paths. */
-async function expandGlobs(root: string, globs: readonly string[]): Promise<string[]> {
+/** A `!` pattern as a regex over a folder's path from the root: `*` stays in a segment, `**` crosses them. */
+function excluder(pattern: string): RegExp {
+  const body = pattern
+    .replace(/\/$/, '')
+    .split('/')
+    .map((part) =>
+      part === '**'
+        ? '\u0000'
+        : part.replaceAll(/[.+?^${}()|[\]\\]/g, String.raw`\$&`).replaceAll('*', '[^/]*'),
+    )
+    .join('/')
+    .replaceAll('\u0000/', '(?:.*/)?')
+    .replaceAll('/\u0000', '(?:/.*)?')
+    .replaceAll('\u0000', '.*');
+  return new RegExp(`^${body}$`);
+}
+
+/** Workspace folders for the simple globs pnpm projects use: `dir/*`, plain paths, and `!` exclusions. */
+export async function expandGlobs(root: string, globs: readonly string[]): Promise<string[]> {
   const out: string[] = [];
+  const excluded = globs.filter((g) => g.startsWith('!')).map((g) => excluder(g.slice(1)));
   for (const glob of globs) {
     if (glob.startsWith('!')) continue;
     const clean = glob.replace(/\/$/, '');
@@ -140,7 +158,7 @@ async function expandGlobs(root: string, globs: readonly string[]): Promise<stri
       out.push(clean);
     }
   }
-  return [...new Set(out)];
+  return [...new Set(out)].filter((rel) => !excluded.some((pattern) => pattern.test(rel)));
 }
 
 function resolveSpec(name: string, spec: string, catalogs: Catalogs): string {
