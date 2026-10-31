@@ -78,7 +78,9 @@ export async function applyPlan(plan: Plan, options: ApplyOptions): Promise<Appl
   } catch (cause) {
     failure = { code: 'E212', cause };
   }
+  let snapshot: Snapshot | undefined;
   if (!failure && options.install) {
+    snapshot = await snapshotInstallFiles(ops, options.root, changes);
     try {
       await options.install({ root: options.root, plan });
     } catch (cause) {
@@ -86,11 +88,26 @@ export async function applyPlan(plan: Plan, options: ApplyOptions): Promise<Appl
     }
   }
   if (failure) {
+    const fromInstall = snapshot ? await restoreSnapshot(ops, options.root, snapshot) : undefined;
     const stuck = await rollback(ops, journal, [...staged.values()], createdDirs);
-    const restore = stuck.length > 0 ? `; could not restore ${stuck.join(', ')}` : '';
-    throw new MfeflowError(failure.code, `${messageOf(failure.cause)}${restore}`, {
-      cause: failure.cause,
-    });
+    const written = journal.length;
+    const notes: string[] = [];
+    if (failure.code === 'E213') {
+      notes.push(`restored the ${String(written)} files the plan wrote`);
+      const changed = fromInstall?.restored ?? [];
+      notes.push(
+        changed.length > 0
+          ? `restored what the install changed: ${changed.join(', ')}`
+          : 'the install changed no tracked file',
+      );
+      notes.push(
+        `node_modules was not rolled back; run ${options.project?.packageManager ?? 'your package manager'} install to match the restored files`,
+      );
+    }
+    const unrestored = [...stuck, ...(fromInstall?.stuck ?? [])];
+    if (unrestored.length > 0) notes.push(`could not restore ${unrestored.join(', ')}`);
+    const detail = [messageOf(failure.cause), ...notes].join('; ');
+    throw new MfeflowError(failure.code, detail, { cause: failure.cause });
   }
   return { written: changes.map((c) => c.path), project };
 }
@@ -196,4 +213,59 @@ async function deepestRealpath(ops: FsOps, target: string): Promise<string> {
     }
     throw new MfeflowError('E106', `${target}: ${messageOf(error)}`, { cause: error });
   }
+}
+
+/** Lockfiles the package managers write. Binary ones (bun.lockb) are not text and are left alone. */
+const LOCKFILES = ['pnpm-lock.yaml', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock'];
+
+/** Project-relative path to content (null: the file did not exist). */
+type Snapshot = Map<string, string | null>;
+
+/**
+ * What an install may rewrite: the root package.json, workspace file and
+ * lockfiles, plus every package.json the plan wrote and the lockfiles beside it
+ * (for projects whose apps are installed on their own).
+ */
+async function snapshotInstallFiles(
+  ops: FsOps,
+  root: string,
+  changes: FileChange[],
+): Promise<Snapshot> {
+  const files = new Set(['package.json', 'pnpm-workspace.yaml', ...LOCKFILES]);
+  for (const { path: changed } of changes) {
+    if (path.posix.basename(changed) !== 'package.json') continue;
+    files.add(changed);
+    for (const lock of LOCKFILES) files.add(path.posix.join(path.posix.dirname(changed), lock));
+  }
+  const snapshot: Snapshot = new Map();
+  await inOrder([...files], async (file) => {
+    snapshot.set(file, (await readIfExists(ops, resolveInRoot(root, file))) ?? null);
+  });
+  return snapshot;
+}
+
+/** Puts back every snapshotted file the install changed, and reports which. */
+async function restoreSnapshot(
+  ops: FsOps,
+  root: string,
+  snapshot: Snapshot,
+): Promise<{ restored: string[]; stuck: string[] }> {
+  const restored: string[] = [];
+  const stuck: string[] = [];
+  await inOrder(
+    [...snapshot].toSorted(([a], [b]) => (a < b ? -1 : 1)),
+    async ([file, content]) => {
+      const absolute = resolveInRoot(root, file);
+      try {
+        const now = (await readIfExists(ops, absolute)) ?? null;
+        if (now === content) return;
+        if (content === null) await ops.rm(absolute);
+        else await restoreFile(ops, absolute, content);
+        restored.push(file);
+      } catch {
+        stuck.push(file);
+      }
+    },
+  );
+  return { restored, stuck };
 }

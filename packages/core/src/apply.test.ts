@@ -67,6 +67,12 @@ async function leftovers(): Promise<string[]> {
   return entries.filter((e) => e.endsWith('.tmp'));
 }
 
+/** An install step that makes `changes` and then fails. */
+const fails = (changes: () => Promise<void>) => async () => {
+  await changes();
+  throw new Error('ERR_PNPM_FETCH_404');
+};
+
 describe('applyPlan', () => {
   it('creates, patches and deletes', async () => {
     await fs.writeFile(at('edit.txt'), 'one\n');
@@ -331,6 +337,90 @@ describe('applyPlan', () => {
       expect(await exists('a.txt')).toBe(false);
       expect(await read('edit.txt')).toBe('one\n');
       expect(await read('mfeflow.json')).toBe(before);
+    });
+  });
+
+  describe('install step changes', () => {
+    it('restores the lockfiles, package.json and workspace file the install touched, and names them', async () => {
+      await fs.writeFile(at('pnpm-lock.yaml'), 'lock v1\n');
+      await fs.writeFile(at('package.json'), '{"name":"root"}\n');
+      await fs.writeFile(at('pnpm-workspace.yaml'), 'packages: []\n');
+      await fs.writeFile(at('yarn.lock'), 'yarn lock\n');
+      await fs.writeFile(at('package-lock.json'), 'untouched\n');
+      await fs.writeFile(at('edit.txt'), 'one\n');
+      const error = await rejection(
+        applyPlan(
+          planWithProject(
+            null,
+            create('apps/shell/src/a.ts', 'a'),
+            patch('edit.txt', 'one\n', 'two\n'),
+          ),
+          {
+            root,
+            project: { ...project, packageManager: 'pnpm' },
+            install: fails(async () => {
+              await fs.writeFile(at('pnpm-lock.yaml'), 'lock v2 with new packages\n');
+              await fs.writeFile(at('package.json'), '{"name":"root","dependencies":{}}\n');
+              await fs.writeFile(at('pnpm-workspace.yaml'), 'packages: [x]\n');
+              await fs.rm(at('yarn.lock'));
+              await fs.writeFile(at('npm-shrinkwrap.json'), '{}');
+            }),
+          },
+        ),
+      );
+      expect(error.code).toBe('MFEFLOW_E213');
+      expect(await read('pnpm-lock.yaml')).toBe('lock v1\n');
+      expect(await read('package.json')).toBe('{"name":"root"}\n');
+      expect(await read('pnpm-workspace.yaml')).toBe('packages: []\n');
+      expect(await read('yarn.lock')).toBe('yarn lock\n');
+      expect(await read('package-lock.json')).toBe('untouched\n');
+      expect(await exists('npm-shrinkwrap.json')).toBe(false);
+      expect(await exists('apps/shell/src/a.ts')).toBe(false);
+      expect(await exists('mfeflow.json')).toBe(false);
+      expect(await read('edit.txt')).toBe('one\n');
+      expect(error.message).toContain('ERR_PNPM_FETCH_404');
+      expect(error.message).toContain('restored the 3 files the plan wrote');
+      expect(error.message).toContain(
+        'restored what the install changed: npm-shrinkwrap.json, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, yarn.lock',
+      );
+      expect(error.message).not.toContain('package-lock.json');
+      expect(error.message).toContain('node_modules was not rolled back');
+      expect(error.message).toContain('pnpm install');
+      expect(await leftovers()).toEqual([]);
+    });
+
+    it('also covers the lockfiles beside every package.json the plan patches', async () => {
+      await fs.mkdir(at('apps/shell'), { recursive: true });
+      await fs.writeFile(at('apps/shell/package.json'), '{}\n');
+      await fs.writeFile(at('apps/shell/package-lock.json'), 'lock v1\n');
+      const error = await rejection(
+        applyPlan(planOf(patch('apps/shell/package.json', '{}\n', '{"a":1}\n')), {
+          root,
+          install: fails(async () => {
+            await fs.writeFile(at('apps/shell/package-lock.json'), 'lock v2\n');
+          }),
+        }),
+      );
+      expect(await read('apps/shell/package-lock.json')).toBe('lock v1\n');
+      expect(await read('apps/shell/package.json')).toBe('{}\n');
+      expect(error.message).toContain('apps/shell/package-lock.json');
+      expect(error.message).toContain('your package manager install');
+    });
+
+    it('says when the install changed nothing else', async () => {
+      const error = await rejection(
+        applyPlan(planOf(create('a.txt', 'a')), { root, install: fails(async () => {}) }),
+      );
+      expect(error.message).toContain('the install changed no tracked file');
+    });
+
+    it('keeps what the install wrote when it succeeds', async () => {
+      await fs.writeFile(at('pnpm-lock.yaml'), 'lock v1\n');
+      await applyPlan(planOf(create('a.txt', 'a')), {
+        root,
+        install: () => fs.writeFile(at('pnpm-lock.yaml'), 'lock v2\n'),
+      });
+      expect(await read('pnpm-lock.yaml')).toBe('lock v2\n');
     });
   });
 

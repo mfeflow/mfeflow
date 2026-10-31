@@ -82,7 +82,7 @@ export const ERROR_CATALOGUE = {
   },
   E213: {
     title: 'Installing dependencies failed',
-    fix: 'Everything already written was rolled back. Check your network and package manager, then run the command again.',
+    fix: 'The files the plan wrote, and any package.json, lockfile or workspace file the install changed, were restored. node_modules is not rolled back, so run your package manager install once. Then check your network and package manager and run the command again.',
   },
   E214: {
     title: 'A feature option is invalid',
