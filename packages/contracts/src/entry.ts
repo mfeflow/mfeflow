@@ -60,6 +60,8 @@ export interface RegistryIndexRemote {
   previous?: string;
   /** Older versions served, newest first and bounded. */
   history?: string[];
+  /** Set after a rollback: the version that was served and was moved away from. Never a rollback target. */
+  rolledBackFrom?: string;
 }
 
 /** What the shell fetches at boot. */
@@ -150,6 +152,7 @@ export function registryRemoteIssues(value: unknown): RegistryIssue[] {
   stringField(value, 'version', out);
   stringField(value, 'owner', out);
   stringField(value, 'previous', out);
+  stringField(value, 'rolledBackFrom', out);
   const history = value.history;
   if (history !== undefined) {
     if (!Array.isArray(history))
@@ -191,6 +194,7 @@ export const REGISTRY_REMOTE_FIELDS: readonly string[] = [
   'routes',
   'previous',
   'history',
+  'rolledBackFrom',
 ];
 
 /** A copy of `remote` with only the whitelisted fields that are set. */

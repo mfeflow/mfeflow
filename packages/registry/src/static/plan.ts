@@ -1,6 +1,7 @@
-import { validateRegistryIndex, type RegistryIndex } from '@mfeflow/contracts';
+import crypto from 'node:crypto';
+import { ROUTE_OVERLAP, validateRegistryIndex, type RegistryIndex } from '@mfeflow/contracts';
 import { artifactPrefix, buildIndex, indexKey, type DeployInput, type GateFailure } from './build';
-import { assertSafeKey, HostError, type RegistryHost } from './host';
+import { assertSafeKey, HostError, PreconditionFailedError, type RegistryHost } from './host';
 
 export const IMMUTABLE = 'public, max-age=31536000, immutable';
 export const INDEX_CACHE_CONTROL = 'public, max-age=60';
@@ -11,6 +12,8 @@ export interface Upload {
   contentType: string;
   cacheControl: string;
   ifMatch?: string;
+  ifNoneMatch?: '*';
+  sha256?: string;
 }
 
 export interface DeployPlan {
@@ -19,10 +22,14 @@ export interface DeployPlan {
   index: RegistryIndex;
   indexKey: string;
   failures: GateFailure[];
+  warnings: string[];
 }
 
 export interface PlanInput extends DeployInput {
-  /** The ETag of `currentIndex` as the host returned it; the index upload is conditional on it. */
+  /**
+   * The ETag of `currentIndex` as the host returned it; the index upload is conditional on it.
+   * Required with `currentIndex`. With neither, the index is created only if none exists yet.
+   */
   currentIndexEtag?: string;
   /** `Cache-Control` for the index. Its length is how long a rollback takes to reach users. */
   indexCacheControl?: string;
@@ -57,6 +64,9 @@ export function contentTypeOf(key: string): string {
   );
 }
 
+const sha256Of = (body: Uint8Array | string): string =>
+  crypto.createHash('sha256').update(body).digest('hex');
+
 const ENV = /^[a-z][a-z0-9-]*$/;
 
 /**
@@ -64,7 +74,11 @@ const ENV = /^[a-z][a-z0-9-]*$/;
  * result to `applyPlan`. A failed gate leaves `uploads` empty.
  */
 export function planDeploy(input: PlanInput): DeployPlan {
-  const { index, failures } = buildIndex(input);
+  if (input.currentIndex !== undefined && input.currentIndexEtag === undefined)
+    throw new HostError(
+      'currentIndex needs currentIndexEtag, so the index is not overwritten blindly',
+    );
+  const { index, failures, warnings } = buildIndex(input);
   const key = indexKey(input.env);
   if (!ENV.test(input.env)) {
     failures.push({
@@ -74,23 +88,32 @@ export function planDeploy(input: PlanInput): DeployPlan {
       version: input.version,
     });
   }
-  if (failures.length > 0) return { uploads: [], index, indexKey: key, failures };
+  if (failures.length > 0) return { uploads: [], index, indexKey: key, failures, warnings };
   const prefix = artifactPrefix(input.remote.name, input.version);
   const artifacts = Object.entries(input.files)
     .toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([file, body]): Upload => {
       const target = `${prefix}/${file}`;
       assertSafeKey(target);
-      return { key: target, body, contentType: contentTypeOf(file), cacheControl: IMMUTABLE };
+      return {
+        key: target,
+        body,
+        contentType: contentTypeOf(file),
+        cacheControl: IMMUTABLE,
+        ifNoneMatch: '*',
+        sha256: sha256Of(body),
+      };
     });
   const indexUpload: Upload = {
     key,
     body: `${JSON.stringify(index, null, 2)}\n`,
     contentType: 'application/json',
     cacheControl: input.indexCacheControl ?? INDEX_CACHE_CONTROL,
-    ...(input.currentIndexEtag === undefined ? {} : { ifMatch: input.currentIndexEtag }),
+    ...(input.currentIndexEtag === undefined
+      ? { ifNoneMatch: '*' as const }
+      : { ifMatch: input.currentIndexEtag }),
   };
-  return { uploads: [...artifacts, indexUpload], index, indexKey: key, failures };
+  return { uploads: [...artifacts, indexUpload], index, indexKey: key, failures, warnings };
 }
 
 /** The index a host serves for `env`, with its ETag, or an empty one when none is published yet. */
@@ -101,7 +124,8 @@ export async function readIndex(
   const stored = await host.get(indexKey(env));
   if (stored === undefined) return { index: undefined };
   const parsed: unknown = JSON.parse(new TextDecoder().decode(stored.body));
-  const issues = validateRegistryIndex(parsed);
+  // Existing route overlaps are not a reason to refuse: the next deploy may be the one that fixes them.
+  const issues = validateRegistryIndex(parsed).filter((i) => i.code !== ROUTE_OVERLAP);
   if (issues.length > 0)
     throw new HostError(
       `${indexKey(env)} is not a valid registry index: ${issues.map((i) => `${i.path} ${i.message}`).join('; ')}`,
@@ -113,16 +137,29 @@ export async function readIndex(
 
 export interface ApplyResult {
   uploaded: string[];
-  /** Already on the host with the same size: a retry of an earlier deploy. */
+  /** Already on the host with identical content: a retry of an earlier deploy. */
   skipped: string[];
 }
 
-const sizeOf = (body: Uint8Array | string): number =>
-  typeof body === 'string' ? new TextEncoder().encode(body).length : body.length;
+const differs = (key: string): HostError =>
+  new HostError(`${key} is already published with different content; publish a new version`);
+
+/** True when the artifact is already there with the same content, false when it is absent. */
+async function alreadyPublished(host: RegistryHost, key: string, hash: string): Promise<boolean> {
+  const existing = await host.head(key);
+  if (existing === undefined) return false;
+  if (existing.sha256 === hash) return true;
+  if (existing.sha256 === undefined)
+    throw new HostError(
+      `${key} is already published and its content cannot be verified; publish a new version`,
+    );
+  throw differs(key);
+}
 
 /**
- * Runs a plan against a host. A version's files are immutable, so an artifact already there with
- * the same size is skipped and one with a different size stops the deploy: publish a new version instead.
+ * Runs a plan against a host. A version's files are immutable: an artifact already there with the
+ * same SHA-256 is skipped, one with different content stops the deploy, and artifacts are written
+ * create-only so a concurrent deploy cannot overwrite them. The index goes last.
  */
 export async function applyPlan(host: RegistryHost, plan: DeployPlan): Promise<ApplyResult> {
   if (plan.failures.length > 0)
@@ -130,21 +167,23 @@ export async function applyPlan(host: RegistryHost, plan: DeployPlan): Promise<A
   const result: ApplyResult = { uploaded: [], skipped: [] };
   for (const upload of plan.uploads) {
     const { key, body, ...options } = upload;
-    if (key !== plan.indexKey) {
-      // oxlint-disable-next-line no-await-in-loop -- uploads run in order, the index last
-      const existing = await host.head(key);
-      if (existing?.size !== undefined && existing.size !== sizeOf(body))
-        throw new HostError(
-          `${key} is already published with different content; publish a new version`,
-        );
-      if (existing !== undefined) {
-        result.skipped.push(key);
-        continue;
-      }
-    }
+    const hash = options.sha256;
     // oxlint-disable-next-line no-await-in-loop -- uploads run in order, the index last
-    await host.put(key, body, options);
-    result.uploaded.push(key);
+    if (hash !== undefined && (await alreadyPublished(host, key, hash))) {
+      result.skipped.push(key);
+      continue;
+    }
+    try {
+      // oxlint-disable-next-line no-await-in-loop -- uploads run in order, the index last
+      await host.put(key, body, options);
+      result.uploaded.push(key);
+    } catch (error) {
+      if (hash === undefined || !(error instanceof PreconditionFailedError)) throw error;
+      // Someone published it between the check and the write: fine if it is the same content.
+      // oxlint-disable-next-line no-await-in-loop -- uploads run in order, the index last
+      if (!(await alreadyPublished(host, key, hash))) throw error;
+      result.skipped.push(key);
+    }
   }
   return result;
 }

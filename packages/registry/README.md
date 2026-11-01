@@ -48,7 +48,11 @@ A deploy that fails a gate uploads nothing. The gates, by code:
 
 Shell versions come from the shell's `mf-manifest.json` `shared` entries, then from `workspaceVersions` for anything it does not list.
 
-Each remote keeps `previous` and the last 10 versions in `history`, so a rollback knows where to go.
+Each remote keeps `previous` and the last 10 versions in `history` (newest first), so a rollback knows where to go.
+
+**Rollback.** Deploying a version that is already in `history` is a rollback. The remote then records the version it left in `rolledBackFrom`, and `previous` and `history` hold only versions older than the one you went back to. Rolling back again goes to the next older version and never returns to the bad one. Deploying a new version clears `rolledBackFrom`.
+
+Warnings (`plan.warnings`) are checks that could not run, for example a shell version of `workspace:*` or a package the shell manifest lists with no version. They do not fail the deploy.
 
 ## What gets uploaded
 
@@ -58,9 +62,9 @@ Each remote keeps `previous` and the last 10 versions in `history`, so a rollbac
 
 ## Hosts
 
-A host is `{ put, get, head, list? }`. The index is written with `If-Match`, so two deploys cannot overwrite each other; the loser gets a clear error and reads the index again.
+A host is `{ put, get, head, list? }`. The index is written with `If-Match` (or `If-None-Match: *` for the first one in an env), so two deploys cannot overwrite each other; the loser gets a `PreconditionFailedError` and reads the index again. `planDeploy` needs `currentIndexEtag` whenever you pass `currentIndex`. Artifacts are written create-only with their SHA-256 stored alongside, so a version can never be replaced with different content.
 
-**A folder.** `localHost(dir)` writes files and refuses any key that leaves `dir` (`..`, absolute paths, drive letters, backslashes).
+**A folder.** `localHost(dir)` writes files (to a temp file, then a rename, so a crash never leaves half a file) and refuses any key that leaves `dir`: `..`, absolute paths, drive letters, backslashes, `:` in a name, Windows device names, and symlinks that point outside.
 
 **S3-compatible storage.** AWS S3, Cloudflare R2 and MinIO, signed with SigV4 on `node:crypto` and the global `fetch`. No SDK.
 
@@ -77,6 +81,24 @@ const host = s3Host({
 ```
 
 A custom `endpoint` uses path-style URLs (`https://host/bucket/key`); set `forcePathStyle` to change either way. Errors never contain the keys or the session token.
+
+The least a deploy needs on the bucket (scope `Resource` to the prefix you use):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject"],
+      "Resource": "arn:aws:s3:::my-registry/*"
+    },
+    { "Effect": "Allow", "Action": "s3:ListBucket", "Resource": "arn:aws:s3:::my-registry" }
+  ]
+}
+```
+
+Without `s3:ListBucket`, S3 answers 403 instead of 404 for a key that does not exist. The host does not guess: it throws an `AccessDeniedError` that names the missing permission.
 
 **GitHub Pages.** Not an adapter. Deploy into a folder with `localHost` and let a Pages workflow publish the folder. Pages caches every file for 10 minutes and you cannot change that, so a rollback there takes about 11 minutes. Use a bucket if that is too slow.
 

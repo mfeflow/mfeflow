@@ -1,4 +1,5 @@
 import {
+  AccessDeniedError,
   assertSafeKey,
   HostError,
   PreconditionFailedError,
@@ -28,6 +29,10 @@ export interface S3Options {
 type Fetch = typeof fetch;
 
 const etagOf = (res: Response): string | undefined => res.headers.get('etag') ?? undefined;
+
+async function release(res: Response): Promise<void> {
+  await res.body?.cancel().catch(() => undefined);
+}
 
 const AWS_ENDPOINT = /(^|\.)amazonaws\.com$/;
 
@@ -96,12 +101,14 @@ export function s3Host(options: S3Options): RegistryHost {
     }
   }
 
-  const fail = async (what: string, res: Response): Promise<never> => {
+  const fail = async (what: string, res: Response, needs: string): Promise<never> => {
     const detail = redact(errorDetail(await res.text().catch(() => '')));
-    throw new HostError(
-      `${what} failed with HTTP ${String(res.status)}${detail === '' ? '' : ` (${detail})`}`,
-      res.status,
-    );
+    const suffix = detail === '' ? '' : ` (${detail})`;
+    if (res.status === 403)
+      throw new AccessDeniedError(
+        `${what} was denied (HTTP 403)${suffix}. The credentials need ${needs}; without s3:ListBucket a missing key also answers 403.`,
+      );
+    throw new HostError(`${what} failed with HTTP ${String(res.status)}${suffix}`, res.status);
   };
 
   return {
@@ -115,19 +122,32 @@ export function s3Host(options: S3Options): RegistryHost {
           'content-type': put.contentType,
           'cache-control': put.cacheControl,
           ...(put.ifMatch === undefined ? {} : { 'if-match': put.ifMatch }),
+          ...(put.ifNoneMatch === undefined ? {} : { 'if-none-match': put.ifNoneMatch }),
+          ...(put.sha256 === undefined ? {} : { 'x-amz-meta-sha256': put.sha256 }),
         },
         bytes,
       );
-      if (res.status === 412) throw new PreconditionFailedError(key);
-      if (!res.ok) await fail(`PUT ${key}`, res);
+      const conflict =
+        res.status === 412 ||
+        res.status === 409 ||
+        (res.status === 404 && put.ifMatch !== undefined);
+      if (conflict) {
+        await release(res);
+        throw new PreconditionFailedError(key);
+      }
+      if (!res.ok) await fail(`PUT ${key}`, res, 's3:PutObject');
+      await release(res);
       const etag = etagOf(res);
       return etag === undefined ? {} : { etag };
     },
     async get(key): Promise<StoredObject | undefined> {
       assertSafeKey(key);
       const res = await send('GET', urlFor(key));
-      if (res.status === 404) return undefined;
-      if (!res.ok) await fail(`GET ${key}`, res);
+      if (res.status === 404) {
+        await release(res);
+        return undefined;
+      }
+      if (!res.ok) await fail(`GET ${key}`, res, 's3:GetObject and s3:ListBucket');
       const etag = etagOf(res);
       return {
         body: new Uint8Array(await res.arrayBuffer()),
@@ -137,11 +157,17 @@ export function s3Host(options: S3Options): RegistryHost {
     async head(key): Promise<ObjectInfo | undefined> {
       assertSafeKey(key);
       const res = await send('HEAD', urlFor(key));
-      if (res.status === 404) return undefined;
-      if (!res.ok) await fail(`HEAD ${key}`, res);
+      if (res.status === 404) {
+        await release(res);
+        return undefined;
+      }
+      if (!res.ok) await fail(`HEAD ${key}`, res, 's3:GetObject and s3:ListBucket');
+      await release(res);
       const etag = etagOf(res);
       const length = res.headers.get('content-length');
+      const sha256 = res.headers.get('x-amz-meta-sha256');
       return {
+        ...(sha256 === null ? {} : { sha256 }),
         ...(etag === undefined ? {} : { etag }),
         ...(length === null ? {} : { size: Number(length) }),
       };
@@ -155,7 +181,7 @@ export function s3Host(options: S3Options): RegistryHost {
         // oxlint-disable-next-line no-await-in-loop -- each page names the next
         const res = await send('GET', urlFor('', `?${query.toString().replaceAll('+', '%20')}`));
         // oxlint-disable-next-line no-await-in-loop -- throws, ends the loop
-        if (!res.ok) await fail(`LIST ${prefix}`, res);
+        if (!res.ok) await fail(`LIST ${prefix}`, res, 's3:ListBucket');
         // oxlint-disable-next-line no-await-in-loop -- each page names the next
         const xml = await res.text();
         for (const match of xml.matchAll(/<Key>([^<]*)<\/Key>/g))

@@ -2,6 +2,8 @@ export interface Issue {
   /** Where, e.g. `routes[0]` or `rollout.percent`. Empty for the root. */
   path: string;
   message: string;
+  /** Set on issues a caller may want to tell apart, e.g. `route-overlap`. */
+  code?: string;
 }
 
 export type Obj = Record<string, unknown>;
@@ -13,8 +15,8 @@ export function isObj(value: unknown): value is Obj {
 export class Checker {
   readonly issues: Issue[] = [];
 
-  add(path: string, message: string): void {
-    this.issues.push({ path, message });
+  add(path: string, message: string, code?: string): void {
+    this.issues.push(code === undefined ? { path, message } : { path, message, code });
   }
 
   /** Reports a missing or wrong-typed string and returns it when valid. */
@@ -125,4 +127,17 @@ export function isSafeRelativePath(value: string): boolean {
   if (value === '' || value.includes('\\') || value.includes('\0')) return false;
   if (value.startsWith('/') || /^[A-Za-z]:/.test(value)) return false;
   return value.split('/').every((part) => part !== '' && part !== '.' && part !== '..');
+}
+
+const DEVICE_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
+
+/**
+ * `isSafeRelativePath` plus what a file on any OS can be named: no `:` (drive letters, NTFS
+ * streams), no Windows device names (`CON`, `nul.txt`, `COM1`) and no segment ending in a dot or space.
+ */
+export function isPortableRelativePath(value: string): boolean {
+  if (!isSafeRelativePath(value)) return false;
+  return value
+    .split('/')
+    .every((part) => !part.includes(':') && !DEVICE_NAME.test(part) && !/[. ]$/.test(part));
 }

@@ -1,4 +1,4 @@
-export { isSafeRelativePath, type Issue } from './validate';
+export { isPortableRelativePath, isSafeRelativePath, type Issue } from './validate';
 export {
   ANALYTICS_EVENT,
   EVENT_NAME,
@@ -24,6 +24,7 @@ export {
   isRegistryIndex,
   isRegistryIndexRemote,
   registryRemoteIssues,
+  ROUTE_OVERLAP,
   validateRegistryEntry,
   validateRegistryIndex,
   type RegistryEntry,

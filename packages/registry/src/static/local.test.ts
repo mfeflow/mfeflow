@@ -35,6 +35,10 @@ describe('assertSafeKey', () => {
       'a//b',
       'a/',
       'a\0b',
+      'a/b:stream',
+      'CON',
+      'a/nul.txt',
+      'lpt1.log',
     ];
     for (const key of bad)
       expect(() => assertSafeKey(key), JSON.stringify(key)).toThrow(/unsafe key/);
@@ -59,7 +63,10 @@ describe('localHost', () => {
     const got = await host.get('cart/1.0.0/mf-manifest.json');
     expect(new TextDecoder().decode(got?.body)).toBe('{"a":1}');
     expect(got?.etag).toBe(put.etag);
-    expect(await host.head('cart/1.0.0/mf-manifest.json')).toEqual({ etag: put.etag, size: 7 });
+    expect(await host.head('cart/1.0.0/mf-manifest.json')).toMatchObject({
+      etag: put.etag,
+      size: 7,
+    });
   });
 
   it('returns undefined for a key that is not there', async () => {
@@ -86,6 +93,91 @@ describe('localHost', () => {
       await expect(host.head(key), key).rejects.toThrow(/unsafe key/);
     }
     await expect(fs.stat(path.join(dir, 'escape.txt'))).rejects.toThrow();
+  });
+
+  describe('ifNoneMatch', () => {
+    it('creates once, then refuses', async () => {
+      const host = localHost(dir);
+      await host.put('a/b.js', 'one', { ...opts, ifNoneMatch: '*' });
+      await expect(host.put('a/b.js', 'two', { ...opts, ifNoneMatch: '*' })).rejects.toBeInstanceOf(
+        PreconditionFailedError,
+      );
+      expect(await fs.readFile(path.join(dir, 'a', 'b.js'), 'utf8')).toBe('one');
+      expect(await fs.readdir(path.join(dir, 'a'))).toEqual(['b.js']);
+    });
+
+    it('lets exactly one of several racing creators win', async () => {
+      const host = localHost(dir);
+      const results = await Promise.allSettled(
+        ['1', '2', '3', '4'].map((body) => host.put('r.txt', body, { ...opts, ifNoneMatch: '*' })),
+      );
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    });
+  });
+
+  describe('atomic writes', () => {
+    it('keeps the old file and leaves no temp file when the write cannot finish', async () => {
+      const host = localHost(dir);
+      await host.put('x.txt', 'old', opts);
+      await fs.rm(path.join(dir, 'x.txt'));
+      await fs.mkdir(path.join(dir, 'x.txt'));
+      await expect(host.put('x.txt', 'new', opts)).rejects.toThrow();
+      expect(await fs.readdir(dir)).toEqual(['x.txt']);
+    });
+
+    it('never shows a leftover temp file as a key', async () => {
+      const host = localHost(dir);
+      await fs.writeFile(path.join(dir, '.x.txt.crashed.tmp'), 'half');
+      await host.put('x.txt', 'whole', opts);
+      expect(await host.list?.('')).toEqual(['x.txt']);
+      expect(await fs.readFile(path.join(dir, 'x.txt'), 'utf8')).toBe('whole');
+    });
+
+    it('heads the content hash', async () => {
+      const host = localHost(dir);
+      await host.put('x.txt', 'abc', opts);
+      expect((await host.head('x.txt'))?.sha256).toBe(
+        'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+      );
+    });
+  });
+
+  describe('symlinks', () => {
+    it('refuses a symlinked folder or file that leads outside the root', async (ctx) => {
+      const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'mfeflow-outside-'));
+      const site = path.join(dir, 'site');
+      await fs.mkdir(site);
+      try {
+        await fs.symlink(outside, path.join(site, 'link'), 'dir');
+        await fs.writeFile(path.join(outside, 'secret.txt'), 's');
+        await fs.symlink(path.join(outside, 'secret.txt'), path.join(site, 'file.txt'));
+      } catch {
+        await fs.rm(outside, { recursive: true, force: true });
+        ctx.skip();
+        return;
+      }
+      const host = localHost(site);
+      await expect(host.put('link/evil.txt', 'x', opts)).rejects.toThrow(/outside/);
+      await expect(host.get('link/secret.txt')).rejects.toThrow(/outside/);
+      await expect(host.get('file.txt')).rejects.toThrow(/symlink/);
+      await expect(host.put('file.txt', 'x', opts)).rejects.toThrow(/symlink/);
+      expect(await fs.readdir(outside)).toEqual(['secret.txt']);
+      await fs.rm(outside, { recursive: true, force: true });
+    });
+  });
+
+  it('list reports errors other than a missing folder', async () => {
+    const file = path.join(dir, 'not-a-dir');
+    await fs.writeFile(file, 'x');
+    await fs.mkdir(path.join(dir, 'locked'));
+    const host = localHost(dir);
+    await fs.chmod(path.join(dir, 'locked'), 0o000);
+    try {
+      if (process.platform === 'win32' || process.getuid?.() === 0) return;
+      await expect(host.list?.('')).rejects.toThrow(/EACCES/);
+    } finally {
+      await fs.chmod(path.join(dir, 'locked'), 0o755);
+    }
   });
 
   describe('ifMatch', () => {

@@ -8,7 +8,7 @@ describe('comparable', () => {
   });
 
   it('is undefined for specs that name no version', () => {
-    for (const spec of ['workspace:*', 'catalog:', 'link:../x', 'latest']) {
+    for (const spec of ['workspace:*', 'catalog:', 'link:../x', 'file:../x', 'latest', '', '  ']) {
       expect(comparable(spec)).toBeUndefined();
     }
   });
@@ -70,7 +70,9 @@ describe('compatProblems', () => {
         shellManifest: { shared: [] },
         workspaceVersions: { react: '18.0.0' },
       }),
-    ).toEqual([{ name: 'react', range: '^19.0.0', provided: '18.0.0', source: 'shared' }]);
+    ).toEqual([
+      { name: 'react', range: '^19.0.0', provided: '18.0.0', source: 'shared', kind: 'mismatch' },
+    ]);
   });
 
   it('does not check a package nobody provides', () => {
@@ -84,7 +86,13 @@ describe('compatProblems', () => {
       workspaceVersions: { react: '18.2.0' },
     });
     expect(problems).toEqual([
-      { name: 'react', range: '^19', provided: '18.2.0', source: 'mfe.json platform' },
+      {
+        name: 'react',
+        range: '^19',
+        provided: '18.2.0',
+        source: 'mfe.json platform',
+        kind: 'mismatch',
+      },
     ]);
   });
 });

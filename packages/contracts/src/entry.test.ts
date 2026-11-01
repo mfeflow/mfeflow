@@ -55,6 +55,7 @@ describe('pickRegistryFields', () => {
       'owner',
       'previous',
       'remoteEntry',
+      'rolledBackFrom',
       'routes',
       'type',
       'version',

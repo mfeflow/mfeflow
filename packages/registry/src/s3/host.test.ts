@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HostError, PreconditionFailedError } from '../static/host';
+import { AccessDeniedError, HostError, PreconditionFailedError } from '../static/host';
 import { s3Host, type S3Options } from './host';
 
 interface Call {
@@ -139,10 +139,11 @@ describe('s3Host put', () => {
     const error = await s3Host(base({ fetch: f.fetch }))
       .put('k', 'x', opts)
       .catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(HostError);
-    expect((error as HostError).message).toBe(
-      'PUT k failed with HTTP 403 (AccessDenied: Access Denied)',
+    expect(error).toBeInstanceOf(AccessDeniedError);
+    expect((error as HostError).message).toContain(
+      'PUT k was denied (HTTP 403) (AccessDenied: Access Denied)',
     );
+    expect((error as HostError).message).toContain('s3:PutObject');
     expect((error as HostError).status).toBe(403);
   });
 
@@ -152,6 +153,86 @@ describe('s3Host put', () => {
       /unsafe key/,
     );
     expect(f.calls).toHaveLength(0);
+  });
+});
+
+describe('s3Host conditional writes and integrity', () => {
+  it('sends If-None-Match and the content hash as metadata', async () => {
+    const f = fakeFetch(() => new Response('', { status: 200 }));
+    await s3Host(base({ fetch: f.fetch })).put('a.js', 'x', {
+      ...opts,
+      ifNoneMatch: '*',
+      sha256: 'abc123',
+    });
+    const call = f.calls[0];
+    expect(call?.headers['if-none-match']).toBe('*');
+    expect(call?.headers['x-amz-meta-sha256']).toBe('abc123');
+    expect(call?.headers.authorization).toContain('if-none-match');
+    expect(call?.headers.authorization).toContain('x-amz-meta-sha256');
+  });
+
+  it('reads the content hash back on head', async () => {
+    const f = fakeFetch(
+      () => new Response('', { status: 200, headers: { 'x-amz-meta-sha256': 'abc123' } }),
+    );
+    expect((await s3Host(base({ fetch: f.fetch })).head('a.js'))?.sha256).toBe('abc123');
+  });
+
+  it.each([
+    ['412', 412, undefined],
+    ['409 ConditionalRequestConflict', 409, undefined],
+    ['404 on If-Match for a missing key', 404, '"e"'],
+  ])('maps %s to PreconditionFailedError', async (_name, status, ifMatch) => {
+    const f = fakeFetch(() => new Response('<Error><Code>X</Code></Error>', { status }));
+    const put = s3Host(base({ fetch: f.fetch })).put('envs/prod/index.json', '{}', {
+      ...opts,
+      ...(ifMatch === undefined ? {} : { ifMatch }),
+    });
+    await expect(put).rejects.toBeInstanceOf(PreconditionFailedError);
+  });
+
+  it('does not call a plain 404 on put a precondition failure', async () => {
+    const f = fakeFetch(() => new Response('', { status: 404 }));
+    await expect(s3Host(base({ fetch: f.fetch })).put('k', 'x', opts)).rejects.toThrow(
+      'PUT k failed with HTTP 404',
+    );
+  });
+});
+
+describe('s3Host 403', () => {
+  it('on get and head names the permissions instead of guessing the key is missing', async () => {
+    const f = fakeFetch(
+      () => new Response('<Error><Code>AccessDenied</Code></Error>', { status: 403 }),
+    );
+    const host = s3Host(base({ fetch: f.fetch }));
+    for (const read of [host.get('k'), host.head('k')]) {
+      const error = await read.catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(AccessDeniedError);
+      expect((error as Error).message).toContain('s3:GetObject and s3:ListBucket');
+      expect((error as Error).message).toContain('a missing key also answers 403');
+    }
+  });
+});
+
+describe('s3Host response bodies', () => {
+  it('cancels the body of responses it does not read', async () => {
+    let cancelled = 0;
+    const body = () =>
+      new ReadableStream({
+        pull(c) {
+          c.enqueue(new Uint8Array([1]));
+        },
+        cancel() {
+          cancelled += 1;
+        },
+      });
+    const statuses = [200, 404, 412];
+    const f = fakeFetch(() => new Response(body(), { status: statuses.shift() ?? 200 }));
+    const host = s3Host(base({ fetch: f.fetch }));
+    await host.put('a', 'x', opts);
+    expect(await host.head('a')).toBeUndefined();
+    await expect(host.put('b', 'x', opts)).rejects.toBeInstanceOf(PreconditionFailedError);
+    expect(cancelled).toBe(3);
   });
 });
 
@@ -222,7 +303,7 @@ describe('s3Host get, head and list', () => {
   it('fails a list the store refuses', async () => {
     const f = fakeFetch(() => new Response('', { status: 403 }));
     await expect(s3Host(base({ fetch: f.fetch })).list?.('')).rejects.toThrow(
-      'LIST  failed with HTTP 403',
+      'LIST  was denied (HTTP 403)',
     );
   });
 });

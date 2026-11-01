@@ -5,6 +5,7 @@ import semver from 'semver';
  * that names no version (`link:`, `workspace:*`, `catalog:`, `latest`): it is only known after install.
  */
 export function comparable(version: string): string | undefined {
+  if (version.trim() === '') return undefined;
   const exact = semver.valid(version);
   if (exact !== null) return exact;
   return semver.validRange(version) === null
@@ -40,7 +41,9 @@ export function sharedOf(manifest: unknown): SharedEntry[] {
       {
         name: item.name,
         singleton: item.singleton === true,
-        ...(typeof item.version === 'string' ? { version: item.version } : {}),
+        ...(typeof item.version === 'string' && item.version.trim() !== ''
+          ? { version: item.version }
+          : {}),
         ...(typeof item.requiredVersion === 'string'
           ? { requiredVersion: item.requiredVersion }
           : {}),
@@ -52,9 +55,15 @@ export function sharedOf(manifest: unknown): SharedEntry[] {
 export interface CompatProblem {
   name: string;
   range: string;
+  /** Empty when the shell's version is unknown. */
   provided: string;
   /** Where the range came from. */
   source: 'shared' | 'mfe.json platform';
+  /**
+   * `mismatch` fails the gate. `unresolved` is a warning: the shell's version is `workspace:*`,
+   * `catalog:`, `link:` or the like, or its manifest lists the package with no version, so nothing can be compared.
+   */
+  kind: 'mismatch' | 'unresolved';
 }
 
 export interface CompatInput {
@@ -70,14 +79,18 @@ export interface CompatInput {
 
 /**
  * Every singleton range the remote asks for (its `shared` entries and `mfe.json` platform) that the
- * version the shell provides does not satisfy. A package neither the shell manifest nor the workspace
- * versions know is not checked.
+ * version the shell provides does not satisfy, plus the ones that cannot be compared. A package neither
+ * the shell manifest nor the workspace versions list is not checked.
  */
 export function compatProblems(input: CompatInput): CompatProblem[] {
   const provided = new Map<string, string>(Object.entries(input.workspaceVersions ?? {}));
-  for (const shared of sharedOf(input.shellManifest))
+  const shellShared = sharedOf(input.shellManifest);
+  for (const shared of shellShared)
     if (shared.version !== undefined) provided.set(shared.name, shared.version);
-  const asked: Omit<CompatProblem, 'provided'>[] = [
+  const listedWithoutVersion = new Set(
+    shellShared.filter((s) => s.version === undefined).map((s) => s.name),
+  );
+  const asked: Pick<CompatProblem, 'name' | 'range' | 'source'>[] = [
     ...sharedOf(input.remoteManifest).flatMap((s) =>
       s.singleton && s.requiredVersion !== undefined
         ? [{ name: s.name, range: s.requiredVersion, source: 'shared' as const }]
@@ -92,8 +105,13 @@ export function compatProblems(input: CompatInput): CompatProblem[] {
   const out: CompatProblem[] = [];
   for (const ask of asked) {
     const have = provided.get(ask.name);
-    if (have !== undefined && !satisfiesRange(ask.range, have))
-      out.push({ ...ask, provided: have });
+    if (have === undefined) {
+      if (listedWithoutVersion.has(ask.name))
+        out.push({ ...ask, provided: '', kind: 'unresolved' });
+    } else if (comparable(have) === undefined)
+      out.push({ ...ask, provided: have, kind: 'unresolved' });
+    else if (!satisfiesRange(ask.range, have))
+      out.push({ ...ask, provided: have, kind: 'mismatch' });
   }
   return out;
 }

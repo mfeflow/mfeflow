@@ -82,6 +82,25 @@ describe('planDeploy', () => {
   });
 });
 
+describe('create-only and conditional writes', () => {
+  it('marks artifacts and a first index create-only, and a later index conditional', () => {
+    const first = planDeploy(input());
+    expect(
+      first.uploads.slice(0, -1).every((u) => u.ifNoneMatch === '*' && u.sha256?.length === 64),
+    ).toBe(true);
+    expect(first.uploads.at(-1)).toMatchObject({ ifNoneMatch: '*' });
+    expect(first.uploads.at(-1)?.ifMatch).toBeUndefined();
+    const later = planDeploy(input({ currentIndex: first.index, currentIndexEtag: '"e"' }));
+    expect(later.uploads.at(-1)?.ifMatch).toBe('"e"');
+    expect(later.uploads.at(-1)?.ifNoneMatch).toBeUndefined();
+  });
+
+  it('refuses a currentIndex without its ETag', () => {
+    const { index } = planDeploy(input());
+    expect(() => planDeploy(input({ currentIndex: index }))).toThrow(/needs currentIndexEtag/);
+  });
+});
+
 describe('contentTypeOf', () => {
   it('maps common extensions and falls back to octet-stream', () => {
     expect(contentTypeOf('a/b.css')).toBe('text/css');
@@ -125,9 +144,15 @@ describe('applyPlan and readIndex', () => {
     });
     const result = await applyPlan(host, next);
     expect(result.uploaded).toHaveLength(4);
+    const reread = await readIndex(host, 'prod');
     const again = await applyPlan(
       host,
-      planDeploy({ ...base, version: '1.1.0', currentIndex: next.index }),
+      planDeploy({
+        ...base,
+        version: '1.1.0',
+        currentIndex: reread.index ?? next.index,
+        currentIndexEtag: reread.etag ?? '',
+      }),
     );
     expect(again.skipped).toHaveLength(3);
     expect(again.uploaded).toEqual(['envs/prod/index.json']);
@@ -145,6 +170,94 @@ describe('applyPlan and readIndex', () => {
 
     const stale = planDeploy({ ...base, version: '1.2.0', currentIndexEtag: '"stale"' });
     await expect(applyPlan(host, stale)).rejects.toBeInstanceOf(PreconditionFailedError);
+  });
+
+  it('two first deploys into a new env: the second is refused and the first remote survives', async () => {
+    const host = localHost(dir);
+    const cart = planDeploy(input());
+    const catalogManifest = manifestFor('catalog');
+    const catalog = planDeploy(
+      input({
+        remote: mfe('catalog', ['/shop']),
+        manifest: catalogManifest,
+        files: filesFor(catalogManifest),
+      }),
+    );
+    await applyPlan(host, cart);
+    await expect(applyPlan(host, catalog)).rejects.toBeInstanceOf(PreconditionFailedError);
+    const names = (await readIndex(host, 'prod')).index?.remotes.map((r) => r.name);
+    expect(names).toEqual(['cart']);
+  });
+
+  it('refuses same-size artifact with different content', async () => {
+    const host = localHost(dir);
+    const base = input();
+    await applyPlan(host, planDeploy(base));
+    const manifest = manifestFor();
+    const files = filesFor(manifest);
+    const swapped = new Uint8Array(files['remoteEntry.js'] ?? []);
+    swapped[0] = (swapped[0] ?? 0) ^ 0xff;
+    const plan = planDeploy({ ...base, files: { ...base.files, 'remoteEntry.js': swapped } });
+    await expect(applyPlan(host, plan)).rejects.toThrow(/different content/);
+  });
+
+  it('refuses an existing artifact whose content cannot be verified', async () => {
+    const plan = planDeploy(input());
+    const host: RegistryHost = {
+      put: () => Promise.resolve({}),
+      get: () => Promise.resolve(undefined),
+      head: () => Promise.resolve({ size: 3 }),
+    };
+    await expect(applyPlan(host, plan)).rejects.toThrow(/cannot be verified/);
+  });
+
+  it('treats a lost race on an artifact as success when the content is identical', async () => {
+    const plan = planDeploy(input());
+    const first = plan.uploads[0];
+    let heads = 0;
+    const host: RegistryHost = {
+      put: (key) =>
+        key === first?.key ? Promise.reject(new PreconditionFailedError(key)) : Promise.resolve({}),
+      get: () => Promise.resolve(undefined),
+      head: (key) => {
+        if (key !== first?.key) return Promise.resolve(undefined);
+        heads += 1;
+        return Promise.resolve(heads === 1 ? undefined : { sha256: first.sha256 ?? '' });
+      },
+    };
+    const result = await applyPlan(host, plan);
+    expect(result.skipped).toEqual([first?.key]);
+  });
+
+  it('rethrows a lost race on an artifact when the winner had other content', async () => {
+    const plan = planDeploy(input());
+    const first = plan.uploads[0];
+    let heads = 0;
+    const host: RegistryHost = {
+      put: (key) => Promise.reject(new PreconditionFailedError(key)),
+      get: () => Promise.resolve(undefined),
+      head: () => {
+        heads += 1;
+        return Promise.resolve(heads === 1 ? undefined : { sha256: 'other' });
+      },
+    };
+    await expect(applyPlan(host, plan)).rejects.toThrow(/different content/);
+    expect(first).toBeDefined();
+  });
+
+  it('reads an index whose remotes already overlap, so a deploy can fix it', async () => {
+    const host = localHost(dir);
+    const remote = (name: string, route: string) => ({
+      name,
+      entry: `https://x.test/${name}.json`,
+      routes: [route],
+    });
+    await host.put(
+      'envs/prod/index.json',
+      JSON.stringify({ remotes: [remote('a', '/x/*'), remote('b', '/x/y')] }),
+      { contentType: 'application/json', cacheControl: 'no-cache' },
+    );
+    expect((await readIndex(host, 'prod')).index?.remotes).toHaveLength(2);
   });
 
   it('will not apply a plan with failed gates', async () => {

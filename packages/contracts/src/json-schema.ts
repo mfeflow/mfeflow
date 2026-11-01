@@ -342,6 +342,7 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
             owner: str(),
             previous: str(),
             history: strings(),
+            rolledBackFrom: str(),
           },
           ['name', 'entry'],
         ),

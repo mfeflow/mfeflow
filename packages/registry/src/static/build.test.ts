@@ -105,13 +105,40 @@ describe('buildIndex', () => {
       expect(current.remotes[0]?.history).toEqual(['1.4.0', '1.3.0']);
     });
 
-    it('drops the target from history when rolling back to an older version', () => {
-      let current = buildIndex(input({ version: '1.0.0' })).index;
-      current = buildIndex(input({ version: '1.1.0', currentIndex: current })).index;
-      current = buildIndex(input({ version: '1.2.0', currentIndex: current })).index;
-      const back = buildIndex(input({ version: '1.1.0', currentIndex: current })).index.remotes[0];
-      expect(back?.previous).toBe('1.2.0');
-      expect(back?.history).toEqual(['1.2.0', '1.0.0']);
+    const deploy = (versions: string[]) => {
+      let current = buildIndex(input({ version: versions[0] ?? '' })).index;
+      for (const version of versions.slice(1))
+        current = buildIndex(input({ version, currentIndex: current })).index;
+      return current;
+    };
+
+    it('rolling back leaves the version it left out of previous and history', () => {
+      const back = deploy(['1.0.0', '1.1.0', '1.2.0', '1.1.0']).remotes[0];
+      expect(back?.version).toBe('1.1.0');
+      expect(back?.previous).toBe('1.0.0');
+      expect(back?.history).toEqual(['1.0.0']);
+      expect(back?.rolledBackFrom).toBe('1.2.0');
+    });
+
+    it('rolling back again goes to the next older version, never to the bad one', () => {
+      const twice = deploy(['1.0.0', '1.1.0', '1.2.0', '1.1.0', '1.0.0']).remotes[0];
+      expect(twice?.version).toBe('1.0.0');
+      expect(twice?.previous).toBeUndefined();
+      expect(twice?.history).toBeUndefined();
+      expect(twice?.rolledBackFrom).toBe('1.1.0');
+    });
+
+    it('a new version after a rollback clears rolledBackFrom and keeps the good history', () => {
+      const next = deploy(['1.0.0', '1.1.0', '1.2.0', '1.1.0', '1.3.0']).remotes[0];
+      expect(next?.rolledBackFrom).toBeUndefined();
+      expect(next?.previous).toBe('1.1.0');
+      expect(next?.history).toEqual(['1.1.0', '1.0.0']);
+    });
+
+    it('redeploying the version after a rollback keeps rolledBackFrom', () => {
+      const same = deploy(['1.0.0', '1.1.0', '1.2.0', '1.1.0', '1.1.0']).remotes[0];
+      expect(same?.rolledBackFrom).toBe('1.2.0');
+      expect(same?.previous).toBe('1.0.0');
     });
 
     it('does not touch history when the same version is deployed again', () => {
@@ -258,11 +285,59 @@ describe('buildIndex', () => {
     });
   });
 
-  it('keeps the current generatedAt when none is given', () => {
+  it('refreshes generatedAt on every build', () => {
     const result = buildIndex(
       input({ generatedAt: undefined, currentIndex: { generatedAt: 'then', remotes: [] } }),
     );
-    expect(result.index.generatedAt).toBe('then');
-    expect(buildIndex(input({ generatedAt: undefined })).index.generatedAt).toBeUndefined();
+    expect(result.index.generatedAt).not.toBe('then');
+    expect(Number.isNaN(Date.parse(result.index.generatedAt ?? ''))).toBe(false);
+    expect(buildIndex(input({ generatedAt: 'fixed' })).index.generatedAt).toBe('fixed');
+  });
+
+  it('does not refuse a deploy because other remotes already overlap each other', () => {
+    const a = { name: 'a', entry: `${BASE_URL}/a/1/mf-manifest.json`, routes: ['/x/*'] };
+    const b = { name: 'b', entry: `${BASE_URL}/b/1/mf-manifest.json`, routes: ['/x/y'] };
+    const result = buildIndex(input({ currentIndex: indexWith(a, b) }));
+    expect(result.failures).toEqual([]);
+  });
+
+  it('lets a deploy fix an existing overlap by changing its own routes', () => {
+    const cart = { name: 'cart', entry: `${BASE_URL}/cart/1/mf-manifest.json`, routes: ['/x/y'] };
+    const other = { name: 'other', entry: `${BASE_URL}/o/1/mf-manifest.json`, routes: ['/x/*'] };
+    expect(
+      buildIndex(input({ currentIndex: indexWith(cart, other) })).failures.map((f) => f.code),
+    ).toEqual([]);
+  });
+
+  describe('compat warnings', () => {
+    it('warns, and does not fail, when the shell version cannot be compared', () => {
+      const shell = { shared: [{ name: 'react', version: 'workspace:*' }] };
+      for (const spec of ['workspace:*', 'catalog:', 'link:../react', 'file:../react']) {
+        const result = buildIndex(
+          input({ shellManifest: { shared: [{ name: 'react', version: spec }] } }),
+        );
+        expect(result.failures, spec).toEqual([]);
+        expect(result.warnings, spec).toEqual([
+          `cart@1.0.0: react ^19.0.0 (shared) was not checked: the shell's version "${spec}" cannot be compared before install`,
+        ]);
+      }
+      expect(buildIndex(input({ shellManifest: shell })).warnings).toHaveLength(1);
+    });
+
+    it('treats an empty shell version as unknown, not 0.0.0', () => {
+      const shell = { shared: [{ name: 'react', version: '' }] };
+      const bare = buildIndex(input({ shellManifest: shell }));
+      expect(bare.failures).toEqual([]);
+      expect(bare.warnings[0]).toContain("the shell's version is not listed");
+      const withFallback = buildIndex(
+        input({ shellManifest: shell, workspaceVersions: { react: '19.2.0' } }),
+      );
+      expect(withFallback.warnings).toEqual([]);
+      expect(withFallback.failures).toEqual([]);
+      const failing = buildIndex(
+        input({ shellManifest: shell, workspaceVersions: { react: '18.0.0' } }),
+      );
+      expect(failing.failures.map((f) => f.code)).toEqual(['compat']);
+    });
   });
 });

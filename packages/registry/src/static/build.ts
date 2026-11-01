@@ -6,6 +6,7 @@ import {
   primaryExpose,
   registryRemoteIssues,
   remoteDistFiles,
+  ROUTE_OVERLAP,
   routesOverlap,
   validateRegistryEntry,
   validateRegistryIndex,
@@ -14,7 +15,7 @@ import {
   type RegistryIndex,
   type RegistryIndexRemote,
 } from '@mfeflow/contracts';
-import { compatProblems } from './compat';
+import { compatProblems, type CompatProblem } from './compat';
 import { versionKey } from './host';
 
 export const GATE_CODES = ['schema', 'route-overlap', 'compat', 'budget', 'rollout'] as const;
@@ -57,6 +58,8 @@ export interface DeployInput {
 export interface BuildResult {
   index: RegistryIndex;
   failures: GateFailure[];
+  /** Things that could not be checked and did not fail the deploy, e.g. a shell version of `workspace:*`. */
+  warnings: string[];
 }
 
 /** Where a version's files live, relative to the host root. */
@@ -106,9 +109,20 @@ function nextRemote(
   const limit = input.historyLimit ?? HISTORY_LIMIT;
   const served = previous?.version;
   const replacing = served !== undefined && served !== input.version;
-  const older = replacing ? [served, ...(previous?.history ?? [])] : (previous?.history ?? []);
+  const known = [
+    ...new Set([
+      ...(previous?.previous === undefined ? [] : [previous.previous]),
+      ...(previous?.history ?? []),
+    ]),
+  ];
+  const target = known.indexOf(input.version);
+  const rollback = replacing && target !== -1;
+  let older = known;
+  if (rollback) older = known.slice(target + 1);
+  else if (replacing) older = [served, ...known];
   const history = [...new Set(older)].filter((v) => v !== input.version).slice(0, limit);
-  const before = replacing ? served : previous?.previous;
+  const before = replacing ? history[0] : previous?.previous;
+  const rolledBackFrom = rollback ? served : replacing ? undefined : previous?.rolledBackFrom;
   return {
     name: input.remote.name,
     entry,
@@ -123,10 +137,9 @@ function nextRemote(
     owner: input.remote.owner,
     ...(before === undefined ? {} : { previous: before }),
     ...(history.length === 0 ? {} : { history }),
+    ...(rolledBackFrom === undefined ? {} : { rolledBackFrom }),
   };
 }
-
-const OVERLAP_ISSUE = /overlaps route/;
 
 interface Gate {
   code: GateCode;
@@ -152,7 +165,7 @@ function schemaGate(input: DeployInput, remote: RegistryIndexRemote, index: Regi
     ),
     ...registryRemoteIssues(remote).map((i) => `${i.path} ${i.message}`),
     ...validateRegistryIndex(index)
-      .filter((i) => !OVERLAP_ISSUE.test(i.message))
+      .filter((i) => i.code !== ROUTE_OVERLAP)
       .map((i) => `index ${i.path} ${i.message}`),
   ]);
   const named = manifestName(input.manifest);
@@ -175,16 +188,17 @@ function overlapGate(input: DeployInput, others: readonly RegistryIndexRemote[])
   return out;
 }
 
-function compatGate(input: DeployInput): Gate[] {
+function compatProblemsOf(input: DeployInput): CompatProblem[] {
   return compatProblems({
     remoteManifest: input.manifest,
     platform: input.remote.platform,
     shellManifest: input.shellManifest,
     workspaceVersions: input.workspaceVersions,
-  }).map((p) =>
-    gate('compat', `needs ${p.name} ${p.range} (${p.source}) but the shell provides ${p.provided}`),
-  );
+  });
 }
+
+const compatMessage = (p: CompatProblem): string =>
+  `needs ${p.name} ${p.range} (${p.source}) but the shell provides ${p.provided}`;
 
 function budgetGate(input: DeployInput): Gate[] {
   const size = measure(input);
@@ -218,12 +232,12 @@ function rolloutGate(input: DeployInput): Gate[] {
 
 function indexWith(input: DeployInput, remote: RegistryIndexRemote): RegistryIndex {
   const current = input.currentIndex ?? { remotes: [] };
-  const generatedAt = input.generatedAt ?? current.generatedAt;
+  const generatedAt = input.generatedAt ?? new Date().toISOString();
   const replaced = current.remotes.some((r) => r.name === remote.name);
   return {
     ...(current.shell === undefined ? {} : { shell: current.shell }),
     env: input.env,
-    ...(generatedAt === undefined ? {} : { generatedAt }),
+    generatedAt,
     remotes: replaced
       ? current.remotes.map((r) => (r.name === remote.name ? remote : r))
       : [...current.remotes, remote],
@@ -242,13 +256,14 @@ export function buildIndex(input: DeployInput): BuildResult {
     current.find((r) => r.name === name),
   );
   const index = indexWith(input, remote);
+  const problems = compatProblemsOf(input);
   const gates = [
     ...schemaGate(input, remote, index),
     ...overlapGate(
       input,
       current.filter((r) => r.name !== name),
     ),
-    ...compatGate(input),
+    ...problems.filter((p) => p.kind === 'mismatch').map((p) => gate('compat', compatMessage(p))),
     ...budgetGate(input),
     ...rolloutGate(input),
   ];
@@ -262,5 +277,11 @@ export function buildIndex(input: DeployInput): BuildResult {
       ...(g.route === undefined ? {} : { route: g.route }),
     });
   }
-  return { index, failures };
+  const warnings = problems
+    .filter((p) => p.kind === 'unresolved')
+    .map(
+      (p) =>
+        `${name}@${input.version}: ${p.name} ${p.range} (${p.source}) was not checked: the shell's version${p.provided === '' ? ' is not listed' : ` "${p.provided}" cannot be compared before install`}`,
+    );
+  return { index, failures, warnings };
 }
