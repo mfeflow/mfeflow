@@ -18,11 +18,9 @@ const reported = new Set<string>();
 
 function check(): ReturnType<typeof checkSingletons> {
   const result = checkSingletons(SINGLETONS);
-  const problems = [
-    ...result.duplicated.map((name) => `${name} is loaded in more than one version`),
-    ...result.missing.map((name) => `${name} is not in the share scope`),
-  ];
-  for (const problem of problems) {
+  // `missing` is not a problem: a shared package nothing has loaded yet is not in the share scope.
+  for (const name of result.duplicated) {
+    const problem = `${name} is loaded in more than one version`;
     if (reported.has(problem)) continue;
     reported.add(problem);
     reportRemoteError('<%= it.app.name %>', 'singletons', new Error(problem));
