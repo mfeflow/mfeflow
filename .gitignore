@@ -19,3 +19,5 @@ playwright-report/
 test-results/
 perf-results.json
 apps/docs/docs/public/schema/
+
+.claude/worktrees/
