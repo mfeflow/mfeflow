@@ -228,6 +228,8 @@ A registry you can host anywhere that serves files. It keeps every version, move
 
 How fast a rollback reaches users depends on the host's cache. The index is cached for 60 seconds. GitHub Pages caches every file for 10 minutes, so use a bucket if that is too slow.
 
+On a local file host, a first-time visitor sees the old version about 1 second after `rollback` exits (median of 5 runs). That is the floor: it has no CDN and no bucket in it, and a returning visitor can wait up to the 60 seconds. [How it was measured](https://github.com/mfeflow/mfeflow/tree/main/bench#rollback-visiblets).
+
 ## Next
 
 - Every flag is in the [CLI reference](/reference/cli#deploy-promote-rollback-and-status).

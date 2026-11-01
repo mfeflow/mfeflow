@@ -24,6 +24,12 @@ export interface WriteRequest {
   project: MfeflowProject;
   /** Runs once the files are written, before the install (`git init` for hooks that need a repo). */
   afterWrite?: () => Promise<void>;
+  /** Install even when the plan adds no dependency, for a plan that moves ranges. */
+  install?: boolean;
+  /** Take `project` as it is: its `cli` is the version being upgraded to, not the one running. */
+  exactProject?: boolean;
+  /** The caller prints the summary and diff itself. */
+  quiet?: boolean;
 }
 
 export interface WriteOutcome {
@@ -133,9 +139,9 @@ async function exists(dir: string): Promise<boolean> {
  */
 export async function writePlan(request: WriteRequest): Promise<WriteOutcome> {
   const { rt, globals, root, plan } = request;
-  const project = stampCli(request.project, plan);
+  const project = request.exactProject ? request.project : stampCli(request.project, plan);
   const shown = withProjectChange(plan, project);
-  if (!globals.json) {
+  if (!globals.json && request.quiet !== true) {
     rt.io.stdout(summarize(shown));
     if (globals.dryRun || globals.verbose) rt.io.stdout(`\n${renderDiff(shown)}`);
   }
@@ -147,7 +153,7 @@ export async function writePlan(request: WriteRequest): Promise<WriteOutcome> {
   if (globals.canPrompt && !(await rt.prompter.confirm({ message: 'Write these changes?' }))) {
     throw new Cancelled();
   }
-  const installing = globals.install && plan.dependencies.length > 0;
+  const installing = globals.install && (request.install === true || plan.dependencies.length > 0);
   const missing = await missingFolders(root);
   const wasEmpty = missing.length === 0 && (await isEmptyFolder(root));
   const gitDir = path.join(root, '.git');

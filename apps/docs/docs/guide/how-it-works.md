@@ -93,7 +93,7 @@ The storefront example in the repository also runs it on demand with `?mfeflow-a
 
 In development, `mfeflow dev` starts every app and builds a dev registry from the project. The shell build puts that registry into the HTML. Remotes load from their own localhost ports.
 
-In production, nothing runs the apps for you. You serve the shell and each remote as static files, and you serve a registry index. The shell expects remotes under `/mfe/<name>/` on its own origin. [Deploy](/guide/deploying) covers what that means today.
+In production, nothing runs the apps for you. You serve the shell and each remote as static files, and you serve a registry index. The shell expects remotes under `/mfe/<name>/` on its own origin. [Deploy](/guide/deploy/) covers several ways to do it.
 
 ```text
 development                               production

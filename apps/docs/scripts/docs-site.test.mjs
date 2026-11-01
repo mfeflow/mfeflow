@@ -134,9 +134,30 @@ function frontmatter(source) {
   return fields;
 }
 
-async function sidebarPages(section) {
-  const meta = JSON.parse(await fs.readFile(path.join(DOCS_DIR, section, '_meta.json'), 'utf8'));
-  return meta.filter((item) => item.type === 'file').map((item) => item.name);
+async function sidebarPages(section, folder = '') {
+  const dir = path.join(DOCS_DIR, section, folder);
+  const meta = JSON.parse(await fs.readFile(path.join(dir, '_meta.json'), 'utf8'));
+  const pages = [];
+  for (const item of meta) {
+    if (item.type === 'file') pages.push(path.posix.join(folder, item.name));
+    if (item.type === 'dir')
+      pages.push(...(await sidebarPages(section, path.posix.join(folder, item.name))));
+    if (item.type === 'custom-link' && item.link?.startsWith(`/${section}/`))
+      pages.push(item.link.slice(`/${section}/`.length));
+  }
+  return pages;
+}
+
+async function pagesIn(section, folder = '') {
+  const found = [];
+  for (const entry of await fs.readdir(path.join(DOCS_DIR, section, folder), {
+    withFileTypes: true,
+  })) {
+    const name = path.posix.join(folder, entry.name);
+    if (entry.isDirectory()) found.push(...(await pagesIn(section, name)));
+    else if (entry.name.endsWith('.md')) found.push(name.slice(0, -'.md'.length));
+  }
+  return found;
 }
 
 describe('navigation', () => {
@@ -167,16 +188,27 @@ describe('navigation', () => {
     }
   });
 
-  it('puts every page of a section in its sidebar, apart from the old CLI and mfe.json addresses', async () => {
+  it('puts every page of a section in its sidebar, apart from the old addresses', async () => {
+    const stubs = new Set(['guide/cli', 'guide/deploying', 'reference/mfe-json']);
     for (const section of SECTIONS) {
       const listed = new Set(await sidebarPages(section));
-      const files = (await fs.readdir(path.join(DOCS_DIR, section)))
-        .filter((f) => f.endsWith('.md'))
-        .map((f) => f.slice(0, -'.md'.length));
-      const moved = (f) =>
-        (section === 'guide' && f === 'cli') || (section === 'reference' && f === 'mfe-json');
-      const unlisted = files.filter((f) => !listed.has(f) && !moved(f));
+      const unlisted = (await pagesIn(section)).filter(
+        (f) => !listed.has(f) && !stubs.has(`${section}/${f}`),
+      );
       expect(unlisted, `${section} pages missing from _meta.json`).toEqual([]);
+    }
+  });
+
+  it('opens the Deploy group with its overview and lists every Deploy page', async () => {
+    const meta = JSON.parse(
+      await fs.readFile(path.join(DOCS_DIR, 'guide/deploy/_meta.json'), 'utf8'),
+    );
+    expect(meta[0]).toMatchObject({ type: 'file', name: 'index' });
+    const guide = JSON.parse(await fs.readFile(path.join(DOCS_DIR, 'guide/_meta.json'), 'utf8'));
+    expect(guide).toContainEqual(expect.objectContaining({ type: 'dir', name: 'deploy' }));
+    const names = new Set(meta.filter((i) => i.type === 'file').map((i) => i.name));
+    for (const file of await fs.readdir(path.join(DOCS_DIR, 'guide/deploy'))) {
+      if (file.endsWith('.md')) expect(names.has(file.slice(0, -3)), file).toBe(true);
     }
   });
 
@@ -207,5 +239,32 @@ describe('links', () => {
       }
     }
     expect(broken).toEqual([]);
+  });
+});
+
+describe('deploy pages', () => {
+  it('keep prose light: at most three inline code spans per paragraph or list item', async () => {
+    const dense = [];
+    for (const file of await markdownFiles(path.join(DOCS_DIR, 'guide/deploy'))) {
+      const body = (await fs.readFile(file, 'utf8'))
+        .replace(/^---\n[\s\S]*?\n---\n/, '')
+        .replace(/```[\s\S]*?```/g, '');
+      for (const block of body.split(/\n\s*\n/)) {
+        const lines = block.split('\n').filter((l) => !l.startsWith('|') && !l.startsWith('#'));
+        const units = lines.some((l) => /^\s*[-*] /.test(l))
+          ? lines.join('\n').split(/\n(?=\s*[-*] )/)
+          : [lines.join(' ')];
+        for (const unit of units) {
+          const spans = unit.match(/`[^`]+`/g) ?? [];
+          if (spans.length > 3) dense.push(`${path.basename(file)}: ${unit.slice(0, 60)}`);
+        }
+      }
+    }
+    expect(dense).toEqual([]);
+  });
+
+  it('say that hosting is the reader choice, on the overview', async () => {
+    const overview = await fs.readFile(path.join(DOCS_DIR, 'guide/deploy/index.md'), 'utf8');
+    expect(overview).toContain('stays out of how you host them');
   });
 });

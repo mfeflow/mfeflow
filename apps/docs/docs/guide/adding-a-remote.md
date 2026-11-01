@@ -111,6 +111,6 @@ ok    every remote has a valid registry entry in dev, staging and prod
 
 ## What you did
 
-You added an app, three registry files and a route. Before you deploy, replace the example hosts in the staging and prod registry files. See [Deploy](/guide/deploying).
+You added an app, three registry files and a route. Before you deploy, replace the example hosts in the staging and prod registry files. See [Deploy](/guide/deploy/).
 
 For all options of the command, see the [CLI reference](/reference/cli#add).

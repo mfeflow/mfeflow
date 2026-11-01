@@ -178,3 +178,87 @@ test.describe('SERVE_MANIFEST_ONLY', () => {
     expect(await serving(4387, {}, noSnapshot, nothing)).not.toMatch(warning);
   });
 });
+
+const indexOf = (version: string) =>
+  JSON.stringify({
+    remotes: [
+      {
+        name: 'catalog',
+        entry: `http://localhost:4371/reg/catalog/${version}/mf-manifest.json`,
+        version,
+        routes: ['/catalog'],
+      },
+    ],
+  });
+
+/** A host folder with an index (and one file) for env `prod`, handed to `run` along with a way to rewrite the index. */
+async function hosted(
+  run: (base: string, setIndex: (version: string) => void) => Promise<void>,
+): Promise<void> {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'storefront-host-'));
+  fs.mkdirSync(path.join(dir, 'envs/prod'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'catalog/1.0.0'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'catalog/1.0.0/entry.js'), 'v1'.repeat(400));
+  const setIndex = (version: string) => {
+    fs.writeFileSync(path.join(dir, 'envs/prod/index.json'), indexOf(version));
+  };
+  setIndex('1.0.0');
+  try {
+    await serving(4371, { SERVE_REGISTRY_DIR: dir }, 'x', (base) => run(base, setIndex));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test.describe('SERVE_REGISTRY_DIR', () => {
+  test('serves the index with a 60 s max-age and re-reads it on every request', async () => {
+    await hosted(async (base, setIndex) => {
+      const first = await fetch(`${base}/registry/index.json`);
+      expect(first.headers.get('cache-control')).toBe('public, max-age=60');
+      expect(await first.text()).toContain('/catalog/1.0.0/');
+      setIndex('0.9.0');
+      expect(await (await fetch(`${base}/registry/index.json`)).text()).toContain(
+        '/catalog/0.9.0/',
+      );
+      const file = await fetch(`${base}/reg/envs/prod/index.json`);
+      expect(file.headers.get('cache-control')).toBe('public, max-age=60');
+      expect(await file.text()).toContain('/catalog/0.9.0/');
+    });
+  });
+
+  test('does not keep the compressed page or index file from before the folder changed', async () => {
+    await hosted(async (base, setIndex) => {
+      const page = async () => (await fetch(`${base}/catalog`)).text();
+      const hostIndex = async () => (await fetch(`${base}/reg/envs/prod/index.json`)).text();
+      expect(await page()).toContain('/catalog/1.0.0/');
+      expect(await hostIndex()).toContain('/catalog/1.0.0/');
+      setIndex('0.9.0');
+      const after = await page();
+      expect(after).toContain('/catalog/0.9.0/');
+      expect(after).not.toContain('/catalog/1.0.0/');
+      expect(await hostIndex()).toContain('/catalog/0.9.0/');
+    });
+  });
+
+  test('serves version files as immutable and refuses paths outside the folder', async () => {
+    await hosted(async (base) => {
+      const file = await fetch(`${base}/reg/catalog/1.0.0/entry.js`);
+      expect(file.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
+      expect(await file.text()).toBe('v1'.repeat(400));
+      expect((await fetch(`${base}/reg/nope.js`)).status).toBe(404);
+      expect((await fetch(`${base}/reg/..%2f..%2fetc%2fpasswd`)).status).toBe(404);
+    });
+  });
+
+  test('answers 503 until something is deployed, and logs the request quoted', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'storefront-host-'));
+    try {
+      const stderr = await serving(4373, { SERVE_REGISTRY_DIR: dir }, 'x', async (base) => {
+        expect((await fetch(`${base}/registry/index.json?a=%0d%0aforged`)).status).toBe(503);
+      });
+      expect(stderr).toContain('GET /registry/index.json?a=%0d%0aforged:');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

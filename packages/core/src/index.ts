@@ -66,6 +66,7 @@ export {
   type DivergedUpgrade,
   type DivergeReason,
   type Migration,
+  type UpgradeDecisions,
   type UpgradeInput,
   type UpgradePlan,
 } from './upgrade';

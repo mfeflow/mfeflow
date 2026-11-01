@@ -90,3 +90,12 @@ E107 and E215 are command-line mistakes and exit with code 2. The E5xx range bel
 | [E510](/errors/E510) | Another deploy changed the index at the same time                |
 | [E511](/errors/E511) | This version is already published with different content         |
 | [E512](/errors/E512) | Local registry files and the host disagree                       |
+
+## Upgrade (E6xx, exit code 8)
+
+| Code                 | Meaning                                               |
+| -------------------- | ----------------------------------------------------- |
+| [E601](/errors/E601) | Cannot tell which version of mfeflow made the project |
+| [E602](/errors/E602) | The project is newer than the version you upgrade to  |
+| [E603](/errors/E603) | A feature migration could not be loaded or failed     |
+| [E604](/errors/E604) | Files you changed need a decision                     |

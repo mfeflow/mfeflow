@@ -21,6 +21,8 @@ export const DOCUMENTED_FEATURES: readonly string[] = [
   'http',
   'i18n',
   'lint-oxlint',
+  'registry-static',
+  'release',
   'route-factory',
   'storybook',
   'tailwind',
@@ -50,6 +52,7 @@ export const FEATURE_GROUPS = [
     ],
   },
   { title: 'Observability', features: ['analytics-gtm', 'analytics-clarity', 'telemetry-otel'] },
+  { title: 'Delivery', features: ['registry-static', 'release'] },
   { title: 'UI', features: ['theming', 'i18n', 'tailwind', 'ui-shadcn', 'storybook'] },
 ] as const;
 
@@ -64,7 +67,7 @@ export const STATS = [
     label: 'LCP against the same pages built as one app',
     source: 'Lighthouse mobile, median of 10, budget 300 ms',
   },
-  { value: '21', label: 'features, each one command away', source: 'mfeflow add <feature>' },
+  { value: '23', label: 'features, each one command away', source: 'mfeflow add <feature>' },
   { value: '19', label: 'packages, versioned together', source: 'MIT, npm provenance' },
 ] as const;
 
