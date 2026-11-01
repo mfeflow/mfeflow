@@ -27,6 +27,7 @@ export interface ApiBody {
   warnings: string[];
   remotes: RegistryIndexRemote[];
   entries: AuditEntry[];
+  gate: { verdict: string; reason?: string };
   rollout?: { id: string; stable: string; candidate: string; percent: number; steps: number[] };
   error: {
     code: string;
@@ -168,6 +169,7 @@ export async function startHarness(
     corsOrigins: [],
     maxBodyBytes: 64 * 1024,
     gate: DEFAULT_GATE,
+    rolloutMaxReporters: 20_000,
     beaconLimit: { burst: 1000, perMinute: 1000 },
     trustProxy: false,
     ...overrides,

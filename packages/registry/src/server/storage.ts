@@ -140,13 +140,16 @@ export interface RegistryStorage {
   /**
    * Records that one browser loaded this version in this rollout, and whether it hit an error.
    * A browser counts one load and at most one error per version, however often it reports.
-   * Ignored when the rollout has ended.
+   * Ignored when the rollout has ended. Running counts are kept beside the rows, in the same
+   * transaction, so reading them never scans. Once the rollout has `maxReporters` browsers, new
+   * ones are dropped (a browser already counted can still turn its load into an error).
    */
   addRolloutReport(
     rolloutId: string,
     version: string,
     client: string,
     errored: boolean,
+    maxReporters: number,
   ): Promise<void>;
   rolloutCounts(rolloutId: string): Promise<Record<string, VersionCounts>>;
   /** Applies the change, its versions and its audit entry in one transaction, or throws `RevisionConflictError`. */

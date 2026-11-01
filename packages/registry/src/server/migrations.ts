@@ -98,4 +98,19 @@ export const MIGRATIONS: readonly { id: number; name: string; sql: string }[] = 
       );
     `,
   },
+  {
+    id: 4,
+    name: 'rollout-counters',
+    sql: `
+      CREATE TABLE rollout_side_counts (
+        rollout_id TEXT NOT NULL,
+        version TEXT NOT NULL,
+        clients INTEGER NOT NULL,
+        errors INTEGER NOT NULL,
+        PRIMARY KEY (rollout_id, version)
+      );
+      INSERT INTO rollout_side_counts (rollout_id, version, clients, errors)
+        SELECT rollout_id, version, COUNT(*), SUM(errored) FROM rollout_reporters GROUP BY rollout_id, version;
+    `,
+  },
 ];

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BASE_URL, seedShell, seedVersion, startHarness, type Harness } from './fixtures/harness';
 import { artifactPrefix } from '../static';
+import { inRollout } from './rollout';
 
 let h: Harness;
 let admin: string;
@@ -46,16 +47,42 @@ const report = (version: string, loads = 1, errors = 0, remote = 'cart') => ({
 
 const beaconBody = (u: string, entries: unknown[]) => ({ env: 'prod', u, entries });
 
-const beacon = (version: string, loads: number, errors: number, remote = 'cart', u = 'client-1') =>
-  h.call('POST', '/v1/beacon', { body: beaconBody(u, [report(version, loads, errors, remote)]) });
+/** Ids that the running rollout assigns to `version`'s side (any ids when nothing is rolling out). */
+async function clientsFor(version: string, count: number, prefix = 'c'): Promise<string[]> {
+  const [rollout] = await h.server.storage.listRollouts('prod');
+  const ids: string[] = [];
+  for (let i = 0; ids.length < count && i < 200_000; i += 1) {
+    const id = `${prefix}-${String(i)}`;
+    const side =
+      rollout === undefined
+        ? version
+        : inRollout(id, 'cart', rollout.id, rollout.percent)
+          ? rollout.candidate
+          : rollout.stable;
+    if (side === version) ids.push(id);
+  }
+  return ids.length === count ? ids : Array.from({ length: count }, (_, i) => `none-${String(i)}`);
+}
+
+const beacon = async (
+  version: string,
+  loads: number,
+  errors: number,
+  remote = 'cart',
+  u?: string,
+) =>
+  h.call('POST', '/v1/beacon', {
+    body: beaconBody(u ?? (await clientsFor(version, 1))[0] ?? 'x', [
+      report(version, loads, errors, remote),
+    ]),
+  });
 
 /** Distinct browsers reporting one version, the first `errors` of them with an error. */
 async function feed(version: string, clients: number, errors: number, prefix: string) {
-  for (let i = 0; i < clients; i += 1)
+  const ids = await clientsFor(version, clients, prefix);
+  for (const [i, id] of ids.entries())
     // oxlint-disable-next-line no-await-in-loop -- sequential on purpose
-    await h.server.service.beacon(
-      beaconBody(`${prefix}-${String(i)}`, [report(version, 1, i < errors ? 1 : 0)]),
-    );
+    await h.server.service.beacon(beaconBody(id, [report(version, 1, i < errors ? 1 : 0)]));
 }
 
 const countsOf = async () => {
@@ -323,7 +350,9 @@ describe('the gate', () => {
     await feed('1.0.0', 1000, 10, 's');
     await feed('2.0.0', 199, 20, 'c');
     expect(await h.server.storage.listRollouts('prod')).toHaveLength(1);
-    expect((await beacon('2.0.0', 1, 0, 'cart', 'c-last')).status).toBe(202);
+    expect(
+      (await beacon('2.0.0', 1, 0, 'cart', (await clientsFor('2.0.0', 1, 'last'))[0])).status,
+    ).toBe(202);
 
     expect(await h.server.storage.listRollouts('prod')).toEqual([]);
     for (let i = 0; i < 50; i += 1)
@@ -386,9 +415,10 @@ describe('the gate', () => {
   it('cannot be steered by one browser sending the same report over and over', async () => {
     await startRollout();
     await feed('1.0.0', 500, 0, 's');
+    const forger = (await clientsFor('2.0.0', 1, 'forger'))[0] ?? 'x';
     for (let i = 0; i < 300; i += 1)
       // oxlint-disable-next-line no-await-in-loop -- sequential on purpose
-      await h.server.service.beacon(beaconBody('forger', [report('2.0.0', 1, 1)]));
+      await h.server.service.beacon(beaconBody(forger, [report('2.0.0', 1, 1)]));
     expect(await h.server.storage.listRollouts('prod')).toHaveLength(1);
     expect((await countsOf())['2.0.0']).toEqual({ loads: 1, errors: 1, clients: 1 });
   });
@@ -433,28 +463,93 @@ describe('POST /v1/beacon', () => {
 
   it('takes a whole page in one request and counts each browser once per side', async () => {
     await startRollout();
+    const [a = 'x', b = 'y'] = await clientsFor('2.0.0', 2, 'p');
     const page = (u: string, errors: number) =>
       h.call('POST', '/v1/beacon', {
-        body: beaconBody(u, [
-          report('2.0.0', 1, errors),
-          report('1.0.0', 1, 0, 'cart'),
-          report('1.0.0', 1, 0, 'shop'),
-        ]),
+        body: beaconBody(u, [report('2.0.0', 1, errors), report('1.0.0', 1, 0, 'shop')]),
       });
-    expect((await page('a', 0)).status).toBe(202);
-    expect((await page('a', 0)).status).toBe(202);
-    expect((await page('a', 1)).status).toBe(202);
-    expect((await page('b', 0)).status).toBe(202);
+    expect((await page(a, 0)).status).toBe(202);
+    expect((await page(a, 0)).status).toBe(202);
+    expect((await page(a, 1)).status).toBe(202);
+    expect((await page(b, 0)).status).toBe(202);
+    expect(await countsOf()).toEqual({ '2.0.0': { loads: 2, errors: 1, clients: 2 } });
+  });
+
+  it('upgrades a clean load to an error once, and never back', async () => {
+    await startRollout();
+    const [u = 'x'] = await clientsFor('2.0.0', 1, 'up');
+    const send = (errors: number) =>
+      h.call('POST', '/v1/beacon', { body: beaconBody(u, [report('2.0.0', 1, errors)]) });
+    await send(0);
+    expect(await countsOf()).toEqual({ '2.0.0': { loads: 1, errors: 0, clients: 1 } });
+    await send(1);
+    expect(await countsOf()).toEqual({ '2.0.0': { loads: 1, errors: 1, clients: 1 } });
+    await send(1);
+    await send(0);
+    expect(await countsOf()).toEqual({ '2.0.0': { loads: 1, errors: 1, clients: 1 } });
+  });
+
+  it('drops a report for the side the browser is not assigned to', async () => {
+    await startRollout();
+    const [onCandidate = 'x'] = await clientsFor('2.0.0', 1, 'w');
+    const [onStable = 'y'] = await clientsFor('1.0.0', 1, 'w');
+    const send = (u: string, version: string) =>
+      h.call('POST', '/v1/beacon', { body: beaconBody(u, [report(version, 1, 1)]) });
+    expect((await send(onCandidate, '1.0.0')).status).toBe(202);
+    expect((await send(onStable, '2.0.0')).status).toBe(202);
+    expect(await countsOf()).toEqual({});
+    await send(onCandidate, '2.0.0');
+    await send(onStable, '1.0.0');
     expect(await countsOf()).toEqual({
-      '2.0.0': { loads: 2, errors: 1, clients: 2 },
-      '1.0.0': { loads: 2, errors: 0, clients: 2 },
+      '2.0.0': { loads: 1, errors: 1, clients: 1 },
+      '1.0.0': { loads: 1, errors: 1, clients: 1 },
     });
+  });
+
+  it('lets a browser that moves from stable to candidate on a step report both', async () => {
+    await startRollout({ percent: 10, steps: [60, 100] });
+    const [rollout] = await h.server.storage.listRollouts('prod');
+    let mover = '';
+    for (let i = 0; mover === ''; i += 1) {
+      const id = `m-${String(i)}`;
+      if (
+        !inRollout(id, 'cart', rollout?.id ?? '', 10) &&
+        inRollout(id, 'cart', rollout?.id ?? '', 60)
+      )
+        mover = id;
+    }
+    const send = (version: string) =>
+      h.call('POST', '/v1/beacon', { body: beaconBody(mover, [report(version)]) });
+    await send('1.0.0');
+    await send('2.0.0');
+    expect(await countsOf()).toEqual({ '1.0.0': { loads: 1, errors: 0, clients: 1 } });
+    await h.call('POST', '/v1/rollout/step', {
+      token: admin,
+      body: { env: 'prod', remote: 'cart' },
+    });
+    await send('2.0.0');
+    expect(await countsOf()).toEqual({
+      '1.0.0': { loads: 1, errors: 0, clients: 1 },
+      '2.0.0': { loads: 1, errors: 0, clients: 1 },
+    });
+  });
+
+  it('refuses the same remote twice in one body', async () => {
+    await startRollout();
+    const [u = 'x'] = await clientsFor('2.0.0', 1);
+    const res = await h.call('POST', '/v1/beacon', {
+      body: beaconBody(u, [report('2.0.0'), report('2.0.0', 1, 1)]),
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toContain('more than once');
+    expect(await countsOf()).toEqual({});
   });
 
   it('accepts a text/plain body, which is what sendBeacon sends', async () => {
     await startRollout();
+    const [u = 'x'] = await clientsFor('2.0.0', 1, 'tp');
     const res = await h.call('POST', '/v1/beacon', {
-      raw: JSON.stringify(beaconBody('a', [report('2.0.0')])),
+      raw: JSON.stringify(beaconBody(u, [report('2.0.0')])),
       headers: { 'content-type': 'text/plain;charset=UTF-8' },
     });
     expect(res.status).toBe(202);
@@ -580,5 +675,77 @@ describe('beacon rate limit', () => {
     h = await startHarness({ beaconLimit: { burst: 1, perMinute: 1 } });
     expect((await from('10.0.0.1')).status).toBe(202);
     expect((await from('10.0.0.2')).status).toBe(429);
+  });
+});
+
+describe('the reporter cap and the status endpoint', () => {
+  it('stops counting new browsers at the cap and still answers 202', async () => {
+    await h.stop();
+    h = await startHarness({ rolloutMaxReporters: 3 });
+    admin = await h.admin();
+    seedShell(h.artifacts, 'prod');
+    await startRollout();
+    await feed('2.0.0', 5, 0, 'cap');
+    expect(await countsOf()).toEqual({ '2.0.0': { loads: 3, errors: 0, clients: 3 } });
+    expect(
+      (await beacon('2.0.0', 1, 0, 'cart', (await clientsFor('2.0.0', 1, 'late'))[0])).status,
+    ).toBe(202);
+    const status = await h.call('GET', '/v1/rollout?env=prod&remote=cart', { token: admin });
+    expect(status.body).toMatchObject({ gate: { reporterCap: { max: 3, full: true } } });
+  });
+
+  it('shows clients and loads per side and why the gate is waiting', async () => {
+    await startRollout({ percent: 10, steps: [50] });
+    await feed('1.0.0', 60, 1, 's');
+    await feed('2.0.0', 20, 2, 'c');
+    const res = await h.call('GET', '/v1/rollout?env=prod&remote=cart', { token: admin });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      env: 'prod',
+      remote: 'cart',
+      stable: '1.0.0',
+      candidate: '2.0.0',
+      percent: 10,
+      steps: [50],
+      stableCounts: { loads: 60, errors: 1, clients: 60 },
+      candidateCounts: { loads: 20, errors: 2, clients: 20 },
+      gate: {
+        verdict: 'wait',
+        reason: '20 of 200 candidate loads so far',
+        settings: { minLoads: 200, minClients: 50 },
+        reporterCap: { max: 20_000, full: false },
+      },
+    });
+  });
+
+  it('says it is waiting for stable clients when the candidate is ready', async () => {
+    await startRollout({ percent: 99 });
+    await feed('2.0.0', 200, 0, 'c');
+    await feed('1.0.0', 2, 0, 's');
+    const res = await h.call('GET', '/v1/rollout?env=prod&remote=cart', { token: admin });
+    expect(res.body.gate).toMatchObject({
+      verdict: 'wait',
+      reason: '2 of 50 stable clients so far',
+    });
+  });
+
+  it('needs a token that can read that remote, and a running rollout', async () => {
+    await h.deploy(admin, 'cart', '1.0.0');
+    const get = (query: string, token?: string) =>
+      h.call('GET', `/v1/rollout${query}`, token === undefined ? {} : { token });
+    expect((await get('?env=prod&remote=cart', admin)).status).toBe(404);
+    seedVersion(h.artifacts, 'cart', '2.0.0');
+    await h.call('POST', '/v1/deploy', {
+      token: admin,
+      body: deployBody('2.0.0', { percent: 10 }),
+    });
+    expect((await get('?env=prod&remote=cart')).status).toBe(401);
+    expect((await get('?env=prod', admin)).status).toBe(400);
+    expect((await get('?env=Bad&remote=cart', admin)).status).toBe(400);
+    const writeOnly = await h.token({ actions: ['deploy'] });
+    expect((await get('?env=prod&remote=cart', writeOnly)).status).toBe(403);
+    const reader = await h.token({ env: 'prod', remote: 'cart', actions: ['read'] });
+    expect((await get('?env=prod&remote=cart', reader)).status).toBe(200);
+    expect((await h.call('POST', '/v1/rollout', { token: admin, body: {} })).status).toBe(405);
   });
 });

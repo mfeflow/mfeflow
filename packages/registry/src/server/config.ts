@@ -22,6 +22,8 @@ export interface ServerConfig {
   maxBodyBytes: number;
   /** When a rollout candidate is halted. */
   gate: GateSettings;
+  /** Browsers counted per rollout; past it the gate stops learning. */
+  rolloutMaxReporters: number;
   /** Beacons allowed per client address. */
   beaconLimit: { burst: number; perMinute: number };
   /** Read the client address from `X-Forwarded-For`; only behind your own proxy. */
@@ -147,6 +149,13 @@ export function configFromEnv(env: Env): ServerConfig {
     burst: integer(env, 'MFEFLOW_REGISTRY_BEACON_BURST', 60, [1, 10_000], problems),
     perMinute: integer(env, 'MFEFLOW_REGISTRY_BEACON_PER_MINUTE', 60, [1, 100_000], problems),
   };
+  const rolloutMaxReporters = integer(
+    env,
+    'MFEFLOW_REGISTRY_ROLLOUT_MAX_REPORTERS',
+    20_000,
+    [1, 10_000_000],
+    problems,
+  );
   const trustProxy = present(env, 'MFEFLOW_REGISTRY_TRUST_PROXY') === 'true';
   if (problems.length > 0) throw new ConfigError(problems);
   return {
@@ -159,6 +168,7 @@ export function configFromEnv(env: Env): ServerConfig {
     maxBodyBytes,
     gate,
     beaconLimit,
+    rolloutMaxReporters,
     trustProxy,
   };
 }

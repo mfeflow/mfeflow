@@ -21,6 +21,7 @@ export {
   type KillResult,
   type MoveResult,
   type RolloutResult,
+  type RolloutStatus,
   type RolloutSummary,
 } from './service';
 export { startRegistryServer, type RegistryServer, type StartOptions } from './server';

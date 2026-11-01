@@ -210,13 +210,45 @@ describe('createBeaconReporter', () => {
     reporter.stop();
   });
 
-  it('caps what one page sends at 20 entries in one request', () => {
-    const { sent, send } = collector();
-    const reporter = createBeaconReporter(TARGET, send, 'c');
+  it('splits a big page into beacons of at most 20 entries, and drops nothing', () => {
+    const raw: string[] = [];
+    const reporter = createBeaconReporter(
+      TARGET,
+      (_url, body) => {
+        raw.push(body);
+        return true;
+      },
+      'c',
+    );
     for (let i = 0; i < 50; i += 1) reporter.load(`remote${String(i)}`, '1.0.0');
     reporter.flush();
-    expect(sent).toHaveLength(1);
-    expect(JSON.stringify(sent[0]?.body).match(/"remote"/g)).toHaveLength(20);
+    const bodies = raw.map((r) => JSON.parse(r) as { entries: { remote: string }[] });
+    expect(bodies.map((b) => b.entries.length)).toEqual([20, 20, 10]);
+    expect(bodies.flatMap((b) => b.entries.map((e) => e.remote))).toEqual(
+      Array.from({ length: 50 }, (_, i) => `remote${String(i)}`),
+    );
+    reporter.stop();
+  });
+
+  it('splits by size too: no beacon is over 4 KiB', () => {
+    const raw: string[] = [];
+    const reporter = createBeaconReporter(
+      TARGET,
+      (_url, body) => {
+        raw.push(body);
+        return true;
+      },
+      'c',
+    );
+    const names = Array.from({ length: 20 }, (_, i) => `${'r'.repeat(120)}${String(i)}`);
+    for (const name of names) reporter.load(name, `1.0.0-${'a'.repeat(100)}`);
+    reporter.flush();
+    expect(raw.length).toBeGreaterThan(1);
+    for (const body of raw) expect(new TextEncoder().encode(body).length).toBeLessThanOrEqual(4096);
+    const sentNames = raw.flatMap((r) =>
+      (JSON.parse(r) as { entries: { remote: string }[] }).entries.map((e) => e.remote),
+    );
+    expect(sentNames).toEqual(names);
     reporter.stop();
   });
 

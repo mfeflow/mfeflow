@@ -272,6 +272,7 @@ export async function openSqliteStorage(
       if ('clear' in change.rollout) {
         run('DELETE FROM rollouts WHERE env = ? AND remote = ?', change.env, change.pointer.name);
         run('DELETE FROM rollout_reporters WHERE rollout_id = ?', change.rollout.clear);
+        run('DELETE FROM rollout_side_counts WHERE rollout_id = ?', change.rollout.clear);
       } else {
         const r = change.rollout.set;
         run(
@@ -319,22 +320,67 @@ export async function openSqliteStorage(
     listRollouts: sync((env) =>
       all('SELECT * FROM rollouts WHERE env = ? ORDER BY remote', env).map(rolloutOf),
     ),
-    addRolloutReport: sync((rolloutId, version, client, errored) => {
-      run(
-        `INSERT INTO rollout_reporters (rollout_id, version, client, errored)
-         SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM rollouts WHERE rollout_id = ?)
-         ON CONFLICT (rollout_id, version, client) DO UPDATE SET errored = MAX(errored, excluded.errored)`,
-        rolloutId,
-        version,
-        client,
-        errored ? 1 : 0,
-        rolloutId,
-      );
+    addRolloutReport: sync((rolloutId, version, client, errored, maxReporters) => {
+      try {
+        db.exec('BEGIN IMMEDIATE');
+      } catch (error) {
+        // A report lost to a busy database is only a missing sample.
+        if (isBusy(error)) return;
+        throw error;
+      }
+      try {
+        if (one('SELECT 1 AS found FROM rollouts WHERE rollout_id = ?', rolloutId) !== undefined) {
+          const known = one(
+            'SELECT errored FROM rollout_reporters WHERE rollout_id = ? AND version = ? AND client = ?',
+            rolloutId,
+            version,
+            client,
+          );
+          const bump = (clients: number, errors: number): void => {
+            run(
+              `INSERT INTO rollout_side_counts (rollout_id, version, clients, errors) VALUES (?, ?, ?, ?)
+               ON CONFLICT (rollout_id, version) DO UPDATE SET clients = clients + excluded.clients, errors = errors + excluded.errors`,
+              rolloutId,
+              version,
+              clients,
+              errors,
+            );
+          };
+          if (known === undefined) {
+            const total = one(
+              'SELECT COALESCE(SUM(clients), 0) AS n FROM rollout_side_counts WHERE rollout_id = ?',
+              rolloutId,
+            );
+            if (total === undefined || whole(total, 'n') < maxReporters) {
+              run(
+                'INSERT INTO rollout_reporters (rollout_id, version, client, errored) VALUES (?, ?, ?, ?)',
+                rolloutId,
+                version,
+                client,
+                errored ? 1 : 0,
+              );
+              bump(1, errored ? 1 : 0);
+            }
+          } else if (errored && whole(known, 'errored') === 0) {
+            run(
+              'UPDATE rollout_reporters SET errored = 1 WHERE rollout_id = ? AND version = ? AND client = ?',
+              rolloutId,
+              version,
+              client,
+            );
+            bump(0, 1);
+          }
+        }
+        db.exec('COMMIT');
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
     }),
     rolloutCounts: sync((rolloutId) => {
       const out: Record<string, VersionCounts> = {};
       for (const row of all(
-        'SELECT version, COUNT(*) AS clients, SUM(errored) AS errors FROM rollout_reporters WHERE rollout_id = ? GROUP BY version',
+        'SELECT version, clients, errors FROM rollout_side_counts WHERE rollout_id = ?',
         rolloutId,
       )) {
         const clients = whole(row, 'clients');

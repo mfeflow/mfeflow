@@ -84,6 +84,8 @@ export interface ServiceOptions {
   onChange?: (env: string) => void;
   /** When a rollout candidate is halted. */
   gate?: GateSettings;
+  /** Browsers counted per rollout. Default 20000. */
+  maxReporters?: number;
   log?: Log;
 }
 
@@ -125,7 +127,24 @@ export interface RolloutResult {
 
 /** A page reports each remote once, and a page has few remotes. */
 export const BEACON_MAX_ENTRIES = 20;
+export const DEFAULT_MAX_REPORTERS = 20_000;
 const CLIENT_ID = /^[\w.:-]{1,128}$/;
+
+export interface RolloutStatus extends RolloutSummary {
+  env: string;
+  remote: string;
+  startedAt: string;
+  candidateCounts: { loads: number; errors: number; clients: number };
+  stableCounts: { loads: number; errors: number; clients: number };
+  gate: {
+    verdict: 'wait' | 'ok' | 'halt';
+    /** Why it is waiting, or why it would halt. */
+    reason?: string;
+    settings: GateSettings;
+    /** `full` means new browsers are no longer counted, so the gate has stopped learning. */
+    reporterCap: { max: number; full: boolean };
+  };
+}
 
 export interface KillResult {
   ok: true;
@@ -746,7 +765,9 @@ export class RegistryService {
    * One page's report: its client id `u` and up to 20 `{remote, version, loads, errors}` entries,
    * each `loads` 0 or 1 and `errors` no more than `loads`. A browser counts once per rollout side,
    * however often it reports (the dedupe is a table in storage). Entries for anything that is not
-   * the candidate or stable of a running rollout are dropped without a write. Then the gate runs.
+   * the candidate or stable of a running rollout are dropped without a write, and so is an entry
+   * for the side `u` is not assigned to (candidate when `u` falls inside the percent, else stable).
+   * A remote named twice in one body is refused. Then the gate runs.
    */
   async beacon(raw: unknown): Promise<void> {
     const body = asBody(raw);
@@ -769,20 +790,55 @@ export class RegistryService {
         errors,
       };
     });
+    const names = entries.map((e) => e.remote);
+    if (new Set(names).size !== names.length) throw bad('"entries" names a remote more than once');
     const rollouts = await this.storage.listRollouts(env);
+    const maxReporters = this.options.maxReporters ?? DEFAULT_MAX_REPORTERS;
     const judged = new Map<string, RolloutRecord>();
     for (const { remote, version, loads, errors } of entries) {
       const rollout = rollouts.find((r) => r.remote === remote);
       if (loads === 0 || rollout === undefined) continue;
-      if (version !== rollout.stable && version !== rollout.candidate) continue;
+      const side = inRollout(client, remote, rollout.id, rollout.percent)
+        ? rollout.candidate
+        : rollout.stable;
+      if (version !== side) continue;
       // oxlint-disable-next-line no-await-in-loop -- at most 20 small writes
-      await this.storage.addRolloutReport(rollout.id, version, client, errors === 1);
+      await this.storage.addRolloutReport(rollout.id, version, client, errors === 1, maxReporters);
       if (version === rollout.candidate) judged.set(rollout.id, rollout);
     }
     for (const rollout of judged.values()) {
       // oxlint-disable-next-line no-await-in-loop -- a page rarely has more than a couple
       await this.judge(rollout);
     }
+  }
+
+  /** A running rollout's numbers and what the gate thinks of them right now. */
+  async rolloutStatus(env: string, remote: string): Promise<RolloutStatus> {
+    const rollout = (await this.storage.listRollouts(env)).find((r) => r.remote === remote);
+    if (rollout === undefined)
+      throw new ApiError(404, 'no_rollout', `${remote} has no rollout in ${env}`);
+    const settings = this.options.gate ?? DEFAULT_GATE;
+    const counts = await this.storage.rolloutCounts(rollout.id);
+    const none = { loads: 0, errors: 0, clients: 0 };
+    const candidate = counts[rollout.candidate] ?? none;
+    const stable = counts[rollout.stable] ?? none;
+    const verdict = evaluateGate(candidate, stable, settings);
+    const maxReporters = this.options.maxReporters ?? DEFAULT_MAX_REPORTERS;
+    const full = candidate.clients + stable.clients >= maxReporters;
+    return {
+      env,
+      remote,
+      ...summaryOf(rollout),
+      startedAt: rollout.startedAt,
+      candidateCounts: candidate,
+      stableCounts: stable,
+      gate: {
+        verdict: verdict.verdict,
+        ...('reason' in verdict ? { reason: verdict.reason } : {}),
+        settings,
+        reporterCap: { max: maxReporters, full },
+      },
+    };
   }
 
   private async judge(rollout: RolloutRecord): Promise<void> {
