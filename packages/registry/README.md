@@ -21,7 +21,7 @@ const host = localHost('./site');
 const { index, etag } = await readIndex(host, 'prod');
 
 const plan = planDeploy({
-  remote: mfeJson, // the remote's mfe.json
+  remote: appJson, // the remote's mfeflow.app.json
   version: '1.4.2+a1b2c3d',
   manifest: mfManifest, // its built mf-manifest.json
   files, // build output: path -> bytes
@@ -38,13 +38,13 @@ await applyPlan(host, plan);
 
 A deploy that fails a gate uploads nothing. The gates, by code:
 
-| Code            | Fails when                                                                                                        |
-| --------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `schema`        | the entry, the remote or the whole index is not valid, or `mf-manifest.json` is for another remote                |
-| `route-overlap` | one of the remote's routes can match a URL that another remote's route matches                                    |
-| `compat`        | a singleton range the remote asks for is not satisfied by the version the shell provides                          |
-| `budget`        | the initial JS (gzip) is over `mfe.json` `budgets.initialJsKb`, or, without one, the entry is over the cost model |
-| `rollout`       | a `rollout` is asked for; a static host cannot split traffic by percent                                           |
+| Code            | Fails when                                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `schema`        | the entry, the remote or the whole index is not valid, or `mf-manifest.json` is for another remote                        |
+| `route-overlap` | one of the remote's routes can match a URL that another remote's route matches                                            |
+| `compat`        | a singleton range the remote asks for is not satisfied by the version the shell provides                                  |
+| `budget`        | the initial JS (gzip) is over `mfeflow.app.json` `budgets.initialJsKb`, or, without one, the entry is over the cost model |
+| `rollout`       | a `rollout` is asked for; a static host cannot split traffic by percent                                                   |
 
 Shell versions come from the shell's `mf-manifest.json` `shared` entries, then from `workspaceVersions` for anything it does not list.
 

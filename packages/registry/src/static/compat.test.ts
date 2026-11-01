@@ -90,7 +90,7 @@ describe('compatProblems', () => {
         name: 'react',
         range: '^19',
         provided: '18.2.0',
-        source: 'mfe.json platform',
+        source: 'mfeflow.app.json platform',
         kind: 'mismatch',
       },
     ]);

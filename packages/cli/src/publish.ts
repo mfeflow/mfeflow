@@ -69,7 +69,7 @@ export async function openSession(
   args: Record<string, unknown>,
   raw: Globals = readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive),
 ): Promise<Session> {
-  const view = await inspectProject(await findProjectRoot(raw.cwd));
+  const view = await inspectProject(await findProjectRoot(raw.cwd), rt.io);
   const flag = text(args, 'host');
   const spec = flag ?? view.project.registry?.host;
   if (spec === undefined)
@@ -158,8 +158,7 @@ export function remoteApp(view: ProjectView, name: string | undefined): AppView 
       'E107',
       `"${name}" is not a remote of this project (remotes: ${remotes.map((a) => a.name).join(', ')})`,
     );
-  if (app.mfe.state !== 'ok')
-    throw new MfeflowError('E113', `${app.rel}/mfe.json is ${app.mfe.state}`);
+  if (app.mfe.state !== 'ok') throw new MfeflowError('E113', `${app.appFile} is ${app.mfe.state}`);
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed on the line above
   return app as AppView & { mfe: MfeOk };
 }

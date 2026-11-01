@@ -58,7 +58,7 @@ export interface CompatProblem {
   /** Empty when the shell's version is unknown. */
   provided: string;
   /** Where the range came from. */
-  source: 'shared' | 'mfe.json platform';
+  source: 'shared' | 'mfeflow.app.json platform';
   /**
    * `mismatch` fails the gate. `unresolved` is a warning: the shell's version is `workspace:*`,
    * `catalog:`, `link:` or the like, or its manifest lists the package with no version, so nothing can be compared.
@@ -69,7 +69,7 @@ export interface CompatProblem {
 export interface CompatInput {
   /** The remote's own `mf-manifest.json`. */
   remoteManifest: unknown;
-  /** `mfe.json` `platform` ranges. */
+  /** `mfeflow.app.json` `platform` ranges. */
   platform?: Record<string, string> | undefined;
   /** The target shell's deployed `mf-manifest.json`. */
   shellManifest?: unknown;
@@ -78,7 +78,7 @@ export interface CompatInput {
 }
 
 /**
- * Every singleton range the remote asks for (its `shared` entries and `mfe.json` platform) that the
+ * Every singleton range the remote asks for (its `shared` entries and `mfeflow.app.json` platform) that the
  * version the shell provides does not satisfy, plus the ones that cannot be compared. A package neither
  * the shell manifest nor the workspace versions list is not checked.
  */
@@ -99,7 +99,7 @@ export function compatProblems(input: CompatInput): CompatProblem[] {
     ...Object.entries(input.platform ?? {}).map(([name, range]) => ({
       name,
       range,
-      source: 'mfe.json platform' as const,
+      source: 'mfeflow.app.json platform' as const,
     })),
   ];
   const out: CompatProblem[] = [];

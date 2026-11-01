@@ -114,7 +114,8 @@ export const COMMANDS: readonly Command[] = [
   },
   {
     name: 'validate',
-    summary: 'check mfeflow.json, every mfe.json and every registry entry against their schemas',
+    summary:
+      'check mfeflow.json, every mfeflow.app.json and every registry entry against their schemas',
     usage: 'mfeflow validate [options]',
     args: VALIDATE_ARGS,
     examples: ['mfeflow validate', 'mfeflow validate --json'],

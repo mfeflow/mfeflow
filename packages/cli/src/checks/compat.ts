@@ -6,7 +6,7 @@ import { comparable, unresolved } from './singletons';
 
 async function compatFor(shell: AppView, remote: AppView, root: string): Promise<Finding[]> {
   const out: Finding[] = [];
-  const at = { app: remote.name, path: `${remote.rel}/mfe.json` };
+  const at = { app: remote.name, path: remote.appFile };
   const platform = remote.mfe.state === 'ok' ? (remote.mfe.value.platform ?? {}) : {};
   for (const [name, range] of Object.entries(platform)) {
     // oxlint-disable-next-line no-await-in-loop -- a few packages
@@ -18,7 +18,7 @@ async function compatFor(shell: AppView, remote: AppView, root: string): Promise
         finding(
           'compat',
           'E302',
-          `${remote.name} needs ${name} ${range} (mfe.json platform) but ${shell.name} has ${String(have)}`,
+          `${remote.name} needs ${name} ${range} (mfeflow.app.json platform) but ${shell.name} has ${String(have)}`,
           at,
         ),
       );

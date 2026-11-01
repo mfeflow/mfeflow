@@ -122,13 +122,13 @@ async function runGroup(
   assertKnownFlags(raw, defs);
   const globals = readGlobals(args, rt.io.env, rt.io.cwd);
   const root = await findProjectRoot(globals.cwd);
-  let view = await inspectProject(root);
+  let view = await inspectProject(root, rt.io);
   let report = await runChecks(view, checks);
   let fixed = 0;
   if (fix && report.findings.some((f) => f.fixable)) {
     fixed = await fixAll(rt, globals, view, report.findings);
     if (fixed > 0) {
-      view = await inspectProject(root);
+      view = await inspectProject(root, rt.io);
       report = await runChecks(view, checks);
     }
   }
