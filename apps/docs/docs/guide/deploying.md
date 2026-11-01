@@ -1,6 +1,6 @@
 ---
 title: Deploy
-description: How to build an mfeflow project and host the output as static files today, with the same-origin /mfe/name/ layout, a registry index and a runtime config. Deploy commands are not built yet.
+description: How to build an mfeflow project and host the output as static files today, with the same-origin /mfe/name/ layout, a registry index and a runtime config. To publish a remote and roll it back with commands, see Deploy and roll back a remote.
 ---
 
 # Deploy
@@ -107,15 +107,6 @@ You should see a local address. Open it and click catalog. The remote should loa
 
 To go back, put the old build of a remote back under its `/mfe/<name>/` folder, or point `entry` at an older folder. This works, but it is manual, and there is no record of what was live.
 
-## Coming in Phase 05: not built yet
+## Publish and roll back with commands
 
-The commands below are planned. They do not exist in 0.4.0, and typing them gives an unknown command error. This section only states the intent.
-
-| Command    | Intent                                                    |
-| ---------- | --------------------------------------------------------- |
-| `deploy`   | Publish one remote's build and write its registry entry   |
-| `promote`  | Move a build from one environment to the next             |
-| `rollback` | Change a pointer to a previous version, without a rebuild |
-| `status`   | Show what each environment serves                         |
-
-The registry entry shape already has room for this. It can hold a `previous` version and a `rollout` with a percentage. Nothing reads those fields yet. The idea is that rolling back means changing a pointer in the registry, not building the old code again.
+`mfeflow deploy`, `promote`, `rollback` and `status` publish a remote to a static registry host and move one pointer per environment. They work on a folder or an S3 bucket and need no rebuild to roll back. Follow [Deploy and roll back a remote](/guide/deploy-and-rollback) for a walk-through with output.

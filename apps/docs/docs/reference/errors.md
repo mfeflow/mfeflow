@@ -73,4 +73,19 @@ Every error the CLI prints has a code like MFEFLOW_E102, a cause, a fix and a li
 | [E403](/errors/E403) | The registry's index.json is not valid                |
 | [E404](/errors/E404) | A feature in the registry folder cannot be published  |
 
-E107 and E215 are command-line mistakes and exit with code 2. Codes in the E5xx range are reserved for the upgrade command and exit with code 7. None are used in this release.
+E107 and E215 are command-line mistakes and exit with code 2. The E5xx range belongs to `deploy`, `promote`, `rollback` and `status` and exits with code 7:
+
+| Code                 | Meaning                                                          |
+| -------------------- | ---------------------------------------------------------------- |
+| [E501](/errors/E501) | A deploy failed the schema gate                                  |
+| [E502](/errors/E502) | A route of this remote overlaps a route of another remote        |
+| [E503](/errors/E503) | The remote's shared ranges do not fit the shell that is deployed |
+| [E504](/errors/E504) | The remote is over its first-load JS budget                      |
+| [E505](/errors/E505) | A rollout was asked for, and a static host cannot split traffic  |
+| [E506](/errors/E506) | The registry host is not set up or cannot be used                |
+| [E507](/errors/E507) | There is no build output to deploy                               |
+| [E508](/errors/E508) | There is no such version to move to                              |
+| [E509](/errors/E509) | Files of the target version are missing on the host              |
+| [E510](/errors/E510) | Another deploy changed the index at the same time                |
+| [E511](/errors/E511) | This version is already published with different content         |
+| [E512](/errors/E512) | Local registry files and the host disagree                       |

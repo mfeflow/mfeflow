@@ -45,6 +45,21 @@ Each is a root script for the `mfeflow` CLI in your devDependencies (`pnpm mfefl
 against the 10 KB a remote may add; set `budget.baselineKb` in `mfeflow.json` (your pages built as one app) to check
 the shell against baseline + 32 KB too.
 
+## Deploy it
+
+```sh
+pnpm build
+pnpm mfeflow deploy catalog --env staging --host file:./site --base-url https://cdn.example.com
+pnpm mfeflow promote catalog --from staging --to prod --host file:./site
+pnpm mfeflow rollback catalog --env prod --host file:./site
+pnpm mfeflow status --host file:./site
+```
+
+`deploy` uploads a remote's `dist` and points an environment at it, `rollback` points it back without a rebuild, and
+`status` shows what is served. Put `host` and `baseUrl` under `registry` in `mfeflow.json` to drop the flags, or use
+`s3://<bucket>` with the `MFEFLOW_S3_*` and `AWS_*` variables. There are no root scripts for these, because the package manager has a deploy command of its own, so
+run them through `pnpm mfeflow`.
+
 ## Before you deploy
 
 `registry/envs/staging` and `registry/envs/prod` point at `example.com`. Replace the hosts

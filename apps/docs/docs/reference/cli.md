@@ -13,22 +13,26 @@ Run the command with `--help` for the options and examples of one command.
 
 ## Commands
 
-| Command                                   | Does                                                            |
-| ----------------------------------------- | --------------------------------------------------------------- |
-| `init [dir]`                              | Create a project: a shell and remotes                           |
-| `add remote <name>`                       | Add a remote, its registry entries and a shell route            |
-| `add shell <name>`                        | Add a shell that routes to every remote                         |
-| `add <feature...>`                        | Add features, or `@namespace/feature` from a registry           |
-| `add env-key <KEY>`                       | Add a typed env key                                             |
-| `features [search]`                       | List and search features from mfeflow and your registries       |
-| `registry add`, `list`, `remove`, `build` | Configure or build third-party registries                       |
-| `doctor`                                  | Check singletons, compatibility, config and drift               |
-| `validate`                                | Check `mfeflow.json`, every `mfe.json` and every registry entry |
-| `check-compat`                            | Check each remote's shared ranges against its shells            |
-| `budget`                                  | Measure built JavaScript against the cost model                 |
-| `dev`                                     | Run the shell and every remote with a dev registry              |
+| Command                                   | Does                                                                             |
+| ----------------------------------------- | -------------------------------------------------------------------------------- |
+| `init [dir]`                              | Create a project: a shell and remotes                                            |
+| `add remote <name>`                       | Add a remote, its registry entries and a shell route                             |
+| `add shell <name>`                        | Add a shell that routes to every remote                                          |
+| `add <feature...>`                        | Add features, or `@namespace/feature` from a registry                            |
+| `add env-key <KEY>`                       | Add a typed env key                                                              |
+| `features [search]`                       | List and search features from mfeflow and your registries                        |
+| `registry add`, `list`, `remove`, `build` | Configure or build third-party registries                                        |
+| `doctor`                                  | Check singletons, compatibility, config and drift                                |
+| `validate`                                | Check `mfeflow.json`, every `mfe.json` and every registry entry                  |
+| `check-compat`                            | Check each remote's shared ranges against its shells                             |
+| `budget`                                  | Measure built JavaScript against the cost model                                  |
+| `dev`                                     | Run the shell and every remote with a dev registry                               |
+| `deploy <remote>`                         | Upload a remote's build to a static registry host and point an environment at it |
+| `promote <remote>`                        | Point one environment at the version another serves; no upload                   |
+| `rollback <remote>`                       | Point an environment back at an earlier version; no rebuild                      |
+| `status`                                  | What each environment serves, the version before it, and drift                   |
 
-This release has no command to remove a feature. It also has no upgrade, deploy, promote, rollback or status command.
+This release has no command to remove a feature and no upgrade command.
 
 An unknown command exits with code 2 (E107).
 
@@ -164,6 +168,34 @@ Runs the shell and every remote with a dev registry that follows the project.
 
 Ctrl+C stops everything and exits with code 130. See [Develop locally](/guide/development).
 
+## deploy, promote, rollback and status
+
+```sh
+mfeflow deploy catalog --env prod --version 1.4.2
+mfeflow promote catalog --from staging --to prod
+mfeflow rollback catalog --env prod --to 1.3.0
+mfeflow status --env prod
+```
+
+A walk-through with output is in [Deploy and roll back a remote](/guide/deploy-and-rollback).
+
+| Flag                         | Commands                  | Does                                                                                                      |
+| ---------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `--env <env>`                | deploy, rollback, status  | The environment. `status` defaults to every env on the host and every folder in `registry/envs` but `dev` |
+| `--from <env>`, `--to <env>` | promote                   | Copy the pointer from one environment to another                                                          |
+| `--to <version>`             | rollback                  | Go back to this version, which must be in the history. Default: the previous one                          |
+| `--force`                    | rollback                  | Roll back although the schema, route or compat checks fail. The files must still exist                    |
+| `--version <v>`              | deploy                    | Default: the remote's `package.json` version                                                              |
+| `--dist <dir>`               | deploy                    | Build folder inside the remote. Default `dist`                                                            |
+| `--no-publish`               | deploy                    | Upload the files, leave the index where it is. `status` then shows drift                                  |
+| `--host <spec>`              | all                       | `file:<dir>` or `s3://<bucket>[/prefix]`. Default `registry.host` in `mfeflow.json`                       |
+| `--base-url <url>`           | deploy, promote, rollback | https URL (http only on localhost) the host serves from. Default `registry.baseUrl`                       |
+| `--shell-manifest <file>`    | deploy, promote, rollback | The shell's deployed `mf-manifest.json`. Default `envs/<env>/shell/` on the host                          |
+
+S3 settings come from `MFEFLOW_S3_ENDPOINT`, `MFEFLOW_S3_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`, and are never printed. `--dry-run` prints the plan as data and writes nothing. Without `--yes`, a terminal asks before anything moves. A failed gate exits with 7 and one of E501 to E505. The other deploy errors are E506 to E512.
+
+`--json` prints `{ ok, command, dryRun, env, fromEnv, host, remote, version, servedBefore, published, previous, rolledBackFrom, uploads, uploaded, skipped, localEntry, warnings, findings }` for the first three, with `index` added for a dry run. `status` prints `{ ok, command: "status", host, envs: [{ env, published, generatedAt, remotes }], findings }`. A successful deploy, promote or rollback also writes `registry/envs/<env>/<remote>.json`, so git records what is served. Not for `dev`: `mfeflow dev` reads that folder.
+
 ## Exit codes
 
 | Code | Meaning                                   |
@@ -174,8 +206,8 @@ Ctrl+C stops everything and exits with code 130. See [Develop locally](/guide/de
 | 3    | Project or config problem (E1xx)          |
 | 4    | Feature problem (E2xx)                    |
 | 5    | Build or runtime problem (E3xx)           |
-| 6    | Registry problem (E4xx)                   |
-| 7    | Upgrade problem (E5xx)                    |
+| 6    | Feature registry problem (E4xx)           |
+| 7    | Deploy problem (E5xx)                     |
 | 130  | Cancelled at a prompt, or Ctrl+C in `dev` |
 
 For the four check commands, the exit code is the lowest code among the errors found. Warnings do not change it. Every error has a code and a page. See [Error codes](/reference/errors).
