@@ -436,15 +436,23 @@ export async function runPromote(
     env: to,
     name: app.name,
     dryRun: globals.dryRun,
-    plan: () =>
-      movePlan(
+    plan: async () => {
+      // Both indexes are read on every pass: the source may have moved while the target write was refused.
+      const nowSource = inEnv((await currentIndex(s, from)).index, app.name, from);
+      if (nowSource.version !== version)
+        throw new MfeflowError(
+          'E510',
+          `${from} now serves ${app.name}@${String(nowSource.version)}, not ${version} as when this promote started; check \`mfeflow status\` and run it again`,
+        );
+      return movePlan(
         s,
         { name: app.name, mfe: app.mfe.value },
         version,
         to,
-        source,
+        nowSource,
         text(args, 'shell-manifest'),
-      ),
+      );
+    },
   });
   const result = await finish(
     s,

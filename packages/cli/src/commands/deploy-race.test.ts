@@ -284,3 +284,47 @@ describe('the shell manifest warning', () => {
     expect(JSON.stringify(result)).not.toContain('TOP-SECRET-WORD');
   });
 });
+
+describe('promote with a second writer', () => {
+  // staging serves 2.0.0 and prod was rolled back to 1.0.0, so promoting staging to prod really moves prod.
+  async function staged(f: Fixture): Promise<void> {
+    await ship(f, ['1.0.0', '2.0.0']);
+    await f.run('promote', 'catalog', '--from', 'prod', '--to', 'staging');
+    await f.run('rollback', 'catalog', '--env', 'prod');
+  }
+
+  it('plans again on the target the other writer changed', async () => {
+    const f = await project();
+    await staged(f);
+    const rt = testRuntime();
+    rt.wrapHost = racer(() => otherDeploy(f, '3.0.0'));
+    const code = await main(
+      ['promote', 'catalog', '--from', 'staging', '--to', 'prod', ...flags(f)],
+      rt,
+    );
+    expect(code).toBe(0);
+    expect(await f.served('prod')).toMatchObject({ version: '2.0.0', previous: '3.0.0' });
+  });
+
+  it('stops with E510 when the source env no longer serves the version', async () => {
+    const f = await project();
+    await staged(f);
+    const rt = testRuntime();
+    rt.wrapHost = racer(async () => {
+      await buildRemote(f.root, 'catalog', '3.0.0');
+      const other = await f.run('deploy', 'catalog', '--env', 'staging');
+      expect(other.code).toBe(0);
+      // The target changes too, so the write is refused and the command plans again.
+      await otherDeploy(f, '3.0.1');
+    });
+    const code = await main(
+      ['promote', 'catalog', '--from', 'staging', '--to', 'prod', ...flags(f)],
+      rt,
+    );
+    expect(code).toBe(7);
+    const { error } = failureOf(rt.io.out.join(''));
+    expect(error.code).toBe('MFEFLOW_E510');
+    expect(error.message).toContain('staging now serves catalog@3.0.0');
+    expect((await f.served('prod'))?.version).toBe('3.0.1');
+  });
+});
