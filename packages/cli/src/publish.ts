@@ -7,7 +7,7 @@ import type {
   RegistryIndexRemote,
 } from '@mfeflow/contracts';
 import { isLoopbackHttp } from '@mfeflow/contracts';
-import { findProjectRoot, messageOf, MfeflowError, type ErrorCode } from '@mfeflow/core';
+import { findProjectRoot, hasErrno, messageOf, MfeflowError, type ErrorCode } from '@mfeflow/core';
 import {
   applyPlan,
   HostError,
@@ -45,9 +45,23 @@ export interface Session {
   secrets: string[];
   /** `--base-url`, else `registry.baseUrl` from mfeflow.json. */
   baseUrl: string | undefined;
+  /** Server mode with no host: there is nowhere to upload artifacts to. */
+  hostless: boolean;
 }
 
 const ENV_NAME = /^[a-z][a-z0-9-]*$/;
+
+/** Stands in for a host in server mode when none is set: it holds nothing and takes nothing. */
+const NO_HOST: RegistryHost = {
+  put: () => Promise.reject(new MfeflowError('E506', 'no host to upload to')),
+  get: () => Promise.resolve(undefined),
+  head: () => Promise.resolve(undefined),
+};
+
+const tokenSecrets = (env: Readonly<Record<string, string | undefined>>): string[] => {
+  const token = env.MFEFLOW_REGISTRY_TOKEN?.trim();
+  return token === undefined || token === '' ? [] : [token];
+};
 
 export function envOf(args: Record<string, unknown>, key = 'env'): string {
   const env = text(args, key);
@@ -68,20 +82,25 @@ export async function openSession(
   rt: Runtime,
   args: Record<string, unknown>,
   raw: Globals = readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive),
+  options: { hostOptional?: boolean } = {},
 ): Promise<Session> {
   const view = await inspectProject(await findProjectRoot(raw.cwd));
   const flag = text(args, 'host');
   const spec = flag ?? view.project.registry?.host;
-  if (spec === undefined)
+  if (spec === undefined && options.hostOptional !== true)
     throw new MfeflowError('E506', 'no host: pass --host or set registry.host in mfeflow.json');
-  const parsed = parseHostSpec(spec, flag === undefined ? view.root : raw.cwd);
-  const secrets = secretsOf(rt.io.env);
+  const parsed =
+    spec === undefined ? undefined : parseHostSpec(spec, flag === undefined ? view.root : raw.cwd);
+  const secrets = [...secretsOf(rt.io.env), ...tokenSecrets(rt.io.env)];
   let host: RegistryHost;
   try {
-    host = await openHost(parsed, {
-      env: rt.io.env,
-      ...(rt.hostFetch === undefined ? {} : { fetch: rt.hostFetch }),
-    });
+    host =
+      parsed === undefined
+        ? NO_HOST
+        : await openHost(parsed, {
+            env: rt.io.env,
+            ...(rt.hostFetch === undefined ? {} : { fetch: rt.hostFetch }),
+          });
   } catch (error) {
     throw hostFailure(error, secrets);
   }
@@ -96,10 +115,11 @@ export async function openSession(
     rt,
     globals: raw,
     view,
-    host: rt.wrapHost === undefined ? host : rt.wrapHost(host),
-    hostLabel: describeHost(parsed),
+    host: rt.wrapHost === undefined || parsed === undefined ? host : rt.wrapHost(host),
+    hostLabel: parsed === undefined ? 'no host' : describeHost(parsed),
     secrets,
     baseUrl,
+    hostless: parsed === undefined,
   };
 }
 
@@ -346,4 +366,43 @@ export async function writeLocalEntry(
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, `${JSON.stringify(localEntryOf(remote), null, 2)}\n`);
   return path.relative(root, file).split(path.sep).join('/');
+}
+
+export interface Build {
+  manifest: unknown;
+  files: Record<string, Uint8Array>;
+}
+
+async function walk(root: string, rel: string, out: Record<string, Uint8Array>): Promise<void> {
+  const entries = await fs.readdir(path.join(root, rel), { withFileTypes: true });
+  for (const entry of entries) {
+    const next = rel === '' ? entry.name : `${rel}/${entry.name}`;
+    if (entry.isDirectory()) {
+      // oxlint-disable-next-line no-await-in-loop -- depth first, in order
+      await walk(root, next, out);
+    } else if (entry.isFile()) {
+      // oxlint-disable-next-line no-await-in-loop -- depth first, in order
+      out[next] = new Uint8Array(await fs.readFile(path.join(root, next)));
+    }
+  }
+}
+
+export async function readBuild(dir: string, shown: string): Promise<Build> {
+  const files: Record<string, Uint8Array> = {};
+  try {
+    await walk(dir, '', files);
+  } catch (error) {
+    if (hasErrno(error, 'ENOENT') || hasErrno(error, 'ENOTDIR'))
+      throw new MfeflowError('E507', `${shown} does not exist`);
+    throw error;
+  }
+  const raw = files['mf-manifest.json'];
+  if (raw === undefined) throw new MfeflowError('E507', `${shown}/mf-manifest.json is not there`);
+  let manifest: unknown;
+  try {
+    manifest = JSON.parse(new TextDecoder().decode(raw));
+  } catch {
+    throw new MfeflowError('E507', `${shown}/mf-manifest.json is not valid JSON`);
+  }
+  return { manifest, files };
 }

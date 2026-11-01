@@ -1,4 +1,3 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
   remoteDistFiles,
@@ -8,7 +7,7 @@ import {
   type RegistryIndex,
   type RegistryIndexRemote,
 } from '@mfeflow/contracts';
-import { hasErrno, MfeflowError } from '@mfeflow/core';
+import { MfeflowError } from '@mfeflow/core';
 import {
   artifactPrefix,
   INDEX_CACHE_CONTROL,
@@ -28,17 +27,29 @@ import {
   gateFindings,
   openSession,
   positionals,
+  readBuild,
   readShellManifest,
   remoteApp,
   shellVersions,
   writeLocalEntry,
   type Committed,
+  type Build,
   type Planned,
   type Session,
 } from '../publish';
 import type { Runtime } from '../runtime';
+import { openServer } from '../server-client';
+import {
+  deployViaServer,
+  promoteViaServer,
+  refuseRolloutFlags,
+  rollbackViaServer,
+  ROLLOUT_ARGS,
+  SERVER_ARGS,
+} from './server-mode';
 
 const HOST_ARGS = {
+  ...SERVER_ARGS,
   host: {
     type: 'string',
     description:
@@ -74,6 +85,7 @@ export const DEPLOY_ARGS = {
     default: true,
     description: 'Move the index to the new version (--no-publish uploads the files and stops)',
   },
+  ...ROLLOUT_ARGS,
   ...HOST_ARGS,
   ...GLOBAL_ARGS,
 } as const satisfies ArgsDef;
@@ -81,6 +93,7 @@ export const DEPLOY_ARGS = {
 export const PROMOTE_ARGS = {
   from: { type: 'string', description: 'Environment to copy the version from', valueHint: 'env' },
   to: { type: 'string', description: 'Environment to point at it', valueHint: 'env' },
+  ...ROLLOUT_ARGS,
   ...HOST_ARGS,
   ...GLOBAL_ARGS,
 } as const satisfies ArgsDef;
@@ -100,45 +113,6 @@ export const ROLLBACK_ARGS = {
   ...HOST_ARGS,
   ...GLOBAL_ARGS,
 } as const satisfies ArgsDef;
-
-interface Build {
-  manifest: unknown;
-  files: Record<string, Uint8Array>;
-}
-
-async function walk(root: string, rel: string, out: Record<string, Uint8Array>): Promise<void> {
-  const entries = await fs.readdir(path.join(root, rel), { withFileTypes: true });
-  for (const entry of entries) {
-    const next = rel === '' ? entry.name : `${rel}/${entry.name}`;
-    if (entry.isDirectory()) {
-      // oxlint-disable-next-line no-await-in-loop -- depth first, in order
-      await walk(root, next, out);
-    } else if (entry.isFile()) {
-      // oxlint-disable-next-line no-await-in-loop -- depth first, in order
-      out[next] = new Uint8Array(await fs.readFile(path.join(root, next)));
-    }
-  }
-}
-
-async function readBuild(dir: string, shown: string): Promise<Build> {
-  const files: Record<string, Uint8Array> = {};
-  try {
-    await walk(dir, '', files);
-  } catch (error) {
-    if (hasErrno(error, 'ENOENT') || hasErrno(error, 'ENOTDIR'))
-      throw new MfeflowError('E507', `${shown} does not exist`);
-    throw error;
-  }
-  const raw = files['mf-manifest.json'];
-  if (raw === undefined) throw new MfeflowError('E507', `${shown}/mf-manifest.json is not there`);
-  let manifest: unknown;
-  try {
-    manifest = JSON.parse(new TextDecoder().decode(raw));
-  } catch {
-    throw new MfeflowError('E507', `${shown}/mf-manifest.json is not valid JSON`);
-  }
-  return { manifest, files };
-}
 
 async function confirm(s: Session, message: string, dryRun: boolean): Promise<void> {
   if (dryRun || !s.globals.canPrompt) return;
@@ -214,9 +188,19 @@ export function formatDeploy(result: DeployResult): string {
     return lines.join('\n');
   }
   const files = `${String(result.uploaded.length)} uploaded, ${String(result.skipped.length)} already there`;
-  if (result.published) {
+  if (result.rollout !== undefined) {
+    const r = result.rollout;
+    const later =
+      r.steps.length === 0 ? '' : `, then ${r.steps.map((n) => `${String(n)}%`).join(', ')}`;
+    if (result.uploaded.length + result.skipped.length > 0) lines.push(`Files: ${files}`);
+    lines.push(
+      `Rollout started: ${target} is at ${String(r.percent)}%${later}. Everyone else stays on ${r.stable}.`,
+      `Move it with mfeflow rollout step|complete|abort ${result.remote} --env ${result.env}.`,
+    );
+  } else if (result.published) {
     const was = result.servedBefore === null ? 'first deploy' : `was ${result.servedBefore}`;
-    lines.push(`Files: ${files}`, `${result.env} now serves ${target} (${was}).`);
+    if (!result.host.startsWith('server ')) lines.push(`Files: ${files}`);
+    lines.push(`${result.env} now serves ${target} (${was}).`);
     if (result.rolledBackFrom !== null) lines.push(`Rolled back from ${result.rolledBackFrom}.`);
     if (result.localEntry !== null) lines.push(`Wrote ${result.localEntry}.`);
   } else if (result.uploaded.length + result.skipped.length > 0) {
@@ -266,6 +250,9 @@ export async function runDeploy(
   raw: readonly string[],
 ): Promise<DeployResult> {
   assertKnownFlags(raw, DEPLOY_ARGS);
+  const server = openServer(rt, args);
+  if (server !== undefined) return deployViaServer(rt, args, raw, DEPLOY_ARGS, server);
+  refuseRolloutFlags(args);
   const globals = readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive);
   const [name] = positionals(args, 1, 'mfeflow deploy <remote> --env <env>');
   const env = envOf(args);
@@ -418,6 +405,9 @@ export async function runPromote(
   raw: readonly string[],
 ): Promise<DeployResult> {
   assertKnownFlags(raw, PROMOTE_ARGS);
+  const server = openServer(rt, args);
+  if (server !== undefined) return promoteViaServer(rt, args, raw, PROMOTE_ARGS, server);
+  refuseRolloutFlags(args);
   const globals = readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive);
   const [name] = positionals(args, 1, 'mfeflow promote <remote> --from <env> --to <env>');
   const from = envOf(args, 'from');
@@ -469,6 +459,8 @@ export async function runRollback(
   raw: readonly string[],
 ): Promise<DeployResult> {
   assertKnownFlags(raw, ROLLBACK_ARGS);
+  const server = openServer(rt, args);
+  if (server !== undefined) return rollbackViaServer(rt, args, raw, ROLLBACK_ARGS, server);
   const globals = readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive);
   const [name] = positionals(args, 1, 'mfeflow rollback <remote> --env <env>');
   const env = envOf(args);
