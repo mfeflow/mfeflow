@@ -1,6 +1,6 @@
 {
   "name": "ci-github",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "GitHub Actions workflow for pull requests: lint, typecheck, test, build, doctor, validate, check-compat, budget, runtime-config check and the Playwright smoke test. Opt-in.",
   "requires": ["core"],
   "files": [

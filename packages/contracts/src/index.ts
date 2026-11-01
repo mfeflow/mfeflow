@@ -46,6 +46,7 @@ export {
 } from './feature-registry';
 export {
   FILE_HASH,
+  PROJECT_REPOS,
   REGISTRY_HOST,
   REGISTRY_NAMESPACE,
   isMfeflowProject,

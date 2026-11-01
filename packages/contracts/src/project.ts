@@ -6,6 +6,10 @@ import { isRegistryProtocol, registryTemplateProblem } from './feature-registry'
 export interface MfeflowProject {
   $schema?: string;
   version: 1;
+  /** Version of the CLI that last wrote this file. */
+  cli?: string;
+  /** Which repo this is in a multi-repo setup. Absent means a platform monorepo. */
+  repo?: 'platform' | 'shell' | 'remote';
   topology: 'monorepo' | 'polyrepo' | 'hybrid';
   packageManager: 'pnpm' | 'npm';
   /** npm scope for the project's own packages, e.g. `@shopco`. */
@@ -67,10 +71,12 @@ export function isCheckoutPath(value: string): boolean {
   return rest.every((part) => part !== '' && part !== '.' && part !== '..');
 }
 
+export const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 /** `file:<dir>` or `s3://<bucket>[/prefix]`. No credentials: `@` and `:` cannot appear in a bucket name. */
 export const REGISTRY_HOST = /^(?:file:\S.*|s3:\/\/[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](?:\/\S*)?)$/;
 
 export const SCOPE = /^@[a-z0-9][a-z0-9-._]*$/;
+export const PROJECT_REPOS = ['platform', 'shell', 'remote'] as const;
 const FEATURE = /^(@[a-z0-9-]+\/)?[a-z][a-z0-9-]*$/;
 
 export function validateMfeflowProject(value: unknown): Issue[] {
@@ -80,6 +86,20 @@ export function validateMfeflowProject(value: unknown): Issue[] {
     return c.issues;
   }
   if (value.version !== 1) c.add('version', 'must be 1');
+  if ('cli' in value) {
+    c.string(value, 'cli', '', {
+      required: false,
+      pattern: SEMVER,
+      hint: 'must be a version like "0.5.0"',
+    });
+  }
+  let repo: string | undefined;
+  if ('repo' in value) {
+    repo = c.string(value, 'repo', '', { required: false });
+    if (repo !== undefined && !PROJECT_REPOS.some((name) => name === repo)) {
+      c.add('repo', 'must be platform, shell or remote');
+    }
+  }
   const topology = c.string(value, 'topology', '');
   if (topology !== undefined && !['monorepo', 'polyrepo', 'hybrid'].includes(topology)) {
     c.add('topology', 'must be monorepo, polyrepo or hybrid');
@@ -107,7 +127,7 @@ export function validateMfeflowProject(value: unknown): Issue[] {
       if (port !== undefined && !Number.isInteger(port))
         c.add(`${at}.port`, 'must be a whole number');
     }
-    if (shells === 0) c.add('apps', 'needs at least one shell');
+    if (shells === 0 && repo !== 'remote') c.add('apps', 'needs at least one shell');
   }
   const features = c.object(value, 'features', '');
   if (features) {

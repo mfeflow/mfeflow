@@ -1,6 +1,6 @@
 {
   "name": "url-factory",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Typed endpoint definitions and URL building (@mfeflow/url-factory), src/api/endpoints.ts in every app.",
   "requires": ["core"],
   "files": [

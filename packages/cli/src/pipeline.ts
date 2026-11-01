@@ -8,6 +8,7 @@ import {
   type MfeflowProject,
   type Plan,
 } from '@mfeflow/core';
+import { gt } from 'semver';
 import { createRangeRewriter } from './local';
 import { readPackageJson } from './version';
 
@@ -50,4 +51,21 @@ export function withProjectChange(plan: Plan, project: MfeflowProject): Plan {
       },
     ],
   };
+}
+
+/**
+ * `project` with `cli` set to the running version, but only when the plan already changes
+ * something and only upward: an older CLI never lowers it, and a run with nothing to do
+ * leaves `mfeflow.json` alone.
+ */
+export function stampCli(project: MfeflowProject, plan: Plan): MfeflowProject {
+  if (withProjectChange(plan, project).changes.length === 0) return project;
+  return raiseCli(project);
+}
+
+/** `project` with `cli` raised to the running version; never lowered. */
+export function raiseCli(project: MfeflowProject): MfeflowProject {
+  const running = readPackageJson().version;
+  if (project.cli !== undefined && !gt(running, project.cli)) return project;
+  return { ...project, cli: running };
 }

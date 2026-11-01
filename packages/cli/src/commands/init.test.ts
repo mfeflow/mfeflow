@@ -59,6 +59,8 @@ describe('mfeflow init', () => {
     expect(tree).not.toHaveProperty(['lefthook.yml']);
     const project = parseProject(tree['mfeflow.json'] ?? '');
     expect(project.scope).toBe('@app');
+    expect(project.cli).toBe(readPackageJson().version);
+    expect(project.repo).toBeUndefined();
     expect(Object.keys(project.features)).toEqual([
       'core',
       'tsconfig',

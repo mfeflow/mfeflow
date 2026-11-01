@@ -12,7 +12,7 @@ import {
 } from '@mfeflow/core';
 import { Cancelled } from './exit';
 import type { Globals } from './args';
-import { withProjectChange } from './pipeline';
+import { stampCli, withProjectChange } from './pipeline';
 import type { Runtime } from './runtime';
 
 export interface WriteRequest {
@@ -132,7 +132,8 @@ async function exists(dir: string): Promise<boolean> {
  * the install inside the transaction. Backing out at the prompt writes nothing.
  */
 export async function writePlan(request: WriteRequest): Promise<WriteOutcome> {
-  const { rt, globals, root, plan, project } = request;
+  const { rt, globals, root, plan } = request;
+  const project = stampCli(request.project, plan);
   const shown = withProjectChange(plan, project);
   if (!globals.json) {
     rt.io.stdout(summarize(shown));

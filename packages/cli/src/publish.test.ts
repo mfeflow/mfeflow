@@ -47,7 +47,7 @@ describe('gate codes', () => {
     expect(codes).toHaveLength(12);
     for (const code of codes)
       expect(ERROR_CATALOGUE[code as keyof typeof ERROR_CATALOGUE].fix).toContain(
-        '/guide/deploying',
+        '/guide/deploy-and-rollback',
       );
   });
 });

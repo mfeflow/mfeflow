@@ -1,15 +1,41 @@
+---
+title: telemetry-otel - Browser traces tagged by remote
+description: Send OpenTelemetry traces, fetch timing, web vitals and remote load failures to your collector, with every span tagged by the remote that made it.
+---
+
 # telemetry-otel
 
-OpenTelemetry for the browser behind `@mfeflow/telemetry`. Off by default.
+This feature shows you what your micro-frontends are doing in real browsers. Spans, fetch requests, Core Web Vitals and remote load failures go to an OTLP endpoint, and each one says which remote it came from. The OpenTelemetry SDK loads after the page has painted, so it stays off the path to first render.
+
+## What you get
+
+A shell that starts telemetry from its runtime config, and a tracer per remote that tags every span with `mfe.name`. Failed remote loads and render errors are reported without any wiring in your remotes. It is off by default, and with no endpoint set the SDK is never downloaded.
+
+## Add it
 
 ```sh
 pnpm mfeflow add telemetry-otel
 ```
 
-Point the shell at an OTLP/HTTP endpoint in the runtime config:
+What changed:
 
-```json
-// apps/shell/public/config/runtime-config.prod.json
+```text
+apps/
+├── shell/src/telemetry/
+│   └── init.ts       # boot step: reads runtime config, loads the SDK when idle
+└── <remote>/src/
+    └── telemetry.ts  # exports the remote's tracer
+```
+
+The `@mfeflow/telemetry` package is added to the shell and every remote. Three keys are added to the runtime config, described under "Configure it" below. If you have the testing feature, each file gets a unit test next to it.
+
+## Use it
+
+### Turn it on
+
+Point the shell at an OTLP/HTTP traces URL in the environment that should send data:
+
+```json title="apps/shell/public/config/runtime-config.prod.json"
 {
   "environment": "prod",
   "otlpEndpoint": "https://collector.example.com/v1/traces",
@@ -18,56 +44,17 @@ Point the shell at an OTLP/HTTP endpoint in the runtime config:
 }
 ```
 
-An empty `otlpEndpoint` (the default) keeps telemetry off: the SDK is never downloaded.
+### Start a trace from a click
 
-## What you get
+The generated file in each remote exports a tracer, named after the remote:
 
-| File                               | What it is for                                                                                                                                          |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/shell/src/telemetry/init.ts` | The boot step. Reads the runtime config and, if there is an endpoint, loads the OpenTelemetry provider with a dynamic `import()` once the page is idle. |
-| `apps/<remote>/src/telemetry.ts`   | `export const tracer = getTracer('<remote>')`. Every span it starts carries `mfe.name`.                                                                 |
+```ts title="apps/cart/src/telemetry.ts"
+import { getTracer } from '@mfeflow/telemetry';
 
-Remote failures need no wiring. `@mfeflow/runtime` reports a failed load or a render error on `window`; telemetry
-listens there, including for failures that happened before it started, and sends each as an `mfe.error` span with
-`mfe.name` and where it failed (`load`, `render`, `registry`, `errorLoadRemote:…`). Runtime plugins import nothing, so
-they cannot depend on telemetry, and they do not.
+export const tracer = getTracer('cart');
+```
 
-## Not on the critical path
-
-`initTelemetry` takes a function that returns the provider. The shell's chunk with the SDK is requested after the
-page has loaded, the next frame has painted and the browser is idle (or after 3 seconds, if the tab is hidden and never
-paints). Until then `reportError` and `recordWebVitals` calls are kept (the last 50) and replayed. Spans started
-before the provider is ready are not recorded.
-
-On the storefront example the SDK chunk is 19.4 KB gzipped. The shell and the one-app baseline load it the same way,
-so it does not count against the shell's overhead (see the cost model).
-
-## Spans, traces and tagging
-
-- `getTracer(name)` returns a tracer that stamps `mfe.name` (and `mfe.version` if you pass one). Take it once at
-  import time; it follows the provider.
-- Spans without `mfe.name`, such as the `fetch` span the instrumentation creates, get their parent's, so a trace
-  reads by remote.
-- Resource attributes: `service.name`, `service.version`, `deployment.environment.name` (the `environment` key of the
-  runtime config).
-- `fetch` is traced. Same-origin requests get a `traceparent` header. Other origins get one only if they are in
-  `propagateTraceHeaderCorsUrls` (URL prefixes), and the server must allow the header in CORS. Requests to the OTLP
-  endpoint itself are never traced.
-- Core Web Vitals (`CLS`, `FCP`, `INP`, `LCP`, `TTFB`) become `web_vital.*` spans tagged `mfe.name = shell`.
-- Spans leave in batches every 5 seconds and when the tab is hidden.
-
-## What leaves the browser
-
-Spans are scrubbed before they are exported:
-
-- `url.full` (and `http.url`) is cut to origin and path. The query string and the fragment are dropped, and so are
-  `url.query` and `http.target`'s query, because tokens and email addresses end up in them.
-- Userinfo (`user:pass@host`) is always removed.
-- To keep the query, pass `recordQuery: true` to `createOtelProvider` in `apps/shell/src/telemetry/init.ts`. Only do
-  that for a backend you trust with whatever your URLs carry. Userinfo and the fragment are still removed.
-- `reportError` sends at most 4 KB of message and 4 KB of stack per error.
-
-## Starting a trace from a click
+Use it where something worth timing happens:
 
 ```ts
 import { tracer } from '../telemetry';
@@ -79,14 +66,86 @@ function onClick() {
 }
 ```
 
-Start the `fetch` inside the callback, before any `await`. See the next section for why.
+Start the `fetch` inside the callback, before any `await`. The reason is in "How it works" below.
 
-## Context manager: stack, not zone
+### Know when a remote fails
 
-A `fetch` can only be a child of the click span if the SDK knows which span is active when `fetch` is called. That is
-the context manager's job. Measured on 2026-11-01 with `@opentelemetry/sdk-trace` 3.0.0 and
-`@opentelemetry/context-zone` 3.0.0 + zone.js 0.16.3, in Chrome, with the fetch instrumentation. Each cell is the
-`fetch` started from a click span:
+You do not write anything for this. When a remote fails to load or throws while rendering, `@mfeflow/runtime` reports it on `window`. Telemetry turns it into an `mfe.error` span tagged with the remote's name.
+
+The span also says where it failed:
+
+| `mfe.error.where`             | When                             |
+| ----------------------------- | -------------------------------- |
+| `load`                        | The remote failed to load        |
+| `render`                      | The remote threw while rendering |
+| `registry`                    | The registry could not be read   |
+| `errorLoadRemote:<lifecycle>` | A load error in that lifecycle   |
+
+Failures that happened before telemetry started are replayed.
+
+## Configure it
+
+| Key                            | Meaning                                                                                  | Default |
+| ------------------------------ | ---------------------------------------------------------------------------------------- | ------- |
+| `otlpEndpoint`                 | Full OTLP/HTTP traces URL. Empty keeps telemetry off.                                    | `""`    |
+| `traceSampleRatio`             | Share of new traces recorded, 0 to 1. A trace that started elsewhere keeps its decision. | `1`     |
+| `propagateTraceHeaderCorsUrls` | URL prefixes of other origins that get a `traceparent` header.                           | `[]`    |
+
+These live in the runtime config, and `pnpm check:runtime-config` checks the URL, the ratio and the list. The feature has no install prompts.
+
+More options are on `createOtelProvider` in `apps/shell/src/telemetry/init.ts`:
+
+| Option          | Meaning                                                   | Default        |
+| --------------- | --------------------------------------------------------- | -------------- |
+| `recordQuery`   | Keep the query string on `url.full`                       | `false`        |
+| `webVitals`     | Record Core Web Vitals as spans                           | `true`         |
+| `exportDelayMs` | How long spans wait for a batch                           | `5000`         |
+| `exporter`      | Replace the OTLP exporter, for example with a console one | OTLP over HTTP |
+
+## How it works
+
+`initTelemetry` takes a function that returns the provider. The SDK chunk is requested after the page has loaded, the next frame has painted and the browser is idle, or after 3 seconds if the tab is hidden and never paints. Until then, error reports and web vitals are queued (the last 50) and replayed. Spans started before the provider is ready are not recorded.
+
+Once running, `getTracer(name)` stamps each span with `mfe.name`, and with `mfe.version` if you pass one. Spans created without a name, such as the fetch span from the instrumentation, inherit their parent's. A trace therefore reads by remote.
+
+Resource attributes on every span:
+
+| Attribute                     | Comes from                          |
+| ----------------------------- | ----------------------------------- |
+| `service.name`                | The app                             |
+| `service.version`             | The app                             |
+| `deployment.environment.name` | `environment` in the runtime config |
+
+Core Web Vitals become `web_vital.*` spans tagged `mfe.name = shell`:
+
+```text
+CLS  FCP  INP  LCP  TTFB
+```
+
+Same-origin `fetch` requests get a `traceparent` header. Other origins get one only if they match a prefix in `propagateTraceHeaderCorsUrls`, and that server must allow the header in CORS. Requests to the OTLP endpoint itself are never traced.
+
+### What leaves the browser
+
+Spans are scrubbed before export, because tokens and email addresses end up in URLs.
+
+| Attribute                     | What happens           |
+| ----------------------------- | ---------------------- |
+| `url.full` and `http.url`     | Cut to origin and path |
+| `http.target` and `url.query` | The query is dropped   |
+
+Userinfo and the fragment are always removed. Each reported error sends at most 4 KB of message and 4 KB of stack.
+
+### Why the context manager is a stack
+
+A fetch can only be a child of the click span if the SDK knows which span is active when it runs. That is the context manager's job.
+
+We measured it on 2026-11-01 in Chrome, with the fetch instrumentation and these versions:
+
+```text
+@opentelemetry/sdk-trace      3.0.0
+@opentelemetry/context-zone   3.0.0
+zone.js                       0.16.3
+```
 
 | Where the `fetch` is called                   | Stack  | Zone    | Zone, `async` downleveled to ES2016 |
 | --------------------------------------------- | ------ | ------- | ----------------------------------- |
@@ -97,41 +156,35 @@ the context manager's job. Measured on 2026-11-01 with `@opentelemetry/sdk-trace
 | a second `fetch` after `await`ing the first   | lost   | lost    | child                               |
 | Added to the bundle, gzipped                  | 0.4 KB | 13.6 KB | 13.6 KB + the downleveling          |
 
-The default is the **stack** manager:
+The default is the stack manager. zone.js has to patch promises and timers before application code runs, so it would load on the critical path.
 
-- zone.js has to patch `Promise` and the timers before application code runs, so it would have to load on the critical
-  path, which is what this feature avoids. It costs 13.1 KB gzipped more, per the table.
-- Without downleveling, zone fixes `.then()` and timers, but not `await`, which is what modern code uses. Downleveling
-  `async` functions to generators (an ES2016 target) is the only setup where zone is right everywhere, and it changes
-  how every app is compiled.
-- Starting the `fetch` inside the callback works with both and has no cost.
+Without downleveling, zone fixes `.then()` and timers but not native `await`, which modern code uses. Downleveling to ES2016 is the only setup where zone is right everywhere, and it changes how every app compiles. Starting the fetch inside the callback works with both and costs nothing.
 
-If you need `await` to keep the span, capture the context before it and run the call in it with
-`context.with(context.active(), …)` from `@opentelemetry/api` in the shell, and hand your remotes a function.
+## Gotchas
 
-## Runtime config
+:::tip
+If you need a span to survive an `await`, capture the context before it and run the call in it with `context.with(context.active(), ...)` from `@opentelemetry/api` in the shell. Then hand your remotes a function that does it.
+:::
 
-| Key                            | Meaning                                                                                  | Default |
-| ------------------------------ | ---------------------------------------------------------------------------------------- | ------- |
-| `otlpEndpoint`                 | Full OTLP/HTTP traces URL. Empty keeps telemetry off.                                    | `""`    |
-| `traceSampleRatio`             | Share of new traces recorded, 0 to 1. A trace that started elsewhere keeps its decision. | `1`     |
-| `propagateTraceHeaderCorsUrls` | URL prefixes of other origins that get `traceparent`.                                    | `[]`    |
+- **Keeping the query string.** Turn on `recordQuery` only for a backend you trust with whatever your URLs carry. Userinfo and the fragment are still removed.
+- **Adding env-t3 later.** The keys move into the schema and the environment files. Delete the old shared file, or doctor reports it as missing `environment`:
 
-|                  | Where the keys live                                                                        |
-| ---------------- | ------------------------------------------------------------------------------------------ |
-| With `env-t3`    | In the schema and in every `runtime-config.<env>.json`, whichever feature was added first. |
-| Without `env-t3` | In `apps/shell/public/config/runtime-config.json`, which the shell fetches as it is.       |
+  ```text
+  apps/shell/public/config/runtime-config.json
+  ```
 
-`pnpm check:runtime-config` checks the URL, the ratio and the list.
+- **Versions.** The OpenTelemetry JavaScript SDK split into two lines in October 2026. This feature uses the 3.x packages with the API at 1.10. The exporter and the fetch instrumentation (0.300.0) are experimental packages.
 
-Adding `env-t3` later writes the keys into the schema and the environment files too. Delete
-`apps/shell/public/config/runtime-config.json` then: the per-environment files replace it, and `pnpm mfeflow doctor`
-reports it as missing `environment` until it is gone.
+  ```text
+  3.x   sdk-trace, core, resources
+  1.10  @opentelemetry/api
+  ```
 
-## Versions
+  Only `@mfeflow/telemetry/otel` imports the experimental ones.
 
-OpenTelemetry's JavaScript SDK split into two lines in October 2026. `@opentelemetry/api` 1.10 and the 3.x packages
-(`sdk-trace`, `core`, `resources`) go together; `sdk-trace-web` 2.12 still peers on `api` below 1.10. This feature
-uses the 3.x line throughout, and composes what `WebTracerProvider` used to: `TracerProvider`, `StackContextManager`
-and the W3C trace context propagator. The exporter and the instrumentations (`0.300.0`) are experimental packages;
-`@mfeflow/telemetry/otel` is the only place that imports them.
+## Reference
+
+- [env-t3](/features/env-t3), where the three keys are declared and checked
+- [Runtime config](/concepts/runtime-config)
+- [Cost model](/concepts/cost-model), for what shared code costs a page
+- [`@mfeflow/telemetry` README](https://github.com/mfeflow/mfeflow/tree/main/packages/telemetry)

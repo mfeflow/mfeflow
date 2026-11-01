@@ -320,6 +320,29 @@ describe('mfeflow.json', () => {
     expect(validateMfeflowProject('x')).toHaveLength(1);
   });
 
+  it('accepts the writer version and the repo kind, both optional', () => {
+    expect(validateMfeflowProject({ ...project, cli: '0.5.0', repo: 'platform' })).toEqual([]);
+    expect(validateMfeflowProject({ ...project, cli: '1.2.3-beta.1' })).toEqual([]);
+    for (const repo of ['platform', 'shell', 'remote']) {
+      expect(validateMfeflowProject({ ...project, repo }), repo).toEqual([]);
+    }
+  });
+
+  it('rejects a bad writer version or repo kind', () => {
+    expect(paths(validateMfeflowProject({ ...project, cli: 'latest' }))).toEqual(['cli']);
+    expect(paths(validateMfeflowProject({ ...project, cli: 5 }))).toEqual(['cli']);
+    expect(paths(validateMfeflowProject({ ...project, repo: 'mono' }))).toEqual(['repo']);
+    expect(paths(validateMfeflowProject({ ...project, repo: 3 }))).toEqual(['repo']);
+  });
+
+  it('allows zero shells only in a remote repo', () => {
+    const remoteOnly = { ...project, apps: { cart: project.apps.cart } };
+    expect(paths(validateMfeflowProject(remoteOnly))).toEqual(['apps']);
+    expect(paths(validateMfeflowProject({ ...remoteOnly, repo: 'platform' }))).toEqual(['apps']);
+    expect(paths(validateMfeflowProject({ ...remoteOnly, repo: 'shell' }))).toEqual(['apps']);
+    expect(validateMfeflowProject({ ...remoteOnly, repo: 'remote' })).toEqual([]);
+  });
+
   it('checks the dev server port of an app', () => {
     expect(validateMfeflowProject(withPort(4311))).toEqual([]);
     expect(paths(validateMfeflowProject(withPort(0)))).toEqual(['apps.cart.port']);

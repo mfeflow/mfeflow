@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { afterAll, describe, expect, it } from 'vitest';
+import vm from 'node:vm';
+import { afterAll, describe, expect, it, vi } from 'vitest';
+import { stripTypeScriptTypes } from 'node:module';
 import {
   validateMfeflowProject,
   validateMfeManifest,
@@ -74,6 +76,7 @@ describe('mfeflow init --local --yes --no-install', () => {
         'apps/shell/src/config/schema.ts',
         'apps/shell/src/pages/Home.test.tsx',
         'apps/shell/src/App.tsx',
+        'apps/shell/src/assert.ts',
         'apps/shell/src/pages/Home.tsx',
         'apps/shell/src/remotes/cart.tsx',
         'apps/shell/src/remotes/catalog.tsx',
@@ -125,6 +128,48 @@ describe('mfeflow init --local --yes --no-install', () => {
     expect(tree['apps/cart/rsbuild.config.ts']).toContain(
       "exposes: { './App': './src/exposed/App.tsx' }",
     );
+    // The browser singleton check loads on demand only, so production pays nothing.
+    const boot = tree['apps/shell/src/bootstrap.tsx'];
+    expect(boot).toContain("if (DEV) void import('./assert');");
+    expect(boot).not.toMatch(/^import .* from '\.\/assert'/m);
+    expect(tree['apps/shell/src/assert.ts']).toContain('eslint/no-underscore-dangle');
+    expect(tree['apps/shell/src/assert.ts']).toContain('checkSingletons(SINGLETONS)');
+    expect(tree['apps/shell/src/assert.ts']).toContain(
+      "typeof __MFEFLOW_SINGLETONS__ === 'undefined'",
+    );
+    expect(tree['apps/shell/src/assert.ts']).toContain("reportRemoteError('shell', 'singletons'");
+  });
+
+  it('the generated singleton check reports a duplicate but not a package that is not loaded yet', async () => {
+    const root = path.join(await cwd, 'my-platform');
+    const source = await fs.readFile(path.join(root, 'apps/shell/src/assert.ts'), 'utf8');
+    const body = stripTypeScriptTypes(source).replace(
+      /^import \{(.*)\} from '@mfeflow\/runtime';/m,
+      'const {$1} = runtime;',
+    );
+    // The runtime is stubbed: only what the template does with a check result is under test.
+    const run = (result: { missing: string[]; duplicated: string[] }) => {
+      vi.useFakeTimers();
+      const reports: string[] = [];
+      const runtime = {
+        checkSingletons: () => result,
+        reportRemoteError: (mfe: string, where: string, error: Error) =>
+          reports.push(`${mfe} ${where}: ${error.message}`),
+      };
+      try {
+        const load: unknown = vm.runInThisContext(`(function (runtime) {${body}
+})`);
+        Reflect.apply(load as () => void, undefined, [runtime]);
+        return reports;
+      } finally {
+        vi.useRealTimers();
+        Reflect.deleteProperty(globalThis, 'mfeflowCheckSingletons');
+      }
+    };
+    expect(run({ missing: ['@mfeflow/analytics'], duplicated: [] })).toEqual([]);
+    expect(run({ missing: ['@mfeflow/analytics'], duplicated: ['react'] })).toEqual([
+      'shell singletons: react is loaded in more than one version',
+    ]);
   });
 
   it('links @mfeflow packages from the checkout and keeps the rest in the catalog', async () => {
