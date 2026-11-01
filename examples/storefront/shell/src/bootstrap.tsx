@@ -9,6 +9,7 @@ import {
   reportRemoteError,
 } from '@mfeflow/runtime';
 import { App } from './App';
+import { configureShellEvents } from './events';
 import { startPlatform } from './platform';
 import { languages, shellMessages } from './languages';
 import './styles.css';
@@ -20,6 +21,7 @@ declare global {
 const DEV = process.env.NODE_ENV !== 'production';
 
 export async function main(): Promise<void> {
+  configureShellEvents();
   await initI18n({ languages, defaultLanguage: 'en', resources: shellMessages, detect: false });
   try {
     // Overrides need the manifest loader, which production builds leave out:
