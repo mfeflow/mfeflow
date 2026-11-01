@@ -1,0 +1,89 @@
+{
+  "name": "data-react-query",
+  "version": "0.1.0",
+  "description": "Server state with TanStack Query as a shared singleton: the shell owns the QueryClient and its provider, every remote calls useQuery against the same cache, and each remote prefixes its query keys with its own name. The example query uses the http client when http is installed.",
+  "requires": ["core", "tsconfig"],
+  "files": [
+    {
+      "to": "src/query/Query.tsx",
+      "target": "shell",
+      "from": "files/shell-Query.tsx"
+    },
+    {
+      "to": "src/query/Query.test.tsx",
+      "target": "shell",
+      "from": "files/shell-Query-test.tsx",
+      "when": {
+        "feature:testing": true
+      }
+    },
+    {
+      "to": "src/query/Query.tsx",
+      "target": "remotes",
+      "from": "files/remote-Query.tsx"
+    },
+    {
+      "to": "src/query/keys.ts",
+      "target": "remotes",
+      "from": "files/keys.ts.eta",
+      "template": true
+    },
+    {
+      "to": "src/query/useHealth.ts",
+      "target": "remotes",
+      "from": "files/useHealth.http.ts.eta",
+      "template": true,
+      "when": {
+        "feature:http": true
+      }
+    },
+    {
+      "to": "src/query/useHealth.ts",
+      "target": "remotes",
+      "from": "files/useHealth.fetch.ts.eta",
+      "template": true,
+      "when": {
+        "feature:http": false
+      }
+    },
+    {
+      "to": "src/query/Query.test.tsx",
+      "target": "remotes",
+      "from": "files/remote-Query-test.tsx.eta",
+      "template": true,
+      "when": {
+        "feature:testing": true
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@tanstack/react-query",
+      "range": "5.105.0",
+      "target": "shell"
+    },
+    {
+      "name": "@tanstack/react-query",
+      "range": "5.105.0",
+      "target": "remotes"
+    }
+  ],
+  "transforms": [
+    {
+      "op": "wrap-provider",
+      "file": "src/App.tsx",
+      "target": "shell",
+      "component": "Query",
+      "from": "./query/Query",
+      "function": "App"
+    },
+    {
+      "op": "wrap-provider",
+      "file": "src/exposed/App.tsx",
+      "target": "remotes",
+      "component": "Query",
+      "from": "../query/Query",
+      "function": "App"
+    }
+  ]
+}

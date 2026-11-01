@@ -1,0 +1,15 @@
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from './keys';
+
+/** An example query with plain fetch. With the `http` feature this file uses its client instead. */
+export function useHealth() {
+  return useQuery({
+    queryKey: queryKeys.health(),
+    queryFn: async ({ signal }) => {
+      const response = await fetch(new URL('/api/health', location.origin), { signal });
+      if (!response.ok) throw new Error(`health check failed (${String(response.status)})`);
+      const body: unknown = await response.json();
+      return { ok: typeof body === 'object' && body !== null && Reflect.get(body, 'ok') === true };
+    },
+  });
+}

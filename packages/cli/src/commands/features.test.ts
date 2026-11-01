@@ -72,6 +72,7 @@ describe('mfeflow features', () => {
       i18n: false,
       tailwind: false,
       forms: false,
+      'data-react-query': false,
       'ci-github': false,
       'git-hooks': false,
     });

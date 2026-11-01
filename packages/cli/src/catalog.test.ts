@@ -23,6 +23,7 @@ describe('first-party catalogue', () => {
       'i18n',
       'tailwind',
       'forms',
+      'data-react-query',
       'ci-github',
       'git-hooks',
     ]);

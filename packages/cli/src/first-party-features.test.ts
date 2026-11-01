@@ -49,6 +49,7 @@ describe.each([
   'i18n',
   'tailwind',
   'forms',
+  'data-react-query',
 ])('mfeflow add %s', (feature) => {
   it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
     expect(await add(feature)).toBe(0);
@@ -86,6 +87,7 @@ describe.each([
       i18n: ['src/i18n/I18n.tsx', 'src/i18n/messages/en.json'],
       tailwind: ['postcss.config.mjs', 'src/styles.css', 'src/tailwind/Scope.tsx'],
       forms: ['src/forms/ContactForm.tsx', 'src/forms/schema.ts'],
+      'data-react-query': ['src/query/Query.tsx', 'src/query/keys.ts', 'src/query/useHealth.ts'],
     }[feature];
     for (const file of perApp ?? []) expect(tree, file).toHaveProperty([`apps/checkout/${file}`]);
   });

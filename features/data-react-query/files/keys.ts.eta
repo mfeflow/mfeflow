@@ -1,0 +1,8 @@
+/**
+ * Every query key of this remote starts with its name, so it never meets another remote's key in the shared cache,
+ * and `queryClient.invalidateQueries({ queryKey: queryKeys.all })` refreshes just this remote.
+ */
+export const queryKeys = {
+  all: ['<%= it.app.name %>'] as const,
+  health: () => [...queryKeys.all, 'health'] as const,
+};
