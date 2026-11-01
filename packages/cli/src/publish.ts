@@ -84,7 +84,9 @@ export async function openSession(
   } catch (error) {
     throw hostFailure(error, secrets);
   }
-  const baseUrl = text(args, 'base-url') ?? view.project.registry?.baseUrl;
+  const flagUrl = text(args, 'base-url');
+  if (flagUrl !== undefined) assertBaseUrl(flagUrl);
+  const baseUrl = flagUrl ?? view.project.registry?.baseUrl;
   return {
     rt,
     globals: raw,
@@ -94,6 +96,28 @@ export async function openSession(
     secrets,
     baseUrl: baseUrl?.replace(/\/+$/, ''),
   };
+}
+
+/** A base URL ends up in a public index, so it must be a plain http(s) URL: no credentials, no query. */
+export function assertBaseUrl(value: string): void {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new MfeflowError(
+      'E506',
+      '--base-url must be an http(s) URL such as https://cdn.example.com',
+    );
+  }
+  const plain =
+    (url.protocol === 'https:' || url.protocol === 'http:') &&
+    url.username === '' &&
+    url.password === '';
+  if (!plain || url.search !== '' || url.hash !== '')
+    throw new MfeflowError(
+      'E506',
+      '--base-url must be an http(s) URL without credentials, a query or a fragment',
+    );
 }
 
 /** A failure from the host or the files around it as the catalogue error that names it. Secrets never reach the message. */

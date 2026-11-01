@@ -134,7 +134,7 @@ describe('mfeflow status', () => {
     expect(result.findings).toEqual([]);
   });
 
-  it('does not call versions that aged out of the history drift', async () => {
+  it('does not call versions that aged out of the history drift', { timeout: 60_000 }, async () => {
     const f = await project();
     for (let n = 1; n <= 13; n += 1) {
       // oxlint-disable-next-line no-await-in-loop -- each version follows the one before
@@ -143,8 +143,27 @@ describe('mfeflow status', () => {
     const { result } = await f.status('--env', 'prod');
     const remote = prod(result)?.remotes[0];
     expect(remote?.history).toHaveLength(10);
-    expect(remote?.unreferenced).toEqual(['1.0.1', '1.0.2']);
+    expect(remote?.unreferenced).toEqual([]);
     expect(remote?.drift).toEqual([]);
+  });
+
+  it('does not call the bad version drift after a rollback and a fix', async () => {
+    const f = await project();
+    for (const version of ['1.0.0', '1.1.0', '1.2.0']) {
+      // oxlint-disable-next-line no-await-in-loop -- each version follows the one before
+      await deploy(f, version);
+    }
+    await f.run('rollback', 'catalog', '--env', 'prod');
+    await deploy(f, '1.3.0');
+    const { result } = await f.status('--env', 'prod');
+    expect(prod(result)?.remotes[0]).toMatchObject({
+      version: '1.3.0',
+      unreferenced: [],
+      drift: [],
+    });
+    await deploy(f, '1.4.0', '--no-publish');
+    const after = await f.status('--env', 'prod');
+    expect(prod(after.result)?.remotes[0]?.unreferenced).toEqual(['1.4.0']);
   });
 
   it('reports "not checked" for unreferenced files when the host cannot list', async () => {

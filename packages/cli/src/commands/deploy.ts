@@ -149,8 +149,12 @@ async function finish(s: Session, facts: Facts, done: Committed): Promise<Deploy
   const dryRun = s.globals.dryRun;
   const moved = done.published && !failed;
   let localEntry: string | null = null;
-  if (moved && after !== undefined)
+  // registry/envs/dev is the registry `mfeflow dev` serves from; a CDN address there would break local dev.
+  const local = facts.env !== 'dev';
+  if (moved && local && after !== undefined)
     localEntry = await writeLocalEntry(s.view.root, facts.env, after);
+  const notes =
+    moved && !local ? ['registry/envs/dev was not written: `mfeflow dev` reads it'] : [];
   const result: DeployResult = {
     ok: !failed,
     command: facts.command,
@@ -169,7 +173,7 @@ async function finish(s: Session, facts: Facts, done: Committed): Promise<Deploy
     uploaded: done.applied?.uploaded ?? [],
     skipped: done.applied?.skipped ?? [],
     localEntry,
-    warnings,
+    warnings: [...warnings, ...notes],
     findings: gateFindings(plan, facts.remote),
   };
   if (dryRun && !failed) result.index = plan.index;

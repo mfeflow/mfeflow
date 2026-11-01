@@ -119,7 +119,7 @@ errors are `E506` to `E512`.
 `--json` prints `{ ok, command, dryRun, env, fromEnv, host, remote, version, servedBefore, published, previous,
 rolledBackFrom, uploads, uploaded, skipped, localEntry, warnings, findings }` for the first three, with `index` added for
 a dry run. `status` prints `{ ok, command: "status", host, envs: [{ env, published, generatedAt, remotes }], findings }`.
-A successful deploy, promote or rollback also writes `registry/envs/<env>/<remote>.json`, so git records what is served.
+A successful deploy, promote or rollback also writes `registry/envs/<env>/<remote>.json`, so git records what is served. Not for `dev`: `mfeflow dev` reads that folder.
 
 ## Flags on every command
 
