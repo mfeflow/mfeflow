@@ -50,7 +50,7 @@ shell   | ready   built in 0.28s
 What you get:
 
 - A shell and remotes on Module Federation 2.0 and Rsbuild, with React shared once.
-- 21 features you add one at a time, each with a diff you can preview.
+- 22 features you add one at a time, each with a diff you can preview.
 - Checks for compatibility, ownership and bundle size that run in CI.
 - A registry design that supports rollback by pointer (the command is in progress).
 - About 5 seconds from create to a running platform, measured.

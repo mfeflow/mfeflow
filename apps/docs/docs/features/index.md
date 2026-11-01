@@ -41,6 +41,7 @@ The Package column is the library that runs in the browser or at build time. The
 | [forms](/features/forms)                         | Opt in    | react-hook-form with zod, valibot or arktype               | react-hook-form          | An example form per remote            |
 | [data-react-query](/features/data-react-query)   | Opt in    | TanStack Query as a shared singleton                       | TanStack Query           | Provider and sample query             |
 | [storybook](/features/storybook)                 | Opt in    | Storybook per remote, composed in the shell                | Storybook 10             | Stories and config                    |
+| [registry-server](/features/registry-server)     | Opt in    | Publish through a registry server                          | none                     | `src/registry-sources.ts`             |
 | [ci-github](/features/ci-github)                 | Opt in    | A pull request workflow                                    | none                     | `.github/workflows/ci.yml`            |
 | [git-hooks](/features/git-hooks)                 | Opt in    | lefthook and commitlint                                    | lefthook, commitlint     | `lefthook.yml`, commitlint config     |
 | [commit-prompt](/features/commit-prompt)         | Opt in    | An interactive Conventional Commits prompt                 | czg                      | Script and config                     |
