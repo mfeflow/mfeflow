@@ -56,6 +56,17 @@ export { renderTemplate, substitute, type TemplateData } from './templates';
 export { RUNTIME_CONFIG_FILE, runtimeConfigFiles } from './runtime-config';
 export { applyTransform, dotenvKeys, schemaKeys, type SchemaKey } from './transforms';
 export {
+  detectFederation,
+  type BuildTool,
+  type DetectedApp,
+  type DetectedRemote,
+  type DetectedShared,
+  type DetectFederationOptions,
+  type FederationReport,
+  type FederationRole,
+  type NotAdopted,
+} from './adopt';
+export {
   buildRegistry,
   fetchFeatureIndex,
   fetchRemoteText,
