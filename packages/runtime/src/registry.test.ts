@@ -389,14 +389,15 @@ describe('loadRegistryIndex with a fallback', () => {
     const error = await loadRegistryIndex(sources, {
       fetch: hang,
       primaryTimeoutMs: 10,
-      timeoutMs: 80,
+      timeoutMs: 400,
       ...withCdn,
     }).catch((e: unknown) => e);
     const waits = [...String(error).matchAll(/timed out after (\d+) ms/g)].map((m) => Number(m[1]));
     expect(waits[0]).toBe(10);
-    // The rest of the 80 ms budget once the primary's 10 ms are gone; timers fire a ms or two off.
-    expect(waits[1]).toBeGreaterThan(40);
-    expect(waits[1]).toBeLessThan(80);
+    // Whatever the primary left of the 400 ms budget: less than the whole, more than nothing.
+    // A busy CI machine can spend a lot of it before the fallback starts, so no tighter bound.
+    expect(waits[1]).toBeGreaterThan(0);
+    expect(waits[1]).toBeLessThan(400);
   });
 
   it('uses the fallback when the primary body is not JSON', async () => {

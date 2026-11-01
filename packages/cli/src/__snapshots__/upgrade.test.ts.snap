@@ -1,0 +1,96 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`planProjectUpgrade on the 0.1.0 fixture > plans the real deltas between 0.1.0 and now 1`] = `
+{
+  "changes": [
+    "patch .github/workflows/ci.yml",
+    "patch .gitignore",
+    "patch .oxlintrc.json",
+    "patch .prettierignore",
+    "patch AGENTS.md",
+    "patch README.md",
+    "patch apps/cart/package.json",
+    "patch apps/cart/src/api/endpoints.ts",
+    "patch apps/cart/vitest.config.ts",
+    "patch apps/catalog/package.json",
+    "patch apps/catalog/src/api/endpoints.ts",
+    "patch apps/catalog/vitest.config.ts",
+    "patch apps/shell/package.json",
+    "patch apps/shell/src/analytics/init.ts",
+    "patch apps/shell/src/api/endpoints.ts",
+    "create apps/shell/src/assert.ts",
+    "patch apps/shell/src/bootstrap.tsx",
+    "patch apps/shell/vitest.config.ts",
+    "patch docs/ci.md",
+    "patch package.json",
+    "patch pnpm-workspace.yaml",
+  ],
+  "dependencies": [],
+  "diverged": [
+    [
+      "apps/cart/env.ts",
+      "edited-by-cli",
+    ],
+    [
+      "apps/catalog/env.ts",
+      "edited-by-cli",
+    ],
+    [
+      "apps/shell/env.ts",
+      "edited-by-cli",
+    ],
+    [
+      "apps/shell/src/config/schema.ts",
+      "edited-by-cli",
+    ],
+    [
+      "apps/shell/src/pages/Home.tsx",
+      "edited",
+    ],
+    [
+      "env.ts",
+      "edited-by-cli",
+    ],
+  ],
+  "features": {
+    "analytics-gtm": "0.2.0",
+    "ci-github": "0.2.0",
+    "core": "0.3.0",
+    "env-t3": "0.2.0",
+    "lint-oxlint": "0.2.0",
+    "testing": "0.2.0",
+    "tsconfig": "0.2.0",
+    "url-factory": "0.2.0",
+  },
+  "from": [
+    "0.1.0",
+    "package.json",
+  ],
+  "missing": [],
+  "removed": [],
+  "scripts": [
+    {
+      "command": "mfeflow doctor",
+      "file": "package.json",
+      "name": "doctor",
+    },
+    {
+      "command": "mfeflow validate",
+      "file": "package.json",
+      "name": "validate",
+    },
+    {
+      "command": "mfeflow check-compat",
+      "file": "package.json",
+      "name": "check-compat",
+    },
+    {
+      "command": "mfeflow budget",
+      "file": "package.json",
+      "name": "budget",
+    },
+  ],
+  "to": "0.5.0",
+  "warnings": [],
+}
+`;
