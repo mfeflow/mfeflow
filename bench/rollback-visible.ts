@@ -29,7 +29,6 @@ import {
 
 const repo = path.resolve(import.meta.dirname, '..');
 const RUNS = Number(process.env.RUNS ?? '5');
-const TARGET_MS = 90_000;
 const PORT = 4340;
 const origin = `http://localhost:${String(PORT)}`;
 const host = fs.mkdtempSync(path.join(os.tmpdir(), 'mfeflow-rollback-bench-'));
@@ -160,7 +159,7 @@ try {
     indexCacheControl: 'public, max-age=60',
     notMeasured:
       'CDN edge caches, real S3 or R2 latency, and a returning visitor holding the index in their HTTP cache (that wait is up to the 60 s max-age)',
-    commit: git('rev-parse', '--short', 'HEAD'),
+    commit: git('rev-parse', 'HEAD'),
     machine: {
       os: `${os.type()} ${os.release()}`,
       arch: os.arch(),
@@ -170,8 +169,8 @@ try {
     runs,
     medianMs: summary,
     medianVisibleOfRuns: Math.round(median(runs.map((r) => r.visibleMs))),
-    targetMs: TARGET_MS,
-    pass: summary.visibleMs < TARGET_MS,
+    staticExitCriterion:
+      'Phase 05 exit criterion: rollback visible in under 90 s (60 s index cache). Context only: the value above is a local file host and is not compared against it.',
   };
   const out = path.join(import.meta.dirname, 'results', `${rollbackResultName(new Date())}.json`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
@@ -180,7 +179,6 @@ try {
     `\nmedian: rollback command ${String(summary.commandMs)} ms, then ${String(summary.visibleMs)} ms until a fresh load shows the old version (local file host, ${report.method.split(':')[0] ?? ''})`,
   );
   console.log(`wrote ${out}`);
-  if (!report.pass) process.exitCode = 1;
 } finally {
   await browser?.close();
   server.kill();

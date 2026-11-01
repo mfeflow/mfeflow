@@ -548,6 +548,18 @@ describe('where the registry lives', () => {
       await fs.rm(elsewhere, { recursive: true, force: true });
     });
 
+    it('names the option when a baseUrl that came from it is refused', async () => {
+      const f = await fixture({ configure: true });
+      open.push(f);
+      expect(await addFeature(f, `host=file:${f.site}`, 'baseUrl=https://cdn.test?token=1')).toBe(
+        0,
+      );
+      await buildRemote(f.root, 'catalog', '1.0.0');
+      const bad = await f.fail('deploy', 'catalog', '--env', 'prod');
+      expect(bad.result.error.code).toBe('MFEFLOW_E506');
+      expect(bad.result.error.message).toContain('registry-static option baseUrl');
+    });
+
     it('treats empty options as not set', async () => {
       const f = await fixture({ configure: true });
       open.push(f);

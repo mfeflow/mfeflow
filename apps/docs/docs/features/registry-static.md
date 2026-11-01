@@ -77,7 +77,13 @@ The deploy workflow is a separate file from the pull request checks, so a pull r
 
 It is only generated when `ci-github` is already in the project. Add `ci-github` first.
 
+## Protect the registry environment
+
+In the repository settings, open Environments, then `registry`. Allow deployments from the `main` branch only, and add required reviewers for `prod`. The deploy job also checks that it runs on `main`, so a manual run from another branch does nothing.
+
 ## Gotchas
+
+- A remote whose files changed without a version bump fails its deploy. The other remotes still deploy, and the run fails at the end and lists the ones that failed.
 
 - Rollbacks reach people when their browser's copy of the index expires, up to 60 seconds. The [bench](https://github.com/mfeflow/mfeflow/tree/main/bench) measures the rest on a local host only.
 - GitHub Pages caches every file for 10 minutes and you cannot change that. A rollback there takes about 11 minutes.

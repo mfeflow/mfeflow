@@ -66,13 +66,19 @@ export function positionals(args: Record<string, unknown>, max: number, usage: s
 
 /**
  * `registry.host` or `registry.baseUrl` from mfeflow.json; failing that, the option of the same name
- * the `registry-static` feature was added with. A flag still wins over both.
+ * the `registry-static` feature was added with. A flag still wins over both. `source` names where the
+ * value came from, for error messages.
  */
-function configured(view: ProjectView, key: 'host' | 'baseUrl'): string | undefined {
+function configured(
+  view: ProjectView,
+  key: 'host' | 'baseUrl',
+): { value: string; source: string } | undefined {
   const own = view.project.registry?.[key];
-  if (own !== undefined) return own;
+  if (own !== undefined) return { value: own, source: `registry.${key}` };
   const option = view.project.features['registry-static']?.options?.[key];
-  return typeof option === 'string' && option !== '' ? option : undefined;
+  return typeof option === 'string' && option !== ''
+    ? { value: option, source: `registry-static option ${key}` }
+    : undefined;
 }
 
 export async function openSession(
@@ -82,7 +88,7 @@ export async function openSession(
 ): Promise<Session> {
   const view = await inspectProject(await findProjectRoot(raw.cwd));
   const flag = text(args, 'host');
-  const spec = flag ?? configured(view, 'host');
+  const spec = flag ?? configured(view, 'host')?.value;
   if (spec === undefined)
     throw new MfeflowError('E506', 'no host: pass --host or set registry.host in mfeflow.json');
   const parsed = parseHostSpec(spec, flag === undefined ? view.root : raw.cwd);
@@ -100,7 +106,7 @@ export async function openSession(
   const fileUrl = configured(view, 'baseUrl');
   let baseUrl: string | undefined;
   if (flagUrl !== undefined) baseUrl = normalizeBaseUrl(flagUrl, '--base-url');
-  else if (fileUrl !== undefined) baseUrl = normalizeBaseUrl(fileUrl, 'registry.baseUrl');
+  else if (fileUrl !== undefined) baseUrl = normalizeBaseUrl(fileUrl.value, fileUrl.source);
   return {
     rt,
     globals: raw,

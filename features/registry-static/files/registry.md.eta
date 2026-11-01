@@ -38,6 +38,10 @@ Actions tab, for another environment). Add `AWS_ACCESS_KEY_ID` and `AWS_SECRET_A
 `registry` environment, and `MFEFLOW_S3_ENDPOINT` and `MFEFLOW_S3_REGION` as its variables. The workflow is only
 generated when `ci-github` is already in the project, so add `ci-github` first.
 
+Protect the `registry` environment (Settings, Environments): allow deployments from the `main` branch only, and add
+required reviewers for `prod`. The workflow also refuses to run from any other branch. A remote whose files changed
+without a version bump fails its deploy; the others still deploy, and the run fails at the end with the list.
+
 ## How fast a rollback reaches people
 
 The index is served with `Cache-Control: max-age=60`, so a browser that already has it keeps it for up to a minute.

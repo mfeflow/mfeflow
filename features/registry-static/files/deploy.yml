@@ -23,6 +23,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # A manual run from another branch would otherwise deploy that branch.
+    if: github.ref == 'refs/heads/main'
     environment: registry
     permissions:
       contents: read
@@ -45,8 +47,15 @@ jobs:
           MFEFLOW_S3_ENDPOINT: ${{ vars.MFEFLOW_S3_ENDPOINT }}
           MFEFLOW_S3_REGION: ${{ vars.MFEFLOW_S3_REGION }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           remotes=$(node -p "Object.entries(JSON.parse(require('fs').readFileSync('mfeflow.json', 'utf8')).apps).filter(([, app]) => app.kind === 'remote').map(([name]) => name).join(' ')")
+          failed=""
           for remote in $remotes; do
-            pnpm mfeflow deploy "$remote" --env "$DEPLOY_ENV" --yes
+            if ! pnpm mfeflow deploy "$remote" --env "$DEPLOY_ENV" --yes; then
+              failed="$failed $remote"
+            fi
           done
+          if [ -n "$failed" ]; then
+            echo "::error::deploy failed for:$failed"
+            exit 1
+          fi

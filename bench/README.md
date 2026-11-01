@@ -46,7 +46,7 @@ pnpm --filter @storefront/shell build        # the storefront remotes and shell 
 node bench/rollback-visible.ts               # or: pnpm --filter @mfeflow/bench bench:rollback
 ```
 
-`RUNS` (default 5) changes the number of runs. `PW_CHANNEL=chrome` uses an installed Chrome instead of the Playwright download. If no browser can start, it fetches the index and the catalog's remote entry over HTTP instead, and `method` in the result says so. The exit code is 1 when the median is 90 s or more.
+`RUNS` (default 5) changes the number of runs. `PW_CHANNEL=chrome` uses an installed Chrome instead of the Playwright download. If no browser can start, it fetches the index and the catalog's remote entry over HTTP instead, and `method` in the result says so. The result names the Phase 05 criterion (under 90 s) as context; the bench does not pass or fail against it.
 
 What it measures: the work between the command exiting and a first-time visitor getting the old version, with nothing but a local disk and a local server in between.
 
