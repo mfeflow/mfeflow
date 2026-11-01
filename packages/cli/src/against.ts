@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { isRegistryProtocol } from '@mfeflow/contracts';
+import { fileURLToPath } from 'node:url';
+import { isRegistryProtocol, redactUrlsIn } from '@mfeflow/contracts';
 import { getHttps, messageOf, MfeflowError, readCappedText, type FetchLike } from '@mfeflow/core';
 
 const MAX_BYTES = 1_000_000;
@@ -39,15 +40,28 @@ async function readSource(source: string, cwd: string, fetchImpl: FetchLike): Pr
   }
 }
 
+function withQueryOf(source: string, target: URL): string {
+  const from = new URL(source);
+  if (target.origin === from.origin) target.search = from.search;
+  return target.href;
+}
+
 /** Where the shell manifest sits next to a registry index: `envs/<env>/index.json` and `envs/<env>/shell/mf-manifest.json`. */
 function besideIndex(source: string): string {
   return isUrl(source)
-    ? new URL(SHELL_MANIFEST, source).href
+    ? withQueryOf(source, new URL(SHELL_MANIFEST, source))
     : path.join(path.dirname(source), SHELL_MANIFEST);
 }
 
+const toPath = (value: string): string =>
+  value.toLowerCase().startsWith('file:') ? fileURLToPath(value) : value;
+
 const fail = (what: string, why: string, cause?: unknown): never => {
-  throw new MfeflowError('E307', `${what}: ${why}`, cause === undefined ? {} : { cause });
+  throw new MfeflowError(
+    'E307',
+    redactUrlsIn(`${what}: ${why}`),
+    cause === undefined ? {} : { cause },
+  );
 };
 
 /**
@@ -61,7 +75,7 @@ export async function loadShell(
 ): Promise<ShellSource> {
   const read = async (from: string): Promise<unknown> => {
     try {
-      return await readSource(from, options.cwd, options.fetch);
+      return await readSource(toPath(from), options.cwd, options.fetch);
     } catch (error) {
       return fail(from === source ? source : `${source} (${from})`, messageOf(error), error);
     }
@@ -69,7 +83,7 @@ export async function loadShell(
   const first = await read(source);
   if (isObj(first) && Array.isArray(first.shared)) return { from: source, manifest: first };
   if (isObj(first) && Array.isArray(first.remotes)) {
-    const manifest = await read(besideIndex(source));
+    const manifest = await read(besideIndex(toPath(source)));
     if (isObj(manifest) && Array.isArray(manifest.shared)) return { from: source, manifest };
     return fail(source, `${SHELL_MANIFEST} beside the index has no "shared" list`);
   }
