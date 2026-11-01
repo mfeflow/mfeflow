@@ -10,6 +10,15 @@ const reader =
 const pkg = (extra: object = {}) => `${JSON.stringify({ name: 'shell', ...extra }, null, 2)}\n`;
 
 describe('PlanBuilder files', () => {
+  it('tells a file on disk from one the plan creates, before and after edits', async () => {
+    const b = new PlanBuilder(reader({ 'old.txt': 'x' }));
+    await b.create('new.txt', 'y');
+    await b.delete('old.txt');
+    expect(await b.existed('new.txt')).toBe(false);
+    expect(await b.existed('old.txt')).toBe(true);
+    expect(await b.existed('none.txt')).toBe(false);
+  });
+
   it('turns create, patch and delete into changes, sorted by path', async () => {
     const b = new PlanBuilder(reader({ 'edit.txt': 'one\n', 'gone.txt': 'bye\n' }));
     await b.delete('gone.txt');

@@ -81,7 +81,7 @@ shellRoutes({ catalog: defineRoutes('/catalog', catalog) });
 // [{ remote: 'catalog', mount: '/catalog', pattern: '/catalog/*' }]
 ```
 
-Use `pattern` in your router or in the `routes` field of `mfe.json`.
+Use `pattern` in your router or in the `routes` field of `mfeflow.app.json`.
 
 ## Configure it
 
@@ -129,4 +129,4 @@ Without a router, a plain left click on a same-origin link pushes the URL and fi
 
 - [event-bus](/features/event-bus), which holds the shared paths
 - [Adding a remote](/guide/adding-a-remote)
-- [mfe.json](/reference/mfe-json)
+- [mfeflow.app.json](/reference/mfeflow-app-json)

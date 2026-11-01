@@ -131,13 +131,13 @@ Change an event's payload in a way old listeners cannot read by adding a new ver
 
 - **Two copies of the bus.** In development you get a warning that a remote is bundling its own copy. Events still arrive, but share the package as a singleton and make sure the shell imports it.
 
-- **Events in `mfe.json`.** The two lists in `mfe.json` take the same versioned names, checked by the same pattern. The `@major` form is not accepted.
+- **Events in `mfeflow.app.json`.** The two lists in `mfeflow.app.json` take the same versioned names, checked by the same pattern. The `@major` form is not accepted.
 
 - **Replay keeps only the last payload.** Do not turn it on for events like `cart.item-added.v1`, where every occurrence matters.
 
 ## Reference
 
-- [mfe.json](/reference/mfe-json), where a remote lists what it publishes and consumes
+- [mfeflow.app.json](/reference/mfeflow-app-json), where a remote lists what it publishes and consumes
 - [Ownership](/concepts/ownership)
 - [Shared singletons](/concepts/shared-singletons)
 - [`@mfeflow/event-bus` README](https://github.com/mfeflow/mfeflow/tree/main/packages/event-bus)

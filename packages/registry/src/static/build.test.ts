@@ -160,7 +160,7 @@ describe('buildIndex', () => {
       ).toBe(true);
       const other = buildIndex(input({ manifest: manifestFor('catalog') }));
       expect(other.failures.find((f) => f.code === 'schema')?.message).toBe(
-        'cart@1.0.0: mf-manifest.json is for "catalog" but mfe.json names "cart"',
+        'cart@1.0.0: mf-manifest.json is for "catalog" but mfeflow.app.json names "cart"',
       );
     });
 
@@ -209,25 +209,25 @@ describe('buildIndex', () => {
       expect(good.failures).toEqual([]);
     });
 
-    it('compat: checks mfe.json platform ranges too', () => {
+    it('compat: checks mfeflow.app.json platform ranges too', () => {
       const remote = { ...mfe(), platform: { '@mfeflow/runtime': '^0.4.0' } };
       const shell = { shared: [{ name: '@mfeflow/runtime', version: '0.3.0' }] };
       const result = buildIndex(input({ remote, shellManifest: shell }));
       expect(result.failures[0]?.message).toContain(
-        'needs @mfeflow/runtime ^0.4.0 (mfe.json platform)',
+        'needs @mfeflow/runtime ^0.4.0 (mfeflow.app.json platform)',
       );
     });
 
-    it('budget: over mfe.json budgets.initialJsKb', () => {
+    it('budget: over mfeflow.app.json budgets.initialJsKb', () => {
       const manifest = manifestFor();
       const result = buildIndex(input({ files: filesFor(manifest, 6 * 1024, 4 * 1024) }));
       expect(codes(result)).toEqual(['budget']);
       expect(result.failures[0]?.message).toMatch(
-        /^cart@1\.0\.0: loads \d+(\.\d)? KB of JS first; mfe\.json budgets\.initialJsKb is 8$/,
+        /^cart@1\.0\.0: loads \d+(\.\d)? KB of JS first; mfeflow\.app\.json budgets\.initialJsKb is 8$/,
       );
     });
 
-    it('budget: without an mfe.json budget the entry must fit the cost model remoteKb', () => {
+    it('budget: without an app file budget the entry must fit the cost model remoteKb', () => {
       const { budgets: _budgets, ...remote } = mfe();
       const manifest = manifestFor();
       const big = buildIndex(input({ remote, files: filesFor(manifest, 12 * 1024) }));

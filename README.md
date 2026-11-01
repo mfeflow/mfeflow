@@ -92,7 +92,7 @@ my-platform/
 ├── pnpm-workspace.yaml           # one pnpm workspace, versions pinned in a catalog
 ├── apps/
 │   ├── shell/                    # the host app
-│   │   ├── mfe.json              # ownership: who owns this app
+│   │   ├── mfeflow.app.json              # ownership: who owns this app
 │   │   ├── rsbuild.config.ts     # shell preset, port 4300
 │   │   ├── public/config/        # runtime config for dev, staging and prod
 │   │   └── src/
@@ -101,7 +101,7 @@ my-platform/
 │   │       └── remotes/
 │   │           └── route-table.tsx   # one route per remote
 │   ├── catalog/                  # a remote, port 4311
-│   │   ├── mfe.json              # ownership for this remote
+│   │   ├── mfeflow.app.json              # ownership for this remote
 │   │   ├── rsbuild.config.ts     # remote preset
 │   │   └── src/exposed/App.tsx   # the component the shell loads
 │   └── cart/                     # a second remote, port 4312

@@ -277,7 +277,7 @@ describe('validation', () => {
 });
 
 describe('event names', () => {
-  it('follow the pattern mfe.json validates', () => {
+  it('follow the pattern mfeflow.app.json validates', () => {
     for (const name of [
       'cart.item-added.v1',
       'a.b.c.v3',
