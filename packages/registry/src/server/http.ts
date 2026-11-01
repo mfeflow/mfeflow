@@ -217,6 +217,19 @@ export function createHandler(
       return 202;
     }
 
+    if (pathname === '/v1/rollout') {
+      if (method !== 'GET') return wrongMethod('GET');
+      const token = await authenticate(req);
+      const env = url.searchParams.get('env') ?? '';
+      const remote = url.searchParams.get('remote') ?? '';
+      if (!ENV_NAME.test(env) || remote === '')
+        throw new ApiError(400, 'bad_request', 'pass ?env= and ?remote=');
+      if (!allows(token, { action: 'read', env, remote }))
+        throw new ApiError(403, 'forbidden', `this token cannot read ${remote} in ${env}`);
+      send(res, 200, await service.rolloutStatus(env, remote));
+      return 200;
+    }
+
     if (pathname === '/v1/audit') {
       if (method !== 'GET') return wrongMethod('GET');
       const token = await authenticate(req);

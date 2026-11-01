@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { RegistryIndexRemote } from '@mfeflow/contracts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { MIGRATIONS } from './migrations';
 import { openSqliteStorage } from './sqlite';
 import {
   RevisionConflictError,
@@ -90,6 +91,7 @@ describe('sqlite storage', () => {
       { id: 1 },
       { id: 2 },
       { id: 3 },
+      { id: 4 },
     ]);
     db.close();
   });
@@ -146,18 +148,18 @@ describe('sqlite storage', () => {
     expect(await storage.listRollouts('prod')).toEqual([rollout]);
     expect(await storage.listRollouts('dev')).toEqual([]);
 
-    await storage.addRolloutReport('abc123', '2.0.0', 'u1', false);
-    await storage.addRolloutReport('abc123', '2.0.0', 'u1', false);
-    await storage.addRolloutReport('abc123', '2.0.0', 'u2', true);
-    await storage.addRolloutReport('abc123', '2.0.0', 'u2', false);
-    await storage.addRolloutReport('abc123', '1.0.0', 'u1', false);
-    await storage.addRolloutReport('nope', '2.0.0', 'u1', true);
+    await storage.addRolloutReport('abc123', '2.0.0', 'u1', false, 1000);
+    await storage.addRolloutReport('abc123', '2.0.0', 'u1', false, 1000);
+    await storage.addRolloutReport('abc123', '2.0.0', 'u2', true, 1000);
+    await storage.addRolloutReport('abc123', '2.0.0', 'u2', false, 1000);
+    await storage.addRolloutReport('abc123', '1.0.0', 'u1', false, 1000);
+    await storage.addRolloutReport('nope', '2.0.0', 'u1', true, 1000);
     expect(await storage.rolloutCounts('abc123')).toEqual({
       '2.0.0': { loads: 2, errors: 1, clients: 2 },
       '1.0.0': { loads: 1, errors: 0, clients: 1 },
     });
     expect(await storage.rolloutCounts('nope')).toEqual({});
-    await storage.addRolloutReport('abc123', '2.0.0', 'u1', true);
+    await storage.addRolloutReport('abc123', '2.0.0', 'u1', true, 1000);
     expect((await storage.rolloutCounts('abc123'))['2.0.0']).toEqual({
       loads: 2,
       errors: 2,
@@ -172,8 +174,139 @@ describe('sqlite storage', () => {
     await storage.commit(change('1.0.0', 3, { versions: [], rollout: { clear: 'abc123' } }));
     expect(await storage.listRollouts('prod')).toEqual([]);
     expect(await storage.rolloutCounts('abc123')).toEqual({});
-    await storage.addRolloutReport('abc123', '2.0.0', 'u9', false);
+    await storage.addRolloutReport('abc123', '2.0.0', 'u9', false, 1000);
     expect(await storage.rolloutCounts('abc123')).toEqual({});
+  });
+
+  it('stops counting new browsers at the cap, but lets a counted one turn into an error', async () => {
+    const storage = await connect();
+    await storage.commit(change('1.0.0', 0));
+    const rollout = {
+      env: 'prod',
+      remote: 'cart',
+      id: 'cap1',
+      stable: '1.0.0',
+      candidate: '2.0.0',
+      candidateRemote: remote('2.0.0'),
+      percent: 10,
+      steps: [],
+      startedAt: '2026-11-01T00:00:00.000Z',
+      updatedAt: '2026-11-01T00:00:00.000Z',
+    };
+    await storage.commit(change('1.0.0', 1, { versions: [], rollout: { set: rollout } }));
+    for (const client of ['a', 'b', 'c'])
+      await storage.addRolloutReport('cap1', '2.0.0', client, false, 3);
+    await storage.addRolloutReport('cap1', '1.0.0', 'd', true, 3);
+    await storage.addRolloutReport('cap1', '2.0.0', 'a', true, 3);
+    expect(await storage.rolloutCounts('cap1')).toEqual({
+      '2.0.0': { loads: 3, errors: 1, clients: 3 },
+    });
+  });
+
+  it('keeps running counts that match the rows, with no scan on read', async () => {
+    const storage = await connect();
+    await storage.commit(change('1.0.0', 0));
+    const rollout = {
+      env: 'prod',
+      remote: 'cart',
+      id: 'cnt1',
+      stable: '1.0.0',
+      candidate: '2.0.0',
+      candidateRemote: remote('2.0.0'),
+      percent: 10,
+      steps: [],
+      startedAt: '2026-11-01T00:00:00.000Z',
+      updatedAt: '2026-11-01T00:00:00.000Z',
+    };
+    await storage.commit(change('1.0.0', 1, { versions: [], rollout: { set: rollout } }));
+    for (let i = 0; i < 40; i += 1)
+      await storage.addRolloutReport('cnt1', '2.0.0', `c${String(i)}`, i % 4 === 0, 1000);
+    const { DatabaseSync } = await import('node:sqlite');
+    const db = new DatabaseSync(file, { readOnly: true });
+    expect(db.prepare('SELECT version, clients, errors FROM rollout_side_counts').all()).toEqual([
+      { version: '2.0.0', clients: 40, errors: 10 },
+    ]);
+    db.close();
+    expect((await storage.rolloutCounts('cnt1'))['2.0.0']).toEqual({
+      loads: 40,
+      errors: 10,
+      clients: 40,
+    });
+  });
+
+  it('migrates a database left at migration 2 with a rollout in flight', async () => {
+    const { DatabaseSync } = await import('node:sqlite');
+    const old = new DatabaseSync(file);
+    old.exec(
+      'CREATE TABLE schema_migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL)',
+    );
+    for (const m of MIGRATIONS.filter((x) => x.id <= 2)) {
+      old.exec(m.sql);
+      old
+        .prepare('INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)')
+        .run(m.id, m.name, '2026-11-01T00:00:00.000Z');
+    }
+    old
+      .prepare(
+        'INSERT INTO rollouts (env, remote, rollout_id, stable_version, candidate_version, candidate_json, percent, steps_json, started_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      )
+      .run(
+        'prod',
+        'cart',
+        'old1',
+        '1.0.0',
+        '2.0.0',
+        JSON.stringify(remote('2.0.0')),
+        25,
+        '[50]',
+        't',
+        't',
+      );
+    old.exec(
+      "INSERT INTO rollout_stats (rollout_id, version, loads, errors) VALUES ('old1', '2.0.0', 9, 1)",
+    );
+    old.close();
+
+    const storage = await connect();
+    const [kept] = await storage.listRollouts('prod');
+    expect(kept).toMatchObject({ id: 'old1', percent: 25, steps: [50], candidate: '2.0.0' });
+    expect(await storage.rolloutCounts('old1')).toEqual({});
+    await storage.addRolloutReport('old1', '2.0.0', 'u1', true, 1000);
+    expect(await storage.rolloutCounts('old1')).toEqual({
+      '2.0.0': { loads: 1, errors: 1, clients: 1 },
+    });
+    const check = new DatabaseSync(file, { readOnly: true });
+    expect(check.prepare('SELECT id FROM schema_migrations ORDER BY id').all()).toEqual(
+      MIGRATIONS.map((m) => ({ id: m.id })),
+    );
+    expect(
+      check.prepare("SELECT name FROM sqlite_master WHERE name = 'rollout_stats'").all(),
+    ).toEqual([]);
+    check.close();
+  });
+
+  it('backfills the counters from reporters when upgrading from migration 3', async () => {
+    const { DatabaseSync } = await import('node:sqlite');
+    const old = new DatabaseSync(file);
+    old.exec(
+      'CREATE TABLE schema_migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL)',
+    );
+    for (const m of MIGRATIONS.filter((x) => x.id <= 3)) {
+      old.exec(m.sql);
+      old
+        .prepare('INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)')
+        .run(m.id, m.name, '2026-11-01T00:00:00.000Z');
+    }
+    const add = old.prepare('INSERT INTO rollout_reporters VALUES (?, ?, ?, ?)');
+    add.run('r1', '2.0.0', 'a', 1);
+    add.run('r1', '2.0.0', 'b', 0);
+    add.run('r1', '1.0.0', 'c', 0);
+    old.close();
+    const storage = await connect();
+    expect(await storage.rolloutCounts('r1')).toEqual({
+      '2.0.0': { loads: 2, errors: 1, clients: 2 },
+      '1.0.0': { loads: 1, errors: 0, clients: 1 },
+    });
   });
 
   it('refuses a writer that read an older revision, and writes nothing', async () => {

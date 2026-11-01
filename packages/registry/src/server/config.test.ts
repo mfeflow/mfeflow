@@ -13,6 +13,7 @@ describe('configFromEnv', () => {
       maxBodyBytes: 262_144,
       gate: { minLoads: 200, minClients: 50, factor: 2, floor: 0.02 },
       beaconLimit: { burst: 60, perMinute: 60 },
+      rolloutMaxReporters: 20_000,
       trustProxy: false,
     });
   });
@@ -32,6 +33,7 @@ describe('configFromEnv', () => {
       MFEFLOW_REGISTRY_GATE_FLOOR: '0.05',
       MFEFLOW_REGISTRY_BEACON_BURST: '5',
       MFEFLOW_REGISTRY_BEACON_PER_MINUTE: '30',
+      MFEFLOW_REGISTRY_ROLLOUT_MAX_REPORTERS: '5000',
       MFEFLOW_REGISTRY_TRUST_PROXY: 'true',
     });
     expect(config).toEqual({
@@ -44,6 +46,7 @@ describe('configFromEnv', () => {
       maxBodyBytes: 2048,
       gate: { minLoads: 500, minClients: 80, factor: 3, floor: 0.05 },
       beaconLimit: { burst: 5, perMinute: 30 },
+      rolloutMaxReporters: 5000,
       trustProxy: true,
     });
   });

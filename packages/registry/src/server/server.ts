@@ -77,6 +77,7 @@ export async function startRegistryServer(options: StartOptions): Promise<Regist
     artifacts,
     artifactBaseUrl: config.artifactBaseUrl,
     gate: config.gate,
+    maxReporters: config.rolloutMaxReporters,
     ...(options.now === undefined ? {} : { now: options.now }),
     onChange: (changed) => fallback?.request(changed),
     log,
