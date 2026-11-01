@@ -1,5 +1,11 @@
 # @mfeflow/analytics
 
+## 0.3.0
+
+### Minor Changes
+
+- [#32](https://github.com/mfeflow/mfeflow/pull/32) [`351ef12`](https://github.com/mfeflow/mfeflow/commit/351ef123ecd790872b7f1312c7fd06e37f35fdbe) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - Add `@mfeflow/analytics/providers` with `addProvider` and `combineProviders`, to run more than one provider (every call reaches all of them, a provider that throws does not stop the others, and the order they start in does not matter), and `@mfeflow/analytics/clarity`: a Microsoft Clarity provider that requests nothing, and sets no cookie, until `analytics_storage` is granted, and tells Clarity to stop if it is withdrawn.
+
 ## 0.2.0
 
 No changes in this release.

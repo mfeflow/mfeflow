@@ -1,6 +1,6 @@
 {
   "name": "@mfeflow/url-factory",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Typed API URLs for micro-frontends: path params are checked from the template at compile time, base URLs come from runtime config, so one build runs in every environment.",
   "keywords": [
     "micro-frontend",
