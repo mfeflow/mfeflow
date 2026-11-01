@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DOCS_URL, errorDocsUrl, JSON_SCHEMAS, SCHEMA_URLS, type SchemaName } from './index';
 import { ENV_KEY, JOB_ID, SCRIPT_NAME } from './feature';
 import { SAFE_RELATIVE_PATH, isSafeRelativePath } from './validate';
-import { CHECKOUT_PATH, REGISTRY_NAMESPACE, isCheckoutPath } from './project';
+import { CHECKOUT_PATH, REGISTRY_NAMESPACE, SEMVER, isCheckoutPath } from './project';
 
 interface Node {
   pattern?: string;
@@ -110,6 +110,8 @@ describe('schemas agree with the validators', () => {
     expect(props('project').registries?.propertyNames?.pattern).toBe(REGISTRY_NAMESPACE.source);
     expect(props('project').files?.propertyNames?.pattern).toBe(SAFE_RELATIVE_PATH.source);
     expect(props('project').local?.pattern).toBe(CHECKOUT_PATH.source);
+    expect(props('project').cli?.pattern).toBe(SEMVER.source);
+    expect(JSON.stringify(props('project').repo)).toBe('{"enum":["platform","shell","remote"]}');
   });
 
   it('allows the same literals in workflow step env and with', () => {

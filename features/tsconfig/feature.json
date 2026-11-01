@@ -1,6 +1,6 @@
 {
   "name": "tsconfig",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Strict TypeScript 7 presets from @mfeflow/tsconfig, and a typecheck script.",
   "requires": ["core"],
   "files": [
