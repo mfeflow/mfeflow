@@ -1,3 +1,4 @@
+import { fillPath } from '@mfeflow/url-factory';
 import type {
   LinkArgs,
   LinkId,
@@ -76,18 +77,6 @@ function trimEnd(base: string): string {
   return base.endsWith('/') ? base.slice(0, -1) : base;
 }
 
-function fill(
-  template: string,
-  params: Readonly<Record<string, string | number>> | undefined,
-  id: string,
-): string {
-  return template.replace(/:([A-Za-z0-9_]+)/g, (_match, name: string) => {
-    const value = params?.[name];
-    if (value === undefined) throw new Error(`route-factory: missing param "${name}" for "${id}"`);
-    return encodeURIComponent(String(value));
-  });
-}
-
 function query(
   search: Readonly<Record<string, SearchValue | undefined>> | undefined,
   allowed: readonly string[],
@@ -137,7 +126,7 @@ export function createLinks<const S extends RouteSets>(sets: S, config: LinkConf
     const base = withBase
       ? trimEnd(typeof config.base === 'function' ? config.base() : (config.base ?? ''))
       : '';
-    const inner = fill(path, options?.params, id);
+    const inner = fillPath(path, options?.params, 'route-factory', id);
     const joined = `${base}${set.mount}${inner === '/' && set.mount !== '' ? '' : inner}`;
     for (const { name, required } of search) {
       if (required && options?.search?.[name] === undefined)

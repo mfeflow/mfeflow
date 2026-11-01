@@ -87,6 +87,28 @@ describe('links.href', () => {
   });
 });
 
+describe('param values', () => {
+  it('end a name where the type does: at the first character that is not a letter, digit or underscore', () => {
+    const dashed = createLinks({ shop: defineRoutes('/shop', { order: '/orders/:order-id' }) });
+    expect(dashed.href('shop.order', { params: { order: 7 } })).toBe('/shop/orders/7-id');
+    // @ts-expect-error the param is called order, not order-id
+    expect(() => dashed.href('shop.order', { params: { 'order-id': 7 } })).toThrow(
+      'missing param "order"',
+    );
+  });
+
+  it.each(['.', '..'])('refuse %s, which would walk out of the path', (value) => {
+    expect(() => links.href('catalog.product', { params: { sku: value } })).toThrow(
+      `cannot be "${value}"`,
+    );
+  });
+
+  it('keep dots inside a longer value', () => {
+    expect(links.href('catalog.product', { params: { sku: 'a.b' } })).toBe('/catalog/products/a.b');
+    expect(links.href('catalog.product', { params: { sku: '...' } })).toBe('/catalog/products/...');
+  });
+});
+
 describe('when the types are bypassed', () => {
   const loose = links.href as (id: string, options?: unknown) => string;
 
@@ -123,6 +145,8 @@ describe('types', () => {
   it('derives path params from the template', () => {
     expectTypeOf<PathParams<'/a/:x/b/:y'>>().toEqualTypeOf<'x' | 'y'>();
     expectTypeOf<PathParams<'/a'>>().toEqualTypeOf<never>();
+    expectTypeOf<PathParams<'/orders/:order-id'>>().toEqualTypeOf<'order'>();
+    expectTypeOf<PathParams<'/orders/:id.json'>>().toEqualTypeOf<'id'>();
   });
 
   it('knows every route id', () => {

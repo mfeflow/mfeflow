@@ -1,9 +1,6 @@
-/** Names of `:params` in a path template, e.g. `'/orders/:orderId/items/:itemId'` gives `'orderId' | 'itemId'`. */
-export type PathParams<P extends string> = P extends `${string}:${infer Param}/${infer Rest}`
-  ? Param | PathParams<`/${Rest}`>
-  : P extends `${string}:${infer Param}`
-    ? Param
-    : never;
+import type { PathParams } from '@mfeflow/url-factory';
+
+export type { PathParams };
 
 type PathOf<T extends string> = T extends `${infer Path}?${string}` ? Path : T;
 type QueryOf<T extends string> = T extends `${string}?${infer Query}` ? Query : never;

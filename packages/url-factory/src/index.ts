@@ -1,9 +1,108 @@
-/** Names of `:params` in a path template, e.g. `'/v1/orders/:orderId/items/:itemId'` → `'orderId' | 'itemId'`. */
-export type PathParams<P extends string> = P extends `${string}:${infer Param}/${infer Rest}`
-  ? Param | PathParams<`/${Rest}`>
-  : P extends `${string}:${infer Param}`
-    ? Param
+type IdChar =
+  | 'a'
+  | 'b'
+  | 'c'
+  | 'd'
+  | 'e'
+  | 'f'
+  | 'g'
+  | 'h'
+  | 'i'
+  | 'j'
+  | 'k'
+  | 'l'
+  | 'm'
+  | 'n'
+  | 'o'
+  | 'p'
+  | 'q'
+  | 'r'
+  | 's'
+  | 't'
+  | 'u'
+  | 'v'
+  | 'w'
+  | 'x'
+  | 'y'
+  | 'z'
+  | 'A'
+  | 'B'
+  | 'C'
+  | 'D'
+  | 'E'
+  | 'F'
+  | 'G'
+  | 'H'
+  | 'I'
+  | 'J'
+  | 'K'
+  | 'L'
+  | 'M'
+  | 'N'
+  | 'O'
+  | 'P'
+  | 'Q'
+  | 'R'
+  | 'S'
+  | 'T'
+  | 'U'
+  | 'V'
+  | 'W'
+  | 'X'
+  | 'Y'
+  | 'Z'
+  | '0'
+  | '1'
+  | '2'
+  | '3'
+  | '4'
+  | '5'
+  | '6'
+  | '7'
+  | '8'
+  | '9'
+  | '_';
+
+/** The leading letters, digits and underscores of `S`: where `fillPath` ends a param name. */
+type Ident<S extends string, Acc extends string = ''> = S extends `${infer C}${infer Rest}`
+  ? C extends IdChar
+    ? Ident<Rest, `${Acc}${C}`>
+    : Acc
+  : Acc;
+
+/**
+ * Names of `:params` in a path template, e.g. `'/v1/orders/:orderId/items/:itemId'` gives
+ * `'orderId' | 'itemId'`. A name is letters, digits and underscores, as in `fillPath`, so
+ * `'/a/:order-id'` has the param `order`.
+ */
+export type PathParams<P extends string> = string extends P
+  ? string
+  : P extends `${string}:${infer Rest}`
+    ? Exclude<Ident<Rest>, ''> | PathParams<Rest>
     : never;
+
+const PARAM = /:([A-Za-z0-9_]+)/g;
+
+/**
+ * Fills the `:params` of a path template with encoded values. Throws for a missing param and for
+ * the values `.` and `..`, which would walk out of the path. `scope` and `id` only name the caller in
+ * the message.
+ */
+export function fillPath(
+  template: string,
+  params: Readonly<Record<string, string | number>> | undefined,
+  scope: string,
+  id: string,
+): string {
+  return template.replace(PARAM, (_match, name: string) => {
+    const value = params?.[name];
+    if (value === undefined) throw new Error(`${scope}: missing param "${name}" for "${id}"`);
+    const text = String(value);
+    if (text === '.' || text === '..')
+      throw new Error(`${scope}: param "${name}" for "${id}" cannot be "${text}"`);
+    return encodeURIComponent(text);
+  });
+}
 
 export type QueryValue =
   string | number | boolean | null | undefined | readonly (string | number | boolean)[];
@@ -73,11 +172,7 @@ export function createUrlFactory<E extends Endpoints>(
       );
     const options:
       { params?: Readonly<Record<string, string | number>>; query?: Query } | undefined = args[0];
-    const path = endpoint.path.replace(/:([A-Za-z0-9_]+)/g, (_match, name: string) => {
-      const value = options?.params?.[name];
-      if (value === undefined) throw new Error(`url-factory: missing param "${name}" for "${key}"`);
-      return encodeURIComponent(String(value));
-    });
+    const path = fillPath(endpoint.path, options?.params, 'url-factory', key);
     const url = new URL(path.slice(1), base.endsWith('/') ? base : `${base}/`);
     appendQuery(url, options?.query);
     return url.toString();

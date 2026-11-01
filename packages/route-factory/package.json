@@ -48,6 +48,9 @@
     "build": "rslib build",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@mfeflow/url-factory": "workspace:*"
+  },
   "peerDependencies": {
     "react": "^19.0.0"
   },
