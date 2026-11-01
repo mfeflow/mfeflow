@@ -8,6 +8,7 @@
     "**/.turbo/**",
     "**/__fixture__/**",
     "**/test-fixtures/**",
+    "examples/adopt-existing/**",
     "**/playwright-report/**",
     "**/test-results/**",
     "packages/cli/assets/**",
