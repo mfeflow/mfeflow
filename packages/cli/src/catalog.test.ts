@@ -25,6 +25,7 @@ describe('first-party catalogue', () => {
       'ui-shadcn',
       'forms',
       'data-react-query',
+      'analytics-clarity',
       'ci-github',
       'git-hooks',
     ]);

@@ -37,6 +37,7 @@ export const FIRST_PARTY: readonly FirstPartyFeature[] = [
   { name: 'ui-shadcn', always: false, default: false },
   { name: 'forms', always: false, default: false },
   { name: 'data-react-query', always: false, default: false },
+  { name: 'analytics-clarity', always: false, default: false },
   { name: 'ci-github', always: false, default: false },
   { name: 'git-hooks', always: false, default: false },
 ];

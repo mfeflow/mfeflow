@@ -13,6 +13,7 @@
 export interface AnalyticsEvents {}
 
 export {
+  addProvider,
   getConsent,
   hasConsentChoice,
   identify,
@@ -27,6 +28,7 @@ export {
   updateConsent,
 } from './core';
 export { CONSENT_STORAGE_KEY, DENY_ALL, GRANT_ALL, cleanConsent } from './consent';
+export { combineProviders } from './combine';
 export { createRecordingProvider, noopProvider, type RecordedCall } from './noop';
 export {
   createTracker,

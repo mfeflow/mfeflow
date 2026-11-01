@@ -24,6 +24,12 @@ afterEach(async () => {
 
 const add = (...args: string[]) =>
   main(['add', ...args, '--no-install', '--cwd', project], testRuntime());
+
+/** The feature some others cannot be added without. */
+async function addRequired(feature: string): Promise<void> {
+  const required = { 'ui-shadcn': 'tailwind', 'analytics-clarity': 'analytics-gtm' }[feature];
+  if (required !== undefined) expect(await add(required)).toBe(0);
+}
 const read = (file: string) => fs.readFile(path.join(project, file), 'utf8');
 const json = async (file: string): Promise<Record<string, Record<string, string>>> => {
   return JSON.parse(await read(file)) as Record<string, Record<string, string>>;
@@ -51,9 +57,10 @@ describe.each([
   'forms',
   'data-react-query',
   'ui-shadcn',
+  'analytics-clarity',
 ])('mfeflow add %s', (feature) => {
   it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
-    if (feature === 'ui-shadcn') expect(await add('tailwind')).toBe(0);
+    await addRequired(feature);
     expect(await add(feature)).toBe(0);
     const once = await readTree(project);
     expect(parseProject(once['mfeflow.json'] ?? '').features).toHaveProperty(feature);
@@ -63,7 +70,7 @@ describe.each([
   });
 
   it('with --dry-run prints the diff and writes nothing', async () => {
-    if (feature === 'ui-shadcn') expect(await add('tailwind')).toBe(0);
+    await addRequired(feature);
     const before = await readTree(project);
     const rt = testRuntime();
     expect(await main(['add', feature, '--dry-run', '--cwd', project], rt)).toBe(0);
@@ -72,7 +79,7 @@ describe.each([
   });
 
   it('gives a remote added later the same per-app files', async () => {
-    if (feature === 'ui-shadcn') expect(await add('tailwind')).toBe(0);
+    await addRequired(feature);
     expect(await add(feature)).toBe(0);
     expect(
       await main(['add', 'remote', 'checkout', '--no-install', '--cwd', project], testRuntime()),
@@ -91,6 +98,7 @@ describe.each([
       i18n: ['src/i18n/I18n.tsx', 'src/i18n/messages/en.json'],
       tailwind: ['postcss.config.mjs', 'src/styles.css', 'src/tailwind/Scope.tsx'],
       forms: ['src/forms/ContactForm.tsx', 'src/forms/schema.ts'],
+      'analytics-clarity': [],
       'ui-shadcn': ['components.json', 'src/lib/utils.ts', 'src/components/ui/button.tsx'],
       'data-react-query': ['src/query/Query.tsx', 'src/query/keys.ts', 'src/query/useHealth.ts'],
     }[feature];
@@ -173,6 +181,28 @@ describe('ui-shadcn', () => {
     expect(await read('apps/cart/components.json')).toContain('"prefix": "cart"');
     expect(await read('apps/catalog/components.json')).toContain('"prefix": "catalog"');
     expect(await read('apps/cart/src/components/ui/button.tsx')).toContain('cart:bg-primary');
+  });
+});
+
+describe('analytics-clarity', () => {
+  it('needs analytics-gtm for the consent banner and says so, writing nothing', async () => {
+    const before = await readTree(project);
+    expect(await add('analytics-clarity')).not.toBe(0);
+    expect(await readTree(project)).toEqual(before);
+  });
+
+  it('adds the clarityId runtime key next to gtmId, with or without env-t3', async () => {
+    await add('analytics-gtm');
+    expect(await add('analytics-clarity')).toBe(0);
+    expect(await read('apps/shell/public/config/runtime-config.json')).toContain('"clarityId": ""');
+    expect(await read('apps/shell/src/analytics/clarity.ts')).toContain('addProvider');
+  });
+
+  it('also lands in the schema when env-t3 is added afterwards', async () => {
+    await add('analytics-gtm');
+    await add('analytics-clarity');
+    expect(await add('env-t3')).toBe(0);
+    expect(await read('apps/shell/src/config/schema.ts')).toContain('clarityId');
   });
 });
 

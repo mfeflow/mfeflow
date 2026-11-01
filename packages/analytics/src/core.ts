@@ -4,6 +4,7 @@ import {
   readStoredConsent,
   writeStoredConsent,
 } from './consent';
+import { combineProviders, partsOf } from './combine';
 import { noopProvider } from './noop';
 import type { AnalyticsProvider, ConsentUpdate, EventParams } from './types';
 
@@ -57,6 +58,20 @@ export function initAnalytics(provider: AnalyticsProvider): boolean {
   provider.init({ ...s.consent });
   const queued = s.queue.splice(0);
   for (const call of queued) call(provider);
+  return true;
+}
+
+/**
+ * Starts analytics with a provider, or joins one that is already running: from then on both get every
+ * call. Calls made before this one are not replayed to the newcomer. Returns false if a provider with
+ * this name is already there. Use it where several features may start a provider in either order.
+ */
+export function addProvider(provider: AnalyticsProvider): boolean {
+  const s = state();
+  if (!s.provider) return initAnalytics(provider);
+  if (partsOf(s.provider).some((p) => p.name === provider.name)) return false;
+  s.provider = combineProviders(s.provider, provider);
+  provider.init({ ...s.consent });
   return true;
 }
 
