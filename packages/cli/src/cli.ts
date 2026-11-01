@@ -1,4 +1,5 @@
 import { stripVTControlCharacters } from 'node:util';
+import { redactUrlsIn } from '@mfeflow/contracts';
 import { isMfeflowError, MfeflowError } from '@mfeflow/core';
 import { defineCommand, runCommand, type CommandDef } from 'citty';
 import { ADD_ARGS, runAdd } from './commands/add';
@@ -77,13 +78,14 @@ export const COMMANDS: readonly Command[] = [
     name: 'registry',
     summary: 'configure third-party feature registries, or build one to host',
     usage:
-      'mfeflow registry add @namespace <url-template> | mfeflow registry list | mfeflow registry remove @namespace | mfeflow registry build <dir> [--out dir]',
+      'mfeflow registry add @namespace <url-template> | mfeflow registry list | mfeflow registry remove @namespace | mfeflow registry trust @namespace | mfeflow registry untrust @namespace | mfeflow registry build <dir> [--out dir]',
     args: REGISTRY_ARGS,
     examples: [
       'mfeflow registry add @acme https://acme.github.io/features/{name}.json',
       'mfeflow registry add @test http://127.0.0.1:4010/{name}.json   # plain http: loopback hosts only',
       'mfeflow registry list --json',
       'mfeflow registry remove @acme --dry-run',
+      'mfeflow registry trust @acme   # a registry from a cloned repo is not asked until you trust it',
       'mfeflow registry build ./my-registry --out ./site',
     ],
     run: runRegistry,
@@ -174,7 +176,8 @@ function fail(error: unknown, rt: Runtime, json: boolean, verbose: boolean): num
   if (isMfeflowError(mfe)) {
     if (json) rt.io.stdout(JSON.stringify(failure(mfe), null, 2));
     else rt.io.stderr(mfe.format());
-    if (verbose && mfe.cause !== undefined) rt.io.stderr(unexpectedText(mfe.cause, true));
+    if (verbose && mfe.cause !== undefined)
+      rt.io.stderr(redactUrlsIn(unexpectedText(mfe.cause, true)));
     return exitCodeFor(mfe);
   }
   if (json) {

@@ -82,6 +82,10 @@ export interface FeatureSource {
   fetch?: FetchLike | undefined;
   /** The version to ask a registry for, when its URL template can pin one. */
   version?: string | undefined;
+  /** Namespaces the user trusts, so their registries may be on loopback or private addresses. */
+  trusted?: ReadonlySet<string> | undefined;
+  /** Compare the registry index's version with the feature.json's. */
+  checkIndex?: boolean | undefined;
 }
 
 /** A first-party feature by name, or `@namespace/name` from a configured registry. */
@@ -92,5 +96,7 @@ export function loadAny(name: string, source: FeatureSource): Promise<LoadedFeat
     ...(source.registries ? { registries: source.registries } : {}),
     ...(source.fetch ? { fetch: source.fetch } : {}),
     ...(source.version === undefined ? {} : { version: source.version }),
+    trusted: source.trusted?.has(name.slice(0, name.indexOf('/'))) === true,
+    ...(source.checkIndex === true ? { checkIndex: true } : {}),
   });
 }

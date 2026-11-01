@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   isMfeflowProject,
   isMfeManifest,
+  isPrivateHost,
+  JSON_SCHEMAS,
+  redactUrl,
+  redactUrlsIn,
   isRegistryEntry,
   isRegistryIndex,
   MFE_NAME,
@@ -431,5 +435,165 @@ describe('mfeflow.json', () => {
 
   it('publishes schema URLs', () => {
     expect(SCHEMA_URLS.mfe).toBe('https://mfeflow.github.io/mfeflow/schema/mfe.json');
+  });
+});
+
+describe('feature integrity in mfeflow.json', () => {
+  const entry = (extra: object) => ({
+    version: 1,
+    topology: 'monorepo',
+    packageManager: 'pnpm',
+    scope: '@shopco',
+    apps: { storefront: { kind: 'shell', path: 'apps/storefront' } },
+    features: { '@someone/extra': { version: '1.0.0', ...extra } },
+  });
+
+  it('accepts a sha256 hash next to the feature', () => {
+    const integrity = `sha256-${'ab'.repeat(32)}`;
+    expect(validateMfeflowProject(entry({ integrity }))).toEqual([]);
+  });
+
+  it('rejects anything that is not a sha256 hash', () => {
+    for (const bad of ['abc', 'sha1-abc', `sha256-${'AB'.repeat(32)}`, 7]) {
+      expect(paths(validateMfeflowProject(entry({ integrity: bad }))), String(bad)).toEqual([
+        'features.@someone/extra.integrity',
+      ]);
+    }
+  });
+
+  it('puts integrity in the published JSON schema', () => {
+    const features = JSON_SCHEMAS.project.properties as Record<string, unknown>;
+    expect(JSON.stringify(features.features)).toContain('integrity');
+  });
+});
+
+describe('isPrivateHost', () => {
+  it.each([
+    'localhost',
+    'LOCALHOST',
+    'app.localhost',
+    '127.0.0.1',
+    '127.1.2.3',
+    '10.0.0.1',
+    '172.16.0.1',
+    '172.31.255.255',
+    '192.168.0.10',
+    '169.254.169.254',
+    '0.0.0.0',
+    '[::1]',
+    '[::]',
+    '[fc00::1]',
+    '[fd12:3456::1]',
+    '[fe80::1]',
+    '[::ffff:7f00:1]',
+    '[::ffff:c0a8:101]',
+    '100.64.0.1',
+    '100.100.100.200',
+    '100.127.255.254',
+    '192.0.0.1',
+    '[::a9fe:a9fe]',
+    '[::7f00:1]',
+    '[64:ff9b::a9fe:a9fe]',
+    '[64:ff9b::a00:1]',
+    '[2002:a9fe:a9fe::1]',
+    '[2002:c0a8:101::]',
+    '[fec0::1]',
+    '[febf::1]',
+    'metadata.google.internal',
+    'printer.local',
+    'host.internal.',
+  ])('is true for %s', (host) => {
+    expect(isPrivateHost(host)).toBe(true);
+  });
+
+  it.each([
+    'example.com',
+    'acme.github.io',
+    '8.8.8.8',
+    '172.15.0.1',
+    '172.32.0.1',
+    '192.169.0.1',
+    '11.0.0.1',
+    '[2606:4700::1111]',
+    '[::ffff:808:808]',
+    'localhost.example.com',
+    '100.63.255.255',
+    '100.128.0.1',
+    '192.0.1.1',
+    '[::808:808]',
+    '[64:ff9b::808:808]',
+    '[2002:808:808::1]',
+    'internal.example.com',
+    'local.dev',
+  ])('is false for %s', (host) => {
+    expect(isPrivateHost(host)).toBe(false);
+  });
+
+  it('agrees with what URL.hostname reports', () => {
+    expect(isPrivateHost(new URL('http://[::1]:4010/x').hostname)).toBe(true);
+    expect(isPrivateHost(new URL('http://0x7f.1/x').hostname)).toBe(true);
+    expect(isPrivateHost(new URL('https://acme.dev/x').hostname)).toBe(false);
+  });
+});
+
+describe('redactUrl', () => {
+  it('stays fast on long query strings with no = in them', () => {
+    const long = `https://r.test/{name}.json?${'%'.repeat(50_000)}`;
+    const started = performance.now();
+    expect(redactUrl(long)).toBe(long);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
+  it('keeps separators and values with = in them as they were', () => {
+    expect(redactUrl('https://r.test/x?a=b=c;token=s&&d=')).toBe(
+      'https://r.test/x?a=b=c;token=***&&d=',
+    );
+  });
+
+  it('hides the value of token-like parameters and keeps the rest', () => {
+    expect(redactUrl('https://r.dev/{name}.json?token=abc&v=2')).toBe(
+      'https://r.dev/{name}.json?token=***&v=2',
+    );
+    for (const key of ['api_key', 'apikey', 'sig', 'Signature', 'auth', 'password', 'secret']) {
+      expect(redactUrl(`https://r.dev/x?${key}=s3cret`), key).toBe(`https://r.dev/x?${key}=***`);
+    }
+    expect(redactUrl('https://r.dev/x?X-Amz-Signature=aa&X-Amz-Credential=bb&a=1')).toBe(
+      'https://r.dev/x?X-Amz-Signature=***&X-Amz-Credential=***&a=1',
+    );
+  });
+
+  it('also hides jwt, bearer, session, pat, access and code, but not look-alikes', () => {
+    for (const key of ['jwt', 'bearer', 'session', 'pat', 'access', 'code', 'session_id']) {
+      expect(redactUrl(`https://r.dev/x?${key}=s3cret`), key).toBe(`https://r.dev/x?${key}=***`);
+    }
+    expect(redactUrl('https://r.dev/x?path=/a&patch=1&codec=2&accessory=3')).toBe(
+      'https://r.dev/x?path=/a&patch=1&codec=2&accessory=3',
+    );
+  });
+
+  it('hides secrets in the fragment and after a semicolon', () => {
+    expect(redactUrl('https://r.dev/x#access_token=abc&state=1')).toBe(
+      'https://r.dev/x#access_token=***&state=1',
+    );
+    expect(redactUrl('https://r.dev/x?a=1;token=abc;b=2')).toBe(
+      'https://r.dev/x?a=1;token=***;b=2',
+    );
+    expect(redactUrl('https://r.dev/x?a=1&sig=z#top')).toBe('https://r.dev/x?a=1&sig=***#top');
+  });
+
+  it('hides a user name and password', () => {
+    expect(redactUrl('https://me:pw@r.dev/x')).toBe('https://***@r.dev/x');
+  });
+
+  it('leaves a URL without a secret as it is', () => {
+    for (const url of ['https://r.dev/{name}.json', 'https://r.dev/x?page=2#top', 'not a url']) {
+      expect(redactUrl(url)).toBe(url);
+    }
+  });
+
+  it('cleans every URL in a sentence', () => {
+    expect(redactUrlsIn('https://r.dev/a?token=1 answered 404, then http://x.dev/b?key=2')).toBe(
+      'https://r.dev/a?token=*** answered 404, then http://x.dev/b?key=***',
+    );
   });
 });
