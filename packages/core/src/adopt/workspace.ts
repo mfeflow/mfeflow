@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
+import { messageOf } from '../errors';
 import type { ReadFile } from '../plan';
 
 /** Folders never searched for apps: dependencies, build output, caches, VCS. */
@@ -15,6 +16,8 @@ export const SKIPPED_DIRS = new Set([
 ]);
 
 const MAX_DEPTH = 8;
+/** Folders visited while expanding globs, across all patterns. */
+const MAX_VISITED = 5000;
 
 const skipped = (name: string): boolean =>
   name.startsWith('.') || SKIPPED_DIRS.has(name) || name.startsWith('dist-');
@@ -48,38 +51,88 @@ function normalize(pattern: string): string | undefined {
   return clean;
 }
 
-async function expand(
-  root: string,
-  segments: string[],
-  listDirs: (dir: string) => Promise<string[]>,
-  at: string[] = [],
-): Promise<string[]> {
-  if (segments.length === 0) return [at.join('/')];
-  if (at.length > MAX_DEPTH) return [];
+/** Runs `fn` on each item one after the other, so a big folder tree never opens thousands of files at once. */
+export function eachInSequence<T>(
+  items: readonly T[],
+  fn: (item: T) => Promise<void>,
+): Promise<void> {
+  return items.reduce((done, item) => done.then(() => fn(item)), Promise.resolve());
+}
+
+interface Walk {
+  root: string;
+  listDirs: (dir: string) => Promise<string[]>;
+  problems: WorkspaceProblem[];
+  visited: number;
+  seen: Set<string>;
+  found: Set<string>;
+}
+
+/** `a/**\/**\/b` means `a/**\/b`. */
+const collapse = (segments: string[]): string[] =>
+  segments.filter((segment, i) => !(segment === '**' && segments[i - 1] === '**'));
+
+async function childrenOf(walk: Walk, at: string[]): Promise<string[]> {
+  walk.visited += 1;
+  if (walk.visited > MAX_VISITED) return [];
+  try {
+    return (await walk.listDirs(path.join(walk.root, ...at)))
+      .filter((name) => !skipped(name))
+      .toSorted((a, b) => a.localeCompare(b));
+  } catch (error) {
+    walk.problems.push({
+      file: at.join('/') || '.',
+      reason: `could not be listed (${messageOf(error)})`,
+    });
+    return [];
+  }
+}
+
+async function expand(walk: Walk, segments: string[], at: string[] = []): Promise<void> {
+  const state = `${at.join('/')}|${segments.join('/')}`;
+  if (walk.seen.has(state)) return;
+  walk.seen.add(state);
+  if (segments.length === 0) {
+    walk.found.add(at.join('/'));
+    return;
+  }
+  if (at.length > MAX_DEPTH) return;
   const [segment = '', ...rest] = segments;
   if (!segment.includes('*')) {
-    return skipped(segment) ? [] : expand(root, rest, listDirs, [...at, segment]);
+    if (!skipped(segment)) await expand(walk, rest, [...at, segment]);
+    return;
   }
-  const children = (await listDirs(path.join(root, ...at)))
-    .filter((name) => !skipped(name))
-    .toSorted((a, b) => a.localeCompare(b));
+  const children = await childrenOf(walk, at);
   if (segment === '**') {
-    const nested = await Promise.all(
-      children.map((child) => expand(root, segments, listDirs, [...at, child])),
-    );
-    return [...(await expand(root, rest, listDirs, at)), ...nested.flat()];
+    await expand(walk, rest, at);
+    await eachInSequence(children, (child) => expand(walk, segments, [...at, child]));
+    return;
   }
   const match = toRegExp(segment);
-  const nested = await Promise.all(
-    children
-      .filter((child) => match.test(child))
-      .map((child) => expand(root, rest, listDirs, [...at, child])),
+  await eachInSequence(
+    children.filter((c) => match.test(c)),
+    (child) => expand(walk, rest, [...at, child]),
   );
-  return nested.flat();
 }
 
 function stringList(value: unknown): string[] | undefined {
   return Array.isArray(value) && value.every((v) => typeof v === 'string') ? value : undefined;
+}
+
+async function safeRead(
+  read: ReadFile,
+  file: string,
+  problems: WorkspaceProblem[],
+): Promise<string | undefined> {
+  try {
+    return await read(file);
+  } catch (error) {
+    problems.push({
+      file: path.basename(file),
+      reason: `could not be read (${messageOf(error)})`,
+    });
+    return undefined;
+  }
 }
 
 async function workspacePatterns(
@@ -88,7 +141,7 @@ async function workspacePatterns(
   problems: WorkspaceProblem[],
 ): Promise<string[]> {
   const patterns: string[] = [];
-  const yamlText = await read(path.join(root, 'pnpm-workspace.yaml'));
+  const yamlText = await safeRead(read, path.join(root, 'pnpm-workspace.yaml'), problems);
   if (yamlText !== undefined) {
     try {
       const doc: unknown = parseYaml(yamlText);
@@ -102,7 +155,7 @@ async function workspacePatterns(
       problems.push({ file: 'pnpm-workspace.yaml', reason: 'could not be parsed' });
     }
   }
-  const pkgText = await read(path.join(root, 'package.json'));
+  const pkgText = await safeRead(read, path.join(root, 'package.json'), problems);
   if (pkgText !== undefined) {
     try {
       const pkg: unknown = JSON.parse(pkgText);
@@ -141,21 +194,24 @@ export async function findAppDirs(
     .map((p) => normalize(p.slice(1)))
     .filter((p): p is string => p !== undefined)
     .map(globToRegExp);
-  const found = await Promise.all(
-    include
-      .filter((p): p is string => p !== undefined)
-      .map((p) => expand(root, p.split('/'), listDirs)),
-  );
-  const candidates = [...new Set(found.flat())].filter(
+  const walk: Walk = { root, listDirs, problems, visited: 0, seen: new Set(), found: new Set() };
+  await eachInSequence(include, async (pattern) => {
+    if (pattern !== undefined) await expand(walk, collapse(pattern.split('/')));
+  });
+  if (walk.visited > MAX_VISITED) {
+    problems.push({
+      file: '.',
+      reason: `has more than ${String(MAX_VISITED)} folders to search, so the workspace globs were cut short`,
+    });
+  }
+  const candidates = [...walk.found].filter(
     (dir) => dir !== '' && !exclude.some((re) => re.test(dir)),
   );
-  const withPackage = await Promise.all(
-    candidates.map(async (dir) =>
-      (await read(path.join(root, ...dir.split('/'), 'package.json'))) === undefined
-        ? undefined
-        : dir,
-    ),
-  );
+  const withPackage: (string | undefined)[] = [];
+  await eachInSequence(candidates, async (dir) => {
+    const file = path.join(root, ...dir.split('/'), 'package.json');
+    withPackage.push((await safeRead(read, file, problems)) === undefined ? undefined : dir);
+  });
   const dirs = withPackage.filter((d): d is string => d !== undefined);
   return ['.', ...dirs.toSorted((a, b) => a.localeCompare(b))];
 }

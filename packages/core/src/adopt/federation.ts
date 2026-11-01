@@ -113,6 +113,12 @@ function readExposes(value: Node, scope: Scope, report: Report): Record<string, 
   return exposes;
 }
 
+const NOT_CARRIED = 'is set in the config but adopt does not carry it over';
+/** Shared options adopt drops; `eager` and `strictVersion` only when they are not plainly false. */
+const NOT_CARRIED_SHARED = new Set(['eager', 'strictVersion', 'import']);
+/** Top-level options adopt drops. */
+const NOT_CARRIED_OPTIONS = new Set(['filename', 'shareStrategy', 'runtimePlugins']);
+
 function readSharedEntry(
   key: string,
   node: Node,
@@ -138,9 +144,15 @@ function readSharedEntry(
     report(problem.key ? fieldOf(field, problem.key) : field, problem.reason);
   }
   for (const entry of entries) {
+    const at = fieldOf(field, entry.key);
+    if (NOT_CARRIED_SHARED.has(entry.key)) {
+      const evaluated = evaluate(entry.value, scope);
+      const plainlyOff = entry.key !== 'import' && evaluated.ok && evaluated.value === false;
+      if (!plainlyOff) report(at, NOT_CARRIED);
+      continue;
+    }
     if (entry.key !== 'singleton' && entry.key !== 'requiredVersion') continue;
     const evaluated = evaluate(entry.value, scope);
-    const at = fieldOf(field, entry.key);
     if (!evaluated.ok) {
       report(at, evaluated.reason);
     } else if (entry.key === 'singleton' && typeof evaluated.value === 'boolean') {
@@ -212,6 +224,7 @@ export function readFederationOptions(
         result.shared = readShared(value, scope, report);
         break;
       default:
+        if (NOT_CARRIED_OPTIONS.has(key)) report(key, NOT_CARRIED);
         break;
     }
   }

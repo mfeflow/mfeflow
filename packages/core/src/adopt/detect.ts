@@ -4,6 +4,7 @@ import {
   isIdentifier,
   isMemberExpression,
   isNewExpression,
+  isNode,
   isObjectProperty,
   type CallExpression,
   type File,
@@ -11,10 +12,9 @@ import {
   type Node,
   type ObjectExpression,
 } from '@babel/types';
-import { hasErrno } from '../errors';
-import { readIfExists, realFs } from '../fs';
+import { messageOf } from '../errors';
 import type { ReadFile } from '../plan';
-import { findAll, parseSource } from '../transforms/ast';
+import { findAll, parseSource, SKIP_KEYS } from '../transforms/ast';
 import {
   entriesOf,
   evaluate,
@@ -26,6 +26,7 @@ import {
   type Result,
   type Scope,
 } from './evaluate';
+import { guardedDisk, isInside, type Refusal } from './disk';
 import { readFederationOptions } from './federation';
 import type {
   BuildTool,
@@ -34,7 +35,7 @@ import type {
   FederationReport,
   NotAdopted,
 } from './types';
-import { findAppDirs } from './workspace';
+import { eachInSequence, findAppDirs } from './workspace';
 
 /** Config file extensions, in the order a bundler would pick them. */
 const EXTENSIONS = ['.ts', '.mts', '.cts', '.js', '.mjs', '.cjs'];
@@ -92,24 +93,125 @@ function namesFor(scope: Scope, canonical: string): Set<string> {
   return names;
 }
 
-/** `pluginModuleFederation(…)` and `new ModuleFederationPlugin(…)` / `new x.container.ModuleFederationPlugin(…)`. */
-function federationCalls(ast: Node, scope: Scope): (CallExpression | NewExpression)[] {
+/** Every name declared by a pattern: `a`, `{ a, b: [c] }`, `...rest`. */
+function patternNames(node: Node | null | undefined, out: Set<string>): void {
+  if (!node) return;
+  if (isIdentifier(node)) out.add(node.name);
+  else if (node.type === 'ObjectPattern') {
+    for (const prop of node.properties) {
+      patternNames(prop.type === 'RestElement' ? prop.argument : prop.value, out);
+    }
+  } else if (node.type === 'ArrayPattern') {
+    for (const element of node.elements) patternNames(element, out);
+  } else if (node.type === 'RestElement') patternNames(node.argument, out);
+  else if (node.type === 'AssignmentPattern') patternNames(node.left, out);
+}
+
+const isFunction = (n: Node): boolean =>
+  n.type === 'FunctionDeclaration' ||
+  n.type === 'FunctionExpression' ||
+  n.type === 'ArrowFunctionExpression' ||
+  n.type === 'ObjectMethod' ||
+  n.type === 'ClassMethod';
+
+const isLocalScope = (n: Node): boolean =>
+  isFunction(n) ||
+  n.type === 'BlockStatement' ||
+  n.type === 'CatchClause' ||
+  n.type === 'ForStatement' ||
+  n.type === 'ForInStatement' ||
+  n.type === 'ForOfStatement' ||
+  n.type === 'SwitchStatement';
+
+/** Every name declared anywhere inside `scope` (deliberately generous: a false hit only means "not read"). */
+function declaredInside(scope: Node): Set<string> {
+  const names = new Set<string>();
+  if ('params' in scope) for (const param of scope.params) patternNames(param, names);
+  if (scope.type === 'CatchClause') patternNames(scope.param, names);
+  for (const node of findAll(
+    scope,
+    (n) =>
+      n.type === 'VariableDeclarator' ||
+      n.type === 'FunctionDeclaration' ||
+      n.type === 'ClassDeclaration',
+  )) {
+    if (node.type === 'VariableDeclarator') patternNames(node.id, names);
+    else if ('id' in node) patternNames(node.id, names);
+  }
+  return names;
+}
+
+interface FederationCall {
+  node: CallExpression | NewExpression;
+  /** Names declared in the functions and blocks around the call. */
+  shadowed: ReadonlySet<string>;
+}
+
+/**
+ * `pluginModuleFederation(…)`, `mf.pluginModuleFederation(…)`, and
+ * `new ModuleFederationPlugin(…)` / `new x.container.ModuleFederationPlugin(…)`.
+ * A call whose name is redeclared in an enclosing function or block is not
+ * the plugin.
+ */
+function federationCalls(ast: File, scope: Scope): FederationCall[] {
   const plugin = namesFor(scope, 'pluginModuleFederation');
   const webpack = namesFor(scope, 'ModuleFederationPlugin');
-  const matches = (n: Node): boolean => {
-    if (isCallExpression(n)) return isIdentifier(n.callee) && plugin.has(n.callee.name);
+  const found: FederationCall[] = [];
+  const matches = (n: Node, shadowed: ReadonlySet<string>): boolean => {
+    if (isCallExpression(n)) {
+      const callee = n.callee;
+      if (isIdentifier(callee)) return plugin.has(callee.name) && !shadowed.has(callee.name);
+      return (
+        isMemberExpression(callee) &&
+        isIdentifier(callee.property, { name: 'pluginModuleFederation' })
+      );
+    }
     if (!isNewExpression(n)) return false;
     const callee = n.callee;
-    if (isIdentifier(callee)) return webpack.has(callee.name);
+    if (isIdentifier(callee)) return webpack.has(callee.name) && !shadowed.has(callee.name);
     return (
       isMemberExpression(callee) &&
       isIdentifier(callee.property, { name: 'ModuleFederationPlugin' })
     );
   };
-  return findAll(ast, matches).filter(
-    (n): n is CallExpression | NewExpression => isCallExpression(n) || isNewExpression(n),
-  );
+  const visit = (value: unknown, shadowed: ReadonlySet<string>): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item, shadowed);
+      return;
+    }
+    if (!isNode(value)) return;
+    if (matches(value, shadowed) && (isCallExpression(value) || isNewExpression(value))) {
+      found.push({ node: value, shadowed });
+    }
+    const inner =
+      value.type !== 'Program' && isLocalScope(value)
+        ? new Set([...shadowed, ...declaredInside(value)])
+        : shadowed;
+    for (const [key, child] of Object.entries(value)) {
+      if (!SKIP_KEYS.has(key)) visit(child, inner);
+    }
+  };
+  visit(ast.program, new Set());
+  return found;
 }
+
+/** The file's scope as seen from inside the call: top-level names the call's surroundings redeclare are no longer trusted. */
+function scopeAt(scope: Scope, shadowed: ReadonlySet<string>): Scope {
+  if (![...shadowed].some((name) => scope.bindings.has(name))) return scope;
+  const bindings = new Map(scope.bindings);
+  for (const name of shadowed) {
+    if (bindings.has(name)) {
+      bindings.set(name, {
+        kind: 'other',
+        what: 'declared again inside a function around the call',
+      });
+    }
+  }
+  return { ...scope, bindings };
+}
+
+const isRelative = (source: string): boolean =>
+  source === '.' || source === '..' || source.startsWith('./') || source.startsWith('../');
 
 function candidatesFor(target: string): string[] {
   const ext = path.extname(target);
@@ -157,21 +259,29 @@ async function resolveOptions(
   }
   const binding = scope.bindings.get(n.name);
   if (binding?.kind === 'const' && !seen.has(n.name)) {
+    if (scope.mutated.has(n.name)) {
+      return fail(`refers to ${n.name}, which is changed later in the file`);
+    }
     return resolveOptions(ctx, binding.init, scope, hops, new Set([...seen, n.name]));
   }
   if (binding?.kind !== 'import') {
     const evaluated = evaluate(n, scope);
     return fail(evaluated.ok ? 'are not an object' : evaluated.reason);
   }
-  if (!binding.source.startsWith('.')) {
+  if (!isRelative(binding.source)) {
     return fail(`are imported from a package (${n.name} from '${binding.source}')`);
+  }
+  if ((binding.depth ?? 0) > 1) {
+    return fail(`are read from deep inside an import ('${binding.source}')`);
   }
   if (hops >= MAX_IMPORT_HOPS)
     return fail(`are imported through more than ${String(MAX_IMPORT_HOPS)} files`);
   const target = path.resolve(path.dirname(scope.file), binding.source);
-  const inside = path.relative(ctx.root, target);
-  if (inside.startsWith('..') || path.isAbsolute(inside)) {
+  if (!isInside(ctx.root, target)) {
     return fail(`are imported from outside the project ('${binding.source}')`);
+  }
+  if (path.relative(ctx.root, target).split(path.sep).includes('node_modules')) {
+    return fail(`are imported from node_modules ('${binding.source}')`);
   }
   const found = await firstExisting(ctx.read, candidatesFor(target));
   if (!found) return fail(`are imported from '${binding.source}', which was not found`);
@@ -197,7 +307,7 @@ function readPort(ctx: Context, ast: Node, scope: Scope, tool: BuildTool): numbe
       continue;
     const value = unwrap(prop.value);
     if (value?.type !== 'ObjectExpression') continue;
-    const port = entriesOf(value, scope).entries.find((e) => e.key === 'port');
+    const port = entriesOf(value, scope).entries.findLast((e) => e.key === 'port');
     if (port) ports.push(port.value);
   }
   const [first, ...others] = ports;
@@ -268,7 +378,7 @@ async function detectApp(ctx: Context): Promise<DetectedApp | undefined> {
   let options: Result<Options>;
   const [call] = calls;
   if (call) {
-    options = await resolveOptions(ctx, call.arguments[0], scope);
+    options = await resolveOptions(ctx, call.node.arguments[0], scopeAt(scope, call.shadowed));
   } else if (federation) {
     const mfScope = load(ctx, federation.file, federation.source)?.scope;
     if (!mfScope) return undefined;
@@ -301,17 +411,6 @@ async function detectApp(ctx: Context): Promise<DetectedApp | undefined> {
   };
 }
 
-const diskRead: ReadFile = (file) => readIfExists(realFs, file);
-
-async function diskListDirs(dir: string): Promise<string[]> {
-  try {
-    return await realFs.listDirs(dir);
-  } catch (error) {
-    if (hasErrno(error, 'ENOENT') || hasErrno(error, 'ENOTDIR')) return [];
-    throw error;
-  }
-}
-
 /**
  * Works out the Module Federation setup of an existing project by reading
  * its config files as source. Config files are parsed, never imported or run:
@@ -326,24 +425,34 @@ export async function detectFederation(
   options: DetectFederationOptions = {},
 ): Promise<FederationReport> {
   const root = path.resolve(dir);
-  const read = options.read ?? diskRead;
-  const listDirs = options.listDirs ?? diskListDirs;
+  const refused: Refusal[] = [];
+  const disk = guardedDisk(root, refused);
+  const read = options.read ?? disk.read;
+  const listDirs = options.listDirs ?? disk.listDirs;
   const notAdopted: NotAdopted[] = [];
   const problems: { file: string; reason: string }[] = [];
   const dirs = await findAppDirs(root, read, listDirs, problems);
   for (const problem of problems) {
     notAdopted.push({ dir: '.', file: problem.file, field: 'workspaces', reason: problem.reason });
   }
-  const results = await Promise.all(
-    dirs.map(async (appDir) => {
-      const ctx: Context = { root, read, dir: appDir, notAdopted: [] };
-      return { app: await detectApp(ctx), notAdopted: ctx.notAdopted };
-    }),
-  );
   const apps: DetectedApp[] = [];
-  for (const result of results) {
-    if (result.app) apps.push(result.app);
-    notAdopted.push(...result.notAdopted);
+  await eachInSequence(dirs, async (appDir) => {
+    const ctx: Context = { root, read, dir: appDir, notAdopted: [] };
+    try {
+      const app = await detectApp(ctx);
+      if (app) apps.push(app);
+    } catch (error) {
+      report(
+        ctx,
+        path.join(root, ...appDir.split('/')),
+        'file',
+        `could not be read (${messageOf(error)})`,
+      );
+    }
+    notAdopted.push(...ctx.notAdopted);
+  });
+  for (const refusal of refused) {
+    notAdopted.push({ dir: '.', file: refusal.file, field: 'file', reason: refusal.reason });
   }
   return { apps, notAdopted };
 }

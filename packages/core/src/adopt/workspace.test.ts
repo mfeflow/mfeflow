@@ -84,4 +84,54 @@ describe('globToRegExp', () => {
   ])('%s matches %s: %s', (glob, dir, expected) => {
     expect(globToRegExp(glob).test(dir)).toBe(expected);
   });
+
+  it('does not blow up on repeated ** and visits each folder once', async () => {
+    const files: Record<string, string> = { 'package.json': '{"workspaces":["**/**/**/**"]}' };
+    for (const a of 'abcd') for (const b of 'abcd') files[`${a}/${b}/package.json`] = '{}';
+    let calls = 0;
+    const fs = memoryFs(root, files);
+    const found = await findAppDirs(root, fs.read, (dir) => {
+      calls += 1;
+      return fs.listDirs(dir);
+    });
+    expect(found).toHaveLength(17);
+    expect(calls).toBeLessThan(40);
+  });
+
+  it('stops after 5000 folders and says so', async () => {
+    const problems: WorkspaceProblem[] = [];
+    const fs = memoryFs(root, { 'package.json': '{"workspaces":["**"]}' });
+    await findAppDirs(
+      root,
+      fs.read,
+      () => Promise.resolve(Array.from({ length: 6 }, (_, i) => `d${String(i)}`)),
+      problems,
+    );
+    expect(problems.map((p) => p.reason)).toEqual([
+      'has more than 5000 folders to search, so the workspace globs were cut short',
+    ]);
+  });
+
+  it('reports a folder that cannot be listed and a package.json that cannot be read', async () => {
+    const problems: WorkspaceProblem[] = [];
+    const fs = memoryFs(root, {
+      'package.json': '{"workspaces":["apps/*","libs/*"]}',
+      'libs/x/package.json': '{}',
+    });
+    const found = await findAppDirs(
+      root,
+      (file) =>
+        file.endsWith(path.join('libs', 'x', 'package.json'))
+          ? Promise.reject(new Error('EISDIR: is a directory'))
+          : fs.read(file),
+      (dir) =>
+        dir.endsWith('apps') ? Promise.reject(new Error('EACCES: denied')) : fs.listDirs(dir),
+      problems,
+    );
+    expect(found).toEqual(['.']);
+    expect(problems).toEqual([
+      { file: 'apps', reason: 'could not be listed (EACCES: denied)' },
+      { file: 'package.json', reason: 'could not be read (EISDIR: is a directory)' },
+    ]);
+  });
 });

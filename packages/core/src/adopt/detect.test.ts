@@ -11,6 +11,7 @@ const root = path.resolve('/virtual/project');
 const inMemory = (files: Record<string, string>): Promise<FederationReport> =>
   detectFederation(root, memoryFs(root, files));
 
+const NOT_CARRIED = 'is set in the config but adopt does not carry it over';
 const react = { react: { singleton: true }, 'react-dom': { singleton: true } };
 const react19 = {
   react: { singleton: true, requiredVersion: '^19.0.0' },
@@ -62,7 +63,14 @@ describe('detectFederation on fixtures', () => {
           port: 2000,
         },
       ],
-      notAdopted: [],
+      notAdopted: [
+        {
+          dir: '.',
+          file: 'module-federation.config.ts',
+          field: 'shareStrategy',
+          reason: NOT_CARRIED,
+        },
+      ],
     });
   });
 
@@ -88,7 +96,7 @@ describe('detectFederation on fixtures', () => {
           port: 3002,
         },
       ],
-      notAdopted: [],
+      notAdopted: [{ dir: '.', file: 'webpack.config.js', field: 'filename', reason: NOT_CARRIED }],
     });
   });
 
@@ -166,7 +174,14 @@ describe('detectFederation on fixtures', () => {
 
   it('finds a shell and two remotes in a pnpm monorepo, each with a different tool', async () => {
     const report = await fixture('monorepo');
-    expect(report.notAdopted).toEqual([]);
+    expect(report.notAdopted).toEqual([
+      {
+        dir: 'apps/checkout',
+        file: 'apps/checkout/webpack.config.cjs',
+        field: 'filename',
+        reason: NOT_CARRIED,
+      },
+    ]);
     expect(report.apps).toEqual([
       {
         dir: 'apps/catalog',
@@ -493,6 +508,7 @@ module.exports = [{
       ['shared.a', 'is not a version range or an options object'],
       ['shared.b.singleton', 'is not true or false'],
       ['shared.b.requiredVersion', 'is not a version range'],
+      ['shared.b.eager', NOT_CARRIED],
       ['shared.c', 'spreads a value that refers to base, which is not a const in this file'],
       ['shared.c.singleton', 'refers to flag, which is not a const in this file'],
       ['shared.d', 'is read from another value (pkg.version)'],
@@ -537,6 +553,212 @@ module.exports = [{
     const report = await inMemory({ 'pnpm-workspace.yaml': 'packages: [' });
     expect(report.notAdopted).toEqual([
       { dir: '.', file: 'pnpm-workspace.yaml', field: 'workspaces', reason: 'could not be parsed' },
+    ]);
+  });
+
+  it('does not trust an options name that a surrounding function redeclares', async () => {
+    const report = await inMemory({
+      'rsbuild.config.ts': `${RSBUILD}
+const opts = { name: 'top', exposes: { './A': './a' } };
+export default () => {
+  const opts = makeOptions();
+  return { plugins: [pluginModuleFederation(opts)] };
+};
+`,
+    });
+    expect(report.apps).toEqual([]);
+    expect(report.notAdopted).toEqual([
+      {
+        dir: '.',
+        file: 'rsbuild.config.ts',
+        field: 'options',
+        reason: 'refers to opts, which is declared again inside a function around the call',
+      },
+    ]);
+  });
+
+  it('does not trust a parameter or a block name that hides a top-level const', async () => {
+    const report = await inMemory({
+      'rsbuild.config.ts': `${RSBUILD}
+const remotes = { a: 'a@http://localhost:1/mf-manifest.json' };
+export default (remotes) => ({
+  plugins: [pluginModuleFederation({ name: 'x', remotes })],
+});
+`,
+    });
+    expect(report.apps[0]?.remotes).toEqual({});
+    expect(report.notAdopted.map((n) => [n.field, n.reason])).toEqual([
+      ['remotes', 'refers to remotes, which is declared again inside a function around the call'],
+    ]);
+  });
+
+  it('still reads a call inside a function when nothing it uses is redeclared', async () => {
+    const report = await inMemory({
+      'rsbuild.config.ts': `${RSBUILD}
+const opts = { name: 'inner', exposes: { './A': './a' } };
+export default defineConfig(() => ({ plugins: [pluginModuleFederation(opts)] }));
+`,
+    });
+    expect(report.apps[0]).toMatchObject({ name: 'inner', role: 'remote' });
+    expect(report.notAdopted).toEqual([]);
+  });
+
+  it('does not trust a plugin name that a function redeclares', async () => {
+    const report = await inMemory({
+      'rsbuild.config.ts': `${RSBUILD}
+export default () => {
+  const pluginModuleFederation = other;
+  return { plugins: [pluginModuleFederation({ name: 'x' })] };
+};
+`,
+    });
+    expect(report).toEqual({ apps: [], notAdopted: [] });
+  });
+
+  it.each([
+    ['a nested property assignment', "opts.remotes.b = 'b@http://x/y.js';"],
+    ['a top-level assignment', "opts.name = 'other';"],
+    ['Object.assign', "Object.assign(opts, { exposes: { './B': './b' } });"],
+    ['delete', 'delete opts.remotes;'],
+    ['an array method', 'opts.list.push(1);'],
+  ])('does not trust a const that is changed later by %s', async (_label, mutation) => {
+    const report = await inMemory({
+      'rsbuild.config.ts': rsbuild(
+        'opts',
+        `const opts = { name: 'x', remotes: {}, list: [] };\n${mutation}`,
+      ),
+    });
+    expect(report.apps).toEqual([]);
+    expect(report.notAdopted).toEqual([
+      {
+        dir: '.',
+        file: 'rsbuild.config.ts',
+        field: 'options',
+        reason: 'refers to opts, which is changed later in the file',
+      },
+    ]);
+  });
+
+  it('does not trust a nested const that is changed later', async () => {
+    const report = await inMemory({
+      'rsbuild.config.ts': rsbuild(
+        "{ name: 'x', remotes }",
+        "const remotes = {};\nremotes.a = 'a@http://x/y.js';",
+      ),
+    });
+    expect(report.apps[0]?.remotes).toEqual({});
+    expect(report.notAdopted.map((n) => [n.field, n.reason])).toEqual([
+      ['remotes', 'refers to remotes, which is changed later in the file'],
+    ]);
+  });
+
+  it('lets later keys and spreads override an earlier port', async () => {
+    const named = async (server: string): Promise<number | undefined> => {
+      const report = await inMemory({
+        'rsbuild.config.ts': `${RSBUILD}\nexport default { server: { ${server} }, plugins: [pluginModuleFederation({ name: 'x' })] };\n`,
+      });
+      return report.apps[0]?.port;
+    };
+    expect(await named('...{ port: 3000 }, port: 3002')).toBe(3002);
+    expect(await named('port: 3000, ...{ port: 3003 }')).toBe(3003);
+  });
+
+  it('reads a plugin held in a const that digs into require()', async () => {
+    const report = await inMemory({
+      'webpack.config.js': `const MFP = require('webpack').container.ModuleFederationPlugin;
+module.exports = { plugins: [new MFP({ name: 'viaconst', exposes: { './A': './a' } })] };
+`,
+    });
+    expect(report.apps[0]).toMatchObject({ name: 'viaconst', buildTool: 'webpack' });
+  });
+
+  it('reads pluginModuleFederation called through a namespace import', async () => {
+    const report = await inMemory({
+      'rsbuild.config.ts': `import * as mf from '@module-federation/rsbuild-plugin';
+export default { plugins: [mf.pluginModuleFederation({ name: 'ns' })] };
+`,
+    });
+    expect(report.apps[0]).toMatchObject({ name: 'ns', role: 'shell' });
+  });
+
+  it('lists the options adopt does not carry over', async () => {
+    const report = await inMemory({
+      'rsbuild.config.ts': rsbuild(`{
+  name: 'x',
+  filename: 'remoteEntry.js',
+  shareStrategy: 'loaded-first',
+  runtimePlugins: ['./plugin'],
+  shared: {
+    react: { singleton: true, eager: true, strictVersion: true },
+    lodash: { import: false },
+    dayjs: { eager: false, strictVersion: false },
+  },
+}`),
+    });
+    expect(report.notAdopted.map((n) => n.field)).toEqual([
+      'filename',
+      'shareStrategy',
+      'runtimePlugins',
+      'shared.react.eager',
+      'shared.react.strictVersion',
+      'shared.lodash.import',
+    ]);
+    expect(report.apps[0]?.shared.react).toEqual({ singleton: true });
+  });
+
+  it('treats only ./ and ../ as relative, and allows a folder named ..x', async () => {
+    const dotted = await inMemory({
+      'rsbuild.config.ts': rsbuild('mf', "import mf from '.env';"),
+    });
+    expect(dotted.notAdopted[0]?.reason).toBe("are imported from a package (mf from '.env')");
+    const odd = await inMemory({
+      'rsbuild.config.ts': rsbuild('mf', "import mf from './..x/mf';"),
+      '..x/mf.ts': "export default { name: 'odd' };",
+    });
+    expect(odd.apps[0]?.name).toBe('odd');
+    const up = await inMemory({
+      'rsbuild.config.ts': rsbuild('mf', "import mf from '../mf';"),
+    });
+    expect(up.notAdopted[0]?.reason).toBe("are imported from outside the project ('../mf')");
+  });
+
+  it('refuses to follow an import into node_modules', async () => {
+    const report = await inMemory({
+      'rsbuild.config.ts': rsbuild('mf', "import mf from './node_modules/pkg/mf';"),
+      'node_modules/pkg/mf.ts': "export default { name: 'dep' };",
+    });
+    expect(report.apps).toEqual([]);
+    expect(report.notAdopted[0]?.reason).toBe(
+      "are imported from node_modules ('./node_modules/pkg/mf')",
+    );
+  });
+
+  it('keeps going when one app cannot be read', async () => {
+    const files = {
+      'package.json': JSON.stringify({ workspaces: ['apps/*'] }),
+      'apps/a/package.json': '{}',
+      'apps/a/rsbuild.config.ts': rsbuild("{ name: 'a' }"),
+      'apps/b/package.json': '{}',
+      'apps/b/rsbuild.config.ts': rsbuild("{ name: 'b' }"),
+    };
+    const fs = memoryFs(root, files);
+    const report = await detectFederation(root, {
+      listDirs: fs.listDirs,
+      read: (file) => {
+        if (file.includes(path.join('apps', 'a', 'rsbuild'))) {
+          return Promise.reject(Object.assign(new Error('EACCES: denied'), { code: 'EACCES' }));
+        }
+        return fs.read(file);
+      },
+    });
+    expect(report.apps.map((a) => a.name)).toEqual(['b']);
+    expect(report.notAdopted).toEqual([
+      {
+        dir: 'apps/a',
+        file: 'apps/a',
+        field: 'file',
+        reason: 'could not be read (EACCES: denied)',
+      },
     ]);
   });
 });

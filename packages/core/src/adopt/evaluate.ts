@@ -54,7 +54,7 @@ export const fail = <T = never>(reason: string): Result<T> => ({ ok: false, reas
 /** What a top-level name in a file is bound to. */
 export type Binding =
   | { kind: 'const'; init: Node }
-  | { kind: 'import'; source: string; imported: string }
+  | { kind: 'import'; source: string; imported: string; depth?: number }
   | { kind: 'other'; what: string };
 
 /** The top-level names and exports of one parsed file. */
@@ -62,6 +62,8 @@ export interface Scope {
   /** Absolute path of the file. */
   file: string;
   bindings: Map<string, Binding>;
+  /** Names whose value is changed after it is declared (`x.y = …`, `Object.assign(x, …)`). */
+  mutated: Set<string>;
   /** Exported name (`default` for the default export) to the exported expression. */
   exports: Map<string, Node>;
 }
@@ -111,7 +113,8 @@ function bindVariables(statement: Statement, bindings: Map<string, Binding>): vo
         bindings.set(decl.id.name, {
           kind: 'import',
           source: required.source,
-          imported: required.path[0] ?? 'default',
+          imported: required.path.at(-1) ?? 'default',
+          depth: required.path.length,
         });
       } else if (statement.kind === 'const' && decl.init) {
         bindings.set(decl.id.name, { kind: 'const', init: decl.init });
@@ -123,7 +126,12 @@ function bindVariables(statement: Statement, bindings: Map<string, Binding>): vo
         if (!isObjectProperty(prop) || !isIdentifier(prop.value)) continue;
         const imported = keyName(prop.key);
         if (required && imported) {
-          bindings.set(prop.value.name, { kind: 'import', source: required.source, imported });
+          bindings.set(prop.value.name, {
+            kind: 'import',
+            source: required.source,
+            imported,
+            depth: required.path.length + 1,
+          });
         } else {
           bindings.set(prop.value.name, { kind: 'other', what: 'a destructured value' });
         }
@@ -138,6 +146,72 @@ function isModuleExports(node: Node): boolean {
     isIdentifier(node.object, { name: 'module' }) &&
     isIdentifier(node.property, { name: 'exports' })
   );
+}
+
+const MUTATING_METHODS = new Set([
+  'push',
+  'pop',
+  'shift',
+  'unshift',
+  'splice',
+  'sort',
+  'reverse',
+  'fill',
+  'copyWithin',
+  'set',
+  'add',
+  'delete',
+  'clear',
+  'assign',
+]);
+
+const MUTATING_STATICS = new Set([
+  'assign',
+  'defineProperty',
+  'defineProperties',
+  'setPrototypeOf',
+]);
+
+/** The name a member chain starts from: `a` for `a.b.c`. */
+function rootName(node: Node | null | undefined): string | undefined {
+  let n = unwrap(node);
+  while (isMemberExpression(n) || n?.type === 'OptionalMemberExpression') n = unwrap(n.object);
+  return isIdentifier(n) ? n.name : undefined;
+}
+
+/** Names that are assigned into, updated, deleted from or passed to a mutating call anywhere in the file. */
+function mutatedNames(ast: File): Set<string> {
+  const names = new Set<string>();
+  const add = (name: string | undefined): void => {
+    if (name) names.add(name);
+  };
+  for (const node of findAll(
+    ast,
+    (n) =>
+      isAssignmentExpression(n) ||
+      n.type === 'UpdateExpression' ||
+      isUnaryExpression(n) ||
+      isCallExpression(n),
+  )) {
+    if (isAssignmentExpression(node)) add(rootName(node.left));
+    else if (node.type === 'UpdateExpression') add(rootName(node.argument));
+    else if (isUnaryExpression(node)) {
+      if (node.operator === 'delete') add(rootName(node.argument));
+    } else if (isCallExpression(node)) {
+      const callee = unwrap(node.callee);
+      if (!isMemberExpression(callee) || callee.computed || !isIdentifier(callee.property))
+        continue;
+      if (
+        isIdentifier(callee.object, { name: 'Object' }) &&
+        MUTATING_STATICS.has(callee.property.name)
+      ) {
+        add(rootName(node.arguments[0]));
+      } else if (MUTATING_METHODS.has(callee.property.name)) {
+        add(rootName(callee.object));
+      }
+    }
+  }
+  return names;
 }
 
 /** Reads the top-level bindings and exports of a parsed file. */
@@ -194,7 +268,7 @@ export function scopeOf(ast: File, file: string): Scope {
     const binding = bindings.get(local);
     if (binding?.kind === 'const') exports.set(exported, binding.init);
   }
-  return { file, bindings, exports };
+  return { file, bindings, exports, mutated: mutatedNames(ast) };
 }
 
 /** `process.env` or `import.meta.env` itself, as text. */
@@ -283,6 +357,9 @@ export function resolveNode(
   if (!n) return fail('is missing');
   if (!isIdentifier(n)) return ok(n);
   const binding = scope.bindings.get(n.name);
+  if (binding?.kind === 'const' && scope.mutated.has(n.name)) {
+    return fail(`refers to ${n.name}, which is changed later in the file`);
+  }
   if (binding?.kind !== 'const' || seen.has(n.name)) {
     return fail(
       seen.has(n.name)
