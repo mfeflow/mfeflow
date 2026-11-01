@@ -1,4 +1,4 @@
-import { addProvider } from '@mfeflow/analytics';
+import { addProvider } from '@mfeflow/analytics/providers';
 import { createGtmProvider } from '@mfeflow/analytics/gtm';
 import { fetchRuntimeConfig } from '@mfeflow/runtime';
 

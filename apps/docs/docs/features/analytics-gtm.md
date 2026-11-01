@@ -135,5 +135,5 @@ files too. Delete `apps/shell/public/config/runtime-config.json` then: the per-e
 
 `src/analytics/init.ts` starts GTM with `addProvider`, not `initAnalytics`, so another provider can run next to it
 whichever starts first. [`analytics-clarity`](./analytics-clarity) uses that. A project made before `addProvider`
-existed has `initAnalytics(createGtmProvider(...))` in that file: change it to `addProvider(...)` (same import
-source) before adding a second provider, or the one that starts second is ignored.
+existed has `initAnalytics(createGtmProvider(...))` in that file: change it to `addProvider(...)` (imported from
+`@mfeflow/analytics/providers`) before adding a second provider, or the one that starts second is ignored.

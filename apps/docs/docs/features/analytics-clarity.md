@@ -53,7 +53,7 @@ parameters here, so nothing about the visitor leaves with them. `identify` is no
 ## Using it without the feature
 
 ```ts
-import { addProvider } from '@mfeflow/analytics';
+import { addProvider } from '@mfeflow/analytics/providers';
 import { createClarityProvider } from '@mfeflow/analytics/clarity';
 
 addProvider(createClarityProvider({ projectId: 'k3x9m2abcd' }));

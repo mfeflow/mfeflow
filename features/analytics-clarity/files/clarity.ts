@@ -1,4 +1,4 @@
-import { addProvider } from '@mfeflow/analytics';
+import { addProvider } from '@mfeflow/analytics/providers';
 import { createClarityProvider } from '@mfeflow/analytics/clarity';
 import { fetchRuntimeConfig } from '@mfeflow/runtime';
 

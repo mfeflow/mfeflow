@@ -37,7 +37,7 @@ tracker.track('add_to_cart', { sku: 'A1' });
 To run a second provider (Microsoft Clarity, which loads only after analytics consent), join it with `addProvider`; both then get every call:
 
 ```ts
-import { addProvider } from '@mfeflow/analytics';
+import { addProvider } from '@mfeflow/analytics/providers';
 import { createClarityProvider } from '@mfeflow/analytics/clarity';
 
 addProvider(createGtmProvider({ containerId: 'GTM-ABC123' }));
@@ -48,7 +48,7 @@ The GTM provider pushes the four consent signals as `denied` to `dataLayer` befo
 
 ## Module Federation sharing
 
-Bucket: **singleton**. Share `@mfeflow/analytics` and `@mfeflow/analytics/react` (`@mfeflow/rsbuild` does). State also lives on `globalThis`, so a second copy still talks to the one provider. `@mfeflow/analytics/gtm` and `@mfeflow/analytics/clarity` are imported by the shell only.
+Bucket: **singleton**. Share `@mfeflow/analytics` and `@mfeflow/analytics/react` (`@mfeflow/rsbuild` does). State also lives on `globalThis`, so a second copy still talks to the one provider. `@mfeflow/analytics/gtm`, `/clarity` and `/providers` are imported by the shell only; `addProvider` lives in its own entry point so the shared module that remotes load stays small.
 
 ## Links
 
