@@ -1,7 +1,7 @@
 [
   { "type": "file", "name": "cli", "label": "CLI" },
   { "type": "file", "name": "mfeflow-json", "label": "mfeflow.json" },
-  { "type": "file", "name": "mfe-json", "label": "mfe.json" },
+  { "type": "file", "name": "mfeflow-app-json", "label": "mfeflow.app.json" },
   { "type": "file", "name": "feature-json", "label": "feature.json" },
   { "type": "file", "name": "errors", "label": "Error codes" }
 ]

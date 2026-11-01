@@ -23,7 +23,7 @@ Run the command with `--help` for the options and examples of one command.
 | `features [search]`                       | List and search features from mfeflow and your registries                        |
 | `registry add`, `list`, `remove`, `build` | Configure or build third-party registries                                        |
 | `doctor`                                  | Check singletons, compatibility, config and drift                                |
-| `validate`                                | Check `mfeflow.json`, every `mfe.json` and every registry entry                  |
+| `validate`                                | Check `mfeflow.json`, every `mfeflow.app.json` and every registry entry          |
 | `check-compat`                            | Check each remote's shared ranges against its shells                             |
 | `budget`                                  | Measure built JavaScript against the cost model                                  |
 | `dev`                                     | Run the shell and every remote with a dev registry                               |
@@ -138,11 +138,11 @@ The build action lists every problem and writes nothing if there is one (E404).
 
 ## doctor, validate and check-compat
 
-| Command        | Does                                                                                                                                                            |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `doctor`       | Runs all checks: apps on disk, `mfe.json`, ports, routes, registry, singleton versions, workspace versions, compatibility, drift, runtime plugins and env files |
-| `validate`     | Apps on disk, `mfe.json`, routes and registry entries                                                                                                           |
-| `check-compat` | Remote ranges against their shells                                                                                                                              |
+| Command        | Does                                                                                                                                                                    |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `doctor`       | Runs all checks: apps on disk, `mfeflow.app.json`, ports, routes, registry, singleton versions, workspace versions, compatibility, drift, runtime plugins and env files |
+| `validate`     | Apps on disk, `mfeflow.app.json`, routes and registry entries                                                                                                           |
+| `check-compat` | Remote ranges against their shells                                                                                                                                      |
 
 `doctor --fix` repairs a missing workspace version (E111) and missing registry entry files (E114). Add `--dry-run` to see the diff first.
 

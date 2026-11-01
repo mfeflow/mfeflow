@@ -106,7 +106,7 @@ export const GUARDRAILS = [
   },
   {
     title: 'Ownership in the repo',
-    text: 'Each remote has an mfe.json with its owner, routes and contracts, so check-compat and doctor know who breaks what.',
+    text: 'Each remote has an mfeflow.app.json with its owner, routes and contracts, so check-compat and doctor know who breaks what.',
   },
   {
     title: 'Declarative third parties',

@@ -1,13 +1,15 @@
 ---
-title: mfe.json reference
-description: Every field of mfe.json, the per-app file that records an owner, shells, routes, exposed modules, events, budgets and platform ranges, with types, patterns and an example.
+title: mfeflow.app.json reference
+description: Every field of mfeflow.app.json, the per-app file that records an owner, shells, routes, exposed modules, events, budgets and platform ranges, with types, patterns and an example.
 ---
 
-# mfe.json reference
+# mfeflow.app.json reference
 
-This page lists every field of `mfe.json`, the file in each app's folder. For why it exists, read [Ownership](/concepts/ownership).
+This page lists every field of `mfeflow.app.json`, the file in each app's folder. For why it exists, read [Ownership](/concepts/ownership).
 
-The JSON Schema is published at `https://mfeflow.github.io/mfeflow/schema/mfe.json`.
+The project has one `mfeflow.json` at its root. Each app has one `mfeflow.app.json` next to its code.
+
+The JSON Schema is published at `https://mfeflow.github.io/mfeflow/schema/mfeflow-app.json`.
 
 ## Example
 
@@ -80,3 +82,15 @@ An object from package name to a semver range, such as `{ "react": "^19", "@mfef
 The validate and doctor commands check every app file against this format and against the project file. A bad file is E113.
 
 A name that disagrees with the project file, or overlapping routes, is E116. See [Error codes](/reference/errors).
+
+## Moving from mfe.json
+
+Before version 0.6 this file was called `mfe.json`. The old name still works.
+
+If an app has only `mfe.json`, the CLI reads it and prints one notice for the command. Nothing else changes.
+
+If an app has both files, the CLI stops with E122. Keep `mfeflow.app.json` and delete `mfe.json`.
+
+To move by hand, rename the file and change `$schema` to the new address above. The upgrade engine has a migration that does the same for you; it runs once the upgrade command ships.
+
+The old schema address keeps working, so existing `$schema` lines still resolve in your editor.
