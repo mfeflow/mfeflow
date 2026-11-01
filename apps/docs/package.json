@@ -10,6 +10,8 @@
     "preview": "rspress preview"
   },
   "devDependencies": {
+    "@fontsource-variable/geist": "catalog:",
+    "@fontsource-variable/geist-mono": "catalog:",
     "@mfeflow/contracts": "workspace:*",
     "@mfeflow/core": "workspace:*",
     "@rspress/core": "catalog:",

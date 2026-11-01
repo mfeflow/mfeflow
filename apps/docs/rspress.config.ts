@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { defineConfig } from '@rspress/core';
 import { DOCS_URL } from '@mfeflow/contracts';
 import { pluginSitemap } from '@rspress/plugin-sitemap';
@@ -5,13 +6,17 @@ import { pluginSitemap } from '@rspress/plugin-sitemap';
 /** `/mfeflow/` for a GitHub Pages project site; `/` once the docs have a domain of their own. */
 const base = `${new URL(DOCS_URL).pathname.replace(/\/$/, '')}/`;
 const description =
-  'React micro-frontend boilerplate and platform kit for Module Federation 2.0: à-la-carte features, a self-hosted registry and one-command rollback.';
+  'React micro-frontend boilerplate and platform kit for Module Federation 2.0: à-la-carte features, a self-hosted registry designed for rollback by pointer.';
 
 export default defineConfig({
   root: 'docs',
   base,
   siteOrigin: new URL(DOCS_URL).origin,
   title: 'mfeflow',
+  icon: '/favicon.svg',
+  logo: { light: '/mfeflow-mark-light.svg', dark: '/mfeflow-mark.svg' },
+  logoText: 'mfeflow',
+  globalStyles: path.join(import.meta.dirname, 'theme/brand.css'),
   description,
   lang: 'en',
   llms: true,
