@@ -28,7 +28,7 @@ compiled into it.
 - **Server and build-time variables** (`env.ts`) are read by processes: `rsbuild`, scripts, the registry. They are
   never in the browser bundle. The build is the only place their values are used.
 - **Browser configuration** (API base URLs, a GTM container, flags) lives in `runtime-config.<env>.json`, served as
-  `/config/runtime-config.json` by the environment. The shell fetches it once at boot, and `getRuntimeConfig()` returns
+  `/config/runtime-config.json` by the environment. The shell fetches it once at boot through `fetchRuntimeConfig()` from `@mfeflow/runtime`, which `analytics-gtm` and `telemetry-otel` use too, so the file is requested once however many features read it. `getRuntimeConfig()` returns
   it with the types of the schema. The browser bundle imports only the _type_ of the schema, so the validator
   (zod, valibot or arktype) is not in it; `pnpm check:runtime-config` validates the files at deploy time.
 
@@ -71,6 +71,12 @@ for arktype.
 - `--scope runtime` adds the key to the schema and to every `runtime-config*.json` of the shell. Fill in the real
   value per environment; `pnpm check:runtime-config` fails until each file passes the schema.
 - Running it again changes nothing. `--dry-run` prints the diff.
+
+Features add their own runtime keys the same way: [`analytics-gtm`](./analytics-gtm) adds `gtmId` and
+[`telemetry-otel`](./telemetry-otel) adds `otlpEndpoint`, `traceSampleRatio` and `propagateTraceHeaderCorsUrls`, to the
+schema and to every environment file, whichever of the two features was added first. A
+`public/config/runtime-config.json` that a feature created before env-t3 was added is replaced by the
+per-environment files: delete it.
 
 ## `PUBLIC_*` variables
 

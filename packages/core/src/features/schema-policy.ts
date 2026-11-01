@@ -11,6 +11,7 @@ import {
   isUnaryExpression,
   type Node,
 } from '@babel/types';
+import type { AddEnvKeyOp } from '@mfeflow/contracts';
 import { MfeflowError, messageOf } from '../errors';
 import { quote } from '../transforms/ast';
 
@@ -28,9 +29,14 @@ const MAX_DEPTH = 8;
  * and runs when the app starts, so only a call chain on `z`, `v` or `type`
  * with literal arguments (and nested chains) is accepted, and the output is
  * built from the tree, never from the input, so no comment or trailing text
- * survives.
+ * survives. With `form.string` (arktype's own syntax, `'string.url'`) a plain
+ * string literal is accepted too, re-emitted with its quotes escaped.
  */
-export function sanitizeSchema(schema: string, label: string): string {
+export function sanitizeSchema(
+  schema: string,
+  label: string,
+  form: { string?: boolean } = {},
+): string {
   const deny = (why: string): never => {
     throw new MfeflowError('E203', `${label}: add-env-key schema ${why}`);
   };
@@ -93,6 +99,27 @@ export function sanitizeSchema(schema: string, label: string): string {
   } catch (error) {
     return deny(`is not a single expression (${messageOf(error)})`);
   }
-  if (!isCallExpression(tree)) return deny('must be a call such as z.string().url()');
+  if (form.string === true && isStringLiteral(tree)) return quote(tree.value, "'");
+  if (!isCallExpression(tree)) {
+    return deny(
+      form.string === true
+        ? "must be a string literal such as 'string.url' or a call"
+        : 'must be a call such as z.string().url()',
+    );
+  }
   return emit(tree, 0);
+}
+
+/** `sanitizeSchema` for a single text or a per-validator map. */
+export function sanitizeSchemas(
+  schema: AddEnvKeyOp['schema'],
+  label: string,
+): AddEnvKeyOp['schema'] {
+  if (typeof schema === 'string') return sanitizeSchema(schema, label);
+  return Object.fromEntries(
+    Object.entries(schema).map(([validator, text]) => [
+      validator,
+      sanitizeSchema(text, label, { string: validator === 'arktype' }),
+    ]),
+  );
 }

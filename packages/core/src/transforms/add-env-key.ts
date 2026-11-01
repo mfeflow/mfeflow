@@ -11,7 +11,7 @@ import {
   type Node,
   type ObjectProperty,
 } from '@babel/types';
-import type { AddEnvKeyOp, Literal } from '@mfeflow/contracts';
+import type { AddEnvKeyOp, EnvValidator, Literal } from '@mfeflow/contracts';
 import { MfeflowError } from '../errors';
 import { editJsonObject, indentOf, parseJsonObject } from '../json';
 import {
@@ -26,8 +26,28 @@ import {
 
 const IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
-function placeholder(op: AddEnvKeyOp): Literal {
+function placeholder(op: AddEnvKeyOp): Literal | string[] {
   return op.value === undefined ? '' : op.value;
+}
+
+const VALIDATOR_IMPORT: readonly [EnvValidator, RegExp][] = [
+  ['zod', /from\s+['"]zod(\/[^'"]*)?['"]/],
+  ['valibot', /from\s+['"]valibot['"]/],
+  ['arktype', /from\s+['"]arktype['"]/],
+];
+
+/** The schema text for the validator the file imports, or the only text there is. */
+function schemaFor(op: AddEnvKeyOp, source: string, file: string): string {
+  if (typeof op.schema === 'string') return op.schema;
+  const used = VALIDATOR_IMPORT.find(([, pattern]) => pattern.test(source))?.[0];
+  const text = used === undefined ? undefined : op.schema[used];
+  if (text === undefined) {
+    throw new MfeflowError(
+      'E208',
+      `${file} uses ${used ?? 'no known validator'}, and the schema for ${op.key} covers ${Object.keys(op.schema).join(', ')}`,
+    );
+  }
+  return text;
 }
 
 function addToJson(source: string, file: string, op: AddEnvKeyOp): string {
@@ -80,16 +100,17 @@ function addToSchema(source: string, file: string, op: AddEnvKeyOp): string {
   }
   if (target.properties.some((p) => isObjectProperty(p) && keyName(p) === op.key)) return source;
   const key = IDENT.test(op.key) ? op.key : literalSource(op.key, "'");
+  const schema = schemaFor(op, source, file);
   const edited = applyEdits(
     source,
-    appendItem(source, target, target.properties, `${key}: ${op.schema}`),
+    appendItem(source, target, target.properties, `${key}: ${schema}`),
   );
   try {
     parseSource(edited, file);
   } catch (cause) {
     throw new MfeflowError(
       'E208',
-      `the schema ${JSON.stringify(op.schema)} for ${op.key} is not valid code`,
+      `the schema ${JSON.stringify(schema)} for ${op.key} is not valid code`,
       {
         cause,
       },

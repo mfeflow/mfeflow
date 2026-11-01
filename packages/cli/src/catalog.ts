@@ -26,6 +26,8 @@ export const FIRST_PARTY: readonly FirstPartyFeature[] = [
   { name: 'url-factory', always: false, default: true },
   { name: 'env-t3', always: false, default: true },
   { name: 'testing', always: false, default: true },
+  { name: 'analytics-gtm', always: false, default: false },
+  { name: 'telemetry-otel', always: false, default: false },
   { name: 'ci-github', always: false, default: false },
   { name: 'git-hooks', always: false, default: false },
 ];

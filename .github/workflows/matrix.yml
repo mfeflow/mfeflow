@@ -62,7 +62,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm --filter @storefront/e2e exec playwright install --with-deps chromium
-        if: matrix.combo == 'lint-url-env-testing-ci-r3'
+        # The combinations that run the browser test (runsE2e in e2e/matrix/combos.ts).
+        if: endsWith(matrix.combo, '-r3') && contains(matrix.combo, '-env') && contains(matrix.combo, '-testing') && contains(matrix.combo, '-ci')
       - run: node e2e/matrix/run.ts ${{ matrix.combo }}
         env:
           MATRIX_DIR: ${{ runner.temp }}
@@ -93,7 +94,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm --filter @storefront/e2e exec playwright install --with-deps chromium
-        if: matrix.combo == 'lint-url-env-testing-ci-r3'
+        # The combinations that run the browser test (runsE2e in e2e/matrix/combos.ts).
+        if: endsWith(matrix.combo, '-r3') && contains(matrix.combo, '-env') && contains(matrix.combo, '-testing') && contains(matrix.combo, '-ci')
       - run: node e2e/matrix/run.ts ${{ matrix.combo }}
         env:
           MATRIX_DIR: ${{ runner.temp }}

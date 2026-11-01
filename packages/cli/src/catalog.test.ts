@@ -14,12 +14,15 @@ describe('first-party catalogue', () => {
       'url-factory',
       'env-t3',
       'testing',
+      'analytics-gtm',
+      'telemetry-otel',
       'ci-github',
       'git-hooks',
     ]);
     expect(DEFAULT_FEATURES).toEqual(['lint-oxlint', 'url-factory', 'env-t3', 'testing']);
     expect(isFirstParty('git-hooks')).toBe(true);
-    expect(isFirstParty('analytics-gtm')).toBe(false);
+    expect(isFirstParty('analytics-gtm')).toBe(true);
+    expect(isFirstParty('analytics-segment')).toBe(false);
   });
 
   it('loads every feature, valid and named as listed, with readable assets', async () => {

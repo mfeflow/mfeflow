@@ -27,6 +27,7 @@ What works today, from the repo:
 - `@mfeflow/contracts`: types and validators for `mfe.json`, `mfeflow.json`, `feature.json` and the registry, and the cost model.
 - `@mfeflow/runtime`, `@mfeflow/rsbuild`, `@mfeflow/storage`, `@mfeflow/theme`, `@mfeflow/i18n`, `@mfeflow/url-factory`: the runtime and build packages, exercised by the storefront example.
 - `@mfeflow/tsconfig`, `@mfeflow/oxlint-config`, `@mfeflow/testing`: shared config and test helpers.
+- `@mfeflow/analytics` and `@mfeflow/telemetry`: singleton packages behind provider interfaces, started by the shell only. Google Tag Manager with Consent Mode v2, and OpenTelemetry for the browser loaded after first render. The `analytics-gtm` and `telemetry-otel` features wire them into a project.
 - `@mfeflow/core`: the engine behind the CLI. It loads and saves `mfeflow.json`, plans a change as data with a unified diff, applies it atomically with rollback, edits files with seven built-in transform ops, and resolves features from a local folder or a namespaced registry. Third-party features are declarative only and never run code.
 - `mfeflow` and `create-mfeflow`: `init`, `add remote|shell|<feature>` and `features`; the first features (`tsconfig`, `lint-oxlint`, `url-factory`, `git-hooks`); `--local` to run a generated project from a checkout.
 - `mfeflow dev` (one command for the shell and every remote, a dev registry that follows `add remote`, `--remote name=url` overrides), `mfeflow doctor` (with `--fix` and `--json`), `validate`, `check-compat` and `budget` for CI.

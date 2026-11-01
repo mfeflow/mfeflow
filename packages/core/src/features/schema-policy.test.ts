@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { thrown } from '../testing';
-import { sanitizeSchema } from './schema-policy';
+import { sanitizeSchema, sanitizeSchemas } from './schema-policy';
 
 describe('sanitizeSchema', () => {
   it('re-emits plain validator call chains', () => {
@@ -94,5 +94,45 @@ describe('sanitizeSchema', () => {
     expect(thrown(() => sanitizeSchema(`z.literal('${'a'.repeat(2000)}')`, 'x')).code).toBe(
       'MFEFLOW_E203',
     );
+  });
+});
+
+describe('sanitizeSchemas', () => {
+  it('cleans a single text and every entry of a map', () => {
+    expect(sanitizeSchemas('z.string().min(1)', 'x')).toBe('z.string().min(1)');
+    expect(
+      sanitizeSchemas({ zod: 'z.string()', valibot: 'v.pipe(v.string(), v.url())' }, 'x'),
+    ).toEqual({
+      zod: 'z.string()',
+      valibot: 'v.pipe(v.string(), v.url())',
+    });
+  });
+
+  it("accepts arktype's string-literal form for the arktype entry only", () => {
+    expect(sanitizeSchemas({ zod: 'z.string()', arktype: '"string.url"  /* x */' }, 'x')).toEqual({
+      zod: 'z.string()',
+      arktype: "'string.url'",
+    });
+    expect(sanitizeSchemas({ arktype: "'/^(GTM-[A-Z0-9]{4,12})?$/'" }, 'x')).toEqual({
+      arktype: "'/^(GTM-[A-Z0-9]{4,12})?$/'",
+    });
+    expect(sanitizeSchemas({ arktype: "type('string')" }, 'x')).toEqual({
+      arktype: "type('string')",
+    });
+    for (const schemas of [{ zod: "'string'" }, { valibot: "'string'" }]) {
+      expect(thrown(() => sanitizeSchemas(schemas, 'x')).code).toBe('MFEFLOW_E203');
+    }
+    expect(thrown(() => sanitizeSchemas("'string'", 'x')).code).toBe('MFEFLOW_E203');
+    expect(thrown(() => sanitizeSchemas({ arktype: 'process.exit()' }, 'x')).code).toBe(
+      'MFEFLOW_E203',
+    );
+  });
+
+  it('refuses a map with one bad entry, naming the feature', () => {
+    const error = thrown(() =>
+      sanitizeSchemas({ zod: 'z.string()', valibot: 'process.exit(1)' }, 'evil'),
+    );
+    expect(error.code).toBe('MFEFLOW_E203');
+    expect(error.message).toContain('evil');
   });
 });

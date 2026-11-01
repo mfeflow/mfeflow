@@ -3,7 +3,7 @@ import { validRange } from 'semver';
 import { MfeflowError } from '../errors';
 import { envKeyFiles } from '../transforms/add-env-key';
 import { JSX_ATTRIBUTE } from '../transforms/ast';
-import { sanitizeSchema } from './schema-policy';
+import { sanitizeSchemas } from './schema-policy';
 import { assertThirdPartyPath } from './write-policy';
 
 /** Where a feature came from decides what it may do. */
@@ -161,7 +161,7 @@ export function assertThirdPartyTransform(t: TransformOp, label: string): void {
     deny(`imports "${t.from}", which is not a package name or relative path`);
   }
   if (t.op === 'add-workflow-step') deny('is not allowed: third-party features cannot edit CI');
-  if (t.op === 'add-env-key') sanitizeSchema(t.schema, label);
+  if (t.op === 'add-env-key') sanitizeSchemas(t.schema, label);
   if (t.op === 'wrap-provider') {
     for (const key of Object.keys(t.props ?? {})) {
       if (!JSX_ATTRIBUTE.test(key)) deny(`has a prop "${key}" that is not a JSX attribute name`);

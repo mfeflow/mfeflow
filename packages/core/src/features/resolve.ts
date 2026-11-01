@@ -1,4 +1,5 @@
 import {
+  FEATURE_CONDITION,
   isSafeRelativePath,
   type FeatureCondition,
   type FeatureFile,
@@ -14,7 +15,7 @@ import { addTurboEnv, applyTransform } from '../transforms';
 import { envKeyFiles } from '../transforms/add-env-key';
 import type { LoadedFeature } from './load';
 import { assertPlainScript, assertThirdPartyTransform } from './policy';
-import { sanitizeSchema } from './schema-policy';
+import { sanitizeSchemas } from './schema-policy';
 import { assertThirdPartyPath, assertWritable as assertSafeTarget } from './write-policy';
 
 export interface ResolveInput {
@@ -95,9 +96,20 @@ export function resolveOptions(
   return out;
 }
 
-/** True when the part has no condition, or every option it names has the value it asks for. */
-function applies(part: { when?: FeatureCondition }, options: Record<string, unknown>): boolean {
-  return Object.entries(part.when ?? {}).every(([name, value]) => options[name] === value);
+/**
+ * True when the part has no condition, or every entry holds: an option has the value it asks for,
+ * or a `feature:<name>` is installed (or being added in this command) as asked.
+ */
+function applies(
+  part: { when?: FeatureCondition },
+  options: Record<string, unknown>,
+  present: ReadonlySet<string>,
+): boolean {
+  return Object.entries(part.when ?? {}).every(([name, value]) =>
+    name.startsWith(FEATURE_CONDITION)
+      ? present.has(name.slice(FEATURE_CONDITION.length)) === value
+      : options[name] === value,
+  );
 }
 
 /** `relative` is the path inside the target app; `file` is the project path it ends up at. */
@@ -154,7 +166,7 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
 
   const steps: (() => Promise<void>)[] = [];
 
-  for (const file of (manifest.files ?? []).filter((f) => applies(f, options))) {
+  for (const file of (manifest.files ?? []).filter((f) => applies(f, options, present))) {
     for (const place of placesFor(file.target, project)) {
       const to = joinPosix(place.dir, file.to);
       assertWritable(to, file.to, trusted);
@@ -162,14 +174,14 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     }
   }
 
-  for (const dep of (manifest.dependencies ?? []).filter((d) => applies(d, options))) {
+  for (const dep of (manifest.dependencies ?? []).filter((d) => applies(d, options, present))) {
     for (const place of placesFor(dep.target, project)) {
       const pkg = joinPosix(place.dir, 'package.json');
       steps.push(() => builder.addDependency(pkg, dep.name, dep.range, dep.dev));
     }
   }
 
-  for (const script of (manifest.scripts ?? []).filter((x) => applies(x, options))) {
+  for (const script of (manifest.scripts ?? []).filter((x) => applies(x, options, present))) {
     for (const place of placesFor(script.target, project)) {
       const pkg = joinPosix(place.dir, 'package.json');
       if (!trusted) assertPlainScript(script.name, manifest.name);
@@ -177,11 +189,11 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     }
   }
 
-  for (const declared of (manifest.transforms ?? []).filter((t) => applies(t, options))) {
+  for (const declared of (manifest.transforms ?? []).filter((t) => applies(t, options, present))) {
     if (!trusted) assertThirdPartyTransform(declared, manifest.name);
     const transform =
       !trusted && declared.op === 'add-env-key'
-        ? { ...declared, schema: sanitizeSchema(declared.schema, manifest.name) }
+        ? { ...declared, schema: sanitizeSchemas(declared.schema, manifest.name) }
         : declared;
     for (const place of placesFor(transform.target, project)) {
       if (transform.op === 'add-workflow-step') {
@@ -236,6 +248,12 @@ async function editFile(
   const isExample = op === 'add-env-key' && /(^|\/)\.env[^/]*$/.test(file);
   if (isExample && !(await builder.exists(file))) {
     await builder.create(file, edit(''), false);
+    return;
+  }
+  // A project without env-t3 has no runtime config yet; the first key creates the file.
+  const isConfig = op === 'add-env-key' && file.endsWith('runtime-config.json');
+  if (isConfig && !(await builder.exists(file))) {
+    await builder.create(file, edit('{}\n'));
     return;
   }
   await builder.patch(file, edit);

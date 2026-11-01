@@ -3,6 +3,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parseProject } from '@mfeflow/core';
 import type { FetchLike } from '@mfeflow/core';
+import { inCatalogueOrder } from './add';
 import { main, validateResult, type AddResult } from '..';
 import { REPO, readTree, removeDir, scriptedPrompter, tempDir, testRuntime } from '../testing';
 
@@ -530,5 +531,16 @@ describe('a project linked with --local', () => {
     expect(await add(['remote', 'checkout', '--no-install']).then((r) => r.code)).toBe(0);
     expect(await read('apps/checkout/package.json')).toContain('"@mfeflow/rsbuild": "^0.0.0"');
     expect(await load()).not.toHaveProperty('local');
+  });
+});
+
+describe('inCatalogueOrder', () => {
+  it('puts first-party features in catalogue order and the others last, as typed', () => {
+    expect(inCatalogueOrder(['zeta', 'analytics-gtm', 'alpha', 'env-t3'])).toEqual([
+      'env-t3',
+      'analytics-gtm',
+      'zeta',
+      'alpha',
+    ]);
   });
 });

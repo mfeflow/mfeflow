@@ -108,6 +108,41 @@ export const runtimeConfigSchema = z.object({
     expect(thrown(() => run('export const x = {};\n', 'schema.ts')).code).toBe('MFEFLOW_E208');
   });
 
+  describe('a schema per validator', () => {
+    const many = { zod: 'z.string()', valibot: 'v.string()', arktype: "'string'" };
+
+    it.each([
+      ['zod', "import { z } from 'zod';", 'GTM_ID: z.string()'],
+      ['zod', "import { z } from 'zod/v4';", 'GTM_ID: z.string()'],
+      ['valibot', "import * as v from 'valibot';", 'GTM_ID: v.string()'],
+      ['arktype', "import { type } from 'arktype';", "GTM_ID: 'string'"],
+    ])('uses the %s text for a file importing %s', (_name, importLine, written) => {
+      const source = `${importLine}\nexport const runtimeConfigSchema = {};\n`;
+      expect(run(source, 'schema.ts', { schema: many })).toContain(written);
+    });
+
+    it('fails with E208 when the file uses a validator the map does not cover', () => {
+      const source = "import { z } from 'zod';\nexport const runtimeConfigSchema = {};\n";
+      const error = thrown(() => run(source, 'schema.ts', { schema: { valibot: 'v.string()' } }));
+      expect(error.code).toBe('MFEFLOW_E208');
+      expect(error.message).toContain('uses zod');
+      const none = thrown(() =>
+        run('export const runtimeConfigSchema = {};\n', 'schema.ts', { schema: many }),
+      );
+      expect(none.message).toContain('no known validator');
+    });
+  });
+
+  describe('a list value', () => {
+    it('is written as a JSON list in the config files and joined with commas in dotenv', () => {
+      expect(run('{}', 'c.json', { value: ['https://a.test', 'https://b.test'] })).toBe(
+        '{\n  "GTM_ID": [\n    "https://a.test",\n    "https://b.test"\n  ]\n}',
+      );
+      expect(run('', '.env.example', { scope: 'server', value: ['a', 'b'] })).toBe('GTM_ID=a,b\n');
+      expect(run('{}', 'c.json', { value: [] })).toBe('{\n  "GTM_ID": []\n}');
+    });
+  });
+
   describe('runtime-config.<env>.json', () => {
     const json = `{\n    "API_URL": "/api"\n}\n`;
 

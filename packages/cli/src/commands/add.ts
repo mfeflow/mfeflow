@@ -287,6 +287,14 @@ function assertThirdPartyAllowed(names: readonly string[], globals: Globals, can
   }
 }
 
+const rank = (name: string) => OPTIONAL_FEATURES.indexOf(name);
+
+/** First-party features in the order `init` applies them, then the rest as typed: a feature may edit another's files. */
+export function inCatalogueOrder(names: readonly string[]): string[] {
+  const known = names.filter((n) => rank(n) !== -1).toSorted((a, b) => rank(a) - rank(b));
+  return [...known, ...names.filter((n) => rank(n) === -1)];
+}
+
 async function addFeatures(
   rt: Runtime,
   globals: Globals,
@@ -314,7 +322,7 @@ async function addFeatures(
     );
   }
   const skipped = names.filter((n) => n in project.features);
-  const adding = names.filter((n) => !(n in project.features));
+  const adding = inCatalogueOrder(names.filter((n) => !(n in project.features)));
   if (adding.length === 0) {
     if (!globals.json) rt.io.stdout(`${skipped.join(', ')} already added; nothing to do.`);
     return {

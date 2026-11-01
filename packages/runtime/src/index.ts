@@ -28,3 +28,9 @@ export {
   type DevOverrideOptions,
 } from './overrides';
 export { DevOverlay, type DevOverlayProps } from './overlay';
+export {
+  fetchRuntimeConfig,
+  RUNTIME_CONFIG_KEY,
+  RUNTIME_CONFIG_URL,
+  type RuntimeConfigValues,
+} from './runtime-config';

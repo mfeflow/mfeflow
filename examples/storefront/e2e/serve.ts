@@ -20,6 +20,8 @@ const MONOLITH_PORT = Number(process.env.MONOLITH_PORT ?? '4302');
 const ENCODING = process.env.SERVE_ENCODING === 'br' ? 'br' : 'gzip';
 // SERVE_MANIFEST_ONLY=1 leaves remoteEntry out of the registry, so the shell loads manifests.
 const MANIFEST_ONLY = process.env.SERVE_MANIFEST_ONLY === '1';
+// SHELL_DIST names the shell's build folder (default dist; `dist-dev` is the development build the StrictMode test serves).
+const SHELL_DIST = process.env.SHELL_DIST ?? 'dist';
 // SERVE_INJECT=0 turns the edge injection off (perf ablations only).
 const INJECT = process.env.SERVE_INJECT !== '0';
 // SERVE_HINTS=0 keeps the inlined registry but drops the preload hints.
@@ -182,6 +184,15 @@ const { origin: ORIGIN, host: ORIGIN_HOST } = new URL(
 );
 const HOST = /^[\w.-]+(:\d{1,5})?$/;
 
+/** Telemetry posts here in perf runs and tests that do not collect spans; both apps answer the same way. */
+function acceptSpans(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+  if (req.method !== 'POST' || !(req.url ?? '').startsWith('/otlp/')) return false;
+  req.resume();
+  res.writeHead(204);
+  res.end();
+  return true;
+}
+
 function shellHandler(req: http.IncomingMessage, res: http.ServerResponse): void {
   const url = new URL(req.url ?? '/', 'http://x');
   const host = req.headers.host ?? ORIGIN_HOST;
@@ -194,6 +205,7 @@ function shellHandler(req: http.IncomingMessage, res: http.ServerResponse): void
     res.end('misdirected request');
     return;
   }
+  if (acceptSpans(req, res)) return;
   if (url.pathname === '/registry/index.json') {
     const body = JSON.stringify(registry());
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
@@ -216,7 +228,7 @@ function shellHandler(req: http.IncomingMessage, res: http.ServerResponse): void
     notFound(res);
     return;
   }
-  const dist = path.join(root, 'shell', 'dist');
+  const dist = path.join(root, 'shell', SHELL_DIST);
   const decoded = decode(url.pathname);
   if (decoded === undefined) {
     badRequest(res);
@@ -246,6 +258,7 @@ function shellHandler(req: http.IncomingMessage, res: http.ServerResponse): void
 }
 
 function monolithHandler(req: http.IncomingMessage, res: http.ServerResponse): void {
+  if (acceptSpans(req, res)) return;
   const url = new URL(req.url ?? '/', 'http://x');
   const dist = path.join(root, 'monolith', 'dist');
   const decoded = decode(url.pathname);
@@ -280,7 +293,7 @@ const NO_SNAPSHOT = /snapshot\s*\?\?\s*(?:!1|false)(?![\w$])/;
 
 /** Whether a built shell's bundle defaults to no manifest loader (`snapshot ?? false` in `registerRemotesFromIndex`). */
 function shellLacksSnapshot(): boolean {
-  const js = path.join(root, 'shell', 'dist', 'static', 'js');
+  const js = path.join(root, 'shell', SHELL_DIST, 'static', 'js');
   if (!fs.existsSync(js)) return false;
   return fs
     .readdirSync(js)

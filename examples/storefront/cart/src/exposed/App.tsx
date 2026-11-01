@@ -1,11 +1,14 @@
+import { useTrackOnMount } from '@mfeflow/analytics/react';
 import { useMfeTranslation } from '@mfeflow/i18n/react';
 import { useStoredState } from '@mfeflow/storage/react';
 import { cssVar } from '@mfeflow/theme';
+import { tracker } from '../analytics';
 import { loadMessages } from '../i18n/load';
 import { cartStorage, isItems } from '../store';
 
 export default function CartApp() {
   const { t, ready } = useMfeTranslation('cart', loadMessages);
+  useTrackOnMount(tracker, 'cart_viewed');
   const [items, setItems] = useStoredState<string[]>(cartStorage, 'items', [], isItems);
   if (!ready) return <p>…</p>;
   return (

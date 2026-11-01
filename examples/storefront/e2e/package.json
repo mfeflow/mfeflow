@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "serve": "node serve.ts",
-    "test": "playwright test",
+    "test": "pnpm --filter @storefront/shell build:dev && playwright test",
     "perf": "node perf.ts"
   },
   "devDependencies": {

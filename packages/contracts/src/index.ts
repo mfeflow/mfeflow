@@ -43,6 +43,7 @@ export {
   type CostVerdict,
 } from './cost-model';
 export {
+  FEATURE_CONDITION,
   FEATURE_NAME,
   isFeatureManifest,
   TRANSFORM_OPS,
@@ -53,6 +54,7 @@ export {
   type AddRouteOp,
   type AddSharedOp,
   type AddWorkflowStepOp,
+  type EnvValidator,
   type FeatureCondition,
   type FeatureDependency,
   type FeatureFile,

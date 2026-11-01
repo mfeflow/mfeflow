@@ -1,0 +1,53 @@
+/* oxlint-disable eslint/no-underscore-dangle -- __MFEFLOW_APP_VERSION__ is the name the rsbuild preset defines */
+import { initTelemetry } from '@mfeflow/telemetry';
+import { fetchRuntimeConfig } from '@mfeflow/runtime';
+
+// The shell's rsbuild preset replaces this with the version in package.json at build time.
+declare const __MFEFLOW_APP_VERSION__: string | undefined;
+const APP_VERSION =
+  typeof __MFEFLOW_APP_VERSION__ === 'string' ? __MFEFLOW_APP_VERSION__ : 'unknown';
+
+const strings = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+
+/**
+ * Starts telemetry from the runtime config. With no `otlpEndpoint` it stays off. The OpenTelemetry
+ * SDK is a separate chunk that loads after the page has loaded and the browser is idle, so it is
+ * never on the path to first render.
+ */
+export async function startTelemetry(): Promise<void> {
+  const config = await fetchRuntimeConfig().catch((error: unknown) => {
+    console.warn('[telemetry] the runtime config did not load, so telemetry stays off', error);
+    return undefined;
+  });
+  if (config === undefined) return;
+  const { otlpEndpoint, traceSampleRatio, environment } = config;
+  if (typeof otlpEndpoint !== 'string' || otlpEndpoint === '') return;
+  try {
+    initTelemetry(
+      async () => {
+        const { createOtelProvider } = await import('@mfeflow/telemetry/otel');
+        return createOtelProvider({
+          serviceName: '<%= it.app.name %>',
+          version: APP_VERSION,
+          environment: typeof environment === 'string' ? environment : 'unknown',
+          otlpEndpoint,
+          sampleRatio: typeof traceSampleRatio === 'number' ? traceSampleRatio : undefined,
+          propagateTraceHeaderCorsUrls: strings(config.propagateTraceHeaderCorsUrls),
+        });
+      },
+      {
+        onError: (error) => {
+          console.warn('[telemetry] not started', error);
+        },
+      },
+    );
+  } catch (error) {
+    console.warn('[telemetry] not started', error);
+  }
+}
+
+/** The boot step: starts telemetry without holding up first render. */
+export function initTelemetryFromConfig(): void {
+  void startTelemetry();
+}

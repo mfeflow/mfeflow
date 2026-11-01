@@ -8,6 +8,9 @@ const root = import.meta.dirname;
  */
 export const workspaceAliases = [
   { find: /^mfeflow$/, replacement: path.join(root, 'packages/cli/src/index') },
-  { find: /^@mfeflow\/([a-z-]+)\/react$/, replacement: path.join(root, 'packages/$1/src/react') },
+  {
+    find: /^@mfeflow\/([a-z-]+)\/(react|gtm|otel)$/,
+    replacement: path.join(root, 'packages/$1/src/$2'),
+  },
   { find: /^@mfeflow\/([a-z-]+)$/, replacement: path.join(root, 'packages/$1/src/index') },
 ];

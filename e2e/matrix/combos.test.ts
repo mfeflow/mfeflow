@@ -1,13 +1,16 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { combinations, featuresOf, find, presetOf, runsE2e, stepsFor } from './combos';
 
 describe('combinations', () => {
-  it('has 32 with unique ids: the old 16, env/testing/ci on lint + url-factory, and two validators', () => {
+  it('has 38 with unique ids: the old 16, env/testing/ci on lint + url-factory, two validators, and analytics + telemetry', () => {
     const all = combinations();
-    expect(all).toHaveLength(32);
-    expect(new Set(all.map((c) => c.id)).size).toBe(32);
+    expect(all).toHaveLength(38);
+    expect(new Set(all.map((c) => c.id)).size).toBe(38);
     expect(all.filter((c) => !c.env && !c.testing && !c.ci)).toHaveLength(16);
-    expect(all.filter((c) => c.remotes === 1)).toHaveLength(17);
+    expect(all.filter((c) => c.remotes === 1)).toHaveLength(22);
+    expect(all.filter((c) => c.gtm || c.otel)).toHaveLength(6);
     const ids = all.map((c) => c.id);
     for (const id of [
       'bare-r1',
@@ -15,10 +18,20 @@ describe('combinations', () => {
       'lint-url-env-testing-ci-r3',
       'lint-url-env-valibot-testing-r1',
       'lint-url-env-arktype-testing-r1',
+      'lint-url-env-testing-ci-gtm-otel-r3',
+      'lint-url-env-testing-gtm-r1',
+      'lint-url-env-testing-otel-r1',
+      'lint-url-testing-gtm-otel-r1',
     ]) {
       expect(ids).toContain(id);
     }
     expect(all.filter((c) => c.validator !== 'zod').every((c) => c.env)).toBe(true);
+  });
+
+  it('runs the browser test on the full set with both analytics and telemetry, and no other new one', () => {
+    const both = combinations().filter((c) => c.gtm && c.otel);
+    expect(both.filter(runsE2e).map((c) => c.id)).toEqual(['lint-url-env-testing-ci-gtm-otel-r3']);
+    expect(both.some((c) => !c.env)).toBe(true);
   });
 });
 
@@ -64,9 +77,45 @@ describe('what a combination generates', () => {
     expect(find(['lint-url-env-testing-ci-r1']).some(runsE2e)).toBe(false);
   });
 
+  it('adds the two features after env-t3 and testing, so the config schema exists when they edit it', () => {
+    const c = find(['lint-url-env-testing-ci-gtm-otel-r3'])[0]!;
+    expect(featuresOf(c)).toEqual([
+      'lint-oxlint',
+      'url-factory',
+      'env-t3',
+      'testing',
+      'analytics-gtm',
+      'telemetry-otel',
+      'ci-github',
+    ]);
+  });
+
   it('passes the validator choice to env-t3 through the preset', () => {
     const c = find(['lint-url-env-arktype-testing-r1'])[0]!;
     expect(featuresOf(c)).toEqual(['lint-oxlint', 'url-factory', 'env-t3', 'testing']);
     expect(presetOf(c).options).toEqual({ 'env-t3': { validator: 'arktype' } });
+  });
+});
+
+describe('the matrix workflow', () => {
+  it('installs the browser for exactly the combinations that run the browser test', () => {
+    const yml = fs.readFileSync(
+      path.join(import.meta.dirname, '../../.github/workflows/matrix.yml'),
+      'utf8',
+    );
+    const conditions = [...yml.matchAll(/playwright install.*\n\s*(?:#.*\n\s*)?if: (.+)/g)].map(
+      (m) => m[1]!,
+    );
+    expect(conditions.length).toBeGreaterThan(0);
+    for (const condition of conditions) {
+      const clauses = condition.split(' && ').map((clause) => {
+        const m = /^(endsWith|contains)\(matrix\.combo, '([^']*)'\)$/.exec(clause.trim());
+        if (!m) throw new Error(`the test does not understand "${clause}"`);
+        return { fn: m[1], text: m[2]! };
+      });
+      const installs = (id: string): boolean =>
+        clauses.every((c) => (c.fn === 'endsWith' ? id.endsWith(c.text) : id.includes(c.text)));
+      for (const c of combinations()) expect([c.id, installs(c.id)]).toEqual([c.id, runsE2e(c)]);
+    }
   });
 });

@@ -1,0 +1,117 @@
+{
+  "name": "analytics-gtm",
+  "version": "0.1.0",
+  "description": "Google Tag Manager with Consent Mode v2 behind @mfeflow/analytics: consent defaults before gtm.js, a consent banner hook, page views on route changes, and a typed tracker per remote. The container id comes from the runtime config.",
+  "requires": ["core", "tsconfig"],
+  "files": [
+    {
+      "to": "src/analytics/init.ts",
+      "target": "shell",
+      "from": "files/init.ts"
+    },
+    {
+      "to": "src/analytics/Analytics.tsx",
+      "target": "shell",
+      "from": "files/Analytics.tsx"
+    },
+    {
+      "to": "src/analytics/ConsentBanner.tsx",
+      "target": "shell",
+      "from": "files/ConsentBanner.tsx"
+    },
+    {
+      "to": "src/analytics/init.test.ts",
+      "target": "shell",
+      "from": "files/shell-init-test.ts",
+      "when": {
+        "feature:testing": true
+      }
+    },
+    {
+      "to": "src/analytics/ConsentBanner.test.tsx",
+      "target": "shell",
+      "from": "files/consent-banner-test.tsx",
+      "when": {
+        "feature:testing": true
+      }
+    },
+    {
+      "to": "src/analytics.ts",
+      "target": "remotes",
+      "from": "files/remote-analytics.ts.eta",
+      "template": true
+    },
+    {
+      "to": "src/analytics.test.ts",
+      "target": "remotes",
+      "from": "files/remote-analytics-test.ts.eta",
+      "template": true,
+      "when": {
+        "feature:testing": true
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@mfeflow/analytics",
+      "range": "latest",
+      "target": "shell"
+    },
+    {
+      "name": "@mfeflow/analytics",
+      "range": "latest",
+      "target": "remotes"
+    }
+  ],
+  "transforms": [
+    {
+      "op": "add-boot-step",
+      "file": "src/bootstrap.tsx",
+      "target": "shell",
+      "call": "initAnalyticsFromConfig",
+      "from": "./analytics/init",
+      "await": false
+    },
+    {
+      "op": "wrap-provider",
+      "file": "src/App.tsx",
+      "target": "shell",
+      "component": "Analytics",
+      "from": "./analytics/Analytics",
+      "function": "App"
+    },
+    {
+      "op": "add-env-key",
+      "file": "src/config/schema.ts",
+      "target": "shell",
+      "key": "gtmId",
+      "scope": "runtime",
+      "schema": {
+        "zod": "z.string().regex(/^(GTM-[A-Z0-9]{4,12})?$/)",
+        "valibot": "v.pipe(v.string(), v.regex(/^(GTM-[A-Z0-9]{4,12})?$/))",
+        "arktype": "'/^(GTM-[A-Z0-9]{4,12})?$/'"
+      },
+      "value": "",
+      "configFiles": [
+        "public/config/runtime-config.dev.json",
+        "public/config/runtime-config.staging.json",
+        "public/config/runtime-config.prod.json"
+      ],
+      "when": {
+        "feature:env-t3": true
+      }
+    },
+    {
+      "op": "add-env-key",
+      "file": "public/config/runtime-config.json",
+      "target": "shell",
+      "key": "gtmId",
+      "scope": "runtime",
+      "schema": "z.string().regex(/^(GTM-[A-Z0-9]{4,12})?$/)",
+      "value": "",
+      "when": {
+        "feature:env-t3": false
+      }
+    }
+  ]
+}

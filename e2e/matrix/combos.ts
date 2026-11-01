@@ -10,6 +10,8 @@ export interface Combo {
   env: boolean;
   testing: boolean;
   ci: boolean;
+  gtm: boolean;
+  otel: boolean;
   validator: Validator;
   remotes: 1 | 3;
 }
@@ -23,7 +25,7 @@ export interface Step {
 const REMOTE_NAMES = ['catalog', 'cart', 'checkout'];
 
 type Flags = Partial<
-  Pick<Combo, 'lint' | 'url' | 'hooks' | 'env' | 'testing' | 'ci' | 'validator'>
+  Pick<Combo, 'lint' | 'url' | 'hooks' | 'env' | 'testing' | 'ci' | 'gtm' | 'otel' | 'validator'>
 >;
 
 function make(flags: Flags, remotes: 1 | 3): Combo {
@@ -34,6 +36,8 @@ function make(flags: Flags, remotes: 1 | 3): Combo {
     env: false,
     testing: false,
     ci: false,
+    gtm: false,
+    otel: false,
     validator: 'zod' as Validator,
     ...flags,
   };
@@ -45,6 +49,8 @@ function make(flags: Flags, remotes: 1 | 3): Combo {
     combo.env && combo.validator !== 'zod' ? combo.validator : '',
     combo.testing ? 'testing' : '',
     combo.ci ? 'ci' : '',
+    combo.gtm ? 'gtm' : '',
+    combo.otel ? 'otel' : '',
   ].filter((p) => p !== '');
   return {
     ...combo,
@@ -56,7 +62,10 @@ function make(flags: Flags, remotes: 1 | 3): Combo {
 /**
  * 16 for lint, url-factory and git-hooks alone; then env-t3, testing and ci-github in every
  * combination on top of lint + url-factory (the old default set), and one run each for the
- * valibot and arktype validators. All with one or three remotes.
+ * valibot and arktype validators. All with one or three remotes. Then analytics-gtm and
+ * telemetry-otel: the full set with both (the one that runs the browser test), each alone on the
+ * default set, both without env-t3 (their runtime keys go to public/config/runtime-config.json),
+ * and both on the other two validators (their schema keys are written per validator).
  */
 export function combinations(): Combo[] {
   const flags = [false, true];
@@ -74,6 +83,14 @@ export function combinations(): Combo[] {
       }
   for (const validator of ['valibot', 'arktype'] as const) {
     out.push(make({ lint: true, url: true, env: true, testing: true, validator }, 1));
+  }
+  const base = { lint: true, url: true, env: true, testing: true };
+  out.push(make({ ...base, ci: true, gtm: true, otel: true }, 3));
+  out.push(make({ ...base, gtm: true }, 1));
+  out.push(make({ ...base, otel: true }, 1));
+  out.push(make({ ...base, env: false, gtm: true, otel: true }, 1));
+  for (const validator of ['valibot', 'arktype'] as const) {
+    out.push(make({ ...base, gtm: true, otel: true, validator }, 1));
   }
   return out;
 }
@@ -93,6 +110,8 @@ export function featuresOf(combo: Combo): string[] {
     ...(combo.url ? ['url-factory'] : []),
     ...(combo.env ? ['env-t3'] : []),
     ...(combo.testing ? ['testing'] : []),
+    ...(combo.gtm ? ['analytics-gtm'] : []),
+    ...(combo.otel ? ['telemetry-otel'] : []),
     ...(combo.ci ? ['ci-github'] : []),
     ...(combo.hooks ? ['git-hooks'] : []),
   ];
