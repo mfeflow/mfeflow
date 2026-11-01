@@ -243,6 +243,18 @@ describe('mfeflow upgrade on the 0.1.0 fixture', () => {
     },
   );
 
+  it.skipIf(!canSymlink)('refuses to edit a package.json that is a symlink', async () => {
+    const root = await oldProject();
+    const pkg = path.join(root, 'package.json');
+    await fs.rename(pkg, path.join(root, 'real-package.json'));
+    await fs.symlink('real-package.json', pkg);
+    const before = await readTree(root);
+    const { code, rt } = await upgrade(root, ['--yes']);
+    expect(code).not.toBe(EXIT.ok);
+    expect(rt.io.err.join('\n')).toContain('symlink');
+    expect(await readTree(root)).toEqual(before);
+  });
+
   it('names the keys you would lose in an env file the CLI added to, and keeps them with --keep', async () => {
     const root = await withEnvKey();
     const dry = await upgrade(root, ['--json', '--dry-run']);
@@ -515,6 +527,33 @@ describe('mfeflow upgrade with a registry feature', () => {
       expect(
         (await upgrade(root, ['--yes', '--accept-changed-content=@acme/hello'], ok)).code,
       ).toBe(EXIT.ok);
+    });
+
+    it('refuses names that are only on the prototype, an empty list, and unknown repeats', async () => {
+      const root = await withRegistryFeature();
+      for (const args of [
+        ['--accept-changed-content', 'constructor'],
+        ['--accept-changed-content=toString'],
+        ['--accept-changed-content='],
+        ['--accept-changed-content', '@acme/hello', '--accept-changed-content', '@acme/nope'],
+      ]) {
+        const rt = testRuntime({ trust: ['@acme'], fetch: serving(changed) });
+        // oxlint-disable-next-line no-await-in-loop -- one project, nothing is written
+        expect((await upgrade(root, ['--yes', ...args], rt)).code).toBe(EXIT.usage);
+        expect(rt.io.err.join('\n')).toContain('MFEFLOW_E107');
+      }
+    });
+
+    it('merges a repeated flag', async () => {
+      const root = await withRegistryFeature();
+      const rt = testRuntime({ trust: ['@acme'], fetch: serving(changed) });
+      const args = [
+        '--yes',
+        '--accept-changed-content=core',
+        '--accept-changed-content=@acme/hello',
+      ];
+      expect((await upgrade(root, args, rt)).code).toBe(EXIT.ok);
+      expect(await recorded(root)).toBe(integrityOf(JSON.stringify(changed)));
     });
 
     it('saves the new hash even when nothing else needs writing, so E406 does not come back', async () => {

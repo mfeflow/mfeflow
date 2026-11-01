@@ -75,23 +75,34 @@ const ACCEPT_CHANGED = 'accept-changed-content';
 
 /**
  * `--accept-changed-content` alone takes every changed feature; `--accept-changed-content a,b`
- * (or `=a,b`) only those. Undefined when the flag is absent.
+ * (or `=a,b`) only those. A repeated flag adds its names to the others. Undefined when absent.
  */
 function acceptChangedOf(raw: readonly string[]): true | ReadonlySet<string> | undefined {
   const flag = `--${ACCEPT_CHANGED}`;
   const stop = raw.indexOf('--');
   const tokens = stop === -1 ? raw : raw.slice(0, stop);
-  const at = tokens.findIndex((t) => t === flag || t.startsWith(`${flag}=`));
-  if (at === -1) return undefined;
-  const token = tokens[at] ?? '';
-  const next = tokens[at + 1];
-  const given = token.includes('=')
-    ? token.slice(flag.length + 1)
-    : next !== undefined && !next.startsWith('-')
-      ? next
-      : '';
-  const names = splitList(given) ?? [];
-  return names.length === 0 || names.includes('all') ? true : new Set(names);
+  const names = new Set<string>();
+  let seen = false;
+  let all = false;
+  for (const [at, token] of tokens.entries()) {
+    if (token !== flag && !token.startsWith(`${flag}=`)) continue;
+    seen = true;
+    const next = tokens[at + 1];
+    const equals = token.includes('=');
+    const given = equals
+      ? token.slice(flag.length + 1)
+      : next?.startsWith('-') === false
+        ? next
+        : '';
+    const listed = splitList(given) ?? [];
+    if (equals && listed.length === 0) {
+      throw new MfeflowError('E107', `${flag}= needs feature names; leave out the = to take all`);
+    }
+    if (listed.length === 0 || listed.includes('all')) all = true;
+    for (const name of listed) names.add(name);
+  }
+  if (!seen) return undefined;
+  return all ? true : names;
 }
 
 function assertAcceptChanged(
@@ -99,7 +110,7 @@ function assertAcceptChanged(
   features: Record<string, unknown>,
 ): void {
   if (!(accept instanceof Set)) return;
-  const unknown = [...accept].filter((name) => !(name in features));
+  const unknown = [...accept].filter((name: string) => !Object.hasOwn(features, name));
   if (unknown.length > 0) {
     throw new MfeflowError(
       'E107',
@@ -467,6 +478,7 @@ export async function runUpgrade(
         project: up.project,
         install: up.plan.changes.some((c) => MANIFESTS.test(c.path)),
         exactProject: true,
+        refuseSymlinks: true,
         quiet: true,
       });
   if (!globals.json) printOutcome(rt, root, up, outcome, upToDate);

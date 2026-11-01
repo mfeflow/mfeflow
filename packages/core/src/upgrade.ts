@@ -297,6 +297,8 @@ interface Classified {
   missing: string[];
   /** Files already holding the new content, whose recorded hash is brought up to date. */
   matching: string[];
+  /** Env files replaced although a value in them differs from the new one; nothing says who set it. */
+  notes: string[];
 }
 
 type Verdict = 'create' | 'missing' | 'matching' | 'replace' | 'leave' | DivergeReason;
@@ -330,24 +332,22 @@ function entriesOf(file: string, source: string): Map<string, string> | undefine
 interface Lost {
   /** Keys in your file that the new version does not have. */
   missing: string[];
-  /** Keys in both whose value differs. Only counted for a file you edited: otherwise the new value is upstream's. */
+  /** Keys in both whose value differs. */
   changed: string[];
 }
 
 /**
- * The keys `add env-key` put in a file that the new version does not generate and, for a file you
- * edited, the keys whose value you changed. Undefined when the file cannot be read that way.
+ * The keys in your env-style file that the new version does not generate, and the keys it has with
+ * another value. Undefined when the file cannot be read that way.
  */
-function lostKeys(file: string, disk: string, incoming: string, edited: boolean): Lost | undefined {
+function lostKeys(file: string, disk: string, incoming: string): Lost | undefined {
   const yours = entriesOf(file, disk);
   const wanted = entriesOf(file, incoming);
   if (yours === undefined || wanted === undefined) return undefined;
   const missing = [...yours].filter(([key]) => !wanted.has(key)).map(([key]) => key);
-  const changed = edited
-    ? [...yours]
-        .filter(([key, value]) => wanted.has(key) && wanted.get(key) !== value)
-        .map(([key]) => key)
-    : [];
+  const changed = [...yours]
+    .filter(([key, value]) => wanted.has(key) && wanted.get(key) !== value)
+    .map(([key]) => key);
   return { missing, changed };
 }
 
@@ -379,7 +379,7 @@ function judge(
   if (recorded === undefined) return 'untracked';
   if (recorded !== hashContent(disk)) return 'edited';
   if (ENV_KEY_FILES.test(file)) {
-    const lost = lostKeys(file, disk, incoming, false);
+    const lost = lostKeys(file, disk, incoming);
     if (lost === undefined || lost.missing.length > 0) return 'edited-by-cli';
   }
   return anySkipped ? 'skipped-feature' : 'replace';
@@ -397,7 +397,7 @@ async function compareFiles(
     decisions: UpgradeDecisions;
   },
 ): Promise<Classified> {
-  const out: Classified = { diverged: [], kept: [], missing: [], matching: [] };
+  const out: Classified = { diverged: [], kept: [], missing: [], matching: [], notes: [] };
   const entries = [...fresh.files].toSorted(([a], [b]) => (a < b ? -1 : 1));
   for (const [file, incoming] of entries) {
     // oxlint-disable-next-line no-await-in-loop -- reading in order keeps the plan deterministic
@@ -416,6 +416,12 @@ async function compareFiles(
       // oxlint-disable-next-line no-await-in-loop -- builder edits are ordered
       await builder.create(file, incoming, fresh.tracked.has(file));
     } else if (verdict === 'replace') {
+      const changed = ENV_KEY_FILES.test(file) ? lostKeys(file, disk ?? '', incoming)?.changed : [];
+      if (changed !== undefined && changed.length > 0) {
+        out.notes.push(
+          `${file}: the values of ${changed.join(', ')} change to the new version's; if you set them with mfeflow add env-key, set them again`,
+        );
+      }
       // oxlint-disable-next-line no-await-in-loop -- builder edits are ordered
       await builder.replace(file, incoming);
     } else if (verdict !== 'leave') {
@@ -445,9 +451,7 @@ function diverge(
     incoming,
     diff: unifiedDiff(file, yours, incoming),
   };
-  const lost = ENV_KEY_FILES.test(file)
-    ? lostKeys(file, yours, incoming, reason === 'edited' || reason === 'untracked')
-    : undefined;
+  const lost = ENV_KEY_FILES.test(file) ? lostKeys(file, yours, incoming) : undefined;
   if (lost !== undefined && lost.missing.length + lost.changed.length > 0) {
     const all = new Set([...lost.missing, ...lost.changed]);
     entry.lostKeys = [...(entriesOf(file, yours)?.keys() ?? [])].filter((key) => all.has(key));
@@ -750,6 +754,7 @@ export async function planUpgrade(
     features: fresh.features,
     warnings: [
       ...fresh.warnings,
+      ...compared.notes,
       ...built.warnings,
       ...skipped.map(
         ({ name, reason }) =>

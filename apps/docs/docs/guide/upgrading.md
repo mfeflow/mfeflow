@@ -125,9 +125,9 @@ Add `--accept` or `--keep` and run it again. `--yes` does not skip this: it only
 - `package.json`, `pnpm-workspace.yaml` and `turbo.json` only get small edits. The `@mfeflow/*` ranges move, and new scripts, dependencies and tasks are added.
 - Files the new version no longer makes, and files you deleted, are listed. They are never deleted and never brought back.
 - A file that `add env-key` added keys to is replaced only if every key in it is still in the new version. Otherwise it is listed with your keys. Accepting it drops them, so add them back with `mfeflow add env-key`.
-- If you edited such a file, a key whose value differs from the new version counts as lost too. If you did not edit it, a new value from the new version simply replaces the old one.
+- If you edited such a file, a key whose value differs from the new version counts as lost too. If you did not edit it, a new value replaces the old one and the plan prints a warning naming the keys, because mfeflow cannot tell a value you set with `add env-key` from one the template changed. When an env file is held back for a missing key, the changed values are listed with it.
 - A symlink is reported and never written over, even with `--accept all`. It needs no decision and never blocks a run.
-- A file inside a symlinked folder counts the same way. If `apps/shell/src` points somewhere else, nothing under it is written, because the write would land outside the place the plan shows.
+- A file inside a symlinked folder counts the same way. If `apps/shell/src` points somewhere else, nothing under it is written, because the write would land outside the place the plan shows. The check runs again when the files are written, for every file including `package.json`, so a link added after the plan was made is caught and the run stops with E105 before anything is written.
 - A file you edited is offered only when the new version generates something different from the old one.
 - A feature from a registry is applied only after you confirm, or with `--yes` when there is no terminal. If the registry now serves other bytes for the same version, the run stops with E406 until you pass `--accept-changed-content`.
 - A registry feature with no hash in `mfeflow.json` cannot be checked. The plan lists it as first seen, and the hash the registry serves now is recorded, so the next run can check it.

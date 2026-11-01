@@ -24,6 +24,8 @@ export interface ApplyOptions {
   fs?: FsOps;
   /** Check the plan against the files and stop before writing anything. */
   dryRun?: boolean;
+  /** Refuse any write through a symlink, first-party included. Third-party changes always are. */
+  refuseSymlinks?: boolean;
 }
 
 export interface ApplyResult {
@@ -53,7 +55,7 @@ export async function applyPlan(plan: Plan, options: ApplyOptions): Promise<Appl
   const realRoot = await ops.realpath(options.root);
   await inOrder(targets, async ({ change, file }) => {
     await assertContained(ops, realRoot, file, change.path);
-    await assertTrustedRoute(ops, options.root, change);
+    await assertTrustedRoute(ops, options.root, change, options.refuseSymlinks === true);
   });
 
   const current = await verifyUnchanged(targets, ops);
@@ -69,7 +71,7 @@ export async function applyPlan(plan: Plan, options: ApplyOptions): Promise<Appl
       const dir = await ops.mkdir(path.dirname(file));
       if (dir) createdDirs.push(dir);
       await assertContained(ops, realRoot, path.dirname(file), change.path);
-      await assertTrustedRoute(ops, options.root, change);
+      await assertTrustedRoute(ops, options.root, change, options.refuseSymlinks === true);
       const temp = tempSibling(file);
       staged.set(file, temp);
       await ops.writeFile(temp, change.after);
@@ -218,10 +220,22 @@ async function assertContained(
  * path rules checked when the plan was made still describe the real target.
  * First-party changes are only held to {@link assertContained}.
  */
-async function assertTrustedRoute(ops: FsOps, root: string, change: FileChange): Promise<void> {
-  if (change.trust !== 'third-party') return;
-  assertWritable(change.path);
+async function assertTrustedRoute(
+  ops: FsOps,
+  root: string,
+  change: FileChange,
+  refuseAll: boolean,
+): Promise<void> {
+  const thirdParty = change.trust === 'third-party';
+  if (!thirdParty && !refuseAll) return;
+  if (thirdParty) assertWritable(change.path);
   const hit = await symlinkedPrefix(ops, root, change.path);
+  if (hit && !thirdParty) {
+    throw new MfeflowError(
+      'E105',
+      `"${change.path}" goes through a symlink at "${hit}", which is never written through`,
+    );
+  }
   if (hit) {
     throw new MfeflowError(
       'E203',

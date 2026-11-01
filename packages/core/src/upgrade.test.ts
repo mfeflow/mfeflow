@@ -822,8 +822,32 @@ describe('trust, symlinks and unchanged templates', () => {
       );
     });
 
+    it('says so when it replaces a value that may be one you set with add env-key', async () => {
+      const disk = withValue('z.string().min(3)');
+      const up = await plan(disk, disk);
+      expect(up.plan.warnings).toEqual([
+        expect.stringContaining('env.ts: the values of A change to the new version'),
+      ]);
+    });
+
+    it('lists the changed values too when a missing key stops the replacement', async () => {
+      const disk = withValue('z.string().min(3)').replace(
+        '  },\n  runtimeEnv',
+        '    MINE: z.string(),\n  },\n  runtimeEnv',
+      );
+      const up = await plan(disk, disk);
+      expect(up.diverged[0]).toMatchObject({
+        reason: 'edited-by-cli',
+        lostKeys: ['A', 'MINE'],
+        changedValues: ['A'],
+      });
+    });
+
     it('still protects a key you added to an untouched-looking file, and names it a key, not a value', async () => {
-      const disk = envTs(['A', 'MINE']);
+      const disk = withValue('z.string().min(1)').replace(
+        '  },\n  runtimeEnv',
+        '    MINE: z.string(),\n  },\n  runtimeEnv',
+      );
       const up = await plan(disk, disk);
       expect(up.diverged[0]).toMatchObject({ reason: 'edited-by-cli', lostKeys: ['MINE'] });
       expect(up.diverged[0]?.changedValues).toBeUndefined();
