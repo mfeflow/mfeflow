@@ -1,7 +1,7 @@
 # CI
 
 `.github/workflows/ci.yml` runs on every pull request: lint, formatting, typecheck, tests, build, then
-`mfeflow doctor`, `validate`, `check-compat` and `budget`, the runtime-config check and the Playwright smoke test.
+`pnpm mfeflow doctor`, `validate`, `check-compat` and `budget`, the runtime-config check and the Playwright smoke test.
 A step for a feature the project does not have is skipped, so adding `testing` or `env-t3` later needs no edit to the
 workflow. Every action is pinned to a commit SHA, the workflow starts from `permissions: {}`, and the job gets
 `contents: read` only. Dependabot or Renovate can keep the pins current.

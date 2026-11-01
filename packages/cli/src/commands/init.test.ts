@@ -460,6 +460,58 @@ describe('mfeflow init', () => {
     expect(shell).toContain(`"@mfeflow/runtime": "^${CLI_VERSION}"`);
   });
 
+  it('installs the mfeflow CLI at the root, with the check scripts, without --local', async () => {
+    const cwd = await workspace();
+    await main(['init', 'app', '--yes', '--no-install', '--cwd', cwd], testRuntime());
+    const root = JSON.parse(await fs.readFile(path.join(cwd, 'app', 'package.json'), 'utf8')) as {
+      devDependencies: Record<string, string>;
+      scripts: Record<string, string>;
+    };
+    expect(root.devDependencies.mfeflow).toBe(`^${CLI_VERSION}`);
+    expect(root.scripts).toMatchObject({
+      dev: 'turbo run dev',
+      doctor: 'mfeflow doctor',
+      validate: 'mfeflow validate',
+      'check-compat': 'mfeflow check-compat',
+      budget: 'mfeflow budget',
+    });
+  });
+
+  it('links the mfeflow CLI from the checkout with --local', async () => {
+    const cwd = await workspace();
+    await main(
+      ['init', 'app', '--yes', '--no-install', '--local', REPO, '--cwd', cwd],
+      testRuntime(),
+    );
+    const root = JSON.parse(await fs.readFile(path.join(cwd, 'app', 'package.json'), 'utf8')) as {
+      devDependencies: Record<string, string>;
+    };
+    expect(root.devDependencies.mfeflow).toMatch(/^link:.*\/packages\/cli$/);
+  });
+
+  it('documents only commands that run in the fresh project', async () => {
+    const cwd = await workspace();
+    await main(['init', 'app', '--yes', '--no-install', '--cwd', cwd], testRuntime());
+    const dir = path.join(cwd, 'app');
+    const root = JSON.parse(await fs.readFile(path.join(dir, 'package.json'), 'utf8')) as {
+      scripts: Record<string, string>;
+    };
+    for (const doc of ['README.md', 'AGENTS.md']) {
+      const text = await fs.readFile(path.join(dir, doc), 'utf8');
+      const mentions = [...text.matchAll(/(^|[\s`])(pnpm )?mfeflow ([a-z][a-z-]*)/gm)];
+      const subcommands = mentions.filter((m) => m[3] !== 'cli' && m[3] !== 'json');
+      expect(subcommands.length).toBeGreaterThan(0);
+      for (const m of subcommands) {
+        expect(m[2], `${doc}: "${m[0].trim()}" is not runnable before pnpm install`).toBe('pnpm ');
+      }
+      for (const m of text.matchAll(/(^|[\s`])pnpm ([a-z][a-z-]*)/gm)) {
+        const word = m[2] ?? '';
+        const builtin = ['install', 'mfeflow', 'exec', 'run'].includes(word);
+        expect(builtin || word in root.scripts, `${doc}: pnpm ${word} has no script`).toBe(true);
+      }
+    }
+  });
+
   it('reads MFEFLOW_LOCAL as --local', async () => {
     const cwd = await workspace();
     const rt = testRuntime();

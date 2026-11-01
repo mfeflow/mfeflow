@@ -247,17 +247,17 @@ describe('ci-github', () => {
       'pnpm install --frozen-lockfile',
       'pnpm typecheck',
       'pnpm build',
-      'pnpm exec mfeflow doctor',
-      'pnpm exec mfeflow validate',
-      'pnpm exec mfeflow check-compat',
-      'pnpm exec mfeflow budget',
+      'pnpm mfeflow doctor',
+      'pnpm mfeflow validate',
+      'pnpm mfeflow check-compat',
+      'pnpm mfeflow budget',
       'pnpm run --if-present check:runtime-config',
     ]) {
       expect(runs).toContain(command);
     }
     const guarded = steps.filter((s) => s.if?.includes('hashFiles'));
     expect(guarded.length).toBeGreaterThanOrEqual(4);
-    expect(runs.indexOf('pnpm build')).toBeLessThan(runs.indexOf('pnpm exec mfeflow budget'));
+    expect(runs.indexOf('pnpm build')).toBeLessThan(runs.indexOf('pnpm mfeflow budget'));
   });
 
   it('lists mfeflow as a dev dependency so CI can run it, and documents previews and OIDC', async () => {
