@@ -15,7 +15,12 @@
   ],
   "overrides": [
     {
-      "files": ["packages/*/bin/*.js", "packages/*/scripts/*.mjs", "scripts/*.mjs"],
+      "files": [
+        "packages/*/bin/*.js",
+        "packages/*/scripts/*.mjs",
+        "scripts/*.mjs",
+        "apps/docs/scripts/*.mjs"
+      ],
       "rules": {
         "typescript/no-unsafe-call": "off",
         "typescript/no-unsafe-member-access": "off",

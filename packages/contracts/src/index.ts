@@ -71,11 +71,5 @@ export {
   type WrapProviderOp,
 } from './feature';
 
-/** Where the JSON Schemas are published, for `$schema` in editors. */
-export const SCHEMA_URLS = {
-  mfe: 'https://mfeflow.dev/schema/mfe.json',
-  project: 'https://mfeflow.dev/schema/mfeflow.json',
-  feature: 'https://mfeflow.dev/schema/feature.json',
-  registryEntry: 'https://mfeflow.dev/schema/registry-entry.json',
-  registryIndex: 'https://mfeflow.dev/schema/registry-index.json',
-} as const;
+export { DOCS_URL, SCHEMA_URLS, errorDocsUrl, type SchemaName } from './docs';
+export { JSON_SCHEMAS } from './json-schema';

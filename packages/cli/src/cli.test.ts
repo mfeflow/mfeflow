@@ -64,7 +64,7 @@ describe('mfeflow', () => {
     expect(await main(['deploy'], rt)).toBe(2);
     expect(rt.io.err.join('\n')).toContain('MFEFLOW_E107');
     expect(rt.io.err.join('\n')).toContain('Fix:');
-    expect(rt.io.err.join('\n')).toContain('https://mfeflow.dev/errors/E107');
+    expect(rt.io.err.join('\n')).toContain('https://mfeflow.github.io/mfeflow/errors/E107');
   });
 
   it('asks for the command first when a flag comes before it', async () => {

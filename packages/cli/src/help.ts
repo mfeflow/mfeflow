@@ -1,9 +1,9 @@
+import { DOCS_URL } from '@mfeflow/contracts';
 import type { ArgsDef } from 'citty';
 import { GLOBAL_ARGS } from './args';
 import { EXIT } from './exit';
 import { readPackageJson } from './version';
 
-export const DOCS_URL = 'https://mfeflow.dev';
 export const REPO_URL = 'https://github.com/mfeflow/mfeflow';
 
 export interface CommandHelp {
@@ -41,7 +41,7 @@ export function commandHelp(help: CommandHelp): string {
   if (own.length > 0) lines.push('', 'Options:', ...own);
   lines.push('', 'Global options:', ...table(GLOBAL_ARGS, new Set()));
   lines.push('', 'Examples:', ...help.examples.map((example) => `  ${example}`));
-  lines.push('', `Docs: ${DOCS_URL}`);
+  lines.push('', `Docs: ${DOCS_URL}/`);
   return lines.join('\n');
 }
 
@@ -81,6 +81,6 @@ export function rootHelp(commands: readonly CommandHelp[]): string {
     'Exit codes:',
     exitCodesText(),
     '',
-    `Docs: ${DOCS_URL}  Source: ${REPO_URL}`,
+    `Docs: ${DOCS_URL}/  Source: ${REPO_URL}`,
   ].join('\n');
 }

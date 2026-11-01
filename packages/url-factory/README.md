@@ -35,6 +35,6 @@ Bucket: **stateless**. Nothing here holds state shared between micro-frontends, 
 ## Links
 
 - [mfeflow repository](https://github.com/mfeflow/mfeflow) and its README
-- [mfeflow.dev](https://mfeflow.dev) (documentation, coming soon)
+- [Documentation](https://mfeflow.github.io/mfeflow/)
 
 MIT licensed.

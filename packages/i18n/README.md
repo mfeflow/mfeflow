@@ -47,6 +47,6 @@ Bucket: **singleton**. This package keeps page-wide state, so the shell and ever
 ## Links
 
 - [mfeflow repository](https://github.com/mfeflow/mfeflow) and its README
-- [mfeflow.dev](https://mfeflow.dev) (documentation, coming soon)
+- [Documentation](https://mfeflow.github.io/mfeflow/)
 
 MIT licensed.
