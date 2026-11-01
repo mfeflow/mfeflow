@@ -1,5 +1,6 @@
 import path from 'node:path';
 import {
+  REGISTRY_NAMESPACE,
   SCHEMA_URLS,
   validateFeatureRegistryIndex,
   type FeatureRegistryIndex,
@@ -67,6 +68,10 @@ export async function buildRegistry(dir: string, ops: FsOps = realFs): Promise<R
       const slash = manifest.name.indexOf('/');
       const bare = manifest.name.slice(slash + 1);
       const own = (problem: string) => problems.push(`${label}: ${problem}`);
+      const namespace = manifest.name.slice(0, slash);
+      if (!REGISTRY_NAMESPACE.test(namespace)) {
+        own(`namespace "${namespace}" must start with a letter or digit, like @acme`);
+      }
       if (bare === 'index') own('"index" is taken by the registry index; pick another name');
       if (valid(manifest.version) !== manifest.version) {
         own(`version "${manifest.version}" must be a semver version like 1.0.0`);
@@ -76,7 +81,7 @@ export async function buildRegistry(dir: string, ops: FsOps = realFs): Promise<R
       }
       found.push({
         folder,
-        namespace: manifest.name.slice(0, slash),
+        namespace,
         bare,
         version: manifest.version,
         description: manifest.description ?? '',

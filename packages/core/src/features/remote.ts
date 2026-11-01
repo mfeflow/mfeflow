@@ -205,7 +205,8 @@ export async function fetchFeatureIndex(
   try {
     value = JSON.parse(text);
   } catch (error) {
-    throw new MfeflowError('E403', `${url} is not JSON (${messageOf(error)})`, { cause: error });
+    const reason = messageOf(error).replaceAll(/\p{Cc}/gu, '?');
+    throw new MfeflowError('E403', `${url} is not JSON (${reason})`, { cause: error });
   }
   const issues = validateFeatureRegistryIndex(value);
   if (issues.length > 0) {

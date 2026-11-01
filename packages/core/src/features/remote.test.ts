@@ -295,6 +295,8 @@ describe('fetchFeatureIndex', () => {
   it('is E403 for text that is not JSON, not an index, or too big', async () => {
     const html = await rejection(fetchFeatureIndex('@acme', registries, reply(200, '<html>')));
     expect(html.code).toBe('MFEFLOW_E403');
+    const escape = await rejection(fetchFeatureIndex('@acme', registries, reply(200, '\u001b[2J')));
+    expect(escape.message).not.toMatch(/\p{Cc}/u);
     const shape = await rejection(
       fetchFeatureIndex(
         '@acme',

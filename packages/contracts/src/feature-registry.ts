@@ -1,5 +1,8 @@
 import { Checker, isObj, type Issue } from './validate';
 
+const INDEX_VERSION =
+  /^\d{1,9}\.\d{1,9}\.\d{1,9}(?:-[0-9A-Za-z.-]{1,64})?(?:\+[0-9A-Za-z.-]{1,64})?$/;
+
 /** One feature a third-party registry offers. `name` has no namespace: the registry's own namespace goes in front. */
 export interface FeatureRegistryItem {
   name: string;
@@ -45,8 +48,13 @@ export function registryTemplateProblem(template: string): string | undefined {
     .find((name) => name !== 'name' && name !== 'version');
   if (unknown !== undefined) return `has {${unknown}}; only {name} and {version} are placeholders`;
   if (/[{}]/.test(template.replaceAll(PLACEHOLDER, ''))) return 'has an unmatched { or }';
-  const authority = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i.exec(template)?.[1];
-  if (authority?.includes('{') === true) return 'has a placeholder in the host; put it in the path';
+  const origin = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i.exec(template);
+  if (origin?.[1]?.includes('{') === true)
+    return 'has a placeholder in the host; put it in the path';
+  const first = template.search(/\{(?:name|version)\}/);
+  if (origin !== null && template.lastIndexOf('/', first) < origin[0].length) {
+    return 'needs a path before the first placeholder, like https://host/{name}.json';
+  }
   let url: URL;
   try {
     url = new URL(template.replaceAll('{name}', 'x').replaceAll('{version}', '1'));
@@ -102,7 +110,10 @@ export function validateFeatureRegistryIndex(value: unknown): Issue[] {
       if (seen.has(name)) c.add(`${at}.name`, `"${name}" is listed twice`);
       seen.add(name);
     }
-    c.string(item, 'version', at);
+    c.string(item, 'version', at, {
+      pattern: INDEX_VERSION,
+      hint: 'must be a version like 1.2.0',
+    });
     const description = c.string(item, 'description', at);
     if (description !== undefined) {
       if (description.length > MAX_DESCRIPTION) {

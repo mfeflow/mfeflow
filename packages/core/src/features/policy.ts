@@ -84,7 +84,7 @@ export function isRegistryRange(range: string): boolean {
  * lifecycle events, `pnpm:`/`npm:`/`yarn:`/`bun:` prefixes and every `pre` or
  * `post` name, since what it wraps may be added to package.json later.
  */
-export function assertPlainScript(name: string, label: string): void {
+export function assertPlainScript(name: string, feature: string, label = feature): void {
   const reject = (why: string): never => {
     throw new MfeflowError('E203', `${label}: script "${name}" ${why}`);
   };
@@ -96,6 +96,12 @@ export function assertPlainScript(name: string, label: string): void {
   if (LIFECYCLE_SCRIPTS.has(name)) reject('would run on its own (npm lifecycle)');
   if (/^(pre|post)/.test(name)) {
     reject('starts with pre or post, which wraps another script; namespace it, e.g. feature:name');
+  }
+  const own = feature.slice(feature.indexOf('/') + 1);
+  if (prefix !== own) {
+    reject(
+      `must start with the feature's own name, like ${own}:check, so no other runner picks it up`,
+    );
   }
 }
 
@@ -162,7 +168,9 @@ export function assertThirdPartyContent(manifest: FeatureManifest, label: string
     }
   }
   for (const t of manifest.transforms ?? []) assertThirdPartyTransform(t, label);
-  for (const script of manifest.scripts ?? []) assertPlainScript(script.name, label);
+  for (const script of manifest.scripts ?? []) {
+    assertPlainScript(script.name, manifest.name, label);
+  }
 }
 
 /** What a third-party transform op may carry beyond the shape the schema already checks. */

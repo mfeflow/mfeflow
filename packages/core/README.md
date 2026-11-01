@@ -26,8 +26,10 @@ install, commit or the next `mfeflow` command.
   files and the local `features/` folder are refused. Paths are compared after
   Unicode (NFC) and case folding, and names with trailing dots or spaces, `:`,
   invisible characters or Windows device names are refused for every feature.
-- **Scripts** are lower-case words joined by `:`. Lifecycle events, `pnpm:`,
-  `npm:`, `yarn:` and `bun:` prefixes and every `pre` or `post` name are refused.
+- **Scripts** are lower-case words joined by `:` and start with the feature's
+  own name (`segment:check` for `@acme/segment`), so `build`, `lint:*` and
+  other runners never pick them up. Lifecycle events, `pnpm:`, `npm:`, `yarn:`
+  and `bun:` prefixes and every `pre` or `post` name are refused.
 - **Dependencies** take a semver range or a dist-tag. `file:`, `link:`, git,
   URLs, `npm:` aliases, `workspace:` and `catalog:` are refused.
 - **Imports** name a package, a relative path or an `@/` alias, never a URL.

@@ -130,6 +130,11 @@ describe('buildRegistry', () => {
     expect(await messageOf()).toContain('a is already defined by a/feature.json');
   });
 
+  it('refuses a namespace `mfeflow registry add` would refuse', async () => {
+    await put('a', feature({ name: '@-x/a' }));
+    expect(await messageOf()).toContain('namespace "@-x" must start with a letter or digit');
+  });
+
   it('refuses a feature the loader would refuse for size', async () => {
     await put(
       'big',
