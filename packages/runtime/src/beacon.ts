@@ -10,6 +10,8 @@ export interface BeaconTarget {
 }
 
 const SERVER_INDEX = /\/v1\/index\/([a-z][a-z0-9-]*)$/;
+/** Only used to parse relative URLs; nothing is ever fetched from it. */
+const PARSE_BASE = 'https://page.invalid';
 /** The server takes 20 entries and 4 KiB per beacon. */
 const MAX_ENTRIES = 20;
 const MAX_BYTES = 4096;
@@ -20,14 +22,11 @@ export const CLIENT_ID_KEY = 'mfeflow:client';
 /** The first index URL that is a registry server's `/v1/index/<env>`. A static host has no beacon. */
 export function beaconTarget(urls: readonly string[]): BeaconTarget | undefined {
   for (const raw of urls) {
-    if (!URL.canParse(raw, 'http://page.invalid')) continue;
-    const url = new URL(raw, 'http://page.invalid');
+    if (!URL.canParse(raw, PARSE_BASE)) continue;
+    const url = new URL(raw, PARSE_BASE);
     const env = SERVER_INDEX.exec(url.pathname)?.[1];
     if (env === undefined) continue;
-    const beacon = new URL(
-      raw,
-      typeof location === 'undefined' ? 'http://page.invalid' : location.href,
-    );
+    const beacon = new URL(raw, typeof location === 'undefined' ? PARSE_BASE : location.href);
     beacon.pathname = beacon.pathname.replace(SERVER_INDEX, '/v1/beacon');
     beacon.search = '';
     beacon.hash = '';
@@ -60,8 +59,8 @@ export function clientId(): string {
 
 /** The server index URLs get `?u=<client id>`; any other URL is returned as it came. */
 export function withClientId(url: string, id: string = clientId()): string {
-  if (!URL.canParse(url, 'http://page.invalid')) return url;
-  const parsed = new URL(url, 'http://page.invalid');
+  if (!URL.canParse(url, PARSE_BASE)) return url;
+  const parsed = new URL(url, PARSE_BASE);
   if (!SERVER_INDEX.test(parsed.pathname)) return url;
   const absolute = URL.canParse(url);
   const target = absolute ? new URL(url) : parsed;
