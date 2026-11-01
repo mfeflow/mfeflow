@@ -244,7 +244,7 @@ function fromMoved(facts: Facts, moved: Moved, extra: Partial<DeployResult> = {}
 const pointer = (index: RegistryIndex | undefined, name: string): RegistryIndexRemote | undefined =>
   index?.remotes.find((r) => r.name === name);
 
-export async function deployViaServer(
+async function deployInner(
   rt: Runtime,
   args: Record<string, unknown>,
   raw: readonly string[],
@@ -362,7 +362,7 @@ export async function deployViaServer(
   );
 }
 
-export async function promoteViaServer(
+async function promoteInner(
   rt: Runtime,
   args: Record<string, unknown>,
   raw: readonly string[],
@@ -399,39 +399,16 @@ export async function promoteViaServer(
       servedBefore: target?.version ?? null,
       warnings: ['the server runs its own checks on promote; a dry run does not call it'],
     });
-  if (rollout === undefined)
-    return client.run(
-      async () =>
-        fromMoved(
-          withVersion,
-          movedOf(await client.post('/v1/promote', { from, to, remote: name })),
-        ),
-      (failure) =>
-        deployResult(withVersion, {
-          ok: false,
-          servedBefore: target?.version ?? null,
-          findings: gateFindings(failure, name),
-        }),
-    );
-  // The server starts a rollout from a deploy, not from a promote: send the version the source serves.
-  if (source.owner === undefined || source.routes === undefined)
-    throw new MfeflowError(
-      'E508',
-      `${name} in ${from} has no owner or routes in its index entry, so it cannot start a rollout in ${to}`,
-    );
   return client.run(
     async () =>
       fromMoved(
         withVersion,
         movedOf(
-          await client.post('/v1/deploy', {
-            env: to,
+          await client.post('/v1/promote', {
+            from,
+            to,
             remote: name,
-            version: source.version,
-            manifestUrl: source.entry,
-            owner: source.owner,
-            routes: source.routes,
-            rollout,
+            ...(rollout === undefined ? {} : { rollout }),
           }),
         ),
       ),
@@ -439,7 +416,7 @@ export async function promoteViaServer(
       deployResult(withVersion, {
         ok: false,
         servedBefore: target?.version ?? null,
-        findings: gateFindings(failure, name),
+        findings: gateFindings(failure, withVersion.remote),
       }),
   );
 }
@@ -467,7 +444,7 @@ function rollbackTarget(
   return to;
 }
 
-export async function rollbackViaServer(
+async function rollbackInner(
   rt: Runtime,
   args: Record<string, unknown>,
   raw: readonly string[],
@@ -556,7 +533,7 @@ function auditState(rows: readonly AuditRow[]): {
     }
     const r = isObj(row.detail.rollout) ? row.detail.rollout : undefined;
     if (seenRollout.has(remote)) continue;
-    if (row.action === 'deploy' && r !== undefined) {
+    if ((row.action === 'deploy' || row.action === 'promote') && r !== undefined) {
       seenRollout.add(remote);
       rollouts.set(remote, {
         candidate: row.after ?? '',
@@ -592,7 +569,7 @@ async function envsToShow(args: Record<string, unknown>, globals: Globals): Prom
   );
 }
 
-export async function statusViaServer(
+async function statusInner(
   rt: Runtime,
   args: Record<string, unknown>,
   raw: readonly string[],
@@ -690,7 +667,7 @@ function statusOf(
   };
 }
 
-export async function runRolloutCommand(
+async function rolloutInner(
   rt: Runtime,
   args: Record<string, unknown>,
   raw: readonly string[],
@@ -757,7 +734,7 @@ export async function runRolloutCommand(
   };
 }
 
-export async function runKillCommand(
+async function killInner(
   rt: Runtime,
   args: Record<string, unknown>,
   raw: readonly string[],
@@ -801,6 +778,67 @@ export async function runKillCommand(
 
 const rate = (c: { loads: number; errors: number }): string =>
   `${String(c.loads)} loads, ${String(c.errors)} errors`;
+
+export async function deployViaServer(
+  rt: Runtime,
+  args: Record<string, unknown>,
+  raw: readonly string[],
+  defs: ArgsDef,
+  client: ServerClient,
+): Promise<DeployResult> {
+  return client.scrubAll(await deployInner(rt, args, raw, defs, client));
+}
+
+export async function promoteViaServer(
+  rt: Runtime,
+  args: Record<string, unknown>,
+  raw: readonly string[],
+  defs: ArgsDef,
+  client: ServerClient,
+): Promise<DeployResult> {
+  return client.scrubAll(await promoteInner(rt, args, raw, defs, client));
+}
+
+export async function rollbackViaServer(
+  rt: Runtime,
+  args: Record<string, unknown>,
+  raw: readonly string[],
+  defs: ArgsDef,
+  client: ServerClient,
+): Promise<DeployResult> {
+  return client.scrubAll(await rollbackInner(rt, args, raw, defs, client));
+}
+
+export async function statusViaServer(
+  rt: Runtime,
+  args: Record<string, unknown>,
+  raw: readonly string[],
+  defs: ArgsDef,
+  client: ServerClient,
+): Promise<StatusResult> {
+  return client.scrubAll(await statusInner(rt, args, raw, defs, client));
+}
+
+export async function runRolloutCommand(
+  rt: Runtime,
+  args: Record<string, unknown>,
+  raw: readonly string[],
+  client: ServerClient | undefined,
+): Promise<RolloutCommandResult> {
+  const result = await rolloutInner(rt, args, raw, client);
+  return client === undefined ? result : client.scrubAll(result);
+}
+
+export async function runKillCommand(
+  rt: Runtime,
+  args: Record<string, unknown>,
+  raw: readonly string[],
+  restore: boolean,
+  client: ServerClient | undefined,
+): Promise<KillCommandResult> {
+  const result = await killInner(rt, args, raw, restore, client);
+  return client === undefined ? result : client.scrubAll(result);
+}
 
 export function formatServerAction(result: RolloutCommandResult | KillCommandResult): string {
   if (result.command === 'rollout') {

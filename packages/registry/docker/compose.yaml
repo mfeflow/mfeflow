@@ -16,6 +16,8 @@ services:
     # The registry shares MinIO's network, so http://127.0.0.1:9000 means MinIO for the server and for
     # your browser alike. The server accepts plain http only for localhost, and this keeps one address.
     network_mode: 'service:minio'
+    # The server waits up to 8 s for running requests; this keeps Docker from killing it first.
+    stop_grace_period: 15s
     depends_on:
       minio-setup:
         condition: service_completed_successfully

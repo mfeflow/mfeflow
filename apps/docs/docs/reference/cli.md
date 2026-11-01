@@ -245,7 +245,7 @@ mfeflow kill catalog --env prod --reason "payments error"
 | `--percent <n>`, `--steps <a,b>` | deploy, promote     | Start a rollout at `n` percent (1 to 99), then the rising steps. A static host refuses (E505) |
 | `--reason <text>`                | kill, rollout abort | Written to the audit log                                                                      |
 
-In server mode `deploy` still uploads the build to `--host` first, because the server never stores files. Then it asks the server to move the pointer. `promote --percent` sends the version the source env serves as a deploy with a rollout, because that is how the server starts one. `status` needs `--env` outside a project, and shows kills and rollouts when a token is set.
+In server mode `deploy` still uploads the build to `--host` first, because the server never stores files. Then it asks the server to move the pointer. `promote --percent` sends the rollout with the promote, so it needs `promote` on the target and `read` on the source, and it is audited as a promote. `status` needs `--env` outside a project, and shows kills and rollouts when a token is set.
 
 `--json` and `--dry-run` work as in static mode. A dry run reads the index and sends nothing, so the server's own checks do not run. Server answers map to the same codes: a missing version or rollout is E508, a changed published version is E511, a missing build file is E509, a lost race is E510, and an unreachable server, a bad token or a missing token is E506. All exit with 7.
 

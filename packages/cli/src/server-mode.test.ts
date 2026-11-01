@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import http from 'node:http';
 import path from 'node:path';
 import {
   configFromEnv,
@@ -327,6 +328,73 @@ describe.skipIf(!supported)('server mode against a real server on 127.0.0.1', ()
     expect(text).not.toContain(token);
   });
 
+  it('refuses promote --percent to a token that can only deploy, and leaves the env alone', async () => {
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    await deploy('1.0.0');
+    await buildRemote(f.root, 'catalog', '2.0.0');
+    await go([
+      'deploy',
+      'catalog',
+      '--env',
+      'staging',
+      '--version',
+      '2.0.0',
+      '--host',
+      `file:${f.site}`,
+      '--base-url',
+      BASE_URL,
+    ]);
+    const weak = (
+      await createToken(server.storage, { env: '*', remote: '*', actions: ['read', 'deploy'] })
+    ).token;
+    const refused = await go(
+      ['promote', 'catalog', '--from', 'staging', '--to', 'prod', '--percent', '10'],
+      { MFEFLOW_REGISTRY_TOKEN: weak },
+    );
+    expect(refused.code).toBe(7);
+    expect(refused.json.error as object).toMatchObject({ code: 'MFEFLOW_E506' });
+    expect(await server.storage.listRollouts('prod')).toEqual([]);
+    const audit = await server.storage.audit({ env: 'prod', limit: 10 });
+    expect(audit.map((a) => a.action)).toEqual(['deploy']);
+  });
+
+  it('audits promote --percent as a promote from the source env', async () => {
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    await deploy('1.0.0');
+    await buildRemote(f.root, 'catalog', '2.0.0');
+    await go([
+      'deploy',
+      'catalog',
+      '--env',
+      'staging',
+      '--version',
+      '2.0.0',
+      '--host',
+      `file:${f.site}`,
+      '--base-url',
+      BASE_URL,
+    ]);
+    await go(['promote', 'catalog', '--from', 'staging', '--to', 'prod', '--percent', '10']);
+    const [entry] = await server.storage.audit({ env: 'prod', limit: 1 });
+    expect(entry).toMatchObject({ action: 'promote', after: '2.0.0' });
+    expect(entry?.detail).toMatchObject({ fromEnv: 'staging' });
+    const killed = await go(['kill', 'catalog', '--env', 'staging']);
+    expect(killed.code).toBe(0);
+    await go(['rollout', 'abort', 'catalog', '--env', 'prod']);
+    const after = await go([
+      'promote',
+      'catalog',
+      '--from',
+      'staging',
+      '--to',
+      'prod',
+      '--percent',
+      '10',
+    ]);
+    expect(after.code).toBe(7);
+    expect((after.json.error as { code: string }).code).toBe('MFEFLOW_E508');
+  });
+
   describe('errors', () => {
     it('maps server answers to E5xx and exit 7', async () => {
       await buildRemote(f.root, 'catalog', '1.0.0');
@@ -378,12 +446,12 @@ describe.skipIf(!supported)('server mode against a real server on 127.0.0.1', ()
     });
 
     it('refuses plain http to a host that is not loopback, and a login in the address', async () => {
-      const http = await go(['status', '--env', 'prod'], {
+      const plain = await go(['status', '--env', 'prod'], {
         MFEFLOW_REGISTRY_URL: 'http://registry.example.com',
       });
-      expect(http.code).toBe(7);
-      expect((http.json.error as { code: string }).code).toBe('MFEFLOW_E506');
-      expect((http.json.error as { message: string }).message).toContain('plain http');
+      expect(plain.code).toBe(7);
+      expect((plain.json.error as { code: string }).code).toBe('MFEFLOW_E506');
+      expect((plain.json.error as { message: string }).message).toContain('plain http');
       const login = await go(['status', '--env', 'prod'], {
         MFEFLOW_REGISTRY_URL: 'https://user:pw@registry.example.com',
       });
@@ -458,5 +526,97 @@ describe('static mode keeps the server-only commands out', () => {
       );
       expect(code, flags.join(' ')).toBe(2);
     }
+  });
+});
+
+describe('a server that echoes the token back', () => {
+  let hostile: http.Server;
+  let url = '';
+  let mode: 'ok' | 'gates' = 'ok';
+
+  beforeEach(async () => {
+    mode = 'ok';
+    hostile = http.createServer((req, res) => {
+      const echoed = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '')?.[1] ?? 'no-token';
+      const send = (status: number, body: unknown) =>
+        res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(body));
+      const route = req.url ?? '';
+      if (route.startsWith('/v1/index/'))
+        return send(200, {
+          env: 'prod',
+          remotes: [{ name: 'catalog', version: '1.0.0', entry: `https://cdn.test/${echoed}` }],
+        });
+      if (route.startsWith('/v1/rollout?'))
+        return send(200, {
+          stable: '1.0.0',
+          candidate: `2.0.0-${echoed}`,
+          percent: 10,
+          steps: [],
+          gate: { verdict: 'wait', reason: `waiting for ${echoed}`, reporterCap: {} },
+        });
+      if (mode === 'gates')
+        return send(422, {
+          error: {
+            code: 'gates_failed',
+            message: `refused ${echoed}`,
+            failures: [{ code: 'schema', message: `bad field ${echoed}` }],
+          },
+        });
+      return send(200, {
+        ok: true,
+        changed: true,
+        version: `2.0.0-${echoed}`,
+        servedBefore: '1.0.0',
+        warnings: [`careful, ${echoed}`],
+        stable: '1.0.0',
+        candidate: '2.0.0',
+        percent: 50,
+        serves: `1.0.0-${echoed}`,
+        killed: true,
+      });
+    });
+    await new Promise<void>((resolve) => hostile.listen(0, '127.0.0.1', resolve));
+    const address = hostile.address();
+    url =
+      typeof address === 'object' && address !== null
+        ? `http://127.0.0.1:${String(address.port)}`
+        : '';
+  });
+
+  afterEach(async () => {
+    await new Promise((resolve) => hostile.close(resolve));
+  });
+
+  const secret = 'mfr_hostile.secretvalue123';
+
+  async function ran(...argv: string[]): Promise<string> {
+    const rt = testRuntime();
+    rt.io = fakeIo({ env: { MFEFLOW_REGISTRY_URL: url, MFEFLOW_REGISTRY_TOKEN: secret } });
+    const cwd = await tempDir();
+    try {
+      for (const json of [false, true]) {
+        rt.io.out.length = 0;
+        rt.io.err.length = 0;
+        await main([...argv, ...(json ? ['--json'] : []), '--verbose', '--cwd', cwd], rt);
+        const all = rt.io.out.join('\n') + rt.io.err.join('\n');
+        expect(all, argv.join(' ')).not.toContain(secret);
+        expect(all.length).toBeGreaterThan(0);
+      }
+      return rt.io.out.join('\n');
+    } finally {
+      await removeDir(cwd);
+    }
+  }
+
+  it('never prints it from warnings, versions, gate findings, status or reasons', async () => {
+    await ran('promote', 'catalog', '--from', 'a', '--to', 'b');
+    await ran('rollback', 'catalog', '--env', 'prod', '--to', '0.9.0');
+    await ran('status', '--env', 'prod');
+    await ran('rollout', 'status', 'catalog', '--env', 'prod');
+    await ran('rollout', 'step', 'catalog', '--env', 'prod');
+    await ran('kill', 'catalog', '--env', 'prod');
+    mode = 'gates';
+    await ran('promote', 'catalog', '--from', 'a', '--to', 'b');
+    await ran('rollback', 'catalog', '--env', 'prod', '--to', '0.9.0');
   });
 });

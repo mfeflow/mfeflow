@@ -35,6 +35,7 @@ describe('the image recipe', () => {
     for (const line of compose.split('\n').filter((l) => /^\s+- '\d/.test(l)))
       expect(line).toContain("'127.0.0.1:");
     expect(compose).toContain('registry-data:/data');
+    expect(compose).toMatch(/stop_grace_period: 15s/);
   });
 });
 

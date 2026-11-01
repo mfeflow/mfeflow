@@ -137,6 +137,17 @@ export class ServerClient {
     return `server ${this.url}`;
   }
 
+  /** Text the server sent, with the token taken out, for anything that is printed. */
+  scrub(words: string): string {
+    return redact(words, this.secrets);
+  }
+
+  /** A result document with every string scrubbed. The server's words reach the output through it. */
+  scrubAll<T>(value: T): T {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a JSON round trip keeps the shape
+    return JSON.parse(this.scrub(JSON.stringify(value))) as T;
+  }
+
   get hasToken(): boolean {
     return this.token !== undefined;
   }
