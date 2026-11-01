@@ -1,6 +1,6 @@
 {
   "name": "@mfeflow/testing",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Test helpers for mfeflow micro-frontends: renderWithPlatform wraps components in the same providers the shell uses; resetPlatform clears storage, i18n, theme and reports between tests.",
   "keywords": [
     "micro-frontend",
