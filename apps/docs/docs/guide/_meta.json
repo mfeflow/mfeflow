@@ -7,6 +7,7 @@
   { "type": "file", "name": "project-structure", "label": "Project structure" },
   { "type": "file", "name": "how-it-works", "label": "How it works" },
   { "type": "file", "name": "adding-a-remote", "label": "Add a remote" },
+  { "type": "file", "name": "adopt", "label": "Bring an existing app" },
   { "type": "file", "name": "adding-features", "label": "Add features" },
   { "type": "file", "name": "development", "label": "Develop locally" },
   { "type": "section-header", "label": "Ship" },
