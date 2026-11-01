@@ -1,4 +1,4 @@
-export type HttpErrorKind = 'status' | 'network' | 'timeout' | 'parse';
+export type HttpErrorKind = 'status' | 'network' | 'timeout' | 'parse' | 'auth';
 
 export interface HttpErrorInit {
   kind: HttpErrorKind;
@@ -16,6 +16,7 @@ const WHAT: Record<HttpErrorKind, (init: HttpErrorInit, text: string) => string>
   status: (init, text) => `answered ${String(init.status ?? 0)}${text === '' ? '' : ` ${text}`}`,
   network: () => 'could not reach the server',
   timeout: () => 'timed out',
+  auth: () => 'could not get a token',
   parse: (init) => `answered ${String(init.status ?? 0)} with a body that is not valid JSON`,
 };
 

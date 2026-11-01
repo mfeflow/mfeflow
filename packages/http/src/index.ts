@@ -122,12 +122,6 @@ async function readBody(response: Response): Promise<unknown> {
   return text.slice(0, BODY_LIMIT);
 }
 
-function isAbort(error: unknown): boolean {
-  return (
-    error instanceof DOMException && (error.name === 'AbortError' || error.name === 'TimeoutError')
-  );
-}
-
 /**
  * A fetch client over your endpoints. Retries only idempotent methods (GET, HEAD, OPTIONS, PUT,
  * DELETE) on network errors, timeouts and 408, 425, 429, 502, 503, 504, with backoff. Trace headers
@@ -150,7 +144,11 @@ export function createHttpClient<E extends Endpoints, R extends ResponseMap<E> =
     extra: Record<string, string> | undefined,
     hasBody: boolean,
   ): Headers | Promise<Headers> {
-    const headers = new Headers({ accept: 'application/json', ...options.headers, ...extra });
+    // Built through Headers, so `authorization` and `Authorization` are one header and the request's wins.
+    const headers = new Headers({ accept: 'application/json' });
+    for (const source of [options.headers, extra]) {
+      for (const [name, value] of Object.entries(source ?? {})) headers.set(name, value);
+    }
     if (hasBody && !headers.has('content-type')) headers.set('content-type', 'application/json');
     if (headers.has('authorization') || !options.getToken) return headers;
     const withToken = (token: string | undefined): Headers => {
@@ -168,31 +166,39 @@ export function createHttpClient<E extends Endpoints, R extends ResponseMap<E> =
     request: Loose,
     count: number,
   ): Promise<Response> {
-    const timeout = AbortSignal.timeout(
+    const hasBody = request.json !== undefined;
+    const fail = (kind: 'auth' | 'network' | 'timeout', cause: unknown) =>
+      new HttpError({ kind, method, endpoint: key, attempts: count, cause });
+    let headers: Headers;
+    try {
+      const ready = headersFor(request.headers, hasBody);
+      headers = ready instanceof Headers ? ready : await ready;
+    } catch (cause) {
+      throw fail('auth', cause);
+    }
+    // The timeout covers the wait for the response headers; a body that is slow to stream is the caller's to cancel.
+    const timer = new AbortController();
+    const wait = setTimeout(
+      () => {
+        timer.abort();
+      },
       request.timeoutMs ?? options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     );
-    const signal = request.signal ? AbortSignal.any([request.signal, timeout]) : timeout;
-    const hasBody = request.json !== undefined;
+    const signal = request.signal ? AbortSignal.any([request.signal, timer.signal]) : timer.signal;
     try {
       const credentials = request.credentials ?? options.credentials;
-      const headers = headersFor(request.headers, hasBody);
       return await doFetch(url, {
         method,
-        headers: headers instanceof Headers ? headers : await headers,
+        headers,
         signal,
         ...(hasBody ? { body: JSON.stringify(request.json) } : {}),
         ...(credentials ? { credentials } : {}),
       });
     } catch (error) {
       if (request.signal?.aborted) throw request.signal.reason;
-      const timedOut = timeout.aborted && isAbort(error);
-      throw new HttpError({
-        kind: timedOut ? 'timeout' : 'network',
-        method,
-        endpoint: key,
-        attempts: count,
-        cause: error,
-      });
+      throw fail(timer.signal.aborted ? 'timeout' : 'network', error);
+    } finally {
+      clearTimeout(wait);
     }
   }
 
@@ -210,7 +216,8 @@ export function createHttpClient<E extends Endpoints, R extends ResponseMap<E> =
     try {
       response = await attempt(method, key, url, request, count);
     } catch (error) {
-      if (error instanceof HttpError) return { failure: error, retryable: true, asked: undefined };
+      if (error instanceof HttpError)
+        return { failure: error, retryable: error.kind !== 'auth', asked: undefined };
       throw error;
     }
     if (response.ok) return { ok: response };
@@ -256,7 +263,23 @@ export function createHttpClient<E extends Endpoints, R extends ResponseMap<E> =
 
   async function json(method: string, key: string, request: Loose): Promise<unknown> {
     const { response, attempts } = await send(method, key, request);
-    const text = response.status === 204 || response.status === 205 ? '' : await response.text();
+    let text = '';
+    if (response.status !== 204 && response.status !== 205) {
+      try {
+        text = await response.text();
+      } catch (cause) {
+        if (request.signal?.aborted) throw request.signal.reason;
+        throw new HttpError({
+          kind: 'network',
+          method,
+          endpoint: key,
+          status: response.status,
+          headers: response.headers,
+          attempts,
+          cause,
+        });
+      }
+    }
     if (text === '') return request.parse ? request.parse(undefined) : undefined;
     let raw: unknown;
     try {

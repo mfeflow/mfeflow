@@ -43,8 +43,8 @@ A second type argument says what each endpoint answers with; `parse` on a call c
 ## What it does
 
 - **Retries** GET, HEAD, OPTIONS, PUT and DELETE (never POST or PATCH) on a network error, a timeout and 408, 425, 429, 502, 503 and 504: twice by default, with exponential backoff and jitter. A `Retry-After` longer than the longest wait is not waited for. `retry: false` turns it off.
-- **Times out** each attempt after 10 seconds (`timeoutMs`). Your own `AbortSignal` is passed through; aborting it throws your reason and is not retried.
-- **Errors** are `HttpError` with `kind` (`status`, `network`, `timeout`, `parse`), `status`, `body` (parsed JSON, or text cut to 4096 characters), `headers` and `attempts`. The message holds the method, the endpoint key and what happened: no URL and no body, so ids and emails stay out of logs by default.
+- **Times out** each attempt after 10 seconds of waiting for the headers (`timeoutMs`); a slow body is not cut off. Your own `AbortSignal` is passed through; aborting it throws your reason and is not retried.
+- **Errors** are `HttpError` with `kind` (`status`, `network`, `timeout`, `parse`, `auth`), `status`, `body` (parsed JSON, or text cut to 4096 characters), `headers` and `attempts`. The message holds the method, the endpoint key and what happened: no URL and no body, so ids and emails stay out of logs by default.
 - **Does not add `traceparent`.** `@mfeflow/telemetry` instruments `fetch` for that, and this client calls the global `fetch` at request time, so the instrumentation applies however late it was installed.
 
 ## Module Federation sharing

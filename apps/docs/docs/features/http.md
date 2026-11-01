@@ -54,13 +54,13 @@ export const api = createHttpClient<typeof endpoints, Responses>({
 - A retry happens after a network error, a timeout, or a 408, 425, 429, 502, 503 or 504: twice by default, after a
   random wait that doubles (200 ms, 400 ms, ... up to 2 s). A `Retry-After` longer than 2 s is not waited for; you get
   the error.
-- Each attempt times out after 10 seconds. Change it with `timeoutMs`, per client or per call. `retry: false` turns
+- Each attempt waits 10 seconds for the response headers; a body that streams slowly afterwards is not cut off (cancel it with `signal`). Change it with `timeoutMs`, per client or per call. `retry: false` turns
   retries off.
 - Pass `signal` to cancel. Aborting throws your reason, is not an `HttpError` and is not retried.
 
 ## Errors
 
-`HttpError` has `kind` (`status`, `network`, `timeout`, `parse`), `status`, `body` (parsed JSON, or text cut to 4096
+`HttpError` has `kind` (`status`, `network`, `timeout`, `parse`, and `auth` when `getToken` throws or rejects: not retried, with the cause attached), `status`, `body` (parsed JSON, or text cut to 4096
 characters), `headers` and `attempts`. Its message is only the method, the endpoint key and what happened, for example
 `GET getOrder answered 404 Not Found`: no URL and no body, because they carry ids and email addresses. Log
 `error.body` yourself if you have decided it is safe to.

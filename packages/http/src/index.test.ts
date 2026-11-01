@@ -376,19 +376,32 @@ describe('retries', () => {
 describe('timeouts and cancelling', () => {
   it('times out a slow server with kind timeout, and retries it', async () => {
     let calls = 0;
-    server.use(
-      http.get(`${BASE}/health`, async () => {
+    const slow = (_url: string, init: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
         calls += 1;
-        await delay(200);
-        return HttpResponse.json({});
-      }),
-    );
-    const failure = (await api
+        init.signal?.addEventListener('abort', () => {
+          reject(init.signal?.reason);
+        });
+      });
+    const failure = (await createHttpClient({ url, fetch: slow, retry: fast })
       .get('health', { timeoutMs: 20 })
       .catch((e: unknown) => e)) as HttpError;
     expect(failure).toMatchObject({ kind: 'timeout', attempts: 3 });
     expect(failure.message).toBe('GET health timed out');
     expect(calls).toBe(3);
+  });
+
+  it('calls it a timeout whatever the fetch rejects with', async () => {
+    const odd = (_url: string, init: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => {
+          reject(new Error('terminated'));
+        });
+      });
+    const failure = (await createHttpClient({ url, fetch: odd, retry: false })
+      .get('health', { timeoutMs: 10 })
+      .catch((e: unknown) => e)) as HttpError;
+    expect(failure).toMatchObject({ kind: 'timeout', attempts: 1 });
   });
 
   it('rethrows the caller’s own abort untouched, without retrying', async () => {
@@ -423,6 +436,120 @@ describe('timeouts and cancelling', () => {
       controller.abort(new DOMException('stop', 'AbortError'));
     }, 30);
     expect(await pending).toMatchObject({ name: 'AbortError' });
+  });
+});
+
+describe('the timeout covers the headers, not the body', () => {
+  const json = { 'content-type': 'application/json' };
+  const text = (value: string) => new TextEncoder().encode(value);
+
+  it('lets a body that streams slowly finish after the headers arrived in time', async () => {
+    const slow = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            async start(controller) {
+              controller.enqueue(text('{"a":'));
+              await delay(80);
+              controller.enqueue(text('1}'));
+              controller.close();
+            },
+          }),
+          { headers: json },
+        ),
+      ),
+    );
+    const client = createHttpClient({ url, fetch: slow });
+    expect(await client.get('health', { timeoutMs: 30 })).toEqual({ a: 1 });
+  });
+
+  it('turns a body that breaks into an HttpError, not a raw error', async () => {
+    const broken = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.error(new TypeError('terminated'));
+            },
+          }),
+          { headers: json },
+        ),
+      ),
+    );
+    const failure = (await createHttpClient({ url, fetch: broken })
+      .get('health')
+      .catch((e: unknown) => e)) as HttpError;
+    expect(failure).toBeInstanceOf(HttpError);
+    expect(failure).toMatchObject({ kind: 'network', status: 200, attempts: 1 });
+    expect(failure.cause).toBeInstanceOf(TypeError);
+  });
+
+  it('reports the caller’s abort during the body as the caller’s reason', async () => {
+    const hanging = (_url: string, init: RequestInit) =>
+      Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              init.signal?.addEventListener('abort', () => {
+                controller.error(init.signal?.reason);
+              });
+            },
+          }),
+          { headers: json },
+        ),
+      );
+    const controller = new AbortController();
+    const pending = createHttpClient({ url, fetch: hanging })
+      .get('health', { signal: controller.signal })
+      .catch((e: unknown) => e);
+    setTimeout(() => {
+      controller.abort(new DOMException('stop', 'AbortError'));
+    }, 20);
+    expect(await pending).toMatchObject({ name: 'AbortError', message: 'stop' });
+  });
+});
+
+describe('the token provider', () => {
+  it.each([
+    [
+      'throws',
+      () => {
+        throw new Error('no session');
+      },
+    ],
+    ['rejects', () => Promise.reject(new Error('no session'))],
+  ])(
+    'failing when it %s is an auth error with the cause, and is not retried or sent',
+    async (_how, getToken) => {
+      const sent = vi.fn(() => Promise.resolve(HttpResponse.json({})));
+      const client = createHttpClient({ url, fetch: sent, retry: fast, getToken });
+      const failure = (await client.get('health').catch((e: unknown) => e)) as HttpError;
+      expect(failure).toMatchObject({ kind: 'auth', attempts: 1, status: undefined });
+      expect(failure.message).toBe('GET health could not get a token');
+      expect((failure.cause as Error).message).toBe('no session');
+      expect(sent).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('header names', () => {
+  it('are one header whatever the case, and the request wins over the client', async () => {
+    const seen: (string | null)[] = [];
+    server.use(
+      http.get(`${BASE}/health`, ({ request }) => {
+        seen.push(request.headers.get('authorization'), request.headers.get('accept'));
+        return HttpResponse.json({});
+      }),
+    );
+    const client = createHttpClient({
+      url,
+      headers: { Authorization: 'Basic client', Accept: 'text/plain' },
+      getToken: () => 'never-used',
+    });
+    await client.get('health', {
+      headers: { authorization: 'Bearer request', accept: 'application/x-test' },
+    });
+    expect(seen).toEqual(['Bearer request', 'application/x-test']);
   });
 });
 
