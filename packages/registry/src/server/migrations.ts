@@ -58,4 +58,30 @@ export const MIGRATIONS: readonly { id: number; name: string; sql: string }[] = 
       );
     `,
   },
+  {
+    id: 2,
+    name: 'rollouts',
+    sql: `
+      CREATE TABLE rollouts (
+        env TEXT NOT NULL,
+        remote TEXT NOT NULL,
+        rollout_id TEXT NOT NULL,
+        stable_version TEXT NOT NULL,
+        candidate_version TEXT NOT NULL,
+        candidate_json TEXT NOT NULL,
+        percent INTEGER NOT NULL,
+        steps_json TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (env, remote)
+      );
+      CREATE TABLE rollout_stats (
+        rollout_id TEXT NOT NULL,
+        version TEXT NOT NULL,
+        loads INTEGER NOT NULL DEFAULT 0,
+        errors INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (rollout_id, version)
+      );
+    `,
+  },
 ];

@@ -12,6 +12,8 @@ import {
   type EnvState,
   type NewAudit,
   type PointerRecord,
+  type RolloutRecord,
+  type VersionCounts,
   type RegistryStorage,
   type TokenRecord,
   type VersionRecord,
@@ -89,6 +91,25 @@ function pointerOf(row: Row): PointerRecord {
     remote,
     killed: whole(row, 'killed') === 1,
     ...(reason === null ? {} : { killReason: reason }),
+    updatedAt: text(row, 'updated_at'),
+  };
+}
+
+function rolloutOf(row: Row): RolloutRecord {
+  const candidateRemote = json(row, 'candidate_json');
+  if (!isRegistryIndexRemote(candidateRemote))
+    throw new TypeError(`stored rollout ${text(row, 'remote')} is not valid`);
+  const steps = json(row, 'steps_json');
+  return {
+    env: text(row, 'env'),
+    remote: text(row, 'remote'),
+    id: text(row, 'rollout_id'),
+    stable: text(row, 'stable_version'),
+    candidate: text(row, 'candidate_version'),
+    candidateRemote,
+    percent: whole(row, 'percent'),
+    steps: Array.isArray(steps) ? steps.filter((s): s is number => typeof s === 'number') : [],
+    startedAt: text(row, 'started_at'),
     updatedAt: text(row, 'updated_at'),
   };
 }
@@ -247,6 +268,31 @@ export async function openSqliteStorage(
       p.killReason ?? null,
       change.at,
     );
+    if (change.rollout !== undefined) {
+      if ('clear' in change.rollout) {
+        run('DELETE FROM rollouts WHERE env = ? AND remote = ?', change.env, change.pointer.name);
+        run('DELETE FROM rollout_stats WHERE rollout_id = ?', change.rollout.clear);
+      } else {
+        const r = change.rollout.set;
+        run(
+          `INSERT INTO rollouts (env, remote, rollout_id, stable_version, candidate_version, candidate_json, percent, steps_json, started_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT (env, remote) DO UPDATE SET rollout_id = excluded.rollout_id, stable_version = excluded.stable_version,
+             candidate_version = excluded.candidate_version, candidate_json = excluded.candidate_json, percent = excluded.percent,
+             steps_json = excluded.steps_json, updated_at = excluded.updated_at`,
+          r.env,
+          r.remote,
+          r.id,
+          r.stable,
+          r.candidate,
+          JSON.stringify(r.candidateRemote),
+          r.percent,
+          JSON.stringify(r.steps),
+          r.startedAt,
+          r.updatedAt,
+        );
+      }
+    }
     insertAudit(change.audit);
   };
 
@@ -269,6 +315,27 @@ export async function openSqliteStorage(
         version,
       );
       return row === undefined ? undefined : versionOf(row);
+    }),
+    listRollouts: sync((env) =>
+      all('SELECT * FROM rollouts WHERE env = ? ORDER BY remote', env).map(rolloutOf),
+    ),
+    addRolloutCounts: sync((rolloutId, version, counts: VersionCounts) => {
+      run(
+        `INSERT INTO rollout_stats (rollout_id, version, loads, errors)
+         SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM rollouts WHERE rollout_id = ?)
+         ON CONFLICT (rollout_id, version) DO UPDATE SET loads = loads + excluded.loads, errors = errors + excluded.errors`,
+        rolloutId,
+        version,
+        counts.loads,
+        counts.errors,
+        rolloutId,
+      );
+    }),
+    rolloutCounts: sync((rolloutId) => {
+      const out: Record<string, VersionCounts> = {};
+      for (const row of all('SELECT * FROM rollout_stats WHERE rollout_id = ?', rolloutId))
+        out[text(row, 'version')] = { loads: whole(row, 'loads'), errors: whole(row, 'errors') };
+      return out;
     }),
     commit: sync((change) => {
       try {

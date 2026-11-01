@@ -86,7 +86,7 @@ describe('sqlite storage', () => {
     expect((await again.readEnv('prod'))?.remotes[0]?.version).toBe('1.0.0');
     const { DatabaseSync } = await import('node:sqlite');
     const db = new DatabaseSync(file, { readOnly: true });
-    expect(db.prepare('SELECT id FROM schema_migrations').all()).toEqual([{ id: 1 }]);
+    expect(db.prepare('SELECT id FROM schema_migrations').all()).toEqual([{ id: 1 }, { id: 2 }]);
     db.close();
   });
 
@@ -121,6 +121,43 @@ describe('sqlite storage', () => {
     expect(await storage.audit({ env: 'dev', limit: 10 })).toEqual([]);
     expect(await storage.audit({ remote: 'cart', limit: 1 })).toHaveLength(1);
     await storage.ping();
+  });
+
+  it('keeps a rollout and its counts, and drops both when it ends', async () => {
+    const storage = await connect();
+    await storage.commit(change('1.0.0', 0));
+    const rollout = {
+      env: 'prod',
+      remote: 'cart',
+      id: 'abc123',
+      stable: '1.0.0',
+      candidate: '2.0.0',
+      candidateRemote: remote('2.0.0'),
+      percent: 10,
+      steps: [50, 100],
+      startedAt: '2026-11-01T00:00:00.000Z',
+      updatedAt: '2026-11-01T00:00:00.000Z',
+    };
+    await storage.commit(change('1.0.0', 1, { versions: [], rollout: { set: rollout } }));
+    expect(await storage.listRollouts('prod')).toEqual([rollout]);
+    expect(await storage.listRollouts('dev')).toEqual([]);
+
+    await storage.addRolloutCounts('abc123', '2.0.0', { loads: 5, errors: 1 });
+    await storage.addRolloutCounts('abc123', '2.0.0', { loads: 5, errors: 0 });
+    await storage.addRolloutCounts('nope', '2.0.0', { loads: 5, errors: 5 });
+    expect(await storage.rolloutCounts('abc123')).toEqual({ '2.0.0': { loads: 10, errors: 1 } });
+    expect(await storage.rolloutCounts('nope')).toEqual({});
+
+    await storage.commit(
+      change('1.0.0', 2, { versions: [], rollout: { set: { ...rollout, percent: 50 } } }),
+    );
+    expect((await storage.listRollouts('prod'))[0]?.percent).toBe(50);
+
+    await storage.commit(change('1.0.0', 3, { versions: [], rollout: { clear: 'abc123' } }));
+    expect(await storage.listRollouts('prod')).toEqual([]);
+    expect(await storage.rolloutCounts('abc123')).toEqual({});
+    await storage.addRolloutCounts('abc123', '2.0.0', { loads: 1, errors: 0 });
+    expect(await storage.rolloutCounts('abc123')).toEqual({});
   });
 
   it('refuses a writer that read an older revision, and writes nothing', async () => {
