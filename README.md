@@ -1,11 +1,10 @@
-# mfeflow
+<p align="center">
+  <img src=".github/assets/mfeflow-banner.png" alt="mfeflow: the React micro-frontend boilerplate that keeps going after day one" width="100%">
+</p>
 
-**The React micro-frontend boilerplate that keeps going after day one.**
+<p align="center"><strong>The React micro-frontend boilerplate that keeps going after day one.</strong></p>
 
-`create-module-federation` gives you a host and a remote. mfeflow gives you
-the platform around them: pick features à la carte, self-host a registry with
-one-command rollback, and keep many teams on one React, one tag manager and
-one tracer.
+<div align="center">
 
 [![ci](https://github.com/mfeflow/mfeflow/actions/workflows/ci.yml/badge.svg)](https://github.com/mfeflow/mfeflow/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/mfeflow)](https://www.npmjs.com/package/mfeflow)
@@ -14,8 +13,19 @@ one tracer.
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/mfeflow/mfeflow/badge)](https://scorecard.dev/viewer/?uri=github.com/mfeflow/mfeflow)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-> **Early, built in the open.** Nothing is released yet. The first release (0.1.0 of
-> every package) is being prepared.
+</div>
+
+<p align="center">
+  <a href="https://mfeflow.github.io/mfeflow/">Docs</a> &middot;
+  <a href="apps/docs/docs/guide/quickstart.md">Getting started</a> &middot;
+  <a href="apps/docs/docs/features">Features</a> &middot;
+  <a href="packages/cli/CHANGELOG.md">Changelog</a>
+</p>
+
+`create-module-federation` gives you a host and a remote. mfeflow gives you
+the platform around them: pick features à la carte, self-host a registry with
+one-command rollback, and keep many teams on one React, one tag manager and
+one tracer.
 
 ## Status
 
