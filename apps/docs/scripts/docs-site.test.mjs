@@ -179,7 +179,7 @@ describe('links', () => {
   it('resolves every internal link to a page', async () => {
     const pages = new Set();
     for (const file of await markdownFiles(DOCS_DIR)) {
-      const route = path.relative(DOCS_DIR, file).replace(/\.md$/, '');
+      const route = path.relative(DOCS_DIR, file).split(path.sep).join('/').replace(/\.md$/, '');
       pages.add(route);
       if (route.endsWith('/index')) pages.add(route.slice(0, -'index'.length));
     }
