@@ -30,6 +30,7 @@ describe('first-party catalogue', () => {
       'ci-github',
       'git-hooks',
       'commit-prompt',
+      'registry-server',
     ]);
     expect(DEFAULT_FEATURES).toEqual(['lint-oxlint', 'url-factory', 'env-t3', 'testing']);
     expect(isFirstParty('git-hooks')).toBe(true);

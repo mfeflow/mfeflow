@@ -1,0 +1,64 @@
+name: deploy-server
+
+# Deploys every remote through the registry server when main changes. The builds go to the artifact host first,
+# then the server moves the pointer. Needs the address of the server (MFEFLOW_REGISTRY_URL, a variable), a token
+# (MFEFLOW_REGISTRY_TOKEN, a secret) and an artifact host (see docs/registry-server.md).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      env:
+        description: Environment to deploy to
+        default: prod
+        type: string
+
+permissions: {}
+
+# Two deploys at once would race on the same pointer; let the first finish.
+concurrency:
+  group: deploy-server
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # A manual run from another branch would otherwise deploy that branch.
+    if: github.ref == 'refs/heads/main'
+    environment: registry
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Deploy remotes
+        env:
+          DEPLOY_ENV: ${{ inputs.env || 'prod' }}
+          MFEFLOW_REGISTRY_URL: ${{ vars.MFEFLOW_REGISTRY_URL }}
+          MFEFLOW_REGISTRY_TOKEN: ${{ secrets.MFEFLOW_REGISTRY_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          MFEFLOW_S3_ENDPOINT: ${{ vars.MFEFLOW_S3_ENDPOINT }}
+          MFEFLOW_S3_REGION: ${{ vars.MFEFLOW_S3_REGION }}
+        run: |
+          set -uo pipefail
+          remotes=$(node -p "Object.entries(JSON.parse(require('fs').readFileSync('mfeflow.json', 'utf8')).apps).filter(([, app]) => app.kind === 'remote').map(([name]) => name).join(' ')")
+          failed=""
+          for remote in $remotes; do
+            if ! pnpm mfeflow deploy "$remote" --env "$DEPLOY_ENV" --yes; then
+              failed="$failed $remote"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::deploy failed for:$failed"
+            exit 1
+          fi

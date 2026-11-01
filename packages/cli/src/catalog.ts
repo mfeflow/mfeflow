@@ -42,6 +42,7 @@ export const FIRST_PARTY: readonly FirstPartyFeature[] = [
   { name: 'ci-github', always: false, default: false },
   { name: 'git-hooks', always: false, default: false },
   { name: 'commit-prompt', always: false, default: false },
+  { name: 'registry-server', always: false, default: false },
 ];
 
 export function isFirstParty(name: string): boolean {
