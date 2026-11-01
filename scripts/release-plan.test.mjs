@@ -409,20 +409,11 @@ describe('the workflows', () => {
     expect(Object.keys(release)).toEqual(['version', 'plan', 'pack', 'publish', 'tag']);
   });
 
-  it('gives only the publish job id-token, and only its publish step the npm token', () => {
+  it('gives only the publish job id-token and holds no npm token anywhere', () => {
     const text = code(readWorkflow('release.yml'));
     for (const [name, chunk] of Object.entries(release))
       expect(/id-token: write/.test(chunk)).toBe(name === 'publish');
-    expect(text.match(/NPM_TOKEN/g)?.length).toBeGreaterThan(0);
-    const steps = release.publish.split(/\n {6}- /);
-    const withToken = steps.filter((s) => s.includes('NODE_AUTH_TOKEN'));
-    expect(withToken).toHaveLength(1);
-    expect(withToken[0]).toContain('name: Publish');
-    expect(
-      Object.entries(release)
-        .filter(([, c]) => c.includes('NPM_TOKEN'))
-        .map(([n]) => n),
-    ).toEqual(['publish']);
+    expect(text).not.toMatch(/NPM_TOKEN|NODE_AUTH_TOKEN/);
   });
 
   it('runs publish in the npm environment after plan and pack, with no repo code or install', () => {
