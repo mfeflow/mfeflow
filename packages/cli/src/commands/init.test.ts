@@ -498,9 +498,12 @@ describe('mfeflow init', () => {
         testRuntime(),
       ),
     ).toBe(0);
-    const prettier = path.join(REPO, 'node_modules/.bin/prettier');
+    const prettier = path.join(REPO, 'node_modules/prettier/bin/prettier.cjs');
     expect(() => {
-      execFileSync(prettier, ['--check', '.'], { cwd: path.join(cwd, 'app'), stdio: 'pipe' });
+      execFileSync(process.execPath, [prettier, '--check', '.'], {
+        cwd: path.join(cwd, 'app'),
+        stdio: 'pipe',
+      });
     }).not.toThrow();
   }, 30_000);
 
