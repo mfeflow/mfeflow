@@ -1,4 +1,5 @@
 {
+  "$schema": "https://mfeflow.github.io/mfeflow/schema/mfeflow-app.json",
   "name": "<%= it.app.name %>",
   "owner": "team-<%= it.app.name %>",
   "shells": [],

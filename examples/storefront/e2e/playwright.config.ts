@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test';
+import { ROLLBACK_HOST, ROLLBACK_PORT } from './rollback-support';
 
 export default defineConfig({
   testDir: '.',
@@ -23,6 +24,19 @@ export default defineConfig({
       command: 'node serve.ts',
       env: { SHELL_PORT: '4320', MONOLITH_PORT: '4321', SHELL_DIST: 'dist-dev' },
       url: 'http://localhost:4320/registry/index.json',
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      // Serves the registry from a folder that rollback.spec.ts fills with `mfeflow deploy`. The shell reads
+      // /registry/index.json itself (no edge injection), so the 60 s index header is what a browser sees.
+      command: 'node serve.ts',
+      env: {
+        SHELL_PORT: String(ROLLBACK_PORT),
+        MONOLITH_PORT: String(ROLLBACK_PORT + 1),
+        SERVE_REGISTRY_DIR: ROLLBACK_HOST,
+        SERVE_INJECT: '0',
+      },
+      port: ROLLBACK_PORT,
       reuseExistingServer: !process.env.CI,
     },
   ],

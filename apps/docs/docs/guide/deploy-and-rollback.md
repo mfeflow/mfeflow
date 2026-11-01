@@ -199,20 +199,20 @@ A failed gate prints an error and uploads nothing. This is a budget failure:
 ```text
 deploy catalog@1.2.0 to prod (file:/home/you/shop/site)
 error MFEFLOW_E504 The remote is over its first-load JS budget: catalog@1.2.0: loads 39.1 KB of JS first; the cost model remoteKb is 10
-  Fix: Cut what the remote loads first, or raise budgets.initialJsKb in its mfe.json on purpose. Nothing was uploaded. See https://mfeflow.github.io/mfeflow/guide/deploying.
+  Fix: Cut what the remote loads first, or raise budgets.initialJsKb in its mfeflow.app.json on purpose. Nothing was uploaded. See https://mfeflow.github.io/mfeflow/guide/deploying.
   https://mfeflow.github.io/mfeflow/errors/E504
 Nothing was uploaded.
 ```
 
 The command exits with 7. Each gate has its own code:
 
-| Code                   | Meaning                                                      |
-| ---------------------- | ------------------------------------------------------------ |
-| [E501](../errors/E501) | Schema: `mfe.json`, the manifest or the version is not valid |
-| [E502](../errors/E502) | A route overlaps a route of another remote                   |
-| [E503](../errors/E503) | A shared range does not fit the deployed shell               |
-| [E504](../errors/E504) | The remote is over its first-load JS budget                  |
-| [E505](../errors/E505) | A rollout was asked for, which a static host cannot do       |
+| Code                   | Meaning                                                              |
+| ---------------------- | -------------------------------------------------------------------- |
+| [E501](../errors/E501) | Schema: `mfeflow.app.json`, the manifest or the version is not valid |
+| [E502](../errors/E502) | A route overlaps a route of another remote                           |
+| [E503](../errors/E503) | A shared range does not fit the deployed shell                       |
+| [E504](../errors/E504) | The remote is over its first-load JS budget                          |
+| [E505](../errors/E505) | A rollout was asked for, which a static host cannot do               |
 
 Other problems have codes too: [E506](../errors/E506) for the host or base URL, [E507](../errors/E507) for a missing build, [E508](../errors/E508) for a version that does not exist, [E509](../errors/E509) for files missing on the host, [E510](../errors/E510) for two deploys at once, and [E511](../errors/E511) for a published version whose content changed.
 
@@ -227,6 +227,8 @@ In an incident, `rollback --force` also skips the schema, route and compatibilit
 A registry you can host anywhere that serves files. It keeps every version, moves one pointer per environment, and goes back by changing that pointer.
 
 How fast a rollback reaches users depends on the host's cache. The index is cached for 60 seconds. GitHub Pages caches every file for 10 minutes, so use a bucket if that is too slow.
+
+On a local file host, a first-time visitor sees the old version about 1 second after `rollback` exits (median of 5 runs). That is the floor: it has no CDN and no bucket in it, and a returning visitor can wait up to the 60 seconds. [How it was measured](https://github.com/mfeflow/mfeflow/tree/main/bench#rollback-visiblets).
 
 ## Next
 

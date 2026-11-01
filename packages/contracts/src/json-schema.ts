@@ -177,7 +177,7 @@ const item = (properties: Json, required: string[]): Json => ({
  * can pass here and still fail `mfeflow validate`.
  */
 export const JSON_SCHEMAS: Record<SchemaName, Json> = {
-  mfe: root('mfe', 'mfe.json', {
+  mfe: root('mfe', 'mfeflow.app.json', {
     properties: {
       name: str(MFE_NAME),
       owner: str(),
@@ -233,6 +233,11 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
         ),
       },
       files: {
+        type: 'object',
+        propertyNames: relativePath,
+        additionalProperties: str(FILE_HASH),
+      },
+      kept: {
         type: 'object',
         propertyNames: relativePath,
         additionalProperties: str(FILE_HASH),

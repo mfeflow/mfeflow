@@ -124,9 +124,9 @@ describe('check-compat --against a file', () => {
     expect(result.checks[0]?.status).toBe('pass');
   });
 
-  it("checks the remote's mfe.json platform ranges", async () => {
+  it("checks the remote's mfeflow.app.json platform ranges", async () => {
     const root = await polyrepo();
-    const mfe = path.join(root, 'apps/cart/mfe.json');
+    const mfe = path.join(root, 'apps/cart/mfeflow.app.json');
     const doc = JSON.parse(await fs.readFile(mfe, 'utf8')) as Record<string, unknown>;
     await fs.writeFile(mfe, JSON.stringify({ ...doc, platform: { '@mfeflow/runtime': '^0.2' } }));
     const file = await write(
@@ -136,7 +136,7 @@ describe('check-compat --against a file', () => {
     );
     const { result } = await run(root, ['--against', file]);
     expect(result.findings[0]?.message).toContain(
-      'cart needs @mfeflow/runtime ^0.2 (mfe.json platform) but the shell has 0.3.0',
+      'cart needs @mfeflow/runtime ^0.2 (mfeflow.app.json platform) but the shell has 0.3.0',
     );
   });
 

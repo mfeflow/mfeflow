@@ -15,6 +15,14 @@ export {
   type ErrorCode,
   type MfeflowErrorOptions,
 } from './errors';
+export {
+  APP_FILE,
+  LEGACY_APP_FILE,
+  legacyAppFileNotice,
+  readAppFile,
+  type AppFileName,
+  type AppFileText,
+} from './app-file';
 export { hashContent } from './hash';
 export { inOrder } from './sequence';
 export { realFs, writeFileAtomic, type FsOps } from './fs';
@@ -58,6 +66,7 @@ export {
   type DivergedUpgrade,
   type DivergeReason,
   type Migration,
+  type UpgradeDecisions,
   type UpgradeInput,
   type UpgradePlan,
 } from './upgrade';

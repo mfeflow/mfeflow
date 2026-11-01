@@ -34,7 +34,7 @@ async function compatFor(
   root: string,
 ): Promise<Finding[]> {
   const out: Finding[] = [];
-  const at = { app: remote.name, path: `${remote.rel}/mfe.json` };
+  const at = { app: remote.name, path: remote.appFile };
   const platform = remote.mfe.state === 'ok' ? (remote.mfe.value.platform ?? {}) : {};
   const installed = await versionsOf(remote, SINGLETON_PACKAGES, root);
   // Module Federation asks for ^<the remote's installed version>; a platform range replaces that ask.

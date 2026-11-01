@@ -11,6 +11,7 @@ import { hashContent, normalizeEol } from './hash';
 import { asRecord, editJsonObject, parseJsonObject } from './json';
 import { PlanBuilder, type FileChange, type Plan, type PlanFeature, type ReadFile } from './plan';
 import type { MfeflowProject } from './project';
+import { schemaKeys } from './transforms';
 
 /**
  * What a first-party migration module exports (as `default` or `migrate`). It records its
@@ -36,6 +37,16 @@ export interface UpgradeInput {
   isSymlink?: (file: string) => Promise<boolean>;
   /** Loads a migration module. Defaults to a dynamic `import()`. */
   importModule?: (file: string) => Promise<unknown>;
+  /**
+   * What the person decided about files that differ. An accepted file is written with the new
+   * version; a kept one is left, and the plan's project remembers it. `all` leaves out symlinks.
+   */
+  decisions?: UpgradeDecisions;
+}
+
+export interface UpgradeDecisions {
+  accept?: ReadonlySet<string> | 'all';
+  keep?: ReadonlySet<string> | 'all';
 }
 
 export type DivergeReason =
@@ -60,6 +71,10 @@ export interface DivergedUpgrade {
   incoming: string;
   /** Unified diff from `yours` to `incoming`. */
   diff: string;
+  /** `accept` is written with the new version in `plan`; `keep` is left and remembered. Absent: undecided, left as it is. */
+  decision?: 'accept' | 'keep';
+  /** For files the CLI adds keys to: keys in your file that the new version lacks, which accepting drops. */
+  lostKeys?: string[];
 }
 
 export interface UpgradePlan {
@@ -71,8 +86,10 @@ export interface UpgradePlan {
   plan: Plan;
   /** The project to hand to `applyPlan`: `cli` is `to`; hashes and feature versions are filled in on apply. */
   project: MfeflowProject;
-  /** Files with changes the upgrade did not write, each with a diff. */
+  /** Files the new version wants to change that you changed too, each with a diff. Only those without a `decision` are left undecided. */
   diverged: DivergedUpgrade[];
+  /** Feature migrations that ran, in order. */
+  migrations: { feature: string; from: string; to: string }[];
   /** Files the old version generated and the new one no longer does. Reported, never deleted. */
   removed: string[];
   /** Files the old version generated that you deleted. They are not brought back. */
@@ -198,6 +215,8 @@ function recordedOptions(
 interface Replay {
   files: Map<string, string>;
   tracked: Set<string>;
+  /** Files a third-party feature wrote or edited. They keep that trust all the way to the write. */
+  thirdParty: Set<string>;
   features: PlanFeature[];
   warnings: string[];
 }
@@ -234,7 +253,9 @@ async function replay(project: MfeflowProject, input: UpgradeInput): Promise<Rep
   const built = builder.build();
   const files = new Map<string, string>();
   const tracked = new Set<string>();
+  const thirdParty = new Set<string>();
   for (const change of built.changes) {
+    if (change.trust === 'third-party') thirdParty.add(change.path);
     if (change.after === null) continue;
     files.set(change.path, change.after);
     if (change.track) tracked.add(change.path);
@@ -243,6 +264,7 @@ async function replay(project: MfeflowProject, input: UpgradeInput): Promise<Rep
   return {
     files,
     tracked,
+    thirdParty,
     features: [...byName.values()],
     warnings,
   };
@@ -260,6 +282,8 @@ function unifiedDiff(file: string, yours: string, incoming: string): string {
 
 interface Classified {
   diverged: DivergedUpgrade[];
+  /** Files decided as kept, to be remembered in the project. */
+  kept: DivergedUpgrade[];
   missing: string[];
   /** Files already holding the new content, whose recorded hash is brought up to date. */
   matching: string[];
@@ -267,14 +291,57 @@ interface Classified {
 
 type Verdict = 'create' | 'missing' | 'matching' | 'replace' | 'leave' | DivergeReason;
 
+/** Each key of an env-style file with its value written out, so a changed value shows. */
+function entriesOf(file: string, source: string): Map<string, string> | undefined {
+  const base = file.slice(file.lastIndexOf('/') + 1);
+  try {
+    if (base.endsWith('.json')) {
+      const json = parseJsonObject(file, source);
+      return new Map(Object.entries(json).map(([key, value]) => [key, JSON.stringify(value)]));
+    }
+    if (base.startsWith('.env')) {
+      const values = new Map<string, string>();
+      for (const line of source.split('\n')) {
+        const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$/.exec(line);
+        if (match?.[1] !== undefined) values.set(match[1], (match[2] ?? '').trim());
+      }
+      return values;
+    }
+    const keys = schemaKeys(source, file, base === 'env.ts' ? 'server' : 'runtime');
+    return keys === undefined
+      ? undefined
+      : new Map(keys.map((k) => [k.name, k.schema.replaceAll(/\s+/g, ' ')]));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The keys `add env-key` put in a file that the new version does not generate, and the keys whose
+ * value you changed from the new version's. Replacing the file would drop both. Undefined when the
+ * file cannot be read that way.
+ */
+function lostKeys(file: string, disk: string, incoming: string): string[] | undefined {
+  const yours = entriesOf(file, disk);
+  const wanted = entriesOf(file, incoming);
+  if (yours === undefined || wanted === undefined) return undefined;
+  return [...yours].filter(([key, value]) => wanted.get(key) !== value).map(([key]) => key);
+}
+
+/** Verdicts that end in a write, or in an offer to write, over whatever is at the path. */
+const writes = (verdict: Verdict) =>
+  verdict === 'create' ||
+  verdict === 'replace' ||
+  (verdict !== 'missing' && verdict !== 'matching' && verdict !== 'leave' && verdict !== 'symlink');
+
 /** What to do with one generated file, given what is on disk and what was recorded for it. */
 function judge(
   file: string,
   disk: string | undefined,
   incoming: string,
-  recorded?: string,
-  anySkipped = false,
+  state: { recorded?: string; kept?: string; anySkipped: boolean },
 ): Verdict {
+  const { recorded, kept, anySkipped } = state;
   if (disk === undefined) {
     if (recorded !== undefined) return 'missing';
     return USER_DATA.test(file) ? 'leave' : 'create';
@@ -283,9 +350,15 @@ function judge(
     return recorded !== undefined && recorded !== hashContent(disk) ? 'matching' : 'leave';
   }
   if (USER_DATA.test(file)) return 'leave';
+  if (kept !== undefined) return kept === hashContent(incoming) ? 'leave' : 'edited';
+  // The new version generates what the old one did: there is nothing incoming to decide about.
+  if (recorded !== undefined && recorded === hashContent(incoming)) return 'leave';
   if (recorded === undefined) return 'untracked';
-  if (ENV_KEY_FILES.test(file)) return 'edited-by-cli';
   if (recorded !== hashContent(disk)) return 'edited';
+  if (ENV_KEY_FILES.test(file)) {
+    const lost = lostKeys(file, disk, incoming);
+    if (lost === undefined || lost.length > 0) return 'edited-by-cli';
+  }
   return anySkipped ? 'skipped-feature' : 'replace';
 }
 
@@ -295,17 +368,25 @@ async function compareFiles(
   fresh: Replay,
   read: ReadFile,
   builder: PlanBuilder,
-  options: { anySkipped: boolean; isSymlink?: (file: string) => Promise<boolean> },
+  options: {
+    anySkipped: boolean;
+    isSymlink?: (file: string) => Promise<boolean>;
+    decisions: UpgradeDecisions;
+  },
 ): Promise<Classified> {
-  const out: Classified = { diverged: [], missing: [], matching: [] };
+  const out: Classified = { diverged: [], kept: [], missing: [], matching: [] };
   const entries = [...fresh.files].toSorted(([a], [b]) => (a < b ? -1 : 1));
   for (const [file, incoming] of entries) {
     // oxlint-disable-next-line no-await-in-loop -- reading in order keeps the plan deterministic
     const disk = await read(file);
     if (isStructured(file) && disk !== undefined) continue;
-    let verdict = judge(file, disk, incoming, project.files?.[file], options.anySkipped);
-    // oxlint-disable-next-line no-await-in-loop -- only asked for a file that would be replaced
-    if (verdict === 'replace' && (await options.isSymlink?.(file))) verdict = 'symlink';
+    let verdict = judge(file, disk, incoming, {
+      ...(project.files?.[file] === undefined ? {} : { recorded: project.files[file] }),
+      ...(project.kept?.[file] === undefined ? {} : { kept: project.kept[file] }),
+      anySkipped: options.anySkipped,
+    });
+    // oxlint-disable-next-line no-await-in-loop -- only asked for a file that would be written
+    if (writes(verdict) && (await options.isSymlink?.(file))) verdict = 'symlink';
     if (verdict === 'missing') out.missing.push(file);
     else if (verdict === 'matching') out.matching.push(file);
     else if (verdict === 'create') {
@@ -315,7 +396,14 @@ async function compareFiles(
       // oxlint-disable-next-line no-await-in-loop -- builder edits are ordered
       await builder.replace(file, incoming);
     } else if (verdict !== 'leave') {
-      out.diverged.push(diverge(file, verdict, disk ?? '', incoming));
+      const entry = diverge(file, verdict, disk ?? '', incoming);
+      const decision = verdict === 'symlink' ? undefined : decide(file, options.decisions);
+      if (decision !== undefined) entry.decision = decision;
+      out.diverged.push(entry);
+      if (decision === 'accept') {
+        // oxlint-disable-next-line no-await-in-loop -- builder edits are ordered
+        await builder.replace(file, incoming);
+      } else if (decision === 'keep') out.kept.push(entry);
     }
   }
   return out;
@@ -327,7 +415,30 @@ function diverge(
   yours: string,
   incoming: string,
 ): DivergedUpgrade {
-  return { path: file, reason, yours, incoming, diff: unifiedDiff(file, yours, incoming) };
+  const entry: DivergedUpgrade = {
+    path: file,
+    reason,
+    yours,
+    incoming,
+    diff: unifiedDiff(file, yours, incoming),
+  };
+  const lost = ENV_KEY_FILES.test(file) ? lostKeys(file, yours, incoming) : undefined;
+  if (lost !== undefined && lost.length > 0) entry.lostKeys = lost;
+  return entry;
+}
+
+const named = (set: ReadonlySet<string> | 'all' | undefined, file: string) =>
+  set === 'all' || set?.has(file) === true;
+
+/** A path named in both lists is a mistake the caller reports; accepting wins here so nothing is lost. */
+function decide(file: string, decisions: UpgradeDecisions): 'accept' | 'keep' | undefined {
+  const accept = named(decisions.accept, file);
+  const keep = named(decisions.keep, file);
+  if (accept && keep) {
+    return decisions.accept === 'all' && decisions.keep !== 'all' ? 'keep' : 'accept';
+  }
+  if (accept) return 'accept';
+  return keep ? 'keep' : undefined;
 }
 
 /** Adds the catalog entries and `allowBuilds` rules the new template has and the workspace file lacks. */
@@ -509,14 +620,17 @@ async function runMigrations(
   project: MfeflowProject,
   input: UpgradeInput,
   builder: PlanBuilder,
-): Promise<void> {
+): Promise<UpgradePlan['migrations']> {
   const importModule = input.importModule ?? importDefault;
+  const ran: UpgradePlan['migrations'] = [];
   for (const step of pendingMigrations(input.features, project)) {
     // oxlint-disable-next-line no-await-in-loop -- migrations run in version order
     const migrate = await loadMigration(step, importModule);
     // oxlint-disable-next-line no-await-in-loop -- migrations run in version order
     await migrate(builder.scoped('first-party'), project);
+    ran.push({ feature: step.feature.manifest.name, from: step.from, to: step.to });
   }
+  return ran;
 }
 
 /** Tracked files that are still on disk but that the new version no longer generates. */
@@ -564,6 +678,7 @@ export async function planUpgrade(
 
   const compared = await compareFiles(project, fresh, input.read, builder, {
     anySkipped: (input.skipped ?? []).length > 0,
+    decisions: input.decisions ?? {},
     ...(input.isSymlink ? { isSymlink: input.isSymlink } : {}),
   });
   await editWorkspace(fresh, input.read, builder, project.local !== undefined);
@@ -585,17 +700,24 @@ export async function planUpgrade(
     await editPackage(file, fresh, input.toVersion, local, builder);
   }
 
-  await runMigrations(project, input, builder);
+  const migrations = await runMigrations(project, input, builder);
   const skipped = input.skipped ?? [];
-  const removed = skipped.length === 0 ? await findRemoved(project, fresh, input.read) : [];
+  // A file a migration deletes or moves is not reported as left behind.
+  const planned: ReadFile = (file) => builder.content(file);
+  const removed = skipped.length === 0 ? await findRemoved(project, fresh, planned) : [];
 
   const built = builder.build();
   const plan: Plan = {
     ...built,
-    changes: built.changes.map(keepLineEndings),
+    changes: built.changes.map((change) => {
+      const kept = keepLineEndings(change);
+      kept.trust = fresh.thirdParty.has(kept.path) ? 'third-party' : kept.trust;
+      return kept;
+    }),
     features: fresh.features,
     warnings: [
       ...fresh.warnings,
+      ...built.warnings,
       ...skipped.map(
         ({ name, reason }) =>
           `${name} was not replayed (${reason}); its files were left as they are`,
@@ -603,9 +725,22 @@ export async function planUpgrade(
     ],
   };
   const files = { ...project.files };
+  const kept = { ...project.kept };
   for (const file of compared.matching) files[file] = hashContent(fresh.files.get(file) ?? '');
+  for (const entry of compared.diverged) {
+    if (entry.decision === 'accept') {
+      files[entry.path] = hashContent(entry.incoming);
+      delete kept[entry.path];
+    }
+  }
+  for (const entry of compared.kept) {
+    files[entry.path] = hashContent(entry.yours);
+    kept[entry.path] = hashContent(entry.incoming);
+  }
   const next: MfeflowProject = { ...project, cli: input.toVersion };
   if (Object.keys(files).length > 0) next.files = files;
+  if (Object.keys(kept).length > 0) next.kept = kept;
+  else delete next.kept;
   return {
     from: baseline.version,
     fromSource: baseline.source,
@@ -613,6 +748,7 @@ export async function planUpgrade(
     plan,
     project: next,
     diverged: compared.diverged,
+    migrations,
     removed,
     missing: compared.missing,
   };

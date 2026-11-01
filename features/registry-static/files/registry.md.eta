@@ -1,0 +1,49 @@
+# Registry
+
+Remotes are published to a static host: a folder, or an S3-compatible bucket (S3, R2, MinIO). Each version is
+uploaded once and never changes; the environment's `index.json` points at the version people get. A rollback moves
+that pointer back, with no rebuild.
+
+## Configuration
+
+- `host`: <%= it.options.host === '' ? 'not set yet' : '`' + it.options.host + '`' %>
+- `baseUrl`: <%= it.options.baseUrl === '' ? 'not set yet' : '`' + it.options.baseUrl + '`' %>
+
+These are the options `registry-static` was added with (see `features` in `mfeflow.json`). `registry.host` and
+`registry.baseUrl` in `mfeflow.json` take precedence, and `--host` and `--base-url` on a command beat both.
+`host` is `file:<dir>` or `s3://<bucket>[/prefix]`; `baseUrl` is where the host's files are served from, without a
+trailing slash.
+
+## Commands
+
+```sh
+pnpm registry:deploy catalog --env prod     # upload the build, point prod at it
+pnpm registry:status                        # what each environment serves, and drift
+pnpm registry:rollback catalog --env prod   # back to the previous version, no rebuild
+```
+
+`deploy` publishes the version in the remote's `package.json` unless you pass `--version`. Run it with `--dry-run`
+first to see the uploads and the checks.
+
+## Credentials
+
+Credentials are read from the environment and never written to a file: `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY` and, for R2 or MinIO, `MFEFLOW_S3_ENDPOINT` and `MFEFLOW_S3_REGION`. Locally, export them in
+your shell. Do not commit a `.env` file with them.
+
+## In CI
+
+With `ci-github` in the project, `.github/workflows/deploy.yml` deploys every remote when `main` changes (and from the
+Actions tab, for another environment). Add `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` as secrets of the
+`registry` environment, and `MFEFLOW_S3_ENDPOINT` and `MFEFLOW_S3_REGION` as its variables. The workflow is only
+generated when `ci-github` is already in the project, so add `ci-github` first.
+
+Protect the `registry` environment (Settings, Environments): allow deployments from the `main` branch only, and add
+required reviewers for `prod`. The workflow also refuses to run from any other branch. A remote whose files changed
+without a version bump fails its deploy; the others still deploy, and the run fails at the end with the list.
+
+## How fast a rollback reaches people
+
+The index is served with `Cache-Control: max-age=60`, so a browser that already has it keeps it for up to a minute.
+GitHub Pages cannot change its 10 minute cache, so a rollback there takes about 11 minutes. Use a bucket if that is
+too slow.

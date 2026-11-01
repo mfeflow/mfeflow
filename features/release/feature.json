@@ -1,0 +1,43 @@
+{
+  "name": "release",
+  "version": "0.1.0",
+  "description": "Changesets versions each remote on its own. A pull request adds a changeset, `pnpm release:version` bumps the remote's package.json and changelog, and `mfeflow deploy` publishes that same version.",
+  "requires": ["core"],
+  "files": [
+    {
+      "to": ".changeset/config.json",
+      "target": "root",
+      "from": "files/config.json"
+    },
+    {
+      "to": ".changeset/README.md",
+      "target": "root",
+      "from": "files/changeset-readme.md"
+    },
+    {
+      "to": "docs/releasing.md",
+      "target": "root",
+      "from": "files/releasing.md"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@changesets/cli",
+      "range": "3.0.3",
+      "target": "root",
+      "dev": true
+    }
+  ],
+  "scripts": [
+    {
+      "name": "changeset",
+      "command": "changeset",
+      "target": "root"
+    },
+    {
+      "name": "release:version",
+      "command": "changeset version",
+      "target": "root"
+    }
+  ]
+}

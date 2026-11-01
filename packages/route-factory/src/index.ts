@@ -149,13 +149,13 @@ export interface ShellRoute {
   remote: string;
   /** Where the shell serves the remote, e.g. `/catalog`. */
   mount: string;
-  /** The same as a wildcard pattern for a router or `mfe.json`, e.g. `/catalog/*`. */
+  /** The same as a wildcard pattern for a router or `mfeflow.app.json`, e.g. `/catalog/*`. */
   pattern: string;
 }
 
 /**
  * What the shell needs to route to each remote, from the same definitions the links come from:
- * add `pattern` to a router or to `mfe.json` `routes`, and `mount` to a hand-written route table.
+ * add `pattern` to a router or to `mfeflow.app.json` `routes`, and `mount` to a hand-written route table.
  */
 export function shellRoutes(sets: RouteSets): ShellRoute[] {
   return Object.entries(sets).map(([remote, set]) => ({

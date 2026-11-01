@@ -17,7 +17,7 @@ Share React as a singleton. The Rsbuild presets do this for React, React DOM and
 
 ## What if the shell and a remote use different versions?
 
-The remote asks for a range based on what it installed, and the shell provides its own copy. `mfeflow check-compat` compares them and reports a mismatch. A remote can also declare the ranges it needs under `platform` in its `mfe.json`. See [CI and budgets](/guide/ci-and-budgets).
+The remote asks for a range based on what it installed, and the shell provides its own copy. `mfeflow check-compat` compares them and reports a mismatch. A remote can also declare the ranges it needs under `platform` in its `mfeflow.app.json`. See [CI and budgets](/guide/ci-and-budgets).
 
 ## What does "Failed to get remoteEntry exports" mean?
 
@@ -33,17 +33,17 @@ At boot it reads a registry index, a JSON list of remotes with their entry URLs.
 
 ## Can I deploy or roll back one remote without redeploying the shell?
 
-You can deploy one remote on its own today. Replace its files under `/mfe/<name>/`, and the shell loads the new build the next time a visitor opens the page. Rollback is manual: put the old files back.
+Yes. Publish the remote's new version and change one entry in the registry index. The shell loads the new build the next time a visitor opens the page.
 
-A command that rolls back by changing a pointer, with no rebuild, is planned and not built. See [Deploy](/guide/deploying).
+To go back, point the entry at the earlier version. Nothing is rebuilt. The `mfeflow rollback` command does this for you, and you can also edit the index by hand. See [Deploy and roll back a remote](/guide/deploy-and-rollback) and the [Deploy overview](/guide/deploy/).
 
 ## Who owns the contracts between remotes?
 
-Each app names an owner in its `mfe.json`. Shared types, such as event payloads, live in a contracts package that the event-bus feature creates. Teams review changes to it like any other code. See [Ownership](/concepts/ownership).
+Each app names an owner in its `mfeflow.app.json`. Shared types, such as event payloads, live in a contracts package that the event-bus feature creates. Teams review changes to it like any other code. See [Ownership](/concepts/ownership).
 
 ## How does routing between the shell and remotes work?
 
-The shell owns the URL. It has a route table that maps paths to remotes. Each remote claims its routes in `mfe.json`, and `validate` fails when two remotes claim overlapping paths. The route-factory feature gives typed links between remotes. See [route-factory](/features/route-factory).
+The shell owns the URL. It has a route table that maps paths to remotes. Each remote claims its routes in `mfeflow.app.json`, and `validate` fails when two remotes claim overlapping paths. The route-factory feature gives typed links between remotes. See [route-factory](/features/route-factory).
 
 ## How do remotes share state or talk to each other?
 
