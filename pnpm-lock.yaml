@@ -942,6 +942,10 @@ importers:
         version: 26.6.6
 
   packages/route-factory:
+    dependencies:
+      '@mfeflow/url-factory':
+        specifier: workspace:*
+        version: link:../url-factory
     devDependencies:
       '@rsbuild/plugin-react':
         specifier: 'catalog:'
