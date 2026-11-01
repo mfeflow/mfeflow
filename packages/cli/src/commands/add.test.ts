@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { integrityOf, parseProject } from '@mfeflow/core';
+import { addTrusted, integrityOf, parseProject } from '@mfeflow/core';
 import type { FetchLike } from '@mfeflow/core';
 import { inCatalogueOrder } from './add';
 import { main, validateResult, type AddResult } from '..';
@@ -623,9 +623,37 @@ describe('mfeflow add @namespace/feature: trust and integrity', () => {
   });
 
   it('fetches a loopback registry once it is trusted', async () => {
-    await setRegistries({ '@acme': 'http://127.0.0.1:4010/{name}.json' });
-    const rt = testRuntime({ fetch: registry(hello()), trust: ['@acme'] });
+    const template = 'http://127.0.0.1:4010/{name}.json';
+    await setRegistries({ '@acme': template });
+    const rt = testRuntime({ fetch: registry(hello()) });
+    await addTrusted(rt.configDir, { namespace: '@acme', template });
     expect((await add(['@acme/hello', '--yes', '--no-install'], rt)).code).toBe(0);
+    const pinned = testRuntime({ fetch: registry(hello()), trust: [`@acme=${template}`] });
+    expect((await add(['@acme/hello', '--yes', '--no-install'], pinned)).code).toBe(0);
+  });
+
+  it('does not let MFEFLOW_TRUST_REGISTRIES with only a namespace reach a private address', async () => {
+    for (const template of [
+      'https://169.254.169.254/{name}.json',
+      'http://127.0.0.1:4010/{name}.json',
+    ]) {
+      await setRegistries({ '@acme': template });
+      const asked: string[] = [];
+      const rt = testRuntime({ fetch: registry(hello(), undefined, asked), trust: ['@acme'] });
+      const { code } = await add(['@acme/hello', '--yes', '--no-install'], rt);
+      expect(code, template).toBe(6);
+      expect(rt.io.err.join('\n')).toContain('MFEFLOW_E405');
+      expect(asked).toEqual([]);
+    }
+  });
+
+  it('keeps a token from the cause out of --verbose output', async () => {
+    const fetch: FetchLike = () =>
+      Promise.reject(new Error('connect failed https://acme.dev/hello.json?token=hunter2'));
+    const rt = testRuntime({ fetch });
+    await add(['@acme/hello', '--yes', '--no-install', '--verbose'], rt);
+    expect(rt.io.err.join('\n')).toContain('connect failed');
+    expect(rt.io.err.join('\n')).not.toContain('hunter2');
   });
 
   it('is an error when the index lists another version than the feature.json, and writes nothing', async () => {
@@ -665,6 +693,19 @@ describe('mfeflow add @namespace/feature: trust and integrity', () => {
     });
 
     const changed = hello({ description: 'quietly changed' });
+
+    it('says so and pins the hash when an installed feature has none recorded', async () => {
+      const file = path.join(project, 'mfeflow.json');
+      const saved = parseProject(await fs.readFile(file, 'utf8'));
+      delete saved.features['@acme/hello']?.integrity;
+      await fs.writeFile(file, `${JSON.stringify(saved, null, 2)}\n`);
+      const rt = testRuntime({ fetch: registry(served), trust: ['@acme'] });
+      expect((await add(['shell', 'admin', '--yes', '--no-install'], rt)).code).toBe(0);
+      expect(rt.io.out.join('\n')).toContain('@acme/hello has no integrity hash');
+      expect((await load()).features['@acme/hello']?.integrity).toBe(
+        integrityOf(JSON.stringify(served)),
+      );
+    });
 
     it('stops with E406 when the registry now serves other content, and writes nothing', async () => {
       const before = await readTree(project);

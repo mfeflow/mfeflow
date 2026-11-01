@@ -17,6 +17,7 @@ function run(command: string, args: string[], cwd: string): Promise<number> {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       cwd,
+      env: { ...process.env, MFEFLOW_CONFIG_DIR: configDir },
       stdio: 'inherit',
       shell: process.platform === 'win32' && command === 'pnpm',
     });
@@ -34,7 +35,10 @@ const mfeflow = (args: string[], cwd: string) => run(process.execPath, [cli, ...
 /** Output of a mfeflow run. Async on purpose: the registry server lives in this process, which a sync spawn would block. */
 function capture(args: string[], cwd: string): Promise<{ status: number; out: string }> {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [cli, ...args], { cwd });
+    const child = spawn(process.execPath, [cli, ...args], {
+      cwd,
+      env: { ...process.env, MFEFLOW_CONFIG_DIR: configDir },
+    });
     let out = '';
     child.stdout.on('data', (chunk: Buffer) => (out += chunk.toString()));
     child.stderr.on('data', (chunk: Buffer) => (out += chunk.toString()));
@@ -63,6 +67,8 @@ function fail(step: string, why = ''): never {
 const base = fs.realpathSync(process.env.MATRIX_DIR ?? os.tmpdir());
 const work = fs.mkdtempSync(path.join(base, 'mfeflow-registry-'));
 const site = path.join(work, 'site');
+/** The CLI keeps the registries it trusts here, so a local run never touches the real ~/.config. */
+const configDir = path.join(work, 'config');
 const project = path.join(work, 'app');
 let server: http.Server | undefined;
 

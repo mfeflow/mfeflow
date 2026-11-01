@@ -74,7 +74,9 @@ export function registryUrl(
  * requested. `code` is the error every failure here throws. With `loopback`, a URL that starts
  * on plain http at 127.0.0.1, localhost or [::1] may stay on such a host; nothing else may
  * step down to http, and an https URL never ends up on one. With `blockPrivate`, no request goes
- * to a loopback or private address (`isPrivateHost`), not even by redirect; that is E405.
+ * to a loopback or private address (`isPrivateHost`), not even by redirect; that is E405. With
+ * `blockPrivate: false` (a trusted registry) a private address is fine only when `url` itself is
+ * private, so a public server can never redirect you into a private network.
  */
 export async function getHttps(
   url: string,
@@ -89,14 +91,18 @@ export async function getHttps(
       cause === undefined ? {} : { cause },
     );
   };
+  const startsPrivate = isPrivateHost(new URL(url).hostname);
   const refusePrivate = (target: URL): void => {
-    if (options.blockPrivate === true && isPrivateHost(target.hostname)) {
-      throw new MfeflowError(
-        'E405',
-        redactUrl(target.href) +
-          ' is a loopback or private address; those are only requested from a trusted registry',
-      );
-    }
+    if (options.blockPrivate === undefined || !isPrivateHost(target.hostname)) return;
+    // Trust covers a private address the user wrote, never one a public server points at.
+    if (!options.blockPrivate && startsPrivate) return;
+    const why = options.blockPrivate
+      ? 'those are only requested from a trusted registry'
+      : 'a public registry may not send you to one';
+    throw new MfeflowError(
+      'E405',
+      `${redactUrl(target.href)} is a loopback or private address; ${why}`,
+    );
   };
   refusePrivate(new URL(url));
   const startsLoopback = options.loopback === true && isLoopbackHttp(new URL(url));

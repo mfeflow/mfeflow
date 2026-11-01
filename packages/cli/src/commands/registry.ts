@@ -48,7 +48,7 @@ async function entries(rt: Runtime, project: MfeflowProject): Promise<RegistryEn
       namespace,
       url: redactUrl(url),
       index: redactUrl(registryIndexUrl(url)),
-      trusted: trusted.has(namespace),
+      trusted: trusted.fetch.has(namespace),
     }));
 }
 

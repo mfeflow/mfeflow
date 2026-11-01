@@ -331,10 +331,11 @@ describe('mfeflow features across registries', () => {
   it('asks a trusted loopback registry, and never prints a token from the URL', async () => {
     const cwd = await project({ '@local': 'http://127.0.0.1:4010/{name}.json?token=hunter2' });
     const { fetch, asked } = serving({});
-    const rt = testRuntime({ fetch, trust: ['@local'] });
+    const pinned = ['@local=http://127.0.0.1:4010/{name}.json?token=hunter2'];
+    const rt = testRuntime({ fetch, trust: pinned });
     await main(['features', '--cwd', cwd], rt);
     expect(asked).toEqual(['http://127.0.0.1:4010/index.json']);
-    const json = testRuntime({ fetch, trust: ['@local'] });
+    const json = testRuntime({ fetch, trust: pinned });
     await main(['features', '--json', '--cwd', cwd], json);
     expect(rt.io.out.join('\n') + rt.io.err.join('\n') + json.io.out.join('')).not.toContain(
       'hunter2',
@@ -349,5 +350,14 @@ describe('mfeflow features across registries', () => {
     const json = testRuntime({ fetch: serving({}).fetch, trust: ['@alpha'] });
     await main(['features', '--json', '--cwd', cwd], json);
     expect(jsonOf(json.io.out).registries[0]?.index).toBe('https://alpha.example/r/index.json');
+  });
+
+  it('does not ask a loopback registry that the environment trusts by namespace only', async () => {
+    const cwd = await project({ '@local': 'https://169.254.169.254/{name}.json' });
+    const { fetch, asked } = serving({});
+    const rt = testRuntime({ fetch, trust: ['@local'] });
+    await main(['features', '--json', '--cwd', cwd], rt);
+    expect(asked).toEqual([]);
+    expect(jsonOf(rt.io.out).registries[0]?.error?.code).toBe('MFEFLOW_E405');
   });
 });

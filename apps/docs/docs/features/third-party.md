@@ -49,7 +49,9 @@ request to one of them until you have trusted it **on your machine**.
   It asks you to confirm; without a terminal it needs `--yes`.
 - `mfeflow registry untrust @acme` takes it back.
 - In CI, set `MFEFLOW_TRUST_REGISTRIES=@acme,@other` for that run. Nothing is written, and nothing is trusted unless it
-  is named.
+  is named. A namespace named like this may be asked on a public address only: it never unlocks `localhost` or a private
+  address, because a pull request can change the URL in `mfeflow.json`. To allow those in CI, pin the template:
+  `MFEFLOW_TRUST_REGISTRIES=@acme=https://10.0.0.5/{name}.json`. It counts only if the project has that exact template.
 
 What you trust is the namespace **and its exact URL template**, kept in `trusted-registries.json` in your own config
 folder (`~/.config/mfeflow`, `$XDG_CONFIG_HOME/mfeflow`, or `%APPDATA%\mfeflow` on Windows; `MFEFLOW_CONFIG_DIR`
@@ -58,22 +60,28 @@ overrides it). If the URL in `mfeflow.json` changes, the registry is untrusted a
 Two more rules:
 
 - **Your own machine and private networks need trust.** `localhost`, `127.0.0.0/8`, `::1`, `10.0.0.0/8`,
-  `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16` and `fc00::/7` are never requested, nor reached by a redirect,
-  unless the registry is trusted (`MFEFLOW_E405`). Only the written host is checked, not what a name resolves to.
+  `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`, `192.0.0.0/24`, `fc00::/7`, `fe80::/10`,
+  `fec0::/10`, IPv6 forms that hold one of those IPv4 addresses (mapped, compatible, NAT64, 6to4) and names ending in
+  `.localhost`, `.internal` or `.local` are never requested unless the registry is trusted (`MFEFLOW_E405`). Only the
+  written host is checked, not what a name resolves to.
+- **A redirect can never lead into a private network from a public address,** even for a trusted registry. Trust covers
+  a private address you wrote yourself, not one a public server points at.
 - **`mfeflow add @acme/segment` is your explicit action.** For a public https registry it fetches that one
   `feature.json` without prior trust, because you named the feature and nothing is written before you confirm the plan.
   `add remote` and `add shell` fetch every installed registry feature again, so they need the registry trusted.
 
 Each time a registry feature is added, mfeflow records the sha256 of its `feature.json` in `mfeflow.json` as
 `integrity`. When `add remote` or `add shell` fetch it again, other bytes stop the command with `MFEFLOW_E406` and
-nothing is written; read what changed, then run it again with `--accept-changed-content` to take it. On `add`, a
+nothing is written; read what changed, then run it again with `--accept-changed-content` to take it. A feature added
+before hashes were recorded has none: the next time it is fetched, mfeflow says so and records one. On `add`, a
 `version` in the registry's `index.json` that differs from the one in the `feature.json` is an error too.
 
 The plan lists the packages a registry feature adds under **NEW PACKAGES**, separate from other dependencies. npm and
 yarn run a package's install scripts on install; pnpm 10 and later blocks them until you allow them. Look at each
 package first.
 
-Tokens in a registry URL (`token`, `key`, `sig`, `auth`, `password`, `secret`, `X-Amz-*`) are shown as `***` by
+Tokens in a registry URL (`token`, `key`, `sig`, `auth`, `password`, `secret`, `jwt`, `bearer`, `session`, `pat`,
+`access`, `code`, `X-Amz-*`, in the query or after `#`) are shown as `***` by
 `registry add` and `list`, `features` and in errors. They stay in `mfeflow.json` as written, so keep secrets out of
 a file you commit.
 

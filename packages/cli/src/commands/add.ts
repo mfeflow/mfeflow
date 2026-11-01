@@ -123,7 +123,7 @@ async function addAppParts(
       names
         .filter((n) => n.startsWith('@'))
         .map((n) => n.slice(0, n.indexOf('/')))
-        .filter((ns) => ns in (project.registries ?? {}) && !trusted.has(ns)),
+        .filter((ns) => ns in (project.registries ?? {}) && !trusted.fetch.has(ns)),
     ),
   ];
   if (untrusted.length > 0) {
@@ -139,7 +139,7 @@ async function addAppParts(
         registries: project.registries,
         fetch: rt.fetch,
         version: project.features[feature]?.version,
-        trusted,
+        trusted: trusted.privateOk,
       }),
     ),
   );
@@ -166,8 +166,13 @@ async function addAppParts(
       fromRegistry.push(feature);
       const entry = next.features[feature];
       const now = loaded.integrity;
-      if (entry?.integrity !== undefined && now !== undefined) {
-        if (checkIntegrity(feature, entry.integrity, now, acceptChanged)) {
+      if (entry !== undefined && now !== undefined) {
+        if (entry.integrity === undefined) {
+          if (!globals.json) {
+            rt.io.stdout(`${feature} has no integrity hash in mfeflow.json; recording one now.`);
+          }
+          next.features[feature] = { ...entry, integrity: now };
+        } else if (checkIntegrity(feature, entry.integrity, now, acceptChanged)) {
           next.features[feature] = { ...entry, integrity: now };
         }
       }
@@ -390,7 +395,7 @@ async function addFeatures(
         roots: rt.roots,
         registries: project.registries,
         fetch: rt.fetch,
-        trusted,
+        trusted: trusted.privateOk,
         checkIndex: true,
       }),
     ),

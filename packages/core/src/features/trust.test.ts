@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   addTrusted,
   configDirOf,
-  namespacesFromEnv,
+  parseTrustEnv,
   readTrusted,
   removeTrusted,
   trustedNamespaces,
@@ -93,17 +93,41 @@ describe('trustedNamespaces', () => {
   const registries = { '@acme': A.template, '@bee': 'https://bee.dev/other/{name}.json' };
 
   it('needs the namespace and the very same template', () => {
-    expect([...trustedNamespaces(registries, [A, B])]).toEqual(['@acme']);
+    const trusted = trustedNamespaces(registries, [A, B]);
+    expect([...trusted.fetch]).toEqual(['@acme']);
+    expect([...trusted.privateOk]).toEqual(['@acme']);
   });
 
-  it('trusts a namespace named for this run, and ignores ones the project does not have', () => {
-    expect([...trustedNamespaces(registries, [], ['@bee', '@nobody'])]).toEqual(['@bee']);
+  it('lets a namespace named only in the environment be asked, but never on a private address', () => {
+    const trusted = trustedNamespaces(registries, [], parseTrustEnv('@bee,@nobody'));
+    expect([...trusted.fetch]).toEqual(['@bee']);
+    expect(trusted.privateOk.size).toBe(0);
+  });
+
+  it('lets an environment item pinned to the project template reach private addresses', () => {
+    const env = parseTrustEnv(`@acme=${A.template}`);
+    const trusted = trustedNamespaces(registries, [], env);
+    expect([...trusted.fetch]).toEqual(['@acme']);
+    expect([...trusted.privateOk]).toEqual(['@acme']);
+  });
+
+  it('ignores an environment item pinned to another template', () => {
+    const trusted = trustedNamespaces(
+      registries,
+      [],
+      parseTrustEnv('@acme=https://evil.dev/{name}.json'),
+    );
+    expect(trusted.fetch.size).toBe(0);
+    expect(trusted.privateOk.size).toBe(0);
   });
 });
 
-describe('namespacesFromEnv', () => {
-  it('reads a comma list and skips anything that is not a namespace', () => {
-    expect(namespacesFromEnv(' @a, @b-2 ,nope,,*')).toEqual(['@a', '@b-2']);
-    expect(namespacesFromEnv(undefined)).toEqual([]);
+describe('parseTrustEnv', () => {
+  it('reads a comma list, with optional pinned templates, and skips what is not a namespace', () => {
+    expect(parseTrustEnv(' @a, @b-2=https://x.dev/{name}.json?v=1 ,nope,,*')).toEqual([
+      { namespace: '@a' },
+      { namespace: '@b-2', template: 'https://x.dev/{name}.json?v=1' },
+    ]);
+    expect(parseTrustEnv(undefined)).toEqual([]);
   });
 });

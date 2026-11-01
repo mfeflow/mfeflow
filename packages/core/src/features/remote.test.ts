@@ -357,6 +357,43 @@ describe('private addresses need a trusted registry', () => {
     expect(text).toBe('{}');
   });
 
+  it('refuses a public registry that redirects to a private address even when it is trusted', async () => {
+    const asked: string[] = [];
+    const fetch: FetchLike = (url) => {
+      asked.push(url);
+      return Promise.resolve({
+        ok: false,
+        status: 302,
+        headers: { get: () => 'https://127.0.0.1:6379/' },
+        text: () => Promise.resolve(''),
+      });
+    };
+    const error = await rejection(
+      fetchRemoteText('@acme/segment', registries, fetch, undefined, true),
+    );
+    expect(error.code).toBe('MFEFLOW_E405');
+    expect(asked).toHaveLength(1);
+  });
+
+  it('lets a trusted private registry redirect inside the private network', async () => {
+    const asked: string[] = [];
+    const fetch: FetchLike = (url) => {
+      asked.push(url);
+      return Promise.resolve(
+        asked.length === 1
+          ? {
+              ok: false,
+              status: 302,
+              headers: { get: () => 'https://10.0.0.9/moved.json' },
+              text: () => Promise.resolve(''),
+            }
+          : ok('{}'),
+      );
+    };
+    const registry = { '@test': 'https://10.0.0.5/{name}.json' };
+    expect(await fetchRemoteText('@test/hello', registry, fetch, undefined, true)).toBe('{}');
+  });
+
   it('refuses a public registry that redirects to a private address, and asks no further', async () => {
     const asked: string[] = [];
     const fetch: FetchLike = (url) => {

@@ -20,12 +20,14 @@ export {
 export {
   addTrusted,
   configDirOf,
-  namespacesFromEnv,
+  parseTrustEnv,
   readTrusted,
   removeTrusted,
   TRUST_ENV,
   trustedNamespaces,
   trustFileIn,
+  type EnvTrust,
+  type Trusted,
   type TrustedRegistry,
 } from './trust';
 export { resolveFeature, resolveOptions, type ResolveInput } from './resolve';
