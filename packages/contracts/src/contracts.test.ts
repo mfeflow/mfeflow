@@ -514,6 +514,19 @@ describe('isPrivateHost', () => {
 });
 
 describe('redactUrl', () => {
+  it('stays fast on long query strings with no = in them', () => {
+    const long = `https://r.test/{name}.json?${'%'.repeat(50_000)}`;
+    const started = performance.now();
+    expect(redactUrl(long)).toBe(long);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
+  it('keeps separators and values with = in them as they were', () => {
+    expect(redactUrl('https://r.test/x?a=b=c;token=s&&d=')).toBe(
+      'https://r.test/x?a=b=c;token=***&&d=',
+    );
+  });
+
   it('hides the value of token-like parameters and keeps the rest', () => {
     expect(redactUrl('https://r.dev/{name}.json?token=abc&v=2')).toBe(
       'https://r.dev/{name}.json?token=***&v=2',

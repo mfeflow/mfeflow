@@ -245,9 +245,15 @@ export function redactUrl(url: string): string {
 
 /** Replaces the value of each secret-looking `name=value` pair, split on `&` or `;`. */
 function hideSecrets(params: string): string {
-  return params.replaceAll(/([^&;=]+)=([^&;]*)/g, (pair, key: string) =>
-    SECRET_PARAM.test(safeDecode(key)) ? `${key}=***` : pair,
-  );
+  return params
+    .split(/([&;])/)
+    .map((part) => {
+      const eq = part.indexOf('=');
+      if (eq <= 0) return part;
+      const key = part.slice(0, eq);
+      return SECRET_PARAM.test(safeDecode(key)) ? `${key}=***` : part;
+    })
+    .join('');
 }
 
 /** `text` with every http(s) URL in it passed through `redactUrl`, for messages that quote one. */
