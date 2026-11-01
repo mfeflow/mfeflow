@@ -1,4 +1,4 @@
-import { SCHEMA_URLS, errorDocsUrl } from '@mfeflow/contracts';
+import { DOCS_URL, SCHEMA_URLS, errorDocsUrl } from '@mfeflow/contracts';
 
 interface ErrorInfo {
   title: string;
@@ -7,7 +7,7 @@ interface ErrorInfo {
 
 /**
  * Every error the engine throws. Ranges: E1xx project and config, E2xx
- * features, E3xx build and runtime, E4xx registry, E5xx upgrade.
+ * features, E3xx build and runtime, E4xx feature registries, E5xx deploy and the static registry.
  */
 export const ERROR_CATALOGUE = {
   E101: {
@@ -193,6 +193,54 @@ export const ERROR_CATALOGUE = {
   E404: {
     title: 'A feature in the registry folder cannot be published',
     fix: 'Fix the features listed above. They are checked with the same rules `mfeflow add @namespace/name` applies, so a feature that passes here installs for users.',
+  },
+  E501: {
+    title: 'A deploy failed the schema gate',
+    fix: `Fix what the message names: the remote's mfe.json, its mf-manifest.json or the version. Nothing was uploaded. See ${DOCS_URL}/guide/deploying.`,
+  },
+  E502: {
+    title: 'A route of this remote overlaps a route of another remote',
+    fix: `Give each URL to one remote (/checkout/* also covers /checkout/pay), then deploy again. Nothing was uploaded. See ${DOCS_URL}/guide/deploying.`,
+  },
+  E503: {
+    title: "The remote's shared ranges do not fit the shell that is deployed",
+    fix: `Align the remote with the shell on the package named above, or deploy the shell first. Nothing was uploaded. See ${DOCS_URL}/guide/deploying.`,
+  },
+  E504: {
+    title: 'The remote is over its first-load JS budget',
+    fix: `Cut what the remote loads first, or raise budgets.initialJsKb in its mfe.json on purpose. Nothing was uploaded. See ${DOCS_URL}/guide/deploying.`,
+  },
+  E505: {
+    title: 'A rollout was asked for, and a static host cannot split traffic',
+    fix: `Deploy to one version at a time, or use the registry server for percentage rollouts. See ${DOCS_URL}/guide/deploying.`,
+  },
+  E506: {
+    title: 'The registry host is not set up or cannot be used',
+    fix: `Pass --host file:<dir> or s3://<bucket>[/prefix], or set registry.host in mfeflow.json. Deploys also need --base-url or registry.baseUrl. S3 settings come from MFEFLOW_S3_ENDPOINT, MFEFLOW_S3_REGION, AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY. See ${DOCS_URL}/guide/deploying.`,
+  },
+  E507: {
+    title: 'There is no build output to deploy',
+    fix: `Run \`pnpm build\` in the remote first. The build folder needs an mf-manifest.json, and the remote needs a version in package.json or --version. See ${DOCS_URL}/guide/deploying.`,
+  },
+  E508: {
+    title: 'There is no such version to move to',
+    fix: `Run \`mfeflow status\` to see what each environment serves and the versions you can go back to. See ${DOCS_URL}/guide/deploying.`,
+  },
+  E509: {
+    title: 'Files of the target version are missing on the host',
+    fix: `Deploy that version again from its build, or pick another version with --to. The index was not changed. See ${DOCS_URL}/guide/deploying.`,
+  },
+  E510: {
+    title: 'Another deploy changed the index at the same time',
+    fix: `Run \`mfeflow status\` to see what is served now, then run the command again. The index was not changed by this run. See ${DOCS_URL}/guide/deploying.`,
+  },
+  E511: {
+    title: 'This version is already published with different content',
+    fix: `A published version never changes. Bump the version and deploy again. See ${DOCS_URL}/guide/deploying.`,
+  },
+  E512: {
+    title: 'Local registry files and the host disagree',
+    fix: `Run the deploy, promote or rollback that was meant to move the environment, or fix registry/envs by hand. Artifacts uploaded with --no-publish are not served until you deploy them. See ${DOCS_URL}/guide/deploying.`,
   },
 } as const satisfies Record<string, ErrorInfo>;
 

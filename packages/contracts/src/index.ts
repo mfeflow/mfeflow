@@ -46,11 +46,13 @@ export {
 } from './feature-registry';
 export {
   FILE_HASH,
+  REGISTRY_HOST,
   REGISTRY_NAMESPACE,
   isMfeflowProject,
   validateMfeflowProject,
   type MfeflowProject,
   type ProjectBudget,
+  type ProjectRegistry,
 } from './project';
 export {
   COST_MODEL,

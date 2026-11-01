@@ -1,4 +1,4 @@
-import { Checker, isObj, isSafeRelativePath, type Issue } from './validate';
+import { Checker, isObj, isSafeRelativePath, isUrl, type Issue } from './validate';
 import { MFE_NAME } from './mfe-manifest';
 import { registryTemplateProblem } from './feature-registry';
 
@@ -20,6 +20,15 @@ export interface MfeflowProject {
   local?: string;
   /** Overrides of the cost-model budget `mfeflow budget` and the perf job check. */
   budget?: ProjectBudget;
+  /** Where `mfeflow deploy`, `promote`, `rollback` and `status` publish by default. */
+  registry?: ProjectRegistry;
+}
+
+export interface ProjectRegistry {
+  /** `file:<dir>` for a folder, or `s3://<bucket>[/prefix]`. Credentials never go here; they come from the environment. */
+  host?: string;
+  /** Where the host's files are served from (`https://cdn.example.com`), without a trailing slash. */
+  baseUrl?: string;
 }
 
 export interface ProjectBudget {
@@ -57,6 +66,9 @@ export function isCheckoutPath(value: string): boolean {
   const rest = climbing === -1 ? [] : parts.slice(climbing);
   return rest.every((part) => part !== '' && part !== '.' && part !== '..');
 }
+
+/** `file:<dir>` or `s3://<bucket>[/prefix]`. No credentials: `@` and `:` cannot appear in a bucket name. */
+export const REGISTRY_HOST = /^(?:file:\S.*|s3:\/\/[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](?:\/\S*)?)$/;
 
 export const SCOPE = /^@[a-z0-9][a-z0-9-._]*$/;
 const FEATURE = /^(@[a-z0-9-]+\/)?[a-z][a-z0-9-]*$/;
@@ -148,7 +160,24 @@ export function validateMfeflowProject(value: unknown): Issue[] {
       c.number(budget, key, 'budget', { required: false, min: 1 });
     }
   }
+  const registry = c.object(value, 'registry', '', false);
+  if (registry) {
+    c.string(registry, 'host', 'registry', {
+      required: false,
+      pattern: REGISTRY_HOST,
+      hint: 'must be file:<dir> or s3://<bucket>[/prefix], with no credentials',
+    });
+    const baseUrl = c.string(registry, 'baseUrl', 'registry', { required: false });
+    if (baseUrl !== undefined && !(isUrl(baseUrl) && validBaseUrl(baseUrl))) {
+      c.add('registry.baseUrl', 'must be an http(s) URL without credentials or a trailing slash');
+    }
+  }
   return c.issues;
+}
+
+function validBaseUrl(value: string): boolean {
+  const url = new URL(value);
+  return url.username === '' && url.password === '' && !value.endsWith('/') && url.search === '';
 }
 
 export function isMfeflowProject(value: unknown): value is MfeflowProject {

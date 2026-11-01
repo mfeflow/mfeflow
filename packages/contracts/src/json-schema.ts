@@ -12,7 +12,7 @@ import {
   TRANSFORM_OPS,
 } from './feature';
 import { ANALYTICS_EVENT, EVENT_NAME, EXPOSE, MFE_NAME, ROUTE } from './mfe-manifest';
-import { CHECKOUT_PATH, FILE_HASH, REGISTRY_NAMESPACE, SCOPE } from './project';
+import { CHECKOUT_PATH, FILE_HASH, REGISTRY_HOST, REGISTRY_NAMESPACE, SCOPE } from './project';
 import { SAFE_RELATIVE_PATH } from './validate';
 import { VERSION } from './registry';
 import {
@@ -242,6 +242,13 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
             { type: 'number', minimum: 1 },
           ]),
         ),
+      },
+      registry: {
+        type: 'object',
+        properties: {
+          host: str(REGISTRY_HOST),
+          baseUrl: { type: 'string', pattern: String.raw`^https?://[^@\s?]*[^/@\s?]$` },
+        },
       },
     },
     required: ['version', 'topology', 'packageManager', 'scope', 'apps', 'features'],
