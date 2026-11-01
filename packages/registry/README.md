@@ -104,7 +104,7 @@ Without `s3:ListBucket`, S3 answers 403 instead of 404 for a key that does not e
 
 ## The server
 
-`@mfeflow/registry/server` is the same registry as a small HTTP service, for when a static index is not enough: scoped tokens, an audit log and a kill switch that works on the next request. It uses `node:http` and `node:sqlite`, so there is no framework and no database to run. The package's `engines` is `>=22.13` for that reason (this also covers the `/static` and `/s3` subpaths, which would run on 22.12 but share the package). On an older Node the server stops at start with a message saying so, because `node:sqlite` sits behind a flag before that. Node prints an "experimental" warning for SQLite; that is expected.
+`@mfeflow/registry/server` is the same registry as a small HTTP service, for when a static index is not enough: scoped tokens, an audit log and a kill switch that works on the next request. It uses `node:http` and `node:sqlite`, so there is no framework and no database to run. **The server needs Node 22.13 or newer** (the rest of the package still runs on 22.12, so `engines` stays `>=22.12`). On an older Node the server stops at start with a message saying so, because `node:sqlite` sits behind a flag before that. Node prints an "experimental" warning for SQLite; that is expected.
 
 ```sh
 pnpm add @mfeflow/registry

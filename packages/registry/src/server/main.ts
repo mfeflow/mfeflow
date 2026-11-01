@@ -15,7 +15,9 @@ const USAGE = `usage:
   server token list
   server token revoke <id>
 
-actions: read, deploy, promote, rollback, kill, admin`;
+actions: read, deploy, promote, rollback, kill, admin
+
+The server needs Node 22.13 or newer.`;
 
 function flags(args: readonly string[]): { flags: Map<string, string>; rest: string[] } {
   const found = new Map<string, string>();
@@ -107,6 +109,10 @@ export async function main(
   onReady?: (stop: () => Promise<void>) => void,
 ): Promise<number> {
   try {
+    if (argv.includes('--help') || argv.includes('-h')) {
+      io.stdout(`${USAGE}\n`);
+      return 0;
+    }
     assertSqliteSupport();
     const args = argv[0] === 'server' ? argv.slice(1) : argv;
     const [command = 'serve', ...rest] = args;

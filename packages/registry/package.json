@@ -46,7 +46,7 @@
     "bin"
   ],
   "engines": {
-    "node": ">=22.13"
+    "node": ">=22.12"
   },
   "publishConfig": {
     "access": "public",

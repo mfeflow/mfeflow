@@ -111,6 +111,12 @@ describe('main', () => {
     expect(run.err.join('')).toContain('server serve');
   });
 
+  it('prints usage and the Node requirement for --help', async () => {
+    const run = io();
+    expect(await main(['--help'], env, run.io)).toBe(0);
+    expect(run.out.join('')).toContain('needs Node 22.13 or newer');
+  });
+
   it('reports bad settings with every problem and no stack', async () => {
     const run = io();
     expect(await main(['serve'], { ...env, MFEFLOW_REGISTRY_PORT: 'x' }, run.io)).toBe(1);
