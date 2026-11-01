@@ -1,6 +1,6 @@
 {
   "name": "testing",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Vitest, Testing Library, jsdom and MSW in every app with @mfeflow/testing, and a Playwright smoke test that opens the shell and checks each remote renders.",
   "requires": ["core", "tsconfig"],
   "files": [

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { loadProject, serializeProject, type MfeflowProject } from '@mfeflow/core';
 import { main, validateResult, type RegistryResult } from '..';
 import { removeDir, tempDir, testRuntime } from '../testing';
+import { readPackageJson } from '../version';
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -48,6 +49,7 @@ describe('mfeflow registry add', () => {
     expect(out).toContain('Added @acme');
     expect(out).toContain('mfeflow features');
     expect((await loadProject(cwd)).registries).toEqual({ '@acme': URL_A });
+    expect((await loadProject(cwd)).cli).toBe(readPackageJson().version);
     const text = await fs.readFile(path.join(cwd, 'mfeflow.json'), 'utf8');
     expect(text).toContain('"$schema"');
   });
