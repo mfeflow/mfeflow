@@ -14,6 +14,8 @@ import {
   type Session,
 } from '../publish';
 import type { Runtime } from '../runtime';
+import { openServer } from '../server-client';
+import { SERVER_ARGS, statusViaServer } from './server-mode';
 import type { RegistryIndex, RegistryIndexRemote } from '@mfeflow/contracts';
 
 export const STATUS_ARGS = {
@@ -29,6 +31,7 @@ export const STATUS_ARGS = {
       'Where the registry lives: file:<dir> or s3://<bucket>[/prefix] (default registry.host)',
     valueHint: 'spec',
   },
+  ...SERVER_ARGS,
   ...GLOBAL_ARGS,
 } as const satisfies ArgsDef;
 
@@ -153,9 +156,10 @@ export function formatStatus(result: StatusResult): string {
     for (const r of e.remotes) {
       const back = r.previous === null ? 'no previous' : `previous ${r.previous}`;
       const rolled = r.rolledBackFrom === null ? '' : `, rolled back from ${r.rolledBackFrom}`;
-      lines.push(
-        `  ${r.name}  ${r.version}  (${back}${rolled})${r.drift.length > 0 ? '  DRIFT' : ''}`,
-      );
+      const flags = `${r.killed === true ? '  KILLED' : ''}${r.drift.length > 0 ? '  DRIFT' : ''}`;
+      lines.push(`  ${r.name}  ${r.version}  (${back}${rolled})${flags}`);
+      if (r.rollout != null)
+        lines.push(`    rollout: ${r.rollout.candidate} at ${String(r.rollout.percent)}%`);
       for (const d of r.drift) lines.push(`    drift: ${d}`);
     }
   }
@@ -170,6 +174,13 @@ export async function runStatus(
   raw: readonly string[],
 ): Promise<StatusResult> {
   assertKnownFlags(raw, STATUS_ARGS);
+  const server = openServer(rt, args);
+  if (server !== undefined) {
+    const result = await statusViaServer(rt, args, raw, STATUS_ARGS, server);
+    if (!readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive).json)
+      rt.io.stdout(formatStatus(result));
+    return result;
+  }
   const globals = readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive);
   positionals(args, 0, 'mfeflow status [--env <env>]');
   const s = await openSession(rt, args, globals);

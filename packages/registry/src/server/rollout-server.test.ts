@@ -201,6 +201,64 @@ describe('deploy with a rollout', () => {
   });
 });
 
+describe('promote with a rollout', () => {
+  async function staged() {
+    seedShell(h.artifacts, 'staging');
+    await h.deploy(admin, 'cart', '1.0.0');
+    await h.deploy(admin, 'cart', '2.0.0', 'staging');
+  }
+  const promote = (token: string, rollout: unknown = { percent: 10, steps: [50, 100] }) =>
+    h.call('POST', '/v1/promote', {
+      token,
+      body: { from: 'staging', to: 'prod', remote: 'cart', rollout },
+    });
+
+  it('starts a rollout of what the source serves, audited as a promote from that env', async () => {
+    await staged();
+    const res = await promote(admin);
+    expect(res.status).toBe(200);
+    expect(res.body.rollout).toMatchObject({ stable: '1.0.0', candidate: '2.0.0', percent: 10 });
+    expect(await servedFor()).toBe('1.0.0');
+    const [entry] = (await h.call('GET', '/v1/audit?env=prod', { token: admin })).body.entries;
+    expect(entry).toMatchObject({ action: 'promote', before: '1.0.0', after: '2.0.0' });
+    expect(entry?.detail).toMatchObject({ fromEnv: 'staging', rollout: { percent: 10 } });
+  });
+
+  it('carries the budgets and platform of the source version to the target', async () => {
+    await staged();
+    await promote(admin);
+    const copy = await h.server.storage.getVersion('prod', 'cart', '2.0.0');
+    expect(copy?.budgets).toEqual({ initialJsKb: 8 });
+  });
+
+  it('needs promote on the target and read on the source, not just deploy', async () => {
+    await staged();
+    const deployOnly = await h.token({ actions: ['deploy', 'rollback'] });
+    expect((await promote(deployOnly)).status).toBe(403);
+    const noRead = await h.token({ env: 'prod', actions: ['promote'] });
+    expect((await promote(noRead)).status).toBe(403);
+    const ok = await h.token({ actions: ['promote', 'read'] });
+    expect((await promote(ok)).status).toBe(200);
+  });
+
+  it('refuses a killed source', async () => {
+    await staged();
+    await h.call('POST', '/v1/kill', { token: admin, body: { env: 'staging', remote: 'cart' } });
+    const res = await promote(admin);
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('not_deployed');
+  });
+
+  it('needs a stable version in the target, a different one, and bad plans are refused', async () => {
+    seedShell(h.artifacts, 'staging');
+    await h.deploy(admin, 'cart', '2.0.0', 'staging');
+    expect((await promote(admin)).body.error.code).toBe('no_stable');
+    await h.deploy(admin, 'cart', '2.0.0');
+    expect((await promote(admin)).body.error.code).toBe('no_target');
+    expect((await promote(admin, { percent: 100 })).status).toBe(400);
+  });
+});
+
 describe('rollout step, complete and abort', () => {
   const call = (path: string, token = admin) =>
     h.call('POST', `/v1/rollout/${path}`, { token, body: { env: 'prod', remote: 'cart' } });

@@ -50,7 +50,7 @@ shell   | ready   built in 0.28s
 What you get:
 
 - A shell and remotes on Module Federation 2.0 and Rsbuild, with React shared once.
-- 23 features you add one at a time, each with a diff you can preview.
+- 24 features you add one at a time, each with a diff you can preview.
 - Checks for compatibility, ownership and bundle size that run in CI.
 - A static registry: `mfeflow deploy` and `mfeflow rollback` move a pointer, with no rebuild.
 - About 5 seconds from create to a running platform, measured.
@@ -152,7 +152,7 @@ The four checks are ordinary commands. The ci-github feature adds a workflow tha
 
 ## Features
 
-There are 23 first-party features. Each lives in `features/` and can be added on its own.
+There are 24 first-party features. Each lives in `features/` and can be added on its own.
 
 **Foundation**
 

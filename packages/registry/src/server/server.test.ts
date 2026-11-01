@@ -1065,3 +1065,31 @@ describe('database file', () => {
     expect((await fs.stat(h.dbFile)).mode & 0o777).toBe(0o600);
   });
 });
+
+describe('graceful close', () => {
+  it('lets a request that is running finish before the server stops', async () => {
+    const own = await startHarness();
+    const token = await own.admin();
+    const release = own.artifacts.hold();
+    const running = own.deploy(token, 'cart', '1.0.0');
+    await vi.waitFor(() => expect(own.artifacts.reads.length).toBeGreaterThan(0));
+    const closing = own.server.close();
+    release();
+    expect((await running).status).toBe(200);
+    await closing;
+    await fs.rm(own.dbFile, { force: true });
+  });
+
+  it('cuts a request that outlasts the drain time', async () => {
+    const own = await startHarness({}, { drainMs: 50 });
+    const token = await own.admin();
+    own.artifacts.hold();
+    const running = own.deploy(token, 'cart', '1.0.0').then(
+      () => 'finished',
+      () => 'cut',
+    );
+    await vi.waitFor(() => expect(own.artifacts.reads.length).toBeGreaterThan(0));
+    await own.server.close();
+    expect(await running).toBe('cut');
+  });
+});

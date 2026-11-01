@@ -552,7 +552,8 @@ export class RegistryService {
 
   private async promoteOnce(actor: string | null, raw: unknown): Promise<MoveResult> {
     const body = asBody(raw);
-    rejectUnknown(body, ['from', 'to', 'remote']);
+    rejectUnknown(body, ['from', 'to', 'remote', 'rollout']);
+    const rolloutPlan = rolloutOf(body.rollout);
     const from = envOf(body, 'from');
     const to = envOf(body, 'to');
     const name = nameOf(body);
@@ -573,6 +574,7 @@ export class RegistryService {
       record,
       origin: served.remote,
       force: false,
+      ...(rolloutPlan === undefined ? {} : { rollout: rolloutPlan }),
     });
   }
 
@@ -956,6 +958,8 @@ export class RegistryService {
       record: VersionRecord;
       origin: RegistryIndexRemote;
       force: boolean;
+      /** A promote that serves the version to a share of clients first. The target must already have a stable version. */
+      rollout?: { percent: number; steps: number[] };
       /** The env as the caller checked its intent against; the commit then fails if it has moved since. */
       seen?: { state: EnvState | undefined };
     },
@@ -965,6 +969,15 @@ export class RegistryService {
     const before = state?.remotes.find((r) => r.name === m.name);
     if (before?.killed === true)
       throw conflict('killed', `${m.name} is killed in ${m.env}; restore it first`);
+    if (m.rollout !== undefined) {
+      if (before === undefined)
+        throw conflict(
+          'no_stable',
+          `${m.name} has no stable version in ${m.env}; promote it without a rollout first`,
+        );
+      if (before.version === m.version)
+        throw conflict('no_target', `${m.env} already serves ${m.name}@${m.version}`);
+    }
     if (before?.version === m.version)
       return this.result(m.action, m.env, before.remote, before.version, false, [], m.fromEnv);
     const suffix = `/${artifactPrefix(m.name, m.version)}/mf-manifest.json`;
@@ -1010,6 +1023,48 @@ export class RegistryService {
     const remote = built.index.remotes.find((r) => r.name === m.name);
     if (remote === undefined) throw new ApiError(500, 'internal_error', 'index has no remote');
     const copy: VersionRecord = { ...m.record, env: m.env };
+    if (m.rollout !== undefined && before !== undefined) {
+      const rollout: RolloutRecord = {
+        env: m.env,
+        remote: m.name,
+        id: crypto.randomBytes(6).toString('hex'),
+        stable: before.version,
+        candidate: m.version,
+        candidateRemote: remote,
+        percent: m.rollout.percent,
+        steps: m.rollout.steps,
+        startedAt: at,
+        updatedAt: at,
+      };
+      await this.commit(
+        {
+          env: m.env,
+          expectedRev: state?.rev ?? 0,
+          at,
+          versions: [copy],
+          pointer: stay(before),
+          rollout: { set: rollout },
+          audit: {
+            at,
+            tokenId: actor,
+            action: m.action,
+            env: m.env,
+            remote: m.name,
+            before: before.version,
+            after: m.version,
+            detail: {
+              fromEnv: m.fromEnv,
+              rollout: { id: rollout.id, percent: rollout.percent, steps: rollout.steps },
+            },
+          },
+        },
+        { seen: before },
+      );
+      return {
+        ...this.result(m.action, m.env, remote, before.version, true, warnings, m.fromEnv),
+        rollout: summaryOf(rollout),
+      };
+    }
     await this.commit(
       {
         env: m.env,
