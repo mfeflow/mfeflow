@@ -437,6 +437,23 @@ describe('fetch', () => {
     spy.mockRestore();
   });
 
+  it('starts the request in the caller’s tick unless the token is async, so a span around the call parents it', async () => {
+    const custom = vi.fn(() => Promise.resolve(HttpResponse.json({})));
+    const plain = createHttpClient({ url, fetch: custom, getToken: () => 'sync' });
+    const pending = plain.get('health');
+    expect(custom).toHaveBeenCalledOnce();
+    await pending;
+    const later = createHttpClient({
+      url,
+      fetch: custom,
+      getToken: () => Promise.resolve('async'),
+    });
+    const waiting = later.get('health');
+    expect(custom).toHaveBeenCalledOnce();
+    await waiting;
+    expect(custom).toHaveBeenCalledTimes(2);
+  });
+
   it('takes a fetch of its own, and passes credentials', async () => {
     const custom = vi.fn(() => Promise.resolve(HttpResponse.json({ own: true })));
     const own = createHttpClient({ url, fetch: custom, credentials: 'include' });

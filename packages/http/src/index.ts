@@ -145,17 +145,20 @@ export function createHttpClient<E extends Endpoints, R extends ResponseMap<E> =
   const urlFor = options.url as (key: string, args: unknown) => string;
   const doFetch: Fetch = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
 
-  async function headersFor(
+  /** Headers for one attempt. Synchronous unless the token provider is async, so `fetch` runs in the caller's tick. */
+  function headersFor(
     extra: Record<string, string> | undefined,
     hasBody: boolean,
-  ): Promise<Headers> {
+  ): Headers | Promise<Headers> {
     const headers = new Headers({ accept: 'application/json', ...options.headers, ...extra });
     if (hasBody && !headers.has('content-type')) headers.set('content-type', 'application/json');
-    if (!headers.has('authorization')) {
-      const token = await options.getToken?.();
+    if (headers.has('authorization') || !options.getToken) return headers;
+    const withToken = (token: string | undefined): Headers => {
       if (token) headers.set('authorization', `Bearer ${token}`);
-    }
-    return headers;
+      return headers;
+    };
+    const token = options.getToken();
+    return typeof token === 'object' ? token.then(withToken) : withToken(token);
   }
 
   async function attempt(
@@ -172,9 +175,10 @@ export function createHttpClient<E extends Endpoints, R extends ResponseMap<E> =
     const hasBody = request.json !== undefined;
     try {
       const credentials = request.credentials ?? options.credentials;
+      const headers = headersFor(request.headers, hasBody);
       return await doFetch(url, {
         method,
-        headers: await headersFor(request.headers, hasBody),
+        headers: headers instanceof Headers ? headers : await headers,
         signal,
         ...(hasBody ? { body: JSON.stringify(request.json) } : {}),
         ...(credentials ? { credentials } : {}),
