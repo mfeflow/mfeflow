@@ -5,7 +5,7 @@ Storybook 10 on Rsbuild in every remote, and one Storybook in the shell that sho
 ```sh
 pnpm mfeflow add storybook
 pnpm storybook          # builds each remote's Storybook, then opens the shell's with all of them
-pnpm storybook:build    # the same, as static files: apps/shell/dist/storybook
+pnpm storybook:build    # the same, as static files: apps/shell/storybook-static
 ```
 
 ## Versions
@@ -27,7 +27,8 @@ run, so a break shows up there before it reaches you.
 
 ## How the composition works
 
-Each remote builds its own Storybook to `apps/<remote>/dist/storybook`. The shell's `main.ts` reads `mfeflow.json`,
+Each remote builds its own Storybook to `apps/<remote>/storybook-static`, not into `dist`: `rsbuild build` empties `dist`, and
+everything in it is what gets deployed. `storybook-static` is in the generated `.gitignore`, `.prettierignore` and oxlint ignores. The shell's `main.ts` reads `mfeflow.json`,
 finds the remotes that have one, copies each into its own output under `/<remote>/` (`staticDirs`) and registers it as a
 ref (`url: './<remote>'`). The sidebar then shows `shell` and every remote, and a story from a remote renders in that
 remote's own iframe, with that remote's dependencies and CSS. Nothing is read from the remote's source by the shell.

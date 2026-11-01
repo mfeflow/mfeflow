@@ -11,7 +11,7 @@ const remotes = fs
   .map((file) => file.slice(0, -'.json'.length))
   .toSorted();
 
-const root = path.resolve('apps/shell/dist/storybook');
+const root = path.resolve('apps/shell/storybook-static');
 const types = {
   '.html': 'text/html',
   '.js': 'text/javascript',

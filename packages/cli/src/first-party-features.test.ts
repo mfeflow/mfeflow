@@ -258,7 +258,7 @@ describe('storybook', () => {
     expect(await add('storybook')).toBe(0);
     for (const app of ['shell', 'cart', 'catalog']) {
       const pkg = await json(`apps/${app}/package.json`);
-      expect(pkg.scripts?.['storybook:build'], app).toBe('storybook build -o dist/storybook');
+      expect(pkg.scripts?.['storybook:build'], app).toBe('storybook build -o storybook-static');
       expect(Object.keys(pkg.devDependencies ?? {})).toEqual(
         expect.arrayContaining(['storybook', 'storybook-react-rsbuild', '@rsbuild/plugin-react']),
       );

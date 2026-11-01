@@ -90,7 +90,7 @@
     },
     {
       "name": "storybook:build",
-      "command": "storybook build -o dist/storybook",
+      "command": "storybook build -o storybook-static",
       "target": "shell"
     },
     {
@@ -100,7 +100,7 @@
     },
     {
       "name": "storybook:build",
-      "command": "storybook build -o dist/storybook",
+      "command": "storybook build -o storybook-static",
       "target": "remotes"
     },
     {

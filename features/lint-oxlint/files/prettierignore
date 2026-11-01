@@ -1,5 +1,6 @@
 dist
 .turbo
+storybook-static
 coverage
 pnpm-lock.yaml
 CHANGELOG.md

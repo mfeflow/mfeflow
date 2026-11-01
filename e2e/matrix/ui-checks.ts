@@ -47,12 +47,30 @@ export function prepareE2e(project: string, combo: Combo): string | undefined {
 
 /** The composed Storybook exists, with a ref for every remote. */
 export function storybookChecks(project: string, combo: Combo): string | undefined {
-  const shell = path.join(project, 'apps/shell/dist/storybook');
+  const shell = path.join(project, 'apps/shell/storybook-static');
   if (!fs.existsSync(path.join(shell, 'index.html')))
     return `no ${shell}/index.html after storybook:build`;
   for (const name of REMOTE_NAMES.slice(0, combo.remotes)) {
     if (!fs.existsSync(path.join(shell, name, 'index.json')))
       return `the shell Storybook has no copy of ${name}'s stories (${path.join(shell, name, 'index.json')})`;
+  }
+  return undefined;
+}
+
+/** After `pnpm build` ran on top of the Storybook builds: both outputs are still there, and nothing of Storybook is in dist. */
+export function storybookSurvivesBuild(project: string, combo: Combo): string | undefined {
+  const problem = storybookChecks(project, combo);
+  if (problem) return `after pnpm build: ${problem}`;
+  for (const app of ['shell', ...REMOTE_NAMES.slice(0, combo.remotes)]) {
+    const dist = path.join(project, 'apps', app, 'dist');
+    const files = fs.existsSync(dist)
+      ? fs.readdirSync(dist, { recursive: true, encoding: 'utf8' })
+      : [];
+    const found = files.find((file) => /storybook|iframe\.html|sb-manager/.test(file));
+    if (found)
+      return `apps/${app}/dist holds Storybook output (${found}), which would ship to the CDN`;
+    if (!fs.existsSync(path.join(project, 'apps', app, 'storybook-static', 'index.json')))
+      return `apps/${app}/storybook-static is gone after pnpm build`;
   }
   return undefined;
 }
