@@ -63,7 +63,7 @@ An index URL is on an origin the shell does not trust. By default it may only be
 
 ### registry index ...: HTTP 404
 
-The shell asked for the index and the server had none. In production you must serve `/registry/index.json`. See [Deploy](/guide/deploying).
+The shell asked for the index and the server had none. In production you must serve `/registry/index.json`. See [Deploy](/guide/deploy/).
 
 ### origin ... is not allowed
 

@@ -26,7 +26,7 @@ pnpm dev                                    # shell on :4300, remotes on :4311, 
 | `mfeflow registry build <dir>`        | Check a folder of features and write `index.json` and the files to host               |
 | `mfeflow dev`                         | Run the shell and every remote, one prefixed log each; follows `add remote`           |
 | `mfeflow doctor`                      | Singletons, compatibility, config health, drift; `--fix` repairs the safe ones        |
-| `mfeflow validate`                    | `mfeflow.json`, every `mfe.json` and every registry entry against their schemas       |
+| `mfeflow validate`                    | `mfeflow.json`, every `mfeflow.app.json` and every registry entry against schemas     |
 | `mfeflow check-compat`                | Each remote's shared ranges against the shells it runs in                             |
 | `mfeflow budget`                      | Built first-load JS of the shell and each remote against the cost-model budget        |
 | `mfeflow deploy <remote> --env <env>` | Upload a remote's build to a static registry host and point the env's index at it     |
@@ -48,13 +48,17 @@ runs part of the project; `--remote name=url` uses a server you run yourself (th
 localhost unless `--allow-origin <origin>` names it); Ctrl+C stops every app, process trees included, on Windows too.
 It exits 130 after Ctrl+C.
 
+Each app keeps its owner, routes and budgets in `mfeflow.app.json`. An app that still has the old `mfe.json` works:
+the CLI reads it and prints one notice per command. An app with both files is an error (E122).
+
 `doctor` runs these checks, each with a code and a docs page (`https://mfeflow.github.io/mfeflow/errors/<code>`). It exits with 0
 when there are no errors, else with the lowest exit code among the errors' ranges (project 3 before build 5).
 
 | Check                                 | Code           | Fixed by `--fix`              |
 | ------------------------------------- | -------------- | ----------------------------- |
 | every app in mfeflow.json is on disk  | E112           |                               |
-| valid `mfe.json`, name matches        | E113, E116     |                               |
+| valid `mfeflow.app.json`, name match  | E113, E116     |                               |
+| no app has both app file names        | E122           |                               |
 | no shared port                        | E115           |                               |
 | no route claimed twice                | E116           |                               |
 | registry entry per remote and env     | E114           | writes the missing ones       |
@@ -70,7 +74,7 @@ when there are no errors, else with the lowest exit code among the errors' range
 | server keys listed in `turbo.json`    | E121 (warning) |                               |
 
 `validate` runs the schema and registry checks, `check-compat` the compatibility check, `budget` reads the build output
-(`dist/`): each remote's entry against `budget.remoteKb` (10), a route against `mfe.json` `budgets.initialJsKb`, and the
+(`dist/`): each remote's entry against `budget.remoteKb` (10), a route against `mfeflow.app.json` `budgets.initialJsKb`, and the
 shell against `budget.baselineKb + budget.shellKb` (32) when a baseline is set. All four take `--json` and exit non-zero on
 errors. LCP is measured by the perf job, not by `budget`.
 
@@ -111,6 +115,7 @@ MFEFLOW_E108 The target folder is not empty: /work/app already has notes.txt
 | 5    | build or runtime problem: `MFEFLOW_E3xx`                                |
 | 6    | feature registry problem: `MFEFLOW_E4xx`                                |
 | 7    | deploy problem: `MFEFLOW_E5xx`                                          |
+| 8    | upgrade problem, or files that need a decision: `MFEFLOW_E6xx`          |
 | 130  | cancelled at a prompt (nothing was written), or Ctrl+C in `mfeflow dev` |
 
 ## Try it from a checkout

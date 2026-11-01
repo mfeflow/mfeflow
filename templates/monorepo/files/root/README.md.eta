@@ -36,7 +36,7 @@ pnpm mfeflow add <feature>           # see `pnpm mfeflow features`
 
 ```sh
 pnpm doctor              # singletons, compatibility, config, drift; `pnpm doctor --fix` repairs the safe ones
-pnpm validate            # mfeflow.json, every mfe.json and every registry entry
+pnpm validate            # mfeflow.json, every mfeflow.app.json and every registry entry
 pnpm check-compat        # each remote's shared ranges against its shell
 pnpm budget              # after `pnpm build`: first-load JS per shell and remote
 ```

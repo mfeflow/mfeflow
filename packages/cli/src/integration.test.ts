@@ -60,7 +60,7 @@ describe('mfeflow init --local --yes --no-install', () => {
           `apps/${app}/src/mocks/handlers.test.ts`,
           `apps/${app}/src/mocks/server.ts`,
           `apps/${app}/src/test/setup.ts`,
-          `apps/${app}/mfe.json`,
+          `apps/${app}/mfeflow.app.json`,
           `apps/${app}/package.json`,
           `apps/${app}/rsbuild.config.ts`,
           `apps/${app}/tsconfig.json`,
@@ -116,7 +116,9 @@ describe('mfeflow init --local --yes --no-install', () => {
     expect(await findDiverged(root, project)).toEqual([]);
 
     for (const app of ['shell', 'catalog', 'cart']) {
-      expect(validateMfeManifest(JSON.parse(tree[`apps/${app}/mfe.json`] ?? ''))).toEqual([]);
+      expect(validateMfeManifest(JSON.parse(tree[`apps/${app}/mfeflow.app.json`] ?? ''))).toEqual(
+        [],
+      );
     }
     for (const env of ['dev', 'staging', 'prod']) {
       for (const remote of ['catalog', 'cart']) {

@@ -34,7 +34,7 @@ Getting a shell to load one remote is easy. The trouble starts when the second t
 | Two copies of React      | "Invalid hook call" in the browser                   | Shares React and other packages as singletons by default. `doctor` checks versions. |
 | Version drift            | A remote asks for a React the shell does not provide | `check-compat` compares each remote with its shell.                                 |
 | Tag manager loaded twice | Double page views and doubled consent prompts        | One feature owns analytics in the shell. Remotes only send events.                  |
-| No owner                 | Nobody knows who to page for the broken cart         | Every app has an `mfe.json` with an owner and routes.                               |
+| No owner                 | Nobody knows who to page for the broken cart         | Every app has an `mfeflow.app.json` with an owner and routes.                       |
 | Bundle creep             | The shell gets heavier with each remote              | `budget` measures JS against a stated budget.                                       |
 | Rollback needs a rebuild | A bad release means building the old one again       | The registry design points at a build instead. This part is not built yet.          |
 

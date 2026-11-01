@@ -60,8 +60,8 @@ export const ERROR_CATALOGUE = {
     fix: 'Restore the folder, or remove the app from "apps" in mfeflow.json.',
   },
   E113: {
-    title: 'mfe.json is missing or invalid',
-    fix: `Give the app a valid mfe.json (name, owner, shells, routes, exposes). The schema is at ${SCHEMA_URLS.mfe}.`,
+    title: 'mfeflow.app.json is missing or invalid',
+    fix: `Give the app a valid mfeflow.app.json (name, owner, shells, routes, exposes). The schema is at ${SCHEMA_URLS.mfe}.`,
   },
   E114: {
     title: 'A registry entry is missing or invalid',
@@ -72,8 +72,8 @@ export const ERROR_CATALOGUE = {
     fix: 'Give one of them another port in its rsbuild config and in "apps" in mfeflow.json.',
   },
   E116: {
-    title: 'Two remotes claim routes that overlap, or an mfe.json disagrees with mfeflow.json',
-    fix: 'Give each route to one remote (a wildcard such as /checkout/* also covers /checkout/pay), and keep the name in mfe.json equal to the app name.',
+    title: 'Two remotes claim routes that overlap, or an app file disagrees with mfeflow.json',
+    fix: 'Give each route to one remote (a wildcard such as /checkout/* also covers /checkout/pay), and keep the name in mfeflow.app.json equal to the app name.',
   },
   E117: {
     title: 'A copied file changed since mfeflow wrote it',
@@ -94,6 +94,10 @@ export const ERROR_CATALOGUE = {
   E121: {
     title: 'A server env key is not listed in turbo.json',
     fix: 'Add the key to "globalEnv" in turbo.json. Turborepo hides unlisted variables from tasks and replays a cached build without running env.ts, so a missing value would not fail the build.',
+  },
+  E122: {
+    title: 'An app has both mfeflow.app.json and the old mfe.json',
+    fix: `Keep mfeflow.app.json and delete mfe.json. Move any field you still need into mfeflow.app.json first. See ${DOCS_URL}/reference/mfeflow-app-json.`,
   },
   E201: {
     title: 'Feature not found',
@@ -161,7 +165,7 @@ export const ERROR_CATALOGUE = {
   },
   E302: {
     title: 'A remote is not compatible with its shell',
-    fix: 'Align the remote and the shell on the same major of the package, or update the "platform" range in the remote\'s mfe.json.',
+    fix: 'Align the remote and the shell on the same major of the package, or update the "platform" range in the remote\'s mfeflow.app.json.',
   },
   E303: {
     title: 'A runtime plugin imports a shared module',
@@ -169,7 +173,7 @@ export const ERROR_CATALOGUE = {
   },
   E304: {
     title: 'A bundle is over its budget',
-    fix: 'Cut what the app ships on first load, or raise the budget in mfeflow.json ("budget") or mfe.json ("budgets") on purpose.',
+    fix: 'Cut what the app ships on first load, or raise the budget in mfeflow.json ("budget") or mfeflow.app.json ("budgets") on purpose.',
   },
   E305: {
     title: 'There is no build output to measure',
@@ -197,7 +201,7 @@ export const ERROR_CATALOGUE = {
   },
   E501: {
     title: 'A deploy failed the schema gate',
-    fix: `Fix what the message names: the remote's mfe.json, its mf-manifest.json or the version. Nothing was uploaded. See ${DOCS_URL}/guide/deploy-and-rollback.`,
+    fix: `Fix what the message names: the remote's mfeflow.app.json, its mf-manifest.json or the version. Nothing was uploaded. See ${DOCS_URL}/guide/deploy-and-rollback.`,
   },
   E502: {
     title: 'A route of this remote overlaps a route of another remote',
@@ -209,7 +213,7 @@ export const ERROR_CATALOGUE = {
   },
   E504: {
     title: 'The remote is over its first-load JS budget',
-    fix: `Cut what the remote loads first, or raise budgets.initialJsKb in its mfe.json on purpose. Nothing was uploaded. See ${DOCS_URL}/guide/deploy-and-rollback.`,
+    fix: `Cut what the remote loads first, or raise budgets.initialJsKb in its mfeflow.app.json on purpose. Nothing was uploaded. See ${DOCS_URL}/guide/deploy-and-rollback.`,
   },
   E505: {
     title: 'A rollout was asked for, and a static host cannot split traffic',
@@ -262,6 +266,10 @@ export const ERROR_CATALOGUE = {
   E603: {
     title: 'A feature migration could not be loaded or failed',
     fix: 'Nothing was written. Update mfeflow to a build that ships the migration, or report the feature and versions named above.',
+  },
+  E604: {
+    title: 'Files you changed need a decision',
+    fix: 'Nothing was written. Run `mfeflow upgrade --dry-run` to see each diff, then pass --accept <path> to take the new version of a file, --keep <path> to keep yours, or `all` for every file.',
   },
 } as const satisfies Record<string, ErrorInfo>;
 

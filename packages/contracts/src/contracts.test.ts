@@ -9,6 +9,7 @@ import {
   isRegistryEntry,
   isRegistryIndex,
   MFE_NAME,
+  SCHEMA_ALIASES,
   SCHEMA_URLS,
   validateMfeflowProject,
   validateMfeManifest,
@@ -31,7 +32,7 @@ const cart = {
 
 const paths = (issues: { path: string }[]) => issues.map((i) => i.path);
 
-describe('mfe.json event names', () => {
+describe('mfeflow.app.json event names', () => {
   it.each(['cart.item-added.v1', 'a.b.c.v3', 'checkout.order-placed.v12'])('accepts %s', (name) => {
     expect(validateMfeManifest({ ...cart, events: { publishes: [name], consumes: [] } })).toEqual(
       [],
@@ -51,7 +52,7 @@ describe('mfe.json event names', () => {
   });
 });
 
-describe('mfe.json', () => {
+describe('mfeflow.app.json', () => {
   it('accepts a complete manifest', () => {
     expect(validateMfeManifest(cart)).toEqual([]);
     expect(isMfeManifest(cart)).toBe(true);
@@ -390,6 +391,14 @@ describe('mfeflow.json', () => {
     ]);
   });
 
+  it('checks the hashes of kept files', () => {
+    const hash = `sha256-${'b'.repeat(64)}`;
+    expect(validateMfeflowProject({ ...project, kept: { 'env.ts': hash } })).toEqual([]);
+    expect(
+      paths(validateMfeflowProject({ ...project, kept: { '../env.ts': hash, 'a.ts': 'nope' } })),
+    ).toEqual(['kept.../env.ts', 'kept.a.ts']);
+  });
+
   it('checks the local checkout path', () => {
     const withLocal = (local: unknown) => ({ ...project, local });
     for (const ok of [
@@ -501,7 +510,24 @@ describe('mfeflow.json', () => {
   });
 
   it('publishes schema URLs', () => {
-    expect(SCHEMA_URLS.mfe).toBe('https://mfeflow.github.io/mfeflow/schema/mfe.json');
+    expect(SCHEMA_URLS.mfe).toBe('https://mfeflow.github.io/mfeflow/schema/mfeflow-app.json');
+  });
+
+  it('keeps the old mfe.json schema URL as an alias of the app file schema', () => {
+    expect(SCHEMA_ALIASES['https://mfeflow.github.io/mfeflow/schema/mfe.json']).toBe('mfe');
+    for (const [alias, name] of Object.entries(SCHEMA_ALIASES)) {
+      expect(Object.values(SCHEMA_URLS)).not.toContain(alias);
+      expect(SCHEMA_URLS[name]).toBeDefined();
+    }
+  });
+
+  it('accepts an app file whose $schema still names the old URL', () => {
+    expect(
+      validateMfeManifest({
+        ...cart,
+        $schema: 'https://mfeflow.github.io/mfeflow/schema/mfe.json',
+      }),
+    ).toEqual([]);
   });
 });
 

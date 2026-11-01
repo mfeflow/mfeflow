@@ -29,15 +29,15 @@ export const appsOnDisk: Check = {
 
 export const mfeJson: Check = {
   id: 'config.mfe-json',
-  title: 'every app has a valid mfe.json that matches mfeflow.json',
+  title: 'every app has a valid mfeflow.app.json that matches mfeflow.json',
   run: ({ apps }) =>
     done(
       apps
         .filter((app) => app.present)
         .flatMap((app) => {
-          const at = { app: app.name, path: `${app.rel}/mfe.json` };
+          const at = { app: app.name, path: app.appFile };
           if (app.mfe.state === 'missing') {
-            return [finding('config.mfe-json', 'E113', `${app.name} has no mfe.json`, at)];
+            return [finding('config.mfe-json', 'E113', `${app.name} has no mfeflow.app.json`, at)];
           }
           if (app.mfe.state === 'invalid') {
             return [finding('config.mfe-json', 'E113', `${app.name}: ${issueText(app.mfe)}`, at)];
@@ -49,7 +49,7 @@ export const mfeJson: Check = {
                 finding(
                   'config.mfe-json',
                   'E116',
-                  `mfe.json names "${name}" but the app is "${app.name}"`,
+                  `${app.appFile} names "${name}" but the app is "${app.name}"`,
                   at,
                 ),
               ];
@@ -91,7 +91,7 @@ export const routes: Check = {
               'config.routes',
               'E116',
               `${app.name} route ${route} overlaps ${other.app} route ${other.route}`,
-              { app: app.name, path: `${app.rel}/mfe.json` },
+              { app: app.name, path: app.appFile },
             ),
           );
         }

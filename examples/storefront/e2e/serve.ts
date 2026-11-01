@@ -2,13 +2,22 @@
 // for the shell and the monolith baseline (gzip, long-lived caching of hashed files):
 //   :4300 shell (SPA); remotes under /mfe/<name>/ on the same origin; /registry/index.json
 //   :4302 monolith (SPA)
+// SERVE_REGISTRY_DIR serves the registry from a folder written by `mfeflow deploy` (a `file:` host) instead:
+//   /registry/index.json is <dir>/envs/<SERVE_REGISTRY_ENV>/index.json and /reg/* is the folder itself.
+//   Every request re-reads the folder; nothing is kept in memory. The index is sent with `max-age=60`,
+//   as a header only: this server never holds a response back.
 // The shell's index.html gets the edge injection: the registry inlined as
 // window.__MFE_REGISTRY__ and preload hints for the current route's remote files.
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { assetsFromManifest, injectIntoHead, registryInjection } from '@mfeflow/contracts';
+import {
+  assetsFromManifest,
+  injectIntoHead,
+  isRegistryIndex,
+  registryInjection,
+} from '@mfeflow/contracts';
 import type { RegistryIndex, RouteNeed } from '@mfeflow/contracts';
 
 // SERVE_ROOT points the server at another storefront build (the server's own tests use an empty one).
@@ -26,6 +35,13 @@ const SHELL_DIST = process.env.SHELL_DIST ?? 'dist';
 const INJECT = process.env.SERVE_INJECT !== '0';
 // SERVE_HINTS=0 keeps the inlined registry but drops the preload hints.
 const HINTS = process.env.SERVE_HINTS !== '0';
+// SERVE_REGISTRY_DIR: see the top of the file. Point `registry.baseUrl` at `<origin>/reg`.
+const REGISTRY_DIR = process.env.SERVE_REGISTRY_DIR;
+const REGISTRY_ENV = process.env.SERVE_REGISTRY_ENV ?? 'prod';
+const REGISTRY_PREFIX = '/reg/';
+const INDEX_CACHE = 'public, max-age=60';
+// A folder that changes under the server must never be answered from memory.
+const MEMO = REGISTRY_DIR === undefined;
 
 const types: Record<string, string> = {
   '.js': 'text/javascript',
@@ -43,7 +59,7 @@ const packed = new Map<string, Buffer>();
 
 // Keyed by what produced the body: the file, plus the route for the transformed index.html.
 function compress(key: string, body: Buffer): Buffer {
-  const hit = packed.get(key);
+  const hit = MEMO ? packed.get(key) : undefined;
   if (hit) return hit;
   const out =
     ENCODING === 'br'
@@ -54,7 +70,7 @@ function compress(key: string, body: Buffer): Buffer {
           },
         })
       : zlib.gzipSync(body, { level: 6 });
-  packed.set(key, out);
+  if (MEMO) packed.set(key, out);
   return out;
 }
 
@@ -85,7 +101,7 @@ function send(
   };
   const packable = compressible.has(ext) && acceptsEncoding(req.headers['accept-encoding']);
   const key = `${file}\0${variant}`;
-  const cached = packable ? packed.get(key) : undefined;
+  const cached = packable && MEMO ? packed.get(key) : undefined;
   if (cached) {
     res.writeHead(200, { ...headers, 'Content-Encoding': ENCODING });
     res.end(cached);
@@ -139,8 +155,20 @@ let cachedIndex: RegistryIndex | undefined;
 /** A request that cannot be served right now (a remote is not built); answered with 503 for that request only. */
 class Unavailable extends Error {}
 
+/** The index the host folder holds right now. */
+function hostRegistry(): RegistryIndex {
+  try {
+    const index = readJson(path.join(REGISTRY_DIR ?? '', 'envs', REGISTRY_ENV, 'index.json'));
+    if (isRegistryIndex(index)) return index;
+  } catch (error) {
+    throw new Unavailable('registry unavailable (nothing deployed yet?)', { cause: error });
+  }
+  throw new Unavailable('registry unavailable (the index on the host is not valid)');
+}
+
 /** The registry: each remote's entry script and per-expose files, read from its built manifest. */
 function registry(): RegistryIndex {
+  if (REGISTRY_DIR !== undefined) return hostRegistry();
   if (cachedIndex) return cachedIndex;
   try {
     const index: RegistryIndex = {
@@ -193,6 +221,23 @@ function acceptSpans(req: http.IncomingMessage, res: http.ServerResponse): boole
   return true;
 }
 
+/** A file of the host folder: the index for 60 s, everything else (a version's files never change) forever. */
+function hostFile(req: http.IncomingMessage, res: http.ServerResponse, rest: string): void {
+  const dir = path.resolve(REGISTRY_DIR ?? '');
+  const decoded = decode(rest);
+  if (decoded === undefined) {
+    badRequest(res);
+    return;
+  }
+  const file = path.join(dir, decoded);
+  if (!file.startsWith(dir + path.sep) || !isFile(file)) {
+    notFound(res);
+    return;
+  }
+  const cache = file.endsWith('index.json') ? INDEX_CACHE : 'public, max-age=31536000, immutable';
+  send(req, res, file, cache);
+}
+
 function shellHandler(req: http.IncomingMessage, res: http.ServerResponse): void {
   const url = new URL(req.url ?? '/', 'http://x');
   const host = req.headers.host ?? ORIGIN_HOST;
@@ -208,8 +253,13 @@ function shellHandler(req: http.IncomingMessage, res: http.ServerResponse): void
   if (acceptSpans(req, res)) return;
   if (url.pathname === '/registry/index.json') {
     const body = JSON.stringify(registry());
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+    const cache = REGISTRY_DIR === undefined ? 'no-cache' : INDEX_CACHE;
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': cache });
     res.end(body);
+    return;
+  }
+  if (REGISTRY_DIR !== undefined && url.pathname.startsWith(REGISTRY_PREFIX)) {
+    hostFile(req, res, url.pathname.slice(REGISTRY_PREFIX.length));
     return;
   }
   if (url.pathname.startsWith('/mfe/')) {
@@ -272,13 +322,19 @@ function monolithHandler(req: http.IncomingMessage, res: http.ServerResponse): v
   send(req, res, target, cacheFor(target));
 }
 
+/** Request text for a log line: control characters (CR, LF and the rest) become `?`, so a request cannot forge log lines. */
+function printable(value: string): string {
+  return value.replace(/\p{Cc}/gu, '?');
+}
+
 /** One bad request must never take the server down: log it and answer 503 (a missing build) or 500. */
 function guarded(handler: http.RequestListener): http.RequestListener {
   return (req, res) => {
     try {
       handler(req, res);
     } catch (error) {
-      console.error('%s %s:', req.method ?? 'GET', req.url ?? '', error);
+      // The request line is attacker-controlled: strip control characters before it reaches the log.
+      console.error('%s %s:', printable(req.method ?? 'GET'), printable(req.url ?? ''), error);
       if (res.headersSent) {
         res.destroy();
         return;
