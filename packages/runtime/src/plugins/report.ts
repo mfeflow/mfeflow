@@ -3,9 +3,11 @@ import type { ModuleFederationRuntimePlugin } from '@module-federation/enhanced/
 // Runtime plugins run before the async boundary, so this file imports nothing
 // at runtime (no react, no shared @mfeflow packages). It mirrors report.ts.
 const EVENT = 'mfeflow:remote-error';
+const VERSIONS = Symbol.for('mfeflow.remote-versions');
 
 declare global {
-  var mfeflowReports: { mfe: string; where: string; message: string; time: number }[] | undefined;
+  var mfeflowReports:
+    { mfe: string; where: string; message: string; time: number; version?: string }[] | undefined;
 }
 
 /** Reports every Module Federation load failure with the remote's name. */
@@ -14,11 +16,15 @@ export default function mfeflowReportPlugin(): ModuleFederationRuntimePlugin {
     name: 'mfeflow-report',
     errorLoadRemote(args) {
       const mfe = args.id.split('/')[0] ?? args.id;
+      const versions: unknown = Reflect.get(globalThis, VERSIONS);
+      const known: unknown = versions instanceof Map ? versions.get(mfe) : undefined;
+      const version = typeof known === 'string' ? known : undefined;
       const report = {
         mfe,
         where: `errorLoadRemote:${args.lifecycle}`,
         message: args.error instanceof Error ? args.error.message : String(args.error),
         time: Date.now(),
+        ...(version === undefined ? {} : { version }),
       };
       (globalThis.mfeflowReports ??= []).push(report);
       if (typeof window !== 'undefined' && typeof CustomEvent === 'function') {

@@ -9,6 +9,7 @@ interface RemoteReport {
   mfe: string;
   where: string;
   message: string;
+  version?: string;
 }
 
 const isFunction = (value: unknown): value is () => void => typeof value === 'function';
@@ -36,7 +37,11 @@ export function connectRemoteErrors(
   }
   const forward = (item: unknown) => {
     if (!isRemoteReport(item)) return;
-    report(new Error(item.message), { mfe: item.mfe, where: item.where });
+    report(new Error(item.message), {
+      mfe: item.mfe,
+      where: item.where,
+      ...(typeof item.version === 'string' ? { version: item.version } : {}),
+    });
   };
   const earlier: unknown = Reflect.get(globalThis, 'mfeflowReports');
   if (Array.isArray(earlier)) for (const item of earlier as unknown[]) forward(item);

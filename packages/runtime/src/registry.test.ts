@@ -1,6 +1,9 @@
 import { assetsFromManifest, validateRegistryIndex } from '@mfeflow/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { reportRemoteError } from './report';
+import { RUNTIME_CONFIG_KEY, resetRuntimeConfigForTests } from './runtime-config';
+
 const registerRemotes = vi.fn();
 vi.mock('@module-federation/enhanced/runtime', () => ({ registerRemotes }));
 
@@ -10,9 +13,12 @@ const {
   isRegistryIndex,
   isRegistryRemote,
   loadRegistryIndex,
+  REGISTRY_FALLBACK,
   REGISTRY_GLOBAL,
   registerRemotesFromIndex,
   registeredRemotes,
+  registrySources,
+  registrySourcesFromConfig,
 } = await import('./registry');
 
 const U = 'https://cdn.example.com/m.json';
@@ -96,7 +102,7 @@ describe('loadRegistryIndex', () => {
 
   it('times out a slow registry', async () => {
     await expect(loadRegistryIndex('/r.json', { fetch: hang, timeoutMs: 20 })).rejects.toThrow(
-      /aborted/,
+      /timed out after 20 ms/,
     );
   });
 
@@ -341,5 +347,232 @@ describe('registerRemotesFromIndex', () => {
 
   it('registers everything when no allowlist is given', () => {
     expect(registerRemotesFromIndex(index)).toEqual(['cart', 'catalog']);
+  });
+});
+
+describe('loadRegistryIndex with a fallback', () => {
+  const CDN = 'https://cdn.example.com';
+  const sources = ['/registry/index.json', `${CDN}/registry/index.json`];
+  const withCdn = { allowedOrigins: [CDN] };
+  const isCdn = (url: string | URL | Request) =>
+    new URL(
+      typeof url === 'string' ? url : url instanceof URL ? url.href : url.url,
+      'https://shop.test',
+    ).origin === CDN;
+  const ok = () => Promise.resolve(new Response(JSON.stringify(index)));
+  const answer = (primary: () => Promise<Response>) =>
+    vi.fn((url: string | URL | Request) => (isCdn(url) ? ok() : primary()));
+  const fallbackReports = () =>
+    (globalThis.mfeflowReports ?? []).filter((r) => r.message.includes(REGISTRY_FALLBACK));
+
+  it('uses the fallback when the primary answers 5xx, and reports it once', async () => {
+    const fetchFn = answer(() => Promise.resolve(new Response('x', { status: 500 })));
+    await expect(loadRegistryIndex(sources, { fetch: fetchFn, ...withCdn })).resolves.toEqual(
+      index,
+    );
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(fallbackReports()).toHaveLength(1);
+    expect(fallbackReports()[0]?.message).toContain('HTTP 500');
+  });
+
+  it('uses the fallback when the primary does not answer in time', async () => {
+    const fetchFn = vi.fn((url: string | URL | Request, init?: RequestInit) =>
+      isCdn(url) ? ok() : hang(url, init),
+    );
+    await expect(
+      loadRegistryIndex(sources, { fetch: fetchFn, primaryTimeoutMs: 20, ...withCdn }),
+    ).resolves.toEqual(index);
+    expect(fallbackReports()[0]?.message).toContain('timed out after 20 ms');
+  });
+
+  it('gives the last URL what the primary left of the budget', async () => {
+    const error = await loadRegistryIndex(sources, {
+      fetch: hang,
+      primaryTimeoutMs: 10,
+      timeoutMs: 80,
+      ...withCdn,
+    }).catch((e: unknown) => e);
+    const waits = [...String(error).matchAll(/timed out after (\d+) ms/g)].map((m) => Number(m[1]));
+    expect(waits[0]).toBe(10);
+    // The rest of the 80 ms budget once the primary's 10 ms are gone; timers fire a ms or two off.
+    expect(waits[1]).toBeGreaterThan(40);
+    expect(waits[1]).toBeLessThan(80);
+  });
+
+  it('uses the fallback when the primary body is not JSON', async () => {
+    const fetchFn = answer(() => Promise.resolve(new Response('<html>')));
+    await expect(loadRegistryIndex(sources, { fetch: fetchFn, ...withCdn })).resolves.toEqual(
+      index,
+    );
+    expect(fallbackReports()[0]?.message).toContain('not valid JSON');
+  });
+
+  it('uses the fallback when the primary is not a valid envelope or the network fails', async () => {
+    const envelope = answer(() => Promise.resolve(new Response(JSON.stringify({ remotes: 1 }))));
+    await expect(loadRegistryIndex(sources, { fetch: envelope, ...withCdn })).resolves.toEqual(
+      index,
+    );
+    const network = answer(() => Promise.reject(new TypeError('Failed to fetch')));
+    await expect(loadRegistryIndex(sources, { fetch: network, ...withCdn })).resolves.toEqual(
+      index,
+    );
+  });
+
+  it('does not report a fallback when the primary works, and skips invalid remotes as before', async () => {
+    const fetchFn = vi.fn(() =>
+      Promise.resolve(new Response(JSON.stringify({ remotes: [{ name: 'bad name' }] }))),
+    );
+    await expect(loadRegistryIndex(sources, { fetch: fetchFn, ...withCdn })).resolves.toEqual({
+      remotes: [],
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(fallbackReports()).toHaveLength(0);
+  });
+
+  it('fails with every reason when all URLs fail', async () => {
+    const fetchFn = vi.fn(() => Promise.resolve(new Response('x', { status: 503 })));
+    await expect(loadRegistryIndex(sources, { fetch: fetchFn, ...withCdn })).rejects.toThrow(
+      /every source failed \(registry index \/registry\/index.json: HTTP 503; registry index https:\/\/cdn.example.com\/registry\/index.json: HTTP 503\)/,
+    );
+  });
+
+  it('refuses a fallback on an origin that is not allowed, without fetching it', async () => {
+    const fetchFn = answer(() => Promise.resolve(new Response('x', { status: 500 })));
+    await expect(loadRegistryIndex(sources, { fetch: fetchFn })).rejects.toThrow(
+      /cdn\.example\.com.*must be same-origin or in allowedOrigins/,
+    );
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    await expect(
+      loadRegistryIndex(sources, { fetch: fetchFn, allowedOrigins: ['https://other.example.com'] }),
+    ).rejects.toThrow(/allowedOrigins/);
+  });
+
+  it('refuses a URL that is not a URL', async () => {
+    const fetchFn = vi.fn(ok);
+    await expect(loadRegistryIndex('http://', { fetch: fetchFn })).rejects.toThrow(
+      /allowedOrigins/,
+    );
+    await expect(loadRegistryIndex([], { fetch: fetchFn })).rejects.toThrow(/no URL/);
+  });
+
+  it('lets the inline index win over every URL', async () => {
+    const fetchFn = vi.fn(ok);
+    Reflect.set(globalThis, REGISTRY_GLOBAL, index);
+    try {
+      await expect(loadRegistryIndex(sources, { fetch: fetchFn, ...withCdn })).resolves.toBe(index);
+      expect(fetchFn).not.toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(globalThis, REGISTRY_GLOBAL);
+    }
+  });
+});
+
+describe('registrySourcesFromConfig', () => {
+  it('defaults to the same-origin index', () => {
+    expect(registrySourcesFromConfig({})).toEqual({
+      urls: [DEFAULT_REGISTRY_URL],
+      allowedOrigins: [],
+    });
+  });
+
+  it('reads the URLs and origins, dropping anything that is not a string URL', () => {
+    expect(
+      registrySourcesFromConfig({
+        registryUrls: ['https://cdn.example.com/index.json', 3, ''],
+        registryOrigins: ['https://cdn.example.com/some/path', 'nope', 7],
+      }),
+    ).toEqual({
+      urls: ['https://cdn.example.com/index.json'],
+      allowedOrigins: ['https://cdn.example.com'],
+    });
+  });
+
+  it('drops origins that are not http(s), which would be the opaque "null" origin', () => {
+    const config = {
+      registryOrigins: ['data:,x', 'blob:https://a.test/1', 'javascript:x', 'https://ok.test'],
+    };
+    expect(registrySourcesFromConfig(config).allowedOrigins).toEqual(['https://ok.test']);
+  });
+});
+
+describe('registrySources', () => {
+  afterEach(() => {
+    resetRuntimeConfigForTests();
+    Reflect.deleteProperty(globalThis, REGISTRY_GLOBAL);
+    vi.useRealTimers();
+  });
+
+  it('uses an inlined runtime config without fetching', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    Reflect.set(globalThis, RUNTIME_CONFIG_KEY, { registryOrigins: ['https://cdn.test'] });
+    await expect(registrySources()).resolves.toEqual({
+      urls: [DEFAULT_REGISTRY_URL],
+      allowedOrigins: ['https://cdn.test'],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('fetches nothing when the index is inlined', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    Reflect.set(globalThis, REGISTRY_GLOBAL, index);
+    await expect(registrySources()).resolves.toEqual({
+      urls: [DEFAULT_REGISTRY_URL],
+      allowedOrigins: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('reads the config file when it answers in time', async () => {
+    const config = {
+      registryUrls: ['https://cdn.test/index.json'],
+      registryOrigins: ['https://cdn.test'],
+    };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(config)));
+    await expect(registrySources()).resolves.toEqual({
+      urls: ['https://cdn.test/index.json'],
+      allowedOrigins: ['https://cdn.test'],
+    });
+  });
+
+  it('stops waiting for a config file that hangs, and for one that fails', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise<Response>(() => undefined));
+    const hung = registrySources(1500);
+    await vi.advanceTimersByTimeAsync(1500);
+    await expect(hung).resolves.toEqual({ urls: [DEFAULT_REGISTRY_URL], allowedOrigins: [] });
+    vi.useRealTimers();
+    resetRuntimeConfigForTests();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 404 }));
+    await expect(registrySources()).resolves.toEqual({
+      urls: [DEFAULT_REGISTRY_URL],
+      allowedOrigins: [],
+    });
+  });
+});
+
+describe('a redirected registry index', () => {
+  it('is refused when the redirect lands on an origin that is not allowed', async () => {
+    const res = new Response(JSON.stringify(index));
+    Object.defineProperty(res, 'redirected', { value: true });
+    Object.defineProperty(res, 'url', { value: 'https://evil.test/index.json' });
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(
+      loadRegistryIndex('https://cdn.example.com/index.json', {
+        fetch: () => Promise.resolve(res),
+        allowedOrigins: ['https://cdn.example.com'],
+      }),
+    ).rejects.toThrow(/redirected to https:\/\/evil\.test\/index\.json/);
+  });
+});
+
+describe('versions in reports', () => {
+  it('says cart@1.0.0 once the registry gave cart a version', async () => {
+    registerRemotesFromIndex(index, { allowedOrigins: ['https://cdn.example.com'] });
+    const report = reportRemoteError('cart', 'load', new Error('boom'));
+    expect(report.version).toBe('1.0.0');
+    expect(globalThis.mfeflowReports?.at(-1)?.version).toBe('1.0.0');
+    expect(reportRemoteError('unknown', 'load', new Error('boom')).version).toBeUndefined();
+    registerRemotesFromIndex({ remotes: [] });
+    expect(reportRemoteError('cart', 'load', new Error('boom')).version).toBeUndefined();
   });
 });

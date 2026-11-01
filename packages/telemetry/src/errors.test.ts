@@ -32,6 +32,12 @@ describe('connectRemoteErrors', () => {
     expect(got[0]?.error).toMatchObject({ message: 'timed out after 5000 ms' });
   });
 
+  it('passes on the remote version when the report has one', () => {
+    stop = connectRemoteErrors(collect);
+    send({ ...report('cart', 'load'), version: '1.2.3' });
+    expect(got[0]?.context).toEqual({ mfe: 'cart', where: 'load', version: '1.2.3' });
+  });
+
   it('replays the failures that happened before it connected', () => {
     Reflect.set(globalThis, 'mfeflowReports', [report('catalog', 'registry'), report('cart')]);
     stop = connectRemoteErrors(collect);

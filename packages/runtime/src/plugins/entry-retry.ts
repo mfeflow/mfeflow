@@ -55,20 +55,24 @@ export function createEntryRetryPlugin(
           // oxlint-disable-next-line typescript/no-dynamic-delete -- keyed by the remote's unique key
           delete globalLoading[uniqueKey];
         }
+        const before = globalLoading[uniqueKey];
         try {
-          // oxlint-disable-next-line no-await-in-loop -- attempts are sequential on purpose
-          const exports = await getRemoteEntry({
+          const attemptLoad = getRemoteEntry({
             origin,
             remoteInfo,
             remoteEntryExports,
             getEntryUrl: (url: string) =>
               `${url}${url.includes('?') ? '&' : '?'}retry=${String(attempt)}`,
           });
+          // The load registers itself synchronously; remember that one, not whatever is there once it fails.
+          const started = globalLoading[uniqueKey];
+          failed = started === before ? undefined : started;
+          // oxlint-disable-next-line no-await-in-loop -- attempts are sequential on purpose
+          const exports = await attemptLoad;
           if (exports) return exports;
         } catch {
           // next attempt
         }
-        failed = globalLoading[uniqueKey];
       }
       return undefined;
     } finally {

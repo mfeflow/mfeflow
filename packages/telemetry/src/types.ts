@@ -5,6 +5,8 @@ export type { Attributes, Span, SpanOptions, Tracer } from '@opentelemetry/api';
 export interface ErrorContext {
   /** The remote the error came from. */
   mfe: string;
+  /** The remote's registered version, when known. */
+  version?: string | undefined;
   /** Where it failed, e.g. `render`, `load`, `registry`. */
   where?: string | undefined;
 }

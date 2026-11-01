@@ -31,4 +31,18 @@ describe('mfeflowReportPlugin', () => {
     expect(events).toHaveLength(1);
     expect(plugin.name).toBe('mfeflow-report');
   });
+
+  it('adds the version the registry gave the remote', async () => {
+    Reflect.set(globalThis, Symbol.for('mfeflow.remote-versions'), new Map([['cart', '1.2.3']]));
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the hook only reads id, error and lifecycle
+    await mfeflowReportPlugin().errorLoadRemote?.({
+      id: 'cart/App',
+      error: new Error('x'),
+      from: 'runtime',
+      lifecycle: 'onLoad',
+      origin: {},
+    } as never);
+    Reflect.deleteProperty(globalThis, Symbol.for('mfeflow.remote-versions'));
+    expect(globalThis.mfeflowReports?.[0]).toMatchObject({ mfe: 'cart', version: '1.2.3' });
+  });
 });
