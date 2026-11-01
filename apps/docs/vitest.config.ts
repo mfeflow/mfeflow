@@ -3,5 +3,8 @@ import { workspaceAliases } from '../../vitest.shared';
 
 export default defineProject({
   resolve: { alias: workspaceAliases },
-  test: { environment: 'node', include: ['scripts/**/*.test.mjs'] },
+  test: {
+    environment: 'node',
+    include: ['scripts/**/*.test.mjs', 'theme/**/*.test.tsx'],
+  },
 });
