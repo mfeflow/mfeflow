@@ -489,6 +489,21 @@ describe('mfeflow init', () => {
     expect(root.devDependencies.mfeflow).toMatch(/^link:.*\/packages\/cli$/);
   });
 
+  it('generates files that pass prettier --check', async () => {
+    const cwd = await workspace();
+    const features = 'lint-oxlint,env-t3,testing,ci-github,url-factory';
+    expect(
+      await main(
+        ['init', 'app', '--yes', '--no-install', '--features', features, '--cwd', cwd],
+        testRuntime(),
+      ),
+    ).toBe(0);
+    const prettier = path.join(REPO, 'node_modules/.bin/prettier');
+    expect(() => {
+      execFileSync(prettier, ['--check', '.'], { cwd: path.join(cwd, 'app'), stdio: 'pipe' });
+    }).not.toThrow();
+  }, 30_000);
+
   it('documents only commands that run in the fresh project', async () => {
     const cwd = await workspace();
     await main(['init', 'app', '--yes', '--no-install', '--cwd', cwd], testRuntime());
