@@ -1,7 +1,7 @@
 declare module 'catalog/ProductList' {
-  export const ProductList: () => JSX.Element;
+  export const ProductList: () => React.JSX.Element;
 }
 
 declare module 'checkout/Checkout' {
-  export const Checkout: () => JSX.Element;
+  export const Checkout: () => React.JSX.Element;
 }

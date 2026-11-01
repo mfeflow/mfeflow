@@ -40,7 +40,7 @@ async function run(root: string, command: string[]) {
 
 describe('examples/adopt-existing', () => {
   it('is a plain Module Federation app that does not use mfeflow', async () => {
-    const tree = await readTree(EXAMPLE);
+    const tree = await readTree(await copyOfExample());
     expect(tree).not.toHaveProperty(['mfeflow.json']);
     expect(Object.keys(tree).filter((file) => file.endsWith('mfeflow.app.json'))).toEqual([]);
     for (const file of Object.keys(tree).filter((name) => name.endsWith('package.json'))) {

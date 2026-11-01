@@ -23,6 +23,7 @@ The shell loads both remotes from their `mf-manifest.json`. Nothing here imports
 
 - Node 22.12 or newer
 - pnpm 12 or newer
+- mfeflow 0.6.0 or newer. npm's latest, 0.5.0, has no `adopt` command yet
 
 ## 1. Check that it works without mfeflow
 
@@ -65,6 +66,8 @@ Dependencies (1):
 Warning: routes are empty (mfeflow cannot read them from a build config); ...
 Warning: registry entries for staging and prod point at example.com; ...
 ```
+
+The `@mfeflow/runtime` version follows the CLI release, so yours may differ from `^0.5.0`.
 
 The list ends with a note that your build config was not changed. That is a promise: `adopt` never edits `rsbuild.config.ts` or `rspack.config.mjs`.
 
