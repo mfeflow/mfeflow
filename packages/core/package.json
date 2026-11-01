@@ -1,6 +1,6 @@
 {
   "name": "@mfeflow/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The engine behind the mfeflow CLI: project model, change plans with diffs, atomic apply with rollback, and feature resolution.",
   "keywords": [
     "micro-frontend",

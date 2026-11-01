@@ -1,5 +1,18 @@
 # mfeflow
 
+## 0.2.0
+
+### Minor Changes
+
+- [#28](https://github.com/mfeflow/mfeflow/pull/28) [`8043f00`](https://github.com/mfeflow/mfeflow/commit/8043f00627e0ac0c6e665b745cf29f2cfe428c61) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - Add the `event-bus`, `route-factory` and `http` features. `event-bus` creates the `packages/contracts` workspace package (`@<scope>/contracts`) and merges its events into the bus in every app; `route-factory` writes `src/routes.ts` per remote, with the paths in the contracts package when `event-bus` is installed; `http` writes `src/api/client.ts` and adds the `apiUrl` runtime key. The `url-factory` feature's `endpoints.ts` now reads `<service>Url` from the runtime config. Doctor reports `@mfeflow/event-bus` installed in two versions.
+
+### Patch Changes
+
+- [#29](https://github.com/mfeflow/mfeflow/pull/29) [`a568277`](https://github.com/mfeflow/mfeflow/commit/a5682779728d0a372714f36d4f5050c1a4ecbb5b) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - Generated projects now install the `mfeflow` CLI as a root dev dependency and get `doctor`, `validate`, `check-compat` and `budget` scripts, so every command in the generated README and AGENTS.md runs after `pnpm install` (before, `pnpm exec mfeflow doctor` failed with "Command mfeflow not found"). The docs and the CI workflow call the CLI as `pnpm mfeflow <command>`.
+- Updated dependencies [[`8043f00`](https://github.com/mfeflow/mfeflow/commit/8043f00627e0ac0c6e665b745cf29f2cfe428c61), [`8043f00`](https://github.com/mfeflow/mfeflow/commit/8043f00627e0ac0c6e665b745cf29f2cfe428c61)]:
+  - @mfeflow/contracts@0.2.0
+  - @mfeflow/core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

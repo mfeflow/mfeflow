@@ -1,5 +1,12 @@
 # create-mfeflow
 
+## 0.2.0
+
+### Patch Changes
+
+- Updated dependencies [[`8043f00`](https://github.com/mfeflow/mfeflow/commit/8043f00627e0ac0c6e665b745cf29f2cfe428c61), [`a568277`](https://github.com/mfeflow/mfeflow/commit/a5682779728d0a372714f36d4f5050c1a4ecbb5b)]:
+  - mfeflow@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

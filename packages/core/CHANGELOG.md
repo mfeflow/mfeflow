@@ -1,5 +1,16 @@
 # @mfeflow/core
 
+## 0.2.0
+
+### Minor Changes
+
+- [#28](https://github.com/mfeflow/mfeflow/pull/28) [`8043f00`](https://github.com/mfeflow/mfeflow/commit/8043f00627e0ac0c6e665b745cf29f2cfe428c61) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - Features that ship with mfeflow can name a dependency in the project's scope (`{{scope}}/contracts`), fill `{{app.name}}` into a file destination, and write a file relative to the project root with `atRoot`. Third-party features are refused all three (E203).
+
+### Patch Changes
+
+- Updated dependencies [[`8043f00`](https://github.com/mfeflow/mfeflow/commit/8043f00627e0ac0c6e665b745cf29f2cfe428c61)]:
+  - @mfeflow/contracts@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes
