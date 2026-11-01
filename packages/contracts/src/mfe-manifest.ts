@@ -1,4 +1,7 @@
+import { EXPOSE, ROUTE } from './entry';
 import { Checker, isObj, type Issue } from './validate';
+
+export { EXPOSE, ROUTE };
 
 /** `mfe.json`: who owns a micro-frontend and what it promises. */
 export interface MfeManifest {
@@ -28,8 +31,6 @@ export interface MfeManifest {
  * cannot become the same component or global name.
  */
 export const MFE_NAME = /^[a-z][a-z0-9]*(?:_[a-z][a-z0-9]*)*$/;
-export const ROUTE = /^\/[A-Za-z0-9/_:*.-]*$/;
-export const EXPOSE = /^\.\/[A-Za-z0-9_/-]+$/;
 /** `<domain>.<event>.v<major>`, e.g. `cart.item-added.v1`. The same pattern `@mfeflow/event-bus` checks names against. */
 export const EVENT_NAME = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+\.v[1-9][0-9]*$/;
 /** `<domain>_<object>_<action>`, e.g. `checkout_order_completed`. */

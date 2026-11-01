@@ -128,6 +128,20 @@ describe('mfeflow doctor', () => {
     expect(result.findings[0]?.message).toContain('catalog and cart both use 4311');
   });
 
+  it('finds a wildcard route that covers another remote route and names both', async () => {
+    const root = await project();
+    await editJson(path.join(root, 'apps/catalog/mfe.json'), (doc) => {
+      doc.routes = ['/shop/*'];
+    });
+    await editJson(path.join(root, 'apps/cart/mfe.json'), (doc) => {
+      doc.routes = ['/Shop/cart'];
+    });
+    const { result } = await run(root, 'doctor');
+    const found = result.findings.filter((f) => f.code === 'MFEFLOW_E116');
+    expect(found).toHaveLength(1);
+    expect(found[0]?.message).toContain('cart route /Shop/cart overlaps catalog route /shop/*');
+  });
+
   it('flags a missing or invalid registry entry, and fixes only the missing one', async () => {
     const root = await project();
     await fs.rm(path.join(root, 'registry/envs/staging/cart.json'));

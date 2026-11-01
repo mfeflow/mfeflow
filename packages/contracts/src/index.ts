@@ -9,6 +9,7 @@ export {
   validateMfeManifest,
   type MfeManifest,
 } from './mfe-manifest';
+export { routesOverlap } from './routes';
 export { assetsFromManifest, type RemoteAssets } from './manifest-assets';
 export {
   injectIntoHead,
@@ -19,6 +20,8 @@ export {
 export {
   isRegistryEntry,
   isRegistryIndex,
+  isRegistryIndexRemote,
+  registryRemoteIssues,
   validateRegistryEntry,
   validateRegistryIndex,
   type RegistryEntry,

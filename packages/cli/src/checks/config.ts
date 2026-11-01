@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { routesOverlap } from '@mfeflow/contracts';
 import { findDiverged } from '@mfeflow/core';
 import { done, finding, type Check } from '../findings';
 import { ENVS, type Read } from '../inspect';
@@ -76,23 +77,26 @@ export const ports: Check = {
 
 export const routes: Check = {
   id: 'config.routes',
-  title: 'no two remotes claim the same route',
+  title: 'no two remotes claim overlapping routes',
   run: ({ apps }) => {
-    const claimed = new Map<string, string>();
+    const claimed: { app: string; route: string }[] = [];
     const out = [];
     for (const app of apps) {
       if (app.kind !== 'remote' || app.mfe.state !== 'ok') continue;
       for (const route of app.mfe.value.routes) {
-        const owner = claimed.get(route);
-        if (owner !== undefined && owner !== app.name) {
+        for (const other of claimed) {
+          if (other.app === app.name || !routesOverlap(route, other.route)) continue;
           out.push(
-            finding('config.routes', 'E116', `${route} is claimed by ${owner} and ${app.name}`, {
-              app: app.name,
-              path: `${app.rel}/mfe.json`,
-            }),
+            finding(
+              'config.routes',
+              'E116',
+              `${app.name} route ${route} overlaps ${other.app} route ${other.route}`,
+              { app: app.name, path: `${app.rel}/mfe.json` },
+            ),
           );
-        } else claimed.set(route, app.name);
+        }
       }
+      for (const route of app.mfe.value.routes) claimed.push({ app: app.name, route });
     }
     return done(out);
   },

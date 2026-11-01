@@ -1,13 +1,10 @@
+import type { RegistryIndex, RegistryIndexRemote } from '@mfeflow/contracts';
 import { MfeflowError } from '@mfeflow/core';
 import type { ProjectView } from './inspect';
 
-export interface DevRemote {
-  name: string;
-  entry: string;
-  version: string;
-}
+export type DevRemote = RegistryIndexRemote & { version: string };
 
-export interface DevIndex {
+export interface DevIndex extends RegistryIndex {
   remotes: DevRemote[];
 }
 
