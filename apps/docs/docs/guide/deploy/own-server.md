@@ -1,6 +1,6 @@
 ---
 title: Deploy to your own server
-description: Serve the site folder from any static file server you already run, with an nginx example, an rsync upload order that keeps old versions, and a note on the registry server that is not built yet.
+description: Serve the site folder from any static file server you already run, with an nginx example, an rsync upload order that keeps old versions, and a pointer to the registry server when you want rollouts and a kill switch.
 ---
 
 # Deploy to your own server
@@ -92,7 +92,7 @@ Users get the old version on their next page load. Nothing is rebuilt.
 
 ## The mfeflow registry server
 
-A registry server is planned for Phase 05. It is not built, and this page will show it when it ships. Until then, a plain file server like the one above does the job.
+A plain file server like the one above is enough for deploys and rollbacks by pointer. If you want percentage rollouts, a kill switch and scoped tokens, you can run the mfeflow registry server beside it. It is optional. See [Run the registry server](/guide/deploy/registry-server-runbook).
 
 If you want commands that upload and roll back for you, `mfeflow deploy` can write to a folder or an S3-compatible bucket. See [Deploy and roll back a remote](/guide/deploy-and-rollback).
 

@@ -19,6 +19,8 @@ export interface Runtime {
   dev?: DevHost;
   /** `fetch` for S3 hosts. Tests stand in for the network. */
   hostFetch?: typeof fetch;
+  /** `fetch` for the registry server in server mode. Tests point it at a server on 127.0.0.1. */
+  serverFetch?: typeof fetch;
   /** Wraps the registry host `deploy`, `promote`, `rollback` and `status` open. Tests inject a second writer. */
   wrapHost?: (host: RegistryHost) => RegistryHost;
 }

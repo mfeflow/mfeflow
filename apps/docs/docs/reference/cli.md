@@ -13,26 +13,28 @@ Run the command with `--help` for the options and examples of one command.
 
 ## Commands
 
-| Command                                   | Does                                                                              |
-| ----------------------------------------- | --------------------------------------------------------------------------------- |
-| `init [dir]`                              | Create a project: a shell and remotes                                             |
-| `adopt`                                   | Set up mfeflow in an existing Module Federation project; never edits build config |
-| `add remote <name>`                       | Add a remote, its registry entries and a shell route                              |
-| `add shell <name>`                        | Add a shell that routes to every remote                                           |
-| `add <feature...>`                        | Add features, or `@namespace/feature` from a registry                             |
-| `add env-key <KEY>`                       | Add a typed env key                                                               |
-| `upgrade`                                 | Move the project to the version of mfeflow you run, keeping your edits            |
-| `features [search]`                       | List and search features from mfeflow and your registries                         |
-| `registry add`, `list`, `remove`, `build` | Configure or build third-party registries                                         |
-| `doctor`                                  | Check singletons, compatibility, config and drift                                 |
-| `validate`                                | Check `mfeflow.json`, every `mfeflow.app.json` and every registry entry           |
-| `check-compat`                            | Check each remote's shared ranges against its shells                              |
-| `budget`                                  | Measure built JavaScript against the cost model                                   |
-| `dev`                                     | Run the shell and every remote with a dev registry                                |
-| `deploy <remote>`                         | Upload a remote's build to a static registry host and point an environment at it  |
-| `promote <remote>`                        | Point one environment at the version another serves; no upload                    |
-| `rollback <remote>`                       | Point an environment back at an earlier version; no rebuild                       |
-| `status`                                  | What each environment serves, the version before it, and drift                    |
+| Command                                          | Does                                                                              |
+| ------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `init [dir]`                                     | Create a project: a shell and remotes                                             |
+| `adopt`                                          | Set up mfeflow in an existing Module Federation project; never edits build config |
+| `add remote <name>`                              | Add a remote, its registry entries and a shell route                              |
+| `add shell <name>`                               | Add a shell that routes to every remote                                           |
+| `add <feature...>`                               | Add features, or `@namespace/feature` from a registry                             |
+| `add env-key <KEY>`                              | Add a typed env key                                                               |
+| `upgrade`                                        | Move the project to the version of mfeflow you run, keeping your edits            |
+| `features [search]`                              | List and search features from mfeflow and your registries                         |
+| `registry add`, `list`, `remove`, `build`        | Configure or build third-party registries                                         |
+| `doctor`                                         | Check singletons, compatibility, config and drift                                 |
+| `validate`                                       | Check `mfeflow.json`, every `mfeflow.app.json` and every registry entry           |
+| `check-compat`                                   | Check each remote's shared ranges against its shells                              |
+| `budget`                                         | Measure built JavaScript against the cost model                                   |
+| `dev`                                            | Run the shell and every remote with a dev registry                                |
+| `deploy <remote>`                                | Upload a remote's build to a static registry host and point an environment at it  |
+| `promote <remote>`                               | Point one environment at the version another serves; no upload                    |
+| `rollback <remote>`                              | Point an environment back at an earlier version; no rebuild                       |
+| `status`                                         | What each environment serves, the version before it, and drift                    |
+| `rollout step\|complete\|abort\|status <remote>` | Move or read a percentage rollout (registry server only)                          |
+| `kill <remote>`, `restore <remote>`              | Take a remote out of the served index, or put it back (registry server only)      |
 
 This release has no command to remove a feature.
 
@@ -278,6 +280,31 @@ A walk-through with output is in [Deploy and roll back a remote](/guide/deploy-a
 S3 settings come from `MFEFLOW_S3_ENDPOINT`, `MFEFLOW_S3_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`, and are never printed. `--dry-run` prints the plan as data and writes nothing. Without `--yes`, a terminal asks before anything moves. A failed gate exits with 7 and one of E501 to E505. The other deploy errors are E506 to E512.
 
 `--json` prints `{ ok, command, dryRun, env, fromEnv, host, remote, version, servedBefore, published, previous, rolledBackFrom, uploads, uploaded, skipped, localEntry, warnings, findings }` for the first three, with `index` added for a dry run. `status` prints `{ ok, command: "status", host, envs: [{ env, published, generatedAt, remotes }], findings }`. A successful deploy, promote or rollback also writes `registry/envs/<env>/<remote>.json`, so git records what is served. Not for `dev`: `mfeflow dev` reads that folder.
+
+## Server mode
+
+Set `MFEFLOW_REGISTRY_URL`, or pass `--registry-url`, and `deploy`, `promote`, `rollback` and `status` talk to a [registry server](/guide/deploy/registry-server-runbook) instead of writing a static index. Without it nothing changes.
+
+```sh
+export MFEFLOW_REGISTRY_URL=https://registry.example.com
+export MFEFLOW_REGISTRY_TOKEN=...
+mfeflow deploy catalog --env prod --percent 10 --steps 50,100
+mfeflow rollout status catalog --env prod
+mfeflow rollout complete catalog --env prod
+mfeflow kill catalog --env prod --reason "payments error"
+```
+
+| Flag or variable                 | Commands            | Does                                                                                          |
+| -------------------------------- | ------------------- | --------------------------------------------------------------------------------------------- |
+| `MFEFLOW_REGISTRY_URL`           | all five            | The server address. https, or http on localhost only. No login, query or fragment in it       |
+| `--registry-url <url>`           | all five            | The same, and it wins over the variable                                                       |
+| `MFEFLOW_REGISTRY_TOKEN`         | all but `status`    | The token. Read only from the environment; there is no flag. Never printed                    |
+| `--percent <n>`, `--steps <a,b>` | deploy, promote     | Start a rollout at `n` percent (1 to 99), then the rising steps. A static host refuses (E505) |
+| `--reason <text>`                | kill, rollout abort | Written to the audit log                                                                      |
+
+In server mode `deploy` still uploads the build to `--host` first, because the server never stores files. Then it asks the server to move the pointer. `promote --percent` sends the rollout with the promote, so it needs `promote` on the target and `read` on the source, and it is audited as a promote. `status` needs `--env` outside a project, and shows kills and rollouts when a token is set.
+
+`--json` and `--dry-run` work as in static mode. A dry run reads the index and sends nothing, so the server's own checks do not run. Server answers map to the same codes: a missing version or rollout is E508, a changed published version is E511, a missing build file is E509, a lost race is E510, and an unreachable server, a bad token or a missing token is E506. All exit with 7.
 
 ## Exit codes
 

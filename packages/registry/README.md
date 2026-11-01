@@ -138,20 +138,20 @@ S3 credentials for the fallback host come from `AWS_ACCESS_KEY_ID`, `AWS_SECRET_
 
 **Endpoints.** JSON in, JSON out. Upload the build to the artifact host first; the server never stores files.
 
-| Endpoint                       | Needs                                         | What it does                                                                                                                                               |
-| ------------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /v1/index/:env?u=id`      | nothing                                       | The index for the env, the same shape as the static one. With `u`, the version that client should load.                                                    |
-| `POST /v1/deploy`              | `deploy`                                      | Registers an uploaded version and serves it, after the schema, overlap, compat and budget gates.                                                           |
-| `POST /v1/promote`             | `promote` on the target, `read` on the source | Points `to` at the version `from` serves.                                                                                                                  |
-| `POST /v1/rollback`            | `rollback`                                    | Back to `previous`, or to `to` from the history. `force` skips the gates, not the history check.                                                           |
-| `POST /v1/rollout/step`        | `rollout`                                     | Moves a running rollout to its next percent.                                                                                                               |
-| `POST /v1/rollout/complete`    | `rollout`                                     | Makes the candidate the stable version for everyone.                                                                                                       |
-| `POST /v1/rollout/abort`       | `rollout`                                     | Ends the rollout; everyone gets stable again.                                                                                                              |
-| `GET /v1/rollout?env=&remote=` | `read`                                        | A running rollout's percent, the clients, loads and errors on each side, and why the gate is waiting.                                                      |
-| `POST /v1/beacon`              | nothing                                       | Browsers report load and error counts. Validated and rate limited.                                                                                         |
-| `POST /v1/kill`                | `kill`                                        | Removes the remote from the served index now. `restore: true` puts it back.                                                                                |
-| `GET /v1/audit?env=`           | `read`                                        | Who did what, when, and the versions before and after. Entries carry token ids and kill reasons (free text from the caller), so treat the log as internal. |
-| `GET /healthz`                 | nothing                                       | Checks the database.                                                                                                                                       |
+| Endpoint                       | Needs                                         | What it does                                                                                                                                                         |
+| ------------------------------ | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/index/:env?u=id`      | nothing                                       | The index for the env, the same shape as the static one. With `u`, the version that client should load.                                                              |
+| `POST /v1/deploy`              | `deploy`                                      | Registers an uploaded version and serves it, after the schema, overlap, compat and budget gates.                                                                     |
+| `POST /v1/promote`             | `promote` on the target, `read` on the source | Points `to` at the version `from` serves. With `rollout: {percent, steps}` it starts a rollout of that version instead, and the target needs a stable version first. |
+| `POST /v1/rollback`            | `rollback`                                    | Back to `previous`, or to `to` from the history. `force` skips the gates, not the history check.                                                                     |
+| `POST /v1/rollout/step`        | `rollout`                                     | Moves a running rollout to its next percent.                                                                                                                         |
+| `POST /v1/rollout/complete`    | `rollout`                                     | Makes the candidate the stable version for everyone.                                                                                                                 |
+| `POST /v1/rollout/abort`       | `rollout`                                     | Ends the rollout; everyone gets stable again.                                                                                                                        |
+| `GET /v1/rollout?env=&remote=` | `read`                                        | A running rollout's percent, the clients, loads and errors on each side, and why the gate is waiting.                                                                |
+| `POST /v1/beacon`              | nothing                                       | Browsers report load and error counts. Validated and rate limited.                                                                                                   |
+| `POST /v1/kill`                | `kill`                                        | Removes the remote from the served index now. `restore: true` puts it back.                                                                                          |
+| `GET /v1/audit?env=`           | `read`                                        | Who did what, when, and the versions before and after. Entries carry token ids and kill reasons (free text from the caller), so treat the log as internal.           |
+| `GET /healthz`                 | nothing                                       | Checks the database.                                                                                                                                                 |
 
 A deploy sends `env`, `remote`, `version`, `owner`, `routes` and `manifestUrl`, which must be `<base>/<name>/<version>/mf-manifest.json` under the artifact base URL (`+` in a version is `_`). Optional: `platform` and `budgets.initialJsKb`, as in `mfeflow.app.json`. The server reads the manifest and the first-load files from the artifact host to measure and check them. A version is immutable: registering the same version with a different manifest is refused. A killed remote cannot be deployed, promoted or rolled back until it is restored.
 
@@ -217,6 +217,12 @@ The id is a random value kept in `localStorage`. It is a persistent identifier f
 
 A promote needs a token that covers both envs (`env` `*`, or `admin`), since it reads one and writes the other.
 
-Not here yet: `mfeflow` CLI flags for rollouts, server mode and a Docker image (after that), Postgres.
+### From the CLI and Docker
+
+`mfeflow deploy`, `promote`, `rollback`, `status`, `rollout` and `kill` talk to the server when `MFEFLOW_REGISTRY_URL` is set (the token comes only from `MFEFLOW_REGISTRY_TOKEN`). See the [CLI reference](https://mfeflow.github.io/mfeflow/reference/cli) and [Run the registry server](https://mfeflow.github.io/mfeflow/guide/deploy/registry-server-runbook).
+
+`docker/Dockerfile` builds an image from the published package and a lockfile that you or the release workflow make first (the steps are at the top of the file), and `docker/compose.yaml` runs it next to MinIO. The release workflow pushes `ghcr.io/mfeflow/mfeflow-registry` for each release that publishes this package.
+
+Not here yet: Postgres.
 
 MIT licensed.

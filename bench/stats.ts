@@ -83,3 +83,11 @@ export function remoteEntryOf(index: unknown, remote: string): string | undefine
   }
   return undefined;
 }
+
+/** The value at percentile `p` (0 to 100) by nearest rank. */
+export function percentile(values: readonly number[], p: number): number {
+  if (values.length === 0) throw new Error('percentile of nothing');
+  const sorted = values.toSorted((a, b) => a - b);
+  const rank = Math.max(1, Math.ceil((p / 100) * sorted.length));
+  return sorted[rank - 1] ?? 0;
+}

@@ -32,6 +32,7 @@ describe('first-party catalogue', () => {
       'commit-prompt',
       'registry-static',
       'release',
+      'registry-server',
     ]);
     expect(DEFAULT_FEATURES).toEqual(['lint-oxlint', 'url-factory', 'env-t3', 'testing']);
     expect(isFirstParty('git-hooks')).toBe(true);

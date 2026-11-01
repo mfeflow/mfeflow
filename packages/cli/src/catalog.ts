@@ -44,6 +44,7 @@ export const FIRST_PARTY: readonly FirstPartyFeature[] = [
   { name: 'commit-prompt', always: false, default: false },
   { name: 'registry-static', always: false, default: false },
   { name: 'release', always: false, default: false },
+  { name: 'registry-server', always: false, default: false },
 ];
 
 export function isFirstParty(name: string): boolean {
