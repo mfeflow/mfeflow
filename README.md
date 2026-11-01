@@ -23,9 +23,9 @@
 </p>
 
 `create-module-federation` gives you a host and a remote. mfeflow gives you
-the platform around them: pick features à la carte, self-host a registry with
-one-command rollback, and keep many teams on one React, one tag manager and
-one tracer.
+the platform around them: pick features à la carte, self-host a registry
+designed for rollback by pointer (the rollback command lands in Phase 05), and
+keep many teams on one React, one tag manager and one tracer.
 
 ## Status
 

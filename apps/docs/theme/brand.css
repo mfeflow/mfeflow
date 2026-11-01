@@ -121,14 +121,14 @@ kbd {
   text-shadow: none;
 }
 
-.rp-button--brand {
+:root .rp-button--brand {
   background: var(--mf-flow);
   color: var(--mf-on-flow);
   border: 1px solid var(--mf-flow);
   opacity: 1;
 }
 
-.rp-button--brand:hover {
+:root .rp-button--brand:hover {
   background: var(--mf-flow-soft);
   border-color: var(--mf-flow-soft);
   opacity: 1;
