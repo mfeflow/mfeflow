@@ -39,7 +39,10 @@ describe('mfeflow features', () => {
     expect(result.features.map((f) => f.name)).toEqual(['lint-oxlint']);
     const byDescription = testRuntime();
     await main(['features', 'commitlint', '--json', '--cwd', await emptyFolder()], byDescription);
-    expect(jsonOf(byDescription.io.out).features.map((f) => f.name)).toEqual(['git-hooks']);
+    expect(jsonOf(byDescription.io.out).features.map((f) => f.name)).toEqual([
+      'git-hooks',
+      'commit-prompt',
+    ]);
   });
 
   it('says when nothing matches, and still exits 0', async () => {
