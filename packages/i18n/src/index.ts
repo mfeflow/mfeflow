@@ -34,6 +34,8 @@ interface I18nState {
 declare global {
   // One instance per page, shared by the shell and every remote.
   var mfeflowI18n: I18nState | undefined;
+  // The start in progress, so a second call (StrictMode runs effects twice) waits for it instead of making another instance.
+  var mfeflowI18nPending: Promise<I18n> | undefined;
 }
 
 /** Stored choice, then the first browser language we support (exact or base), then the default. */
@@ -65,10 +67,18 @@ function applyDocumentLanguage(instance: I18n, root: HTMLElement | undefined, ln
 
 /**
  * Creates the page's single i18next instance. Call once, in the shell, before
- * rendering. Calling it again returns the existing instance.
+ * rendering. Calling it again returns the existing instance, or the one being
+ * created, so two calls in the same tick make one instance.
  */
-export async function initI18n(options: InitI18nOptions): Promise<I18n> {
-  if (globalThis.mfeflowI18n) return globalThis.mfeflowI18n.instance;
+export function initI18n(options: InitI18nOptions): Promise<I18n> {
+  if (globalThis.mfeflowI18n) return Promise.resolve(globalThis.mfeflowI18n.instance);
+  const pending = (globalThis.mfeflowI18nPending ??= create(options).finally(() => {
+    globalThis.mfeflowI18nPending = undefined;
+  }));
+  return pending;
+}
+
+async function create(options: InitI18nOptions): Promise<I18n> {
   const codes = options.languages.map((l) => l.code);
   if (!codes.includes(options.defaultLanguage)) {
     throw new Error(`Default language "${options.defaultLanguage}" is not in the language list`);
@@ -163,4 +173,5 @@ export async function loadNamespace(
 /** Only for tests: forget the page's instance. */
 export function resetI18nForTests(): void {
   globalThis.mfeflowI18n = undefined;
+  globalThis.mfeflowI18nPending = undefined;
 }

@@ -31,8 +31,17 @@ export const FIRST_PARTY: readonly FirstPartyFeature[] = [
   { name: 'event-bus', always: false, default: false },
   { name: 'route-factory', always: false, default: false },
   { name: 'http', always: false, default: false },
+  { name: 'theming', always: false, default: false },
+  { name: 'i18n', always: false, default: false },
+  { name: 'tailwind', always: false, default: false },
+  { name: 'ui-shadcn', always: false, default: false },
+  { name: 'forms', always: false, default: false },
+  { name: 'data-react-query', always: false, default: false },
+  { name: 'analytics-clarity', always: false, default: false },
+  { name: 'storybook', always: false, default: false },
   { name: 'ci-github', always: false, default: false },
   { name: 'git-hooks', always: false, default: false },
+  { name: 'commit-prompt', always: false, default: false },
 ];
 
 export function isFirstParty(name: string): boolean {

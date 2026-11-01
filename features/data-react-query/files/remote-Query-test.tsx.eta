@@ -1,0 +1,39 @@
+import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { describe, expect, it } from 'vitest';
+import { queryKeys } from './keys';
+import { Query } from './Query';
+import { useHealth } from './useHealth';
+
+function Health() {
+  const { data } = useHealth();
+  return <p>{data ? `ok: ${String(data.ok)}` : 'loading'}</p>;
+}
+
+describe('the <%= it.app.name %> queries', () => {
+  it('start with the remote name', () => {
+    expect(queryKeys.health()[0]).toBe('<%= it.app.name %>');
+  });
+
+  it('run on their own, without the shell', async () => {
+    render(
+      <Query>
+        <Health />
+      </Query>,
+    );
+    expect(await screen.findByText('ok: true')).toBeDefined();
+  });
+
+  it('use the shell client when there is one', async () => {
+    const shell = new QueryClient();
+    render(
+      <QueryClientProvider client={shell}>
+        <Query>
+          <Health />
+        </Query>
+      </QueryClientProvider>,
+    );
+    await screen.findByText('ok: true');
+    expect(shell.getQueryData(queryKeys.health())).toEqual({ ok: true });
+  });
+});

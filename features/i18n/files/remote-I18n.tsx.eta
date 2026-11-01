@@ -1,0 +1,36 @@
+import { useEffect, useState, type ReactNode } from 'react';
+import { getI18n, initI18n } from '@mfeflow/i18n';
+import { useMfeTranslation } from '@mfeflow/i18n/react';
+import { defaultLanguage, languages } from './config';
+import { loadMessages } from './load';
+
+function started(): boolean {
+  try {
+    getI18n();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function Hello() {
+  const { t } = useMfeTranslation('<%= it.app.name %>', loadMessages);
+  return <p data-testid="<%= it.app.name %>-hello">{t('hello')}</p>;
+}
+
+/** Wraps this remote's App. Inside the shell the page already has an i18n instance; on its own the remote starts one. */
+export function I18n({ children }: { children: ReactNode }) {
+  const [ready, setReady] = useState(started);
+  useEffect(() => {
+    if (ready) return;
+    void initI18n({ languages, defaultLanguage, detect: false }).then(() => {
+      setReady(true);
+    });
+  }, [ready]);
+  return (
+    <>
+      {ready ? <Hello /> : null}
+      {children}
+    </>
+  );
+}

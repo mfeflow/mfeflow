@@ -34,6 +34,11 @@
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js",
       "default": "./dist/react.js"
+    },
+    "./starting": {
+      "types": "./dist/starting.d.ts",
+      "import": "./dist/starting.js",
+      "default": "./dist/starting.js"
     }
   },
   "files": [

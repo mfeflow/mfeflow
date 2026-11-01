@@ -1,0 +1,15 @@
+<%_ const prefix = it.app.tailwindPrefix _%>
+import type { ReactNode } from 'react';
+import '../styles.css';
+
+// prettier-ignore
+const classes = '<%= prefix %>:p-2 <%= prefix %>:outline-2 <%= prefix %>:outline-primary';
+
+/** Wraps this remote's App and loads its styles. The outline shows the primary token; delete it when you have your own markup. */
+export function Scope({ children }: { children: ReactNode }) {
+  return (
+    <div data-tailwind="<%= it.app.name %>" className={classes}>
+      {children}
+    </div>
+  );
+}

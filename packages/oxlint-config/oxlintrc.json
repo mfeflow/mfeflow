@@ -27,7 +27,7 @@
     "import/no-unassigned-import": [
       "error",
       {
-        "allow": ["**/*.css", "./env"]
+        "allow": ["**/*.css", "./env", "./src/theme/head-script"]
       }
     ],
     "import/extensions": [

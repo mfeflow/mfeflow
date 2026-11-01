@@ -6,6 +6,7 @@ import { parse } from 'es-module-lexer/js';
 import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginModuleFederation } from '@module-federation/rsbuild-plugin';
 import { pluginMfEsmRuntime } from './esm-runtime';
+import { headScriptTags } from './head-scripts';
 import { runtimeConfigSetup } from './runtime-config';
 import {
   installedVersionFrom,
@@ -15,6 +16,7 @@ import {
 } from './shared';
 
 export { esmTwin, isMfCjs, pluginMfEsmRuntime } from './esm-runtime';
+export { headScriptTags, registerHeadScript } from './head-scripts';
 export {
   RUNTIME_CONFIG_URL,
   runtimeConfigEnv,
@@ -272,6 +274,7 @@ export function createShellConfig(o: ShellOptions): RsbuildConfig {
   const require = createRequire(path.join(cwd, 'package.json'));
   if (o.eager === false) assertAsyncBoundary(path.join(cwd, 'src/index.ts'));
   const setup = runtimeConfigSetup(cwd, o.env ?? process.env);
+  const headScripts = headScriptTags();
   return {
     plugins: [
       pluginReact(),
@@ -280,6 +283,7 @@ export function createShellConfig(o: ShellOptions): RsbuildConfig {
         shellFederationOptions(o, resolvableFrom(cwd), (s) => require.resolve(s)),
       ),
     ],
+    ...(headScripts.length === 0 ? {} : { html: { tags: headScripts } }),
     // The runtime reads this flag to refuse a remote with no remoteEntry when the manifest loader is gone.
     source: {
       entry: { index: './src/index.ts' },

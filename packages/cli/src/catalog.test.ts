@@ -19,8 +19,17 @@ describe('first-party catalogue', () => {
       'event-bus',
       'route-factory',
       'http',
+      'theming',
+      'i18n',
+      'tailwind',
+      'ui-shadcn',
+      'forms',
+      'data-react-query',
+      'analytics-clarity',
+      'storybook',
       'ci-github',
       'git-hooks',
+      'commit-prompt',
     ]);
     expect(DEFAULT_FEATURES).toEqual(['lint-oxlint', 'url-factory', 'env-t3', 'testing']);
     expect(isFirstParty('git-hooks')).toBe(true);

@@ -32,6 +32,16 @@
       "import": "./dist/gtm.js",
       "default": "./dist/gtm.js"
     },
+    "./clarity": {
+      "types": "./dist/clarity.d.ts",
+      "import": "./dist/clarity.js",
+      "default": "./dist/clarity.js"
+    },
+    "./providers": {
+      "types": "./dist/providers.d.ts",
+      "import": "./dist/providers.js",
+      "default": "./dist/providers.js"
+    },
     "./react": {
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js",

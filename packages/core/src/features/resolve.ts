@@ -16,6 +16,7 @@ import { envKeyFiles } from '../transforms/add-env-key';
 import type { LoadedFeature } from './load';
 import { assertPlainScript, assertThirdPartyTransform } from './policy';
 import { sanitizeSchemas } from './schema-policy';
+import { assertUniqueTailwindPrefixes, tailwindPrefix } from './tailwind-prefix';
 import { assertThirdPartyPath, assertWritable as assertSafeTarget } from './write-policy';
 
 export interface ResolveInput {
@@ -159,6 +160,7 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     if (!present.has(needed)) throw new MfeflowError('E206', `${manifest.name} needs ${needed}`);
   }
   const options = resolveOptions(manifest, input.options);
+  if (manifest.name === 'tailwind') assertUniqueTailwindPrefixes(Object.keys(project.apps));
 
   const dataFor = (place: Place): TemplateData => ({
     scope: project.scope,
@@ -166,7 +168,13 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     packageManager: project.packageManager,
     options,
     feature: { name: manifest.name, version: manifest.version },
-    app: { name: place.name, kind: place.kind, path: place.dir, port: place.port },
+    app: {
+      name: place.name,
+      kind: place.kind,
+      path: place.dir,
+      port: place.port,
+      tailwindPrefix: tailwindPrefix(place.name),
+    },
   });
 
   const steps: (() => Promise<void>)[] = [];

@@ -394,6 +394,27 @@
       "when": {
         "feature:http": true
       }
+    },
+    {
+      "op": "add-env-key",
+      "file": "src/config/schema.ts",
+      "target": "shell",
+      "key": "clarityId",
+      "scope": "runtime",
+      "schema": {
+        "zod": "z.string().regex(/^([a-z0-9]{8,12})?$/)",
+        "valibot": "v.pipe(v.string(), v.regex(/^([a-z0-9]{8,12})?$/))",
+        "arktype": "'/^([a-z0-9]{8,12})?$/'"
+      },
+      "value": "",
+      "configFiles": [
+        "public/config/runtime-config.dev.json",
+        "public/config/runtime-config.staging.json",
+        "public/config/runtime-config.prod.json"
+      ],
+      "when": {
+        "feature:analytics-clarity": true
+      }
     }
   ]
 }

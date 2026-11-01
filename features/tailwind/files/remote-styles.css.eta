@@ -1,0 +1,21 @@
+<%_ const prefix = it.app.tailwindPrefix _%>
+/* No reset here: the shell has it. Classes are written <%= prefix %>:flex, and the theme variables are --<%= prefix %>-*. */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme) prefix(<%= prefix %>);
+@import 'tailwindcss/utilities.css' layer(utilities) prefix(<%= prefix %>);
+
+/* Tokens read the theme variables (--mf-*). The second value is used when there is no theme. */
+@theme inline {
+  --color-background: var(--mf-color-bg, #ffffff);
+  --color-foreground: var(--mf-color-fg, #111827);
+  --color-surface: var(--mf-color-surface, #f3f4f6);
+  --color-primary: var(--mf-color-primary, #2563eb);
+  --color-primary-foreground: var(--mf-color-primary-fg, #ffffff);
+  --color-secondary: var(--mf-color-surface, #f3f4f6);
+  --color-secondary-foreground: var(--mf-color-fg, #111827);
+  --color-accent: var(--mf-color-surface, #f3f4f6);
+  --color-accent-foreground: var(--mf-color-fg, #111827);
+  --color-destructive: #dc2626;
+  --color-border: var(--mf-color-border, #e5e7eb);
+  --color-ring: var(--mf-color-primary, #2563eb);
+}

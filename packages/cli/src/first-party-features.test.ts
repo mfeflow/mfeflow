@@ -24,6 +24,12 @@ afterEach(async () => {
 
 const add = (...args: string[]) =>
   main(['add', ...args, '--no-install', '--cwd', project], testRuntime());
+
+/** The feature some others cannot be added without. */
+async function addRequired(feature: string): Promise<void> {
+  const required = { 'ui-shadcn': 'tailwind', 'analytics-clarity': 'analytics-gtm' }[feature];
+  if (required !== undefined) expect(await add(required)).toBe(0);
+}
 const read = (file: string) => fs.readFile(path.join(project, file), 'utf8');
 const json = async (file: string): Promise<Record<string, Record<string, string>>> => {
   return JSON.parse(await read(file)) as Record<string, Record<string, string>>;
@@ -45,8 +51,18 @@ describe.each([
   'event-bus',
   'route-factory',
   'http',
+  'theming',
+  'i18n',
+  'tailwind',
+  'forms',
+  'data-react-query',
+  'ui-shadcn',
+  'analytics-clarity',
+  'commit-prompt',
+  'storybook',
 ])('mfeflow add %s', (feature) => {
   it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
+    await addRequired(feature);
     expect(await add(feature)).toBe(0);
     const once = await readTree(project);
     expect(parseProject(once['mfeflow.json'] ?? '').features).toHaveProperty(feature);
@@ -56,6 +72,7 @@ describe.each([
   });
 
   it('with --dry-run prints the diff and writes nothing', async () => {
+    await addRequired(feature);
     const before = await readTree(project);
     const rt = testRuntime();
     expect(await main(['add', feature, '--dry-run', '--cwd', project], rt)).toBe(0);
@@ -64,6 +81,7 @@ describe.each([
   });
 
   it('gives a remote added later the same per-app files', async () => {
+    await addRequired(feature);
     expect(await add(feature)).toBe(0);
     expect(
       await main(['add', 'remote', 'checkout', '--no-install', '--cwd', project], testRuntime()),
@@ -78,6 +96,19 @@ describe.each([
       'event-bus': ['src/events.ts'],
       'route-factory': ['src/routes.ts'],
       http: ['src/api/client.ts'],
+      theming: ['src/theme/tokens.ts'],
+      i18n: ['src/i18n/I18n.tsx', 'src/i18n/messages/en.json'],
+      tailwind: ['postcss.config.mjs', 'src/styles.css', 'src/tailwind/Scope.tsx'],
+      forms: ['src/forms/ContactForm.tsx', 'src/forms/schema.ts'],
+      'analytics-clarity': [],
+      'commit-prompt': [],
+      storybook: [
+        '.storybook/main.ts',
+        '.storybook/rsbuild.config.ts',
+        'src/exposed/App.stories.tsx',
+      ],
+      'ui-shadcn': ['components.json', 'src/lib/utils.ts', 'src/components/ui/button.tsx'],
+      'data-react-query': ['src/query/Query.tsx', 'src/query/keys.ts', 'src/query/useHealth.ts'],
     }[feature];
     for (const file of perApp ?? []) expect(tree, file).toHaveProperty([`apps/checkout/${file}`]);
   });
@@ -142,6 +173,171 @@ describe('env-t3', () => {
     expect(await read('apps/shell/src/config/schema.ts')).toContain(
       "z.enum(['dev', 'staging', 'prod'])",
     );
+  });
+});
+
+describe('ui-shadcn', () => {
+  it('needs tailwind and says so, writing nothing', async () => {
+    const before = await readTree(project);
+    expect(await add('ui-shadcn')).not.toBe(0);
+    expect(await readTree(project)).toEqual(before);
+  });
+
+  it('gives each remote a components.json with its own prefix', async () => {
+    await add('tailwind');
+    expect(await add('ui-shadcn')).toBe(0);
+    expect(await read('apps/cart/components.json')).toContain('"prefix": "cart"');
+    expect(await read('apps/catalog/components.json')).toContain('"prefix": "catalog"');
+    expect(await read('apps/cart/src/components/ui/button.tsx')).toContain('cart:bg-primary');
+  });
+});
+
+describe('analytics-clarity', () => {
+  it('needs analytics-gtm for the consent banner and says so, writing nothing', async () => {
+    const before = await readTree(project);
+    expect(await add('analytics-clarity')).not.toBe(0);
+    expect(await readTree(project)).toEqual(before);
+  });
+
+  it('adds the clarityId runtime key next to gtmId, with or without env-t3', async () => {
+    await add('analytics-gtm');
+    expect(await add('analytics-clarity')).toBe(0);
+    expect(await read('apps/shell/public/config/runtime-config.json')).toContain('"clarityId": ""');
+    expect(await read('apps/shell/src/analytics/clarity.ts')).toContain('addProvider');
+  });
+
+  it('also lands in the schema when env-t3 is added afterwards', async () => {
+    await add('analytics-gtm');
+    await add('analytics-clarity');
+    expect(await add('env-t3')).toBe(0);
+    expect(await read('apps/shell/src/config/schema.ts')).toContain('clarityId');
+  });
+});
+
+describe('theming', () => {
+  it('puts the stored-theme script first in the shell head, through the config the shell already has', async () => {
+    expect(await add('theming')).toBe(0);
+    expect(await read('apps/shell/rsbuild.config.ts')).toContain(
+      "import './src/theme/head-script';",
+    );
+    expect(await read('apps/shell/src/theme/head-script.ts')).toContain(
+      "registerHeadScript('theme'",
+    );
+    expect(await read('apps/shell/src/bootstrap.tsx')).toContain('applyStoredTheme');
+    const remote = await read('apps/cart/rsbuild.config.ts');
+    expect(remote).not.toContain('head-script');
+  });
+});
+
+describe('commit-prompt', () => {
+  it('wires pnpm commit to czg and offers only the types commitlint accepts', async () => {
+    expect(await add('commit-prompt')).toBe(0);
+    const root = await json('package.json');
+    expect(root.scripts?.commit).toBe('czg');
+    expect(root.devDependencies).toHaveProperty('czg');
+    const config = await read('cz.config.js');
+    expect(config).toContain('useEmoji: false');
+    expect(config).toContain('upperCaseSubject: false');
+    for (const type of ['feat', 'fix', 'docs', 'refactor', 'chore', 'revert']) {
+      expect(config).toContain(`value: '${type}'`);
+    }
+  });
+
+  it('sits next to git-hooks without touching its files', async () => {
+    expect(await add('git-hooks')).toBe(0);
+    const hooks = await readTree(project);
+    expect(await add('commit-prompt')).toBe(0);
+    const after = await readTree(project);
+    for (const file of ['lefthook.yml', 'commitlint.config.js'])
+      expect(after[file], file).toBe(hooks[file]);
+  });
+});
+
+describe('storybook', () => {
+  it('gives every app its scripts, and the root scripts that compose the shell Storybook', async () => {
+    expect(await add('storybook')).toBe(0);
+    for (const app of ['shell', 'cart', 'catalog']) {
+      const pkg = await json(`apps/${app}/package.json`);
+      expect(pkg.scripts?.['storybook:build'], app).toBe('storybook build -o storybook-static');
+      expect(Object.keys(pkg.devDependencies ?? {})).toEqual(
+        expect.arrayContaining(['storybook', 'storybook-react-rsbuild', '@rsbuild/plugin-react']),
+      );
+    }
+    const root = await json('package.json');
+    expect(root.scripts?.['storybook:build']).toContain('storybook:remotes');
+    expect(await read('apps/shell/.storybook/main.ts')).toContain('mfeflow.json');
+  });
+
+  it('keeps Module Federation out of the stories build', async () => {
+    await add('storybook');
+    const config = await read('apps/cart/.storybook/rsbuild.config.ts');
+    expect(config).not.toContain('@mfeflow/rsbuild');
+    expect(await read('apps/cart/.storybook/main.ts')).toContain('.storybook/rsbuild.config.ts');
+  });
+
+  it('adds Button stories only with ui-shadcn', async () => {
+    await add('storybook');
+    expect(await readTree(project)).not.toHaveProperty([
+      'apps/cart/src/components/ui/button.stories.tsx',
+    ]);
+  });
+
+  it('adds Button stories when ui-shadcn is there first', async () => {
+    await add('tailwind');
+    await add('ui-shadcn');
+    await add('storybook');
+    expect(await readTree(project)).toHaveProperty([
+      'apps/cart/src/components/ui/button.stories.tsx',
+    ]);
+  });
+});
+
+describe('tailwind prefixes', () => {
+  it('gives remotes whose names sanitise alike different prefixes, in the css and in the classes', async () => {
+    for (const name of ['cart_b', 'cart1', 'cartb']) {
+      expect(
+        await main(['add', 'remote', name, '--no-install', '--cwd', project], testRuntime()),
+      ).toBe(0);
+    }
+    expect(await add('tailwind')).toBe(0);
+    const prefixes: string[] = [];
+    for (const name of ['cart', 'cart_b', 'cart1', 'cartb']) {
+      const css = await read(`apps/${name}/src/styles.css`);
+      const prefix = /prefix\((\w+)\)/.exec(css)?.[1] ?? '';
+      expect(prefix, name).toMatch(/^[a-z]+$/);
+      expect(await read(`apps/${name}/src/tailwind/Scope.tsx`), name).toContain(`${prefix}:p-2`);
+      prefixes.push(prefix);
+    }
+    expect(new Set(prefixes).size).toBe(4);
+  });
+});
+
+describe('forms', () => {
+  it.each([
+    ['zod', "from 'zod'"],
+    ['valibot', "from 'valibot'"],
+    ['arktype', "from 'arktype'"],
+  ])(
+    '--option forms.validator=%s writes that schema and installs only that library',
+    async (name, importLine) => {
+      expect(await add('forms', '--option', `forms.validator=${name}`)).toBe(0);
+      expect(await read('apps/cart/src/forms/schema.ts')).toContain(importLine);
+      const pkg = await json('apps/cart/package.json');
+      const installed = Object.keys(pkg.dependencies ?? {});
+      expect(installed).toContain('react-hook-form');
+      for (const validator of ['zod', 'valibot', 'arktype']) {
+        expect(installed.includes(validator), validator).toBe(validator === name);
+      }
+      expect(Object.keys((await json('apps/shell/package.json')).dependencies ?? {})).not.toContain(
+        'react-hook-form',
+      );
+    },
+  );
+
+  it('rejects a library it does not know and writes nothing', async () => {
+    const before = await readTree(project);
+    expect(await add('forms', '--option', 'forms.validator=yup')).toBe(4);
+    expect(await readTree(project)).toEqual(before);
   });
 });
 

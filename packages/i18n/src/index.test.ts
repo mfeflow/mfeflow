@@ -95,3 +95,27 @@ describe('loadNamespace', () => {
     );
   });
 });
+
+describe('initI18n called twice at once', () => {
+  it('makes one instance and gives both callers the same one', async () => {
+    const options = {
+      languages: [{ code: 'en', label: 'English' }],
+      defaultLanguage: 'en',
+      detect: false,
+    };
+    const [a, b] = await Promise.all([initI18n(options), initI18n(options)]);
+    expect(a).toBe(b);
+    expect(getI18n()).toBe(a);
+  });
+
+  it('lets a later call try again after a failed start', async () => {
+    const bad = {
+      languages: [{ code: 'en', label: 'English' }],
+      defaultLanguage: 'fr',
+      detect: false,
+    };
+    await expect(initI18n(bad)).rejects.toThrow('not in the language list');
+    const good = { ...bad, defaultLanguage: 'en' };
+    expect(await initI18n(good)).toBe(getI18n());
+  });
+});

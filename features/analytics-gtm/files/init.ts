@@ -1,4 +1,4 @@
-import { initAnalytics } from '@mfeflow/analytics';
+import { addProvider } from '@mfeflow/analytics/providers';
 import { createGtmProvider } from '@mfeflow/analytics/gtm';
 import { fetchRuntimeConfig } from '@mfeflow/runtime';
 
@@ -14,7 +14,7 @@ export async function startAnalytics(): Promise<void> {
   const gtmId = config?.gtmId;
   if (typeof gtmId !== 'string' || gtmId === '') return;
   try {
-    initAnalytics(createGtmProvider({ containerId: gtmId }));
+    addProvider(createGtmProvider({ containerId: gtmId }));
   } catch (error) {
     console.warn('[analytics] not started', error);
   }

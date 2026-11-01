@@ -2,6 +2,8 @@ packages:
   - apps/*
   - packages/*
 
-# Dependencies allowed to run install scripts.
+# Dependencies allowed to run install scripts. esbuild (pulled in by Storybook) works without its
+# script; listing it as false keeps pnpm from stopping the install to ask.
 allowBuilds:
   lefthook: true
+  esbuild: false

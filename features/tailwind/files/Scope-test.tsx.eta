@@ -1,0 +1,17 @@
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { Scope } from './Scope';
+
+describe('the <%= it.app.name %> Tailwind scope', () => {
+  it('prefixes every class with this remote', () => {
+    render(
+      <Scope>
+        <p>content</p>
+      </Scope>,
+    );
+    const root = screen.getByText('content').parentElement;
+    for (const name of (root?.className ?? '').split(' ')) {
+      expect(name.includes(':'), name).toBe(true);
+    }
+  });
+});

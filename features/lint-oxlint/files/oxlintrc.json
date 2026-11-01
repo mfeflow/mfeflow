@@ -1,5 +1,5 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "extends": ["./node_modules/@mfeflow/oxlint-config/oxlintrc.json"],
-  "ignorePatterns": ["**/dist/**", "**/.turbo/**"]
+  "ignorePatterns": ["**/dist/**", "**/.turbo/**", "**/storybook-static/**"]
 }
