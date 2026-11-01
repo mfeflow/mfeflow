@@ -39,6 +39,11 @@
     "label": "ci-github"
   },
   {
+    "type": "file",
+    "name": "registry-server",
+    "label": "registry-server"
+  },
+  {
     "type": "section-header",
     "label": "Data and contracts"
   },

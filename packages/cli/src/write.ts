@@ -28,6 +28,8 @@ export interface WriteRequest {
   install?: boolean;
   /** Take `project` as it is: its `cli` is the version being upgraded to, not the one running. */
   exactProject?: boolean;
+  /** Refuse to write through any symlink on a file's path, checked when the files are written. */
+  refuseSymlinks?: boolean;
   /** The caller prints the summary and diff itself. */
   quiet?: boolean;
 }
@@ -147,7 +149,13 @@ export async function writePlan(request: WriteRequest): Promise<WriteOutcome> {
   }
   if (globals.dryRun) {
     // A folder that does not exist yet cannot clash with anything; do not create it to find out.
-    if (await exists(root)) await applyPlan(plan, { root, project, dryRun: true });
+    if (await exists(root))
+      await applyPlan(plan, {
+        root,
+        project,
+        dryRun: true,
+        ...(request.refuseSymlinks === true ? { refuseSymlinks: true } : {}),
+      });
     return { dryRun: true, shown, written: [], installed: false, diff: renderDiff(shown) };
   }
   if (globals.canPrompt && !(await rt.prompter.confirm({ message: 'Write these changes?' }))) {
@@ -164,6 +172,7 @@ export async function writePlan(request: WriteRequest): Promise<WriteOutcome> {
     result = await applyPlan(plan, {
       root,
       project,
+      ...(request.refuseSymlinks === true ? { refuseSymlinks: true } : {}),
       ...(installing
         ? {
             install: async () => {

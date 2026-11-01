@@ -33,6 +33,11 @@
       "import": "./dist/providers.js",
       "default": "./dist/providers.js"
     },
+    "./beacon": {
+      "types": "./dist/beacon.d.ts",
+      "import": "./dist/beacon.js",
+      "default": "./dist/beacon.js"
+    },
     "./plugins/report": {
       "types": "./dist/plugins/report.d.ts",
       "import": "./dist/plugins/report.js",

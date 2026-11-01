@@ -21,6 +21,8 @@ export interface StartOptions {
   fallbackHost?: RegistryHost;
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   now?: () => Date;
+  /** How long `close()` lets running requests finish before it cuts them. Default 8 s, under Docker's 10 s stop time. */
+  drainMs?: number;
 }
 
 export interface RegistryServer {
@@ -76,6 +78,8 @@ export async function startRegistryServer(options: StartOptions): Promise<Regist
     storage,
     artifacts,
     artifactBaseUrl: config.artifactBaseUrl,
+    gate: config.gate,
+    maxReporters: config.rolloutMaxReporters,
     ...(options.now === undefined ? {} : { now: options.now }),
     onChange: (changed) => fallback?.request(changed),
     log,
@@ -87,9 +91,16 @@ export async function startRegistryServer(options: StartOptions): Promise<Regist
       storage,
       corsOrigins: config.corsOrigins,
       maxBodyBytes: config.maxBodyBytes,
+      beaconLimit: config.beaconLimit,
+      trustProxy: config.trustProxy,
       log,
     }),
   );
+  if (!config.trustProxy && !/^(localhost|127\.\d+\.\d+\.\d+|\[?::1\]?)$/.test(config.bind))
+    log(
+      'warn',
+      `bound to ${config.bind} without MFEFLOW_REGISTRY_TRUST_PROXY=true: beacons are rate limited per socket address, so behind a proxy every browser shares one limit`,
+    );
   server.requestTimeout = 30_000;
   server.headersTimeout = 15_000;
   await new Promise<void>((resolve, reject) => {
@@ -112,8 +123,12 @@ export async function startRegistryServer(options: StartOptions): Promise<Regist
     url: `http://${host}:${String(port)}`,
     async close() {
       await new Promise<void>((resolve) => {
-        server.close(() => resolve());
-        server.closeAllConnections();
+        const cut = setTimeout(() => server.closeAllConnections(), options.drainMs ?? 8000);
+        server.close(() => {
+          clearTimeout(cut);
+          resolve();
+        });
+        server.closeIdleConnections();
       });
       await fallback?.close();
       await storage.close();

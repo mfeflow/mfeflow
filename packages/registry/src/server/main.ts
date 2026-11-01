@@ -15,7 +15,7 @@ const USAGE = `usage:
   server token list
   server token revoke <id>
 
-actions: read, deploy, promote, rollback, kill, admin
+actions: read, deploy, promote, rollback, kill, rollout, admin
 
 The server needs Node 22.13 or newer.`;
 

@@ -24,12 +24,21 @@ import { DEV_ARGS, runDev } from './commands/dev';
 import { FEATURES_ARGS, runFeatures } from './commands/features';
 import { INIT_ARGS, runInit } from './commands/init';
 import { REGISTRY_ARGS, runRegistry } from './commands/registry';
+import {
+  formatServerAction,
+  KILL_ARGS,
+  RESTORE_ARGS,
+  ROLLOUT_CMD_ARGS,
+  runKillCommand,
+  runRolloutCommand,
+} from './commands/server-mode';
 import { runStatus, STATUS_ARGS } from './commands/status';
 import { runUpgrade, UPGRADE_ARGS } from './commands/upgrade';
 import { Cancelled, EXIT, exitCodeFor, reportOf, unexpectedReport, unexpectedText } from './exit';
 import { commandHelp, rootHelp, type CommandHelp } from './help';
 import { exitOf, type CliResult, type FailureResult } from './output';
 import { realRuntime, type Runtime } from './runtime';
+import { openServer } from './server-client';
 import { readPackageJson } from './version';
 
 type Handler = (
@@ -143,7 +152,12 @@ export const COMMANDS: readonly Command[] = [
     summary: "check each remote's shared ranges against the shells it runs in",
     usage: 'mfeflow check-compat [options]',
     args: COMPAT_ARGS,
-    examples: ['mfeflow check-compat', 'mfeflow check-compat --json'],
+    examples: [
+      'mfeflow check-compat',
+      'mfeflow check-compat --json',
+      'mfeflow check-compat --against https://cdn.example.com/envs/prod/index.json',
+      'mfeflow check-compat --against ./shell/mf-manifest.json',
+    ],
     run: runCheckCompat,
   },
   {
@@ -157,7 +171,8 @@ export const COMMANDS: readonly Command[] = [
   {
     name: 'deploy',
     summary: "upload a remote's build to the registry host and point an environment at it",
-    usage: 'mfeflow deploy <remote> --env <env> [--version <v>] [--host <spec>] [--no-publish]',
+    usage:
+      'mfeflow deploy <remote> --env <env> [--version <v>] [--host <spec>] [--no-publish] [--percent <n> --steps <a,b>]',
     args: DEPLOY_ARGS,
     examples: [
       'mfeflow deploy catalog --env staging --host file:./site --base-url https://cdn.example.com',
@@ -165,6 +180,7 @@ export const COMMANDS: readonly Command[] = [
       'mfeflow deploy catalog --env prod --version 1.4.2 --dry-run',
       'mfeflow deploy catalog --env prod --no-publish   # upload, leave the index alone',
       'mfeflow deploy catalog --env prod --host s3://my-registry/mfe --json',
+      'MFEFLOW_REGISTRY_URL=https://registry.example.com mfeflow deploy catalog --env prod --percent 10',
     ],
     run: runDeploy,
   },
@@ -198,6 +214,49 @@ export const COMMANDS: readonly Command[] = [
     args: STATUS_ARGS,
     examples: ['mfeflow status', 'mfeflow status --env prod --json'],
     run: runStatus,
+  },
+  {
+    name: 'rollout',
+    summary:
+      'read or move a percentage rollout on the registry server: status, step, complete, abort',
+    usage: 'mfeflow rollout step|complete|abort|status <remote> --env <env> [--registry-url <url>]',
+    args: ROLLOUT_CMD_ARGS,
+    examples: [
+      'mfeflow promote catalog --from staging --to prod --percent 10 --steps 50,100',
+      'mfeflow rollout status catalog --env prod',
+      'mfeflow rollout step catalog --env prod',
+      'mfeflow rollout complete catalog --env prod',
+      'mfeflow rollout abort catalog --env prod --reason "checkout errors up"',
+    ],
+    run: async (rt, args, raw) => {
+      const result = await runRolloutCommand(rt, args, raw, openServer(rt, args));
+      if (args.json !== true) rt.io.stdout(formatServerAction(result));
+      return result;
+    },
+  },
+  {
+    name: 'kill',
+    summary: 'take a remote out of the served index at once (registry server only)',
+    usage: 'mfeflow kill <remote> --env <env> [--reason <text>]',
+    args: KILL_ARGS,
+    examples: ['mfeflow kill checkout --env prod --reason "payments bug"'],
+    run: async (rt, args, raw) => {
+      const result = await runKillCommand(rt, args, raw, false, openServer(rt, args));
+      if (args.json !== true) rt.io.stdout(formatServerAction(result));
+      return result;
+    },
+  },
+  {
+    name: 'restore',
+    summary: 'put a killed remote back in the served index (registry server only)',
+    usage: 'mfeflow restore <remote> --env <env>',
+    args: RESTORE_ARGS,
+    examples: ['mfeflow restore checkout --env prod'],
+    run: async (rt, args, raw) => {
+      const result = await runKillCommand(rt, args, raw, true, openServer(rt, args));
+      if (args.json !== true) rt.io.stdout(formatServerAction(result));
+      return result;
+    },
   },
   {
     name: 'dev',

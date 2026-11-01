@@ -12,6 +12,7 @@ import {
   startHarness,
   type Harness,
 } from './fixtures/harness';
+import { DEFAULT_GATE } from './gate';
 import { startRegistryServer } from './server';
 import { ArtifactTooLargeError, artifactUrl, DEPLOY_READ_BUDGET } from './service';
 import { openSqliteStorage } from './sqlite';
@@ -210,7 +211,7 @@ describe('POST /v1/deploy', () => {
     };
     const bad = async (patch: Record<string, unknown>): Promise<number> =>
       (await h.call('POST', '/v1/deploy', { token: admin, body: { ...base, ...patch } })).status;
-    expect(await bad({ rollout: { percent: 10 } })).toBe(400);
+    expect(await bad({ rollout: { percent: 'x' } })).toBe(400);
     expect(await bad({ extra: 1 })).toBe(400);
     expect(await bad({ manifestUrl: 'https://evil.example.com/cart/1.0.0/mf-manifest.json' })).toBe(
       400,
@@ -228,7 +229,7 @@ describe('POST /v1/deploy', () => {
       token: admin,
       body: { ...base, rollout: {} },
     });
-    expect(rollout.body.error.message).toContain('rollout is not available yet');
+    expect(rollout.body.error.message).toContain('rollout.percent');
   });
 
   it('says so when artifacts are missing or unreadable', async () => {
@@ -885,6 +886,10 @@ describe('static fallback', () => {
         artifactBaseUrl: undefined,
         corsOrigins: [],
         maxBodyBytes: 1024,
+        gate: DEFAULT_GATE,
+        rolloutMaxReporters: 20_000,
+        beaconLimit: { burst: 10, perMinute: 10 },
+        trustProxy: false,
       },
       storage: await openSqliteStorage(h.dbFile),
       fallbackHost: host,
@@ -898,6 +903,36 @@ describe('static fallback', () => {
     await second.close();
   });
 
+  it('warns when bound beyond loopback without trusting a proxy', async () => {
+    const start = async (bind: string, trustProxy: boolean): Promise<string[]> => {
+      const logs: string[] = [];
+      const server = await startRegistryServer({
+        config: {
+          port: 0,
+          bind,
+          dbPath: ':memory:',
+          fallbackHost: undefined,
+          artifactBaseUrl: undefined,
+          corsOrigins: [],
+          maxBodyBytes: 1024,
+          gate: DEFAULT_GATE,
+          rolloutMaxReporters: 20_000,
+          beaconLimit: { burst: 10, perMinute: 10 },
+          trustProxy,
+        },
+        storage: await openSqliteStorage(':memory:'),
+        log: (level, message) => logs.push(`${level} ${message}`),
+      });
+      await server.close();
+      return logs.filter((l) => l.includes('MFEFLOW_REGISTRY_TRUST_PROXY'));
+    };
+    expect(await start('127.0.0.1', false)).toEqual([]);
+    expect(await start('0.0.0.0', true)).toEqual([]);
+    const warned = await start('0.0.0.0', false);
+    expect(warned).toHaveLength(1);
+    expect(warned[0]).toContain('warn');
+  });
+
   it('warns once at start when no fallback host is set', async () => {
     const logs: string[] = [];
     const bare = await startRegistryServer({
@@ -909,6 +944,10 @@ describe('static fallback', () => {
         artifactBaseUrl: undefined,
         corsOrigins: [],
         maxBodyBytes: 1024,
+        gate: DEFAULT_GATE,
+        rolloutMaxReporters: 20_000,
+        beaconLimit: { burst: 10, perMinute: 10 },
+        trustProxy: false,
       },
       storage: await openSqliteStorage(':memory:'),
       log: (level, message) => logs.push(`${level} ${message}`),
@@ -1024,5 +1063,33 @@ describe('artifactUrl', () => {
 describe('database file', () => {
   it.skipIf(process.platform === 'win32')('is created readable by its owner only', async () => {
     expect((await fs.stat(h.dbFile)).mode & 0o777).toBe(0o600);
+  });
+});
+
+describe('graceful close', () => {
+  it('lets a request that is running finish before the server stops', async () => {
+    const own = await startHarness();
+    const token = await own.admin();
+    const release = own.artifacts.hold();
+    const running = own.deploy(token, 'cart', '1.0.0');
+    await vi.waitFor(() => expect(own.artifacts.reads.length).toBeGreaterThan(0));
+    const closing = own.server.close();
+    release();
+    expect((await running).status).toBe(200);
+    await closing;
+    await fs.rm(own.dbFile, { force: true });
+  });
+
+  it('cuts a request that outlasts the drain time', async () => {
+    const own = await startHarness({}, { drainMs: 50 });
+    const token = await own.admin();
+    own.artifacts.hold();
+    const running = own.deploy(token, 'cart', '1.0.0').then(
+      () => 'finished',
+      () => 'cut',
+    );
+    await vi.waitFor(() => expect(own.artifacts.reads.length).toBeGreaterThan(0));
+    await own.server.close();
+    expect(await running).toBe('cut');
   });
 });

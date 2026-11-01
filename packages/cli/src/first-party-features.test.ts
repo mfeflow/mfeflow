@@ -62,6 +62,7 @@ describe.each([
   'storybook',
   'registry-static',
   'release',
+  'registry-server',
 ])('mfeflow add %s', (feature) => {
   it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
     await addRequired(feature);
@@ -106,6 +107,7 @@ describe.each([
       forms: ['src/forms/ContactForm.tsx', 'src/forms/schema.ts'],
       'analytics-clarity': [],
       'commit-prompt': [],
+      'registry-server': [],
       storybook: [
         '.storybook/main.ts',
         '.storybook/rsbuild.config.ts',
@@ -875,5 +877,65 @@ describe('http', () => {
     expect((await readTree(project))['apps/cart/src/api/client.test.ts']).toContain(
       "api.get('health')",
     );
+  });
+});
+
+describe('registry-server', () => {
+  it('writes the shell helper and the guide, with the server address from the option', async () => {
+    expect(
+      await add(
+        'registry-server',
+        '--option',
+        'registry-server.serverUrl=https://registry.example.com',
+      ),
+    ).toBe(0);
+    expect(await read('apps/shell/src/registry-sources.ts')).toContain('registrySourcesWithBeacon');
+    const guide = await read('docs/registry-server.md');
+    expect(guide).toContain('`https://registry.example.com`');
+    expect(guide).toContain('MFEFLOW_REGISTRY_TOKEN');
+    expect(guide).not.toMatch(/--token/);
+    const scripts = (await json('package.json')).scripts;
+    expect(scripts).toHaveProperty(['server:deploy']);
+  });
+
+  it('puts empty registryUrls and a false registryBeacon in the runtime config, so nothing changes until you set them', async () => {
+    await add('registry-server');
+    const config = JSON.parse(await read('apps/shell/public/config/runtime-config.json')) as Record<
+      string,
+      unknown
+    >;
+    expect(config.registryUrls).toEqual([]);
+    expect(config.registryBeacon).toBe(false);
+  });
+
+  it.each(['zod', 'valibot', 'arktype'])(
+    'with env-t3 (%s) adds both keys to the schema and every environment file',
+    async (validator) => {
+      await add('env-t3', '--option', `env-t3.validator=${validator}`);
+      await add('registry-server');
+      const schema = await read('apps/shell/src/config/schema.ts');
+      expect(schema).toContain('registryUrls:');
+      expect(schema).toContain('registryBeacon:');
+      for (const env of ['dev', 'staging', 'prod'])
+        expect(await json(`apps/shell/public/config/runtime-config.${env}.json`)).toMatchObject({
+          registryUrls: [],
+          registryBeacon: false,
+        });
+    },
+  );
+
+  it('writes the CI workflow only when ci-github is in the project, with the token from a secret', async () => {
+    await add('registry-server');
+    expect(await readTree(project)).not.toHaveProperty(['.github/workflows/deploy-server.yml']);
+    await forget('registry-server');
+    expect(await add('ci-github')).toBe(0);
+    expect(await add('registry-server')).toBe(0);
+    const workflow = await read('.github/workflows/deploy-server.yml');
+    expect(workflow).toContain('MFEFLOW_REGISTRY_TOKEN: ${{ secrets.MFEFLOW_REGISTRY_TOKEN }}');
+    expect(workflow).toContain('permissions: {}');
+    expect(workflow).toContain('set -euo pipefail');
+    expect(workflow).toContain('lists no remotes to deploy');
+    expect(workflow).toMatch(/uses: [\w./-]+@[0-9a-f]{40}/);
+    expect(workflow).not.toMatch(/--token/);
   });
 });

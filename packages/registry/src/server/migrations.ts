@@ -58,4 +58,59 @@ export const MIGRATIONS: readonly { id: number; name: string; sql: string }[] = 
       );
     `,
   },
+  {
+    id: 2,
+    name: 'rollouts',
+    sql: `
+      CREATE TABLE rollouts (
+        env TEXT NOT NULL,
+        remote TEXT NOT NULL,
+        rollout_id TEXT NOT NULL,
+        stable_version TEXT NOT NULL,
+        candidate_version TEXT NOT NULL,
+        candidate_json TEXT NOT NULL,
+        percent INTEGER NOT NULL,
+        steps_json TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (env, remote)
+      );
+      CREATE TABLE rollout_stats (
+        rollout_id TEXT NOT NULL,
+        version TEXT NOT NULL,
+        loads INTEGER NOT NULL DEFAULT 0,
+        errors INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (rollout_id, version)
+      );
+    `,
+  },
+  {
+    id: 3,
+    name: 'rollout-reporters',
+    sql: `
+      DROP TABLE rollout_stats;
+      CREATE TABLE rollout_reporters (
+        rollout_id TEXT NOT NULL,
+        version TEXT NOT NULL,
+        client TEXT NOT NULL,
+        errored INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (rollout_id, version, client)
+      );
+    `,
+  },
+  {
+    id: 4,
+    name: 'rollout-counters',
+    sql: `
+      CREATE TABLE rollout_side_counts (
+        rollout_id TEXT NOT NULL,
+        version TEXT NOT NULL,
+        clients INTEGER NOT NULL,
+        errors INTEGER NOT NULL,
+        PRIMARY KEY (rollout_id, version)
+      );
+      INSERT INTO rollout_side_counts (rollout_id, version, clients, errors)
+        SELECT rollout_id, version, COUNT(*), SUM(errored) FROM rollout_reporters GROUP BY rollout_id, version;
+    `,
+  },
 ];

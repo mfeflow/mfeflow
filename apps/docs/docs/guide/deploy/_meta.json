@@ -1,11 +1,57 @@
 [
-  { "type": "file", "name": "index", "label": "Overview" },
-  { "type": "file", "name": "cloudflare", "label": "Cloudflare" },
-  { "type": "file", "name": "docker", "label": "Docker and Kubernetes" },
-  { "type": "file", "name": "aws", "label": "AWS S3 and CloudFront" },
-  { "type": "file", "name": "vercel-netlify", "label": "Vercel and Netlify" },
-  { "type": "file", "name": "github-pages", "label": "GitHub Pages" },
-  { "type": "file", "name": "own-server", "label": "Your own server" },
-  { "type": "file", "name": "multi-platform", "label": "One build, three platforms" },
-  { "type": "custom-link", "label": "Deploy and roll back", "link": "/guide/deploy-and-rollback" }
+  {
+    "type": "file",
+    "name": "index",
+    "label": "Overview"
+  },
+  {
+    "type": "file",
+    "name": "cloudflare",
+    "label": "Cloudflare"
+  },
+  {
+    "type": "file",
+    "name": "docker",
+    "label": "Docker and Kubernetes"
+  },
+  {
+    "type": "file",
+    "name": "aws",
+    "label": "AWS S3 and CloudFront"
+  },
+  {
+    "type": "file",
+    "name": "vercel-netlify",
+    "label": "Vercel and Netlify"
+  },
+  {
+    "type": "file",
+    "name": "github-pages",
+    "label": "GitHub Pages"
+  },
+  {
+    "type": "file",
+    "name": "own-server",
+    "label": "Your own server"
+  },
+  {
+    "type": "file",
+    "name": "registry-server-runbook",
+    "label": "Run the registry server"
+  },
+  {
+    "type": "file",
+    "name": "registry-server-slo",
+    "label": "Registry server SLOs"
+  },
+  {
+    "type": "file",
+    "name": "multi-platform",
+    "label": "One build, three platforms"
+  },
+  {
+    "type": "custom-link",
+    "label": "Deploy and roll back",
+    "link": "/guide/deploy-and-rollback"
+  }
 ]

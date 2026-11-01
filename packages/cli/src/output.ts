@@ -68,8 +68,10 @@ export interface UpgradeFileReport {
   reason: 'edited' | 'untracked' | 'edited-by-cli' | 'skipped-feature' | 'symlink';
   /** `accept`: written with the new version. `keep`: left, and remembered. `undecided`: left, and the run fails without a person to ask. */
   decision: 'accept' | 'keep' | 'undecided';
-  /** Keys in your file that the new version lacks; accepting drops them. */
+  /** Keys in your file that the new version lacks or has with another value; accepting drops them. */
   lostKeys: string[];
+  /** The part of `lostKeys` that the new version has with another value. */
+  changedValues: string[];
   /** Unified diff from your file to the new version. */
   diff: string;
 }
@@ -88,6 +90,8 @@ export interface UpgradeResult extends WriteReport {
   /** package.json, pnpm-workspace.yaml and turbo.json, edited in place. */
   edited: string[];
   diverged: UpgradeFileReport[];
+  /** Registry features by name: `verified` against the recorded hash, `first-seen` when none was recorded, or `accepted-changed`. */
+  integrity: Record<string, 'verified' | 'first-seen' | 'accepted-changed'>;
   /** Generated files you deleted. Not brought back. */
   missing: string[];
   /** Files the new version no longer generates. Left in place. */
@@ -165,6 +169,8 @@ export interface ReportResult {
   summary: Summary;
   checks: CheckReport[];
   findings: Finding[];
+  /** `check-compat --against`: where the shell's versions came from. */
+  against?: string;
 }
 
 export interface ShellBudget {
@@ -270,6 +276,8 @@ export interface DeployResult {
   index?: RegistryIndex;
   warnings: string[];
   findings: Finding[];
+  /** Server mode only: set when the deploy started a percentage rollout. `version` is then the candidate. */
+  rollout?: { id: string; stable: string; candidate: string; percent: number; steps: number[] };
 }
 
 export interface StatusRemote {
@@ -283,6 +291,10 @@ export interface StatusRemote {
   /** Versions on the host newer than `version` that no environment points at; null when the host cannot list. */
   unreferenced: string[] | null;
   drift: string[];
+  /** Server mode with a token: the remote was killed and is not in the served index. */
+  killed?: boolean;
+  /** Server mode with a token: a percentage rollout is running. */
+  rollout?: { candidate: string; percent: number } | null;
 }
 
 export interface StatusEnv {
@@ -303,6 +315,46 @@ export interface StatusResult {
   findings: Finding[];
 }
 
+/** `mfeflow rollout step|complete|abort`. Fields are null for a dry run, which sends nothing. */
+export interface RolloutCommandResult {
+  ok: boolean;
+  command: 'rollout';
+  action: 'step' | 'complete' | 'abort' | 'status';
+  dryRun: boolean;
+  root: string;
+  host: string;
+  env: string;
+  remote: string;
+  stable: string | null;
+  candidate: string | null;
+  percent: number | null;
+  /** What the index serves now. */
+  serves: string | null;
+  /** `rollout status` only: the browser reports behind the gate. */
+  report?: {
+    startedAt: string;
+    steps: number[];
+    candidateCounts: { loads: number; errors: number; clients: number };
+    stableCounts: { loads: number; errors: number; clients: number };
+    gate: { verdict: 'wait' | 'ok' | 'halt'; reason: string | null };
+    reporterCapFull: boolean;
+  };
+}
+
+/** `mfeflow kill` and `mfeflow restore`. */
+export interface KillCommandResult {
+  ok: boolean;
+  command: 'kill' | 'restore';
+  dryRun: boolean;
+  root: string;
+  host: string;
+  env: string;
+  remote: string;
+  /** False when the remote was already in that state. Null for a dry run. */
+  changed: boolean | null;
+  killed: boolean | null;
+}
+
 export interface FailureResult {
   ok: false;
   error: ErrorReport;
@@ -320,6 +372,8 @@ export type CliResult =
   | DevResult
   | DeployResult
   | StatusResult
+  | RolloutCommandResult
+  | KillCommandResult
   | FailureResult;
 
 /** The plan as plain data for `--json`, without file contents. Features are listed once. */
@@ -509,6 +563,11 @@ function checkDeploy(c: Check, value: Obj): void {
   checkFindings(c, value);
 }
 
+function checkServerAction(c: Check, value: Obj): void {
+  for (const key of ['root', 'host', 'env', 'remote']) c.string(value, key, '');
+  c.boolean(value, 'dryRun', '');
+}
+
 function checkStatus(c: Check, value: Obj): void {
   c.string(value, 'root', '');
   c.string(value, 'host', '');
@@ -591,7 +650,16 @@ export function validateResult(value: unknown): Issue[] {
           c.add(`${p}decision`, 'must be accept, keep or undecided');
         }
         c.texts(f, 'lostKeys', p);
+        c.texts(f, 'changedValues', p);
       });
+      if (!isObj(value.integrity)) c.add('integrity', 'must be an object');
+      else {
+        for (const [name, state] of Object.entries(value.integrity)) {
+          if (!['verified', 'first-seen', 'accepted-changed'].includes(String(state))) {
+            c.add(`integrity.${name}`, 'must be verified, first-seen or accepted-changed');
+          }
+        }
+      }
       c.objects(value, 'migrations', '', (m, p) => {
         for (const key of ['feature', 'from', 'to']) c.string(m, key, p);
       });
@@ -642,6 +710,7 @@ export function validateResult(value: unknown): Issue[] {
     case 'validate':
     case 'check-compat':
       checkReport(c, value);
+      if (value.against !== undefined) c.string(value, 'against', '');
       break;
     case 'budget':
       checkBudget(c, value);
@@ -668,10 +737,27 @@ export function validateResult(value: unknown): Issue[] {
     case 'status':
       checkStatus(c, value);
       break;
+    case 'rollout':
+      checkServerAction(c, value);
+      if (!['step', 'complete', 'abort', 'status'].includes(String(value.action)))
+        c.add('action', 'must be step, complete, abort or status');
+      for (const key of ['stable', 'candidate', 'serves'])
+        if (value[key] !== null && typeof value[key] !== 'string')
+          c.add(key, 'must be text or null');
+      if (value.percent !== null && typeof value.percent !== 'number')
+        c.add('percent', 'must be a number or null');
+      break;
+    case 'kill':
+    case 'restore':
+      checkServerAction(c, value);
+      for (const key of ['changed', 'killed'])
+        if (value[key] !== null && typeof value[key] !== 'boolean')
+          c.add(key, 'must be true, false or null');
+      break;
     default:
       c.add(
         'command',
-        'must be init, add, upgrade, features, registry, doctor, validate, check-compat, budget, dev, deploy, promote, rollback or status',
+        'must be init, add, upgrade, features, registry, doctor, validate, check-compat, budget, dev, deploy, promote, rollback, status, rollout, kill or restore',
       );
   }
   return c.issues;

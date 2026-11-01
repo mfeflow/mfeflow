@@ -1,4 +1,3 @@
-import path from 'node:path';
 import {
   checkIntegrity,
   isMfeflowError,
@@ -6,6 +5,7 @@ import {
   MfeflowError,
   realFs,
   planUpgrade,
+  symlinkedPrefix,
   type LoadedFeature,
   type MfeflowProject,
   type UpgradeDecisions,
@@ -25,8 +25,20 @@ export interface UpgradeContext {
   fetch: FetchLike;
   /** Registry namespaces the user trusts to be on loopback or private addresses. */
   trusted?: ReadonlySet<string>;
-  /** Take registry content that differs from the hash recorded in mfeflow.json. */
-  acceptChanged?: boolean;
+  /** Take registry content that differs from the hash recorded in mfeflow.json: every feature (`true`) or the named ones. */
+  acceptChanged?: boolean | ReadonlySet<string>;
+}
+
+/** How a registry feature's content compared with the hash recorded for it. */
+export type IntegrityState = 'verified' | 'first-seen' | 'accepted-changed';
+
+export interface ProjectUpgrade extends UpgradePlan {
+  /** Registry features by name. `first-seen`: no hash was recorded, so the served content could not be checked. */
+  integrity: Record<string, IntegrityState>;
+}
+
+function mayTake(accept: UpgradeContext['acceptChanged'], name: string): boolean {
+  return accept === true || (accept instanceof Set && accept.has(name));
 }
 
 /** The features `init` would apply for these recorded ones, in its order, `core` and `tsconfig` first. */
@@ -46,12 +58,13 @@ export async function planProjectUpgrade(
   project: MfeflowProject,
   toVersion: string = readPackageJson().version,
   decisions: UpgradeDecisions = {},
-): Promise<UpgradePlan> {
+): Promise<ProjectUpgrade> {
   if (project.topology === 'polyrepo') {
     throw new MfeflowError('E107', 'upgrade does not work in the repos of a polyrepo yet', {
       fix: 'Nothing was changed. Update the mfeflow packages in each repo by hand for now.',
     });
   }
+  const integrity: Record<string, IntegrityState> = {};
   const features: LoadedFeature[] = [];
   const skipped: { name: string; reason: string }[] = [];
   for (const name of replayOrder(project)) {
@@ -73,8 +86,13 @@ export async function planProjectUpgrade(
         throw new Error(`the registry serves ${loaded.manifest.version}, installed is ${recorded}`);
       }
       const hash = project.features[name]?.integrity;
-      if (loaded.trust === 'third-party' && hash !== undefined && loaded.integrity !== undefined) {
-        checkIntegrity(name, hash, loaded.integrity, ctx.acceptChanged === true);
+      if (loaded.trust === 'third-party' && loaded.integrity !== undefined) {
+        integrity[name] =
+          hash === undefined
+            ? 'first-seen'
+            : checkIntegrity(name, hash, loaded.integrity, mayTake(ctx.acceptChanged, name))
+              ? 'accepted-changed'
+              : 'verified';
       }
       features.push(loaded);
     } catch (error) {
@@ -100,13 +118,14 @@ export async function planProjectUpgrade(
         : [],
     ),
   );
-  return planUpgrade(project, {
+  const up = await planUpgrade(project, {
     toVersion,
     decisions,
     read: projectReader(root),
     features,
     glue,
     skipped,
-    isSymlink: (file) => realFs.isSymlink(path.join(root, ...file.split('/'))),
+    isSymlink: async (file) => (await symlinkedPrefix(realFs, root, file)) !== undefined,
   });
+  return { ...up, integrity };
 }
