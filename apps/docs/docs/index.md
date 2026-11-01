@@ -3,7 +3,7 @@ pageType: home
 hero:
   name: mfeflow
   text: One command. Every remote.
-  tagline: The React micro-frontend boilerplate that keeps going after day one. Module Federation 2.0 on Rsbuild, features à la carte, a self-hosted registry.
+  tagline: The React micro-frontend boilerplate that keeps going after day one. Module Federation 2.0 on Rsbuild, features à la carte, typed env, bundle budgets and doctor checks.
   actions:
     - theme: brand
       text: Quickstart

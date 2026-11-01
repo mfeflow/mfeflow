@@ -21,8 +21,9 @@
   --mf-line: #e3e8ef;
   --mf-text-1: #0b0f14;
   --mf-text-2: #4a5566;
-  --mf-text-3: #6b7686;
+  --mf-text-3: #5b6675;
   --mf-on-flow: #ffffff;
+  --mf-flow-hover: #155e75;
 }
 
 :root.rp-dark {
@@ -35,8 +36,9 @@
   --mf-line: #232a36;
   --mf-text-1: #f5f7fa;
   --mf-text-2: #a3adbd;
-  --mf-text-3: #6e7889;
+  --mf-text-3: #8591a3;
   --mf-on-flow: #07090d;
+  --mf-flow-hover: #67e8f9;
 }
 
 :root,
@@ -129,8 +131,8 @@ kbd {
 }
 
 :root .rp-button--brand:hover {
-  background: var(--mf-flow-soft);
-  border-color: var(--mf-flow-soft);
+  background: var(--mf-flow-hover);
+  border-color: var(--mf-flow-hover);
   opacity: 1;
 }
 

@@ -53,7 +53,7 @@ route at most +10 KB, against the same pages built as one app).
 Time to a running platform, measured by [`bench/`](bench/README.md) on 2026-10-31 (warm pnpm store, median of 5, arm64 laptop with 8 cores):
 about 5 s from `create-mfeflow` to a shell and two remotes answering on `pnpm dev`.
 
-Next: `upgrade`, the typed env feature, the registry and the generated CI/CD.
+Next: Phase 05, the remote registry with `deploy`, `promote`, `rollback` and `status`; then `upgrade`, `adopt` and polyrepo (Phase 06).
 
 ## What it will do
 
@@ -62,19 +62,19 @@ npm create mfeflow@latest my-platform     # pick topology, remotes and features
 mfeflow add telemetry-otel analytics-gtm  # add what you need later
 mfeflow add event-bus route-factory http
 mfeflow add theming i18n tailwind     # shell-owned theme and language, Tailwind with a prefix per remote
-mfeflow deploy catalog --env prod
-mfeflow rollback catalog --env prod       # a pointer flip, no rebuild
+mfeflow deploy catalog --env prod        # Phase 05, not built yet
+mfeflow rollback catalog --env prod      # Phase 05: a pointer flip, no rebuild
 ```
 
 - **Module Federation 2.0 on Rsbuild**, with React and other stateful
   libraries shared as singletons and checked at build and run time.
 - **Features à la carte**: typed API URLs, Google Tag Manager with Consent
-  Mode v2, OpenTelemetry, typed cross-app events, ESLint and tsconfig
+  Mode v2, OpenTelemetry, typed cross-app events, oxlint and tsconfig
   presets, tests and CI. Code you own is copied into your project; logic that
   needs fixes is installed and upgraded with migrations.
-- **A self-hosted registry**: versioned remotes on any static host, or a small
-  server with percentage rollouts and a kill switch. Promote and roll back
-  without rebuilding.
+- **A self-hosted registry** (Phase 05, in progress): versioned remotes on any
+  static host, or a small server with percentage rollouts and a kill switch.
+  Promote and roll back without rebuilding.
 - **Built for many teams**: monorepo, polyrepo or hybrid layouts, ownership
   manifests, compatibility and bundle-budget checks.
 
