@@ -1,0 +1,50 @@
+name: reusable-ci
+
+# Every team repo calls this file from its own workflow:
+#
+#   jobs:
+#     ci:
+#       uses: <%= it.scope.slice(1) %>/platform/.github/workflows/reusable-ci.yml@main
+#
+# A private platform repo has to allow it under Settings > Actions > General > Access.
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node version to run the checks on
+        type: string
+        default: lts/*
+      run-budget:
+        description: Also run mfeflow budget after the build
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+      - run: pnpm install
+      - run: pnpm run --if-present typecheck
+      - run: pnpm run --if-present lint
+      - run: pnpm run --if-present test
+      - run: pnpm build
+      - name: mfeflow validate
+        run: pnpm mfeflow validate
+      - name: mfeflow doctor
+        run: pnpm mfeflow doctor
+      - name: mfeflow budget
+        if: ${{ inputs.run-budget }}
+        run: pnpm mfeflow budget

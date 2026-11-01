@@ -8,8 +8,7 @@ import {
   type UpgradePlan,
 } from '@mfeflow/core';
 import type { AssetRoots } from './assets';
-import { inCatalogueOrder } from './commands/add';
-import { loadAny } from './catalog';
+import { inCatalogueOrder, loadAny } from './catalog';
 import { remoteGlue } from './glue';
 import { projectReader } from './pipeline';
 import { readPackageJson } from './version';

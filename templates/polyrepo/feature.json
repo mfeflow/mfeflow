@@ -1,0 +1,299 @@
+{
+  "name": "polyrepo",
+  "version": "0.1.0",
+  "description": "What a polyrepo repo has beyond the monorepo template: the platform packages, the reusable CI and Renovate preset, and a package.json, README and CI caller for each repo.",
+  "prompts": [
+    {
+      "name": "repo",
+      "type": "select",
+      "message": "Which repo of the polyrepo this is",
+      "choices": ["platform", "shell", "remote"],
+      "default": "platform"
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "message": "The remote's name (repo remote only)",
+      "default": ""
+    }
+  ],
+  "files": [
+    {
+      "to": "AGENTS.md",
+      "target": "root",
+      "from": "files/AGENTS.md.eta",
+      "template": true
+    },
+    {
+      "to": "renovate.json",
+      "target": "root",
+      "from": "files/renovate.json.eta",
+      "template": true
+    },
+    {
+      "to": "README.md",
+      "target": "root",
+      "from": "files/platform/README.md.eta",
+      "template": true,
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "to": "README.md",
+      "target": "root",
+      "from": "files/shell/README.md.eta",
+      "template": true,
+      "when": {
+        "repo": "shell"
+      }
+    },
+    {
+      "to": "README.md",
+      "target": "root",
+      "from": "files/remote/README.md.eta",
+      "template": true,
+      "when": {
+        "repo": "remote"
+      }
+    },
+    {
+      "to": "default.json",
+      "target": "root",
+      "from": "files/platform/default.json.eta",
+      "template": true,
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "to": "tsconfig.base.json",
+      "target": "root",
+      "from": "files/tsconfig.base.json.eta",
+      "template": true,
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "to": "packages/contracts/package.json",
+      "target": "root",
+      "from": "files/packages/contracts/package.json.eta",
+      "template": true,
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "to": "packages/contracts/tsconfig.json",
+      "target": "root",
+      "from": "files/packages/contracts/tsconfig.json.eta",
+      "template": true,
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "to": "packages/contracts/src/index.ts",
+      "target": "root",
+      "from": "files/packages/contracts/src/index.ts",
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "to": "packages/tokens/package.json",
+      "target": "root",
+      "from": "files/packages/tokens/package.json.eta",
+      "template": true,
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "to": "packages/tokens/tsconfig.json",
+      "target": "root",
+      "from": "files/packages/tokens/tsconfig.json.eta",
+      "template": true,
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "to": "packages/tokens/src/index.ts",
+      "target": "root",
+      "from": "files/packages/tokens/src/index.ts",
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "to": ".changeset/config.json",
+      "target": "root",
+      "from": "files/changeset/config.json",
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "to": ".changeset/README.md",
+      "target": "root",
+      "from": "files/changeset/README.md",
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "to": ".github/workflows/ci.yml",
+      "target": "root",
+      "from": "files/workflows/platform-ci.yml",
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "to": ".github/workflows/reusable-ci.yml",
+      "target": "root",
+      "from": "files/workflows/reusable-ci.yml.eta",
+      "template": true,
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "to": ".github/workflows/release.yml",
+      "target": "root",
+      "from": "files/workflows/release.yml",
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "to": ".github/workflows/ci.yml",
+      "target": "root",
+      "from": "files/workflows/team-ci.yml.eta",
+      "template": true,
+      "when": {
+        "repo": "shell"
+      }
+    },
+    {
+      "to": ".github/workflows/ci.yml",
+      "target": "root",
+      "from": "files/workflows/team-ci.yml.eta",
+      "template": true,
+      "when": {
+        "repo": "remote"
+      }
+    },
+    {
+      "to": "public/config/runtime-config.staging.json",
+      "target": "shell",
+      "content": "{\n  \"environment\": \"staging\"\n}\n"
+    },
+    {
+      "to": "public/config/runtime-config.prod.json",
+      "target": "shell",
+      "content": "{\n  \"environment\": \"prod\"\n}\n"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@changesets/cli",
+      "range": "3.0.3",
+      "target": "root",
+      "dev": true,
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "name": "typescript",
+      "range": "7.0.2",
+      "target": "root",
+      "dev": true,
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "name": "mfeflow",
+      "range": "latest",
+      "target": "root",
+      "dev": true,
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "name": "{{scope}}/contracts",
+      "range": "latest",
+      "target": "shell"
+    },
+    {
+      "name": "{{scope}}/tokens",
+      "range": "latest",
+      "target": "shell"
+    },
+    {
+      "name": "{{scope}}/contracts",
+      "range": "latest",
+      "target": "remotes"
+    },
+    {
+      "name": "{{scope}}/tokens",
+      "range": "latest",
+      "target": "remotes"
+    }
+  ],
+  "scripts": [
+    {
+      "name": "build",
+      "command": "pnpm -r --if-present run build",
+      "target": "root",
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "name": "typecheck",
+      "command": "pnpm -r --if-present run typecheck",
+      "target": "root",
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "name": "validate",
+      "command": "mfeflow validate",
+      "target": "root",
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "name": "changeset",
+      "command": "changeset",
+      "target": "root",
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "name": "version",
+      "command": "changeset version",
+      "target": "root",
+      "when": {
+        "repo": "platform"
+      }
+    },
+    {
+      "name": "release",
+      "command": "pnpm build && changeset publish",
+      "target": "root",
+      "when": {
+        "repo": "platform"
+      }
+    }
+  ]
+}

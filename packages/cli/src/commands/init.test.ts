@@ -370,7 +370,7 @@ describe('mfeflow init', () => {
   it.each([
     ['a scope without @', ['--scope', 'acme'], 2, 'MFEFLOW_E107'],
     ['npm', ['--package-manager', 'npm'], 2, 'MFEFLOW_E107'],
-    ['another topology', ['--topology', 'polyrepo'], 2, 'MFEFLOW_E107'],
+    ['a topology that is not there yet', ['--topology', 'hybrid'], 2, 'MFEFLOW_E107'],
     ['a remote called shell', ['--remotes', 'shell'], 2, 'MFEFLOW_E215'],
     ['a repeated remote', ['--remotes', 'a,a'], 2, 'MFEFLOW_E215'],
     ['a badly named remote', ['--remotes', 'My-App'], 2, 'MFEFLOW_E215'],

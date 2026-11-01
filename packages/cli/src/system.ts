@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { messageOf } from '@mfeflow/core';
 import type { Io } from './io';
@@ -67,9 +68,20 @@ export interface System {
   install(root: string, packageManager: string, verbose: boolean): Promise<void>;
   /** `git init` unless `root` is already inside a work tree. Returns whether it ran. */
   gitInit(root: string): Promise<boolean>;
+  /** `git init` for a repo of its own, even when `root` sits inside another work tree. Returns whether it ran. */
+  initRepo(root: string): Promise<boolean>;
 }
 
 const TAIL_LINES = 15;
+
+async function hasGitDir(root: string): Promise<boolean> {
+  try {
+    await fs.access(path.join(root, '.git'));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** The CLI has just changed package.json, so a lockfile that was frozen in CI would be out of date. */
 function installArgs(packageManager: string): string[] {
@@ -100,6 +112,14 @@ export function createSystem(io: Pick<Io, 'stderr'>, runner: Run = run): System 
       try {
         const inside = await runner('git', ['rev-parse', '--is-inside-work-tree'], { cwd: root });
         if (inside.code === 0) return false;
+        return (await runner('git', ['init', '--quiet'], { cwd: root })).code === 0;
+      } catch {
+        return false;
+      }
+    },
+    async initRepo(root) {
+      try {
+        if (await hasGitDir(root)) return false;
         return (await runner('git', ['init', '--quiet'], { cwd: root })).code === 0;
       } catch {
         return false;

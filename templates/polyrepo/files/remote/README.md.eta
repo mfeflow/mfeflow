@@ -1,0 +1,23 @@
+# <%= it.scope.slice(1) %>-<%= it.options.name %>
+
+A remote of a polyrepo made with [mfeflow](https://github.com/mfeflow/mfeflow). It exposes `./App`
+and is deployed on its own. The shell lives in its own repo.
+
+```
+apps/<%= it.options.name %>   the remote
+```
+
+## Run it
+
+```sh
+pnpm install
+pnpm dev
+```
+
+`pnpm dev` serves the remote on its own port. To see it inside the shell, run `pnpm dev` in the shell
+repo too: the shell's dev config lists this remote's dev server.
+
+## Deploy it
+
+Each remote is deployed on its own. The registry entries live in the shell repo, not here. See
+"Deploy and roll back" in the mfeflow docs for the commands.

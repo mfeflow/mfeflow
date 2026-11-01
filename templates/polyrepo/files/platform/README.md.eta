@@ -1,0 +1,43 @@
+# <%= it.scope.slice(1) %>-platform
+
+The shared repo of a polyrepo made with [mfeflow](https://github.com/mfeflow/mfeflow). The shell and
+every team repo sit next to it and depend on what is published from here.
+
+```
+packages/contracts   <%= it.scope %>/contracts: event names and types every repo agrees on
+packages/tokens      <%= it.scope %>/tokens: colors and spacing
+.github/workflows    reusable-ci.yml (the CI every team repo calls), ci.yml, release.yml
+default.json         the Renovate preset every repo extends
+.changeset           how a change here gets a version
+```
+
+## Run it
+
+```sh
+pnpm install
+pnpm build
+```
+
+Build here first. The shell and the team repos link to `packages/*/dist` until you publish.
+
+## Change a package
+
+```sh
+pnpm changeset          # describe the change and pick the bump
+pnpm build
+```
+
+Commit the changeset with your change. After the pull request merges, the release workflow opens a
+version pull request. Merging that publishes the packages.
+
+## Where the packages are published
+
+The team repos install `<%= it.scope %>/*` with `link:../platform/packages/*` paths so a first run needs
+no registry. To share the packages across machines and CI, publish them to a registry and replace the
+`link:` ranges in each repo with a version:
+
+- npm: set `NPM_TOKEN` as a repository secret. Packages are public.
+- GitHub Packages: add `<%= it.scope %>:registry=https://npm.pkg.github.com` to `.npmrc` in every repo.
+- A private registry: put its URL in `.npmrc` and set `publishConfig.registry` in each package.
+
+Creating the GitHub repos and the registry account is up to you. mfeflow never calls GitHub.
