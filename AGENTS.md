@@ -17,4 +17,4 @@ Guidance for coding agents working in this repo.
 - Relative imports have no file extension (`./plan`, not `./plan.js`); a folder's
   `index` is imported as the folder. oxlint (`import/extensions`) enforces it.
   Asset imports keep their extension. Exceptions: files Node runs directly
-  (`bin/`, `scripts/`, the storefront e2e, `e2e/matrix/run.ts`, `e2e/matrix/registry.ts`, `e2e/matrix/ui-checks.ts`, `bench/time-to-running.ts`).
+  (`bin/`, `scripts/`, the storefront e2e, `e2e/matrix/run.ts`, `e2e/matrix/registry.ts`, `e2e/matrix/ui-checks.ts`, `bench/time-to-running.ts`, `bench/registry-server.ts`).

@@ -403,6 +403,9 @@ importers:
 
   bench:
     devDependencies:
+      '@mfeflow/registry':
+        specifier: workspace:*
+        version: link:../packages/registry
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6

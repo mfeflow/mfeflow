@@ -1,0 +1,158 @@
+{
+  "measured": "2026-11-01T19:34:21.363Z",
+  "what": "time from sending the request until a fresh GET /v1/index/<env> shows it (visible), and until envs/<env>/index.json in the fallback folder shows it (fallback)",
+  "runsTimed": 20,
+  "setup": "registry server, SQLite file, artifact server and fallback folder all on this machine, over 127.0.0.1",
+  "notMeasured": "network distance, a CDN or real S3 as the fallback host, a returning browser holding the index for its 5 s max-age (add up to 5 s), and load",
+  "commit": "cf67c6a3467a15d1531471c46aae194decfc93f2",
+  "machine": {
+    "os": "Darwin 25.5.0",
+    "arch": "arm64",
+    "cpus": 8,
+    "node": "v22.23.4"
+  },
+  "summary": {
+    "rollbackVisible": {
+      "medianMs": 2,
+      "p95Ms": 2,
+      "maxMs": 2
+    },
+    "rollbackFallback": {
+      "medianMs": 2,
+      "p95Ms": 3,
+      "maxMs": 3
+    },
+    "killVisible": {
+      "medianMs": 1,
+      "p95Ms": 2,
+      "maxMs": 2
+    },
+    "killFallback": {
+      "medianMs": 2,
+      "p95Ms": 3,
+      "maxMs": 3
+    }
+  },
+  "runs": [
+    {
+      "rollbackVisibleMs": 2.411500000000018,
+      "rollbackFallbackMs": 2.9330830000000105,
+      "killVisibleMs": 1.6430839999999876,
+      "killFallbackMs": 2.2037090000000035
+    },
+    {
+      "rollbackVisibleMs": 2.154958999999991,
+      "rollbackFallbackMs": 2.754334,
+      "killVisibleMs": 1.6605000000000132,
+      "killFallbackMs": 2.3029160000000104
+    },
+    {
+      "rollbackVisibleMs": 1.8007920000000013,
+      "rollbackFallbackMs": 2.2691250000000025,
+      "killVisibleMs": 1.2597499999999968,
+      "killFallbackMs": 1.583042000000006
+    },
+    {
+      "rollbackVisibleMs": 2.438707999999991,
+      "rollbackFallbackMs": 2.914749999999998,
+      "killVisibleMs": 1.3216669999999908,
+      "killFallbackMs": 1.8373339999999985
+    },
+    {
+      "rollbackVisibleMs": 1.6209580000000017,
+      "rollbackFallbackMs": 2.037875000000014,
+      "killVisibleMs": 1.1981250000000045,
+      "killFallbackMs": 1.6783340000000067
+    },
+    {
+      "rollbackVisibleMs": 1.7942920000000129,
+      "rollbackFallbackMs": 2.3130000000000166,
+      "killVisibleMs": 1.3548749999999927,
+      "killFallbackMs": 2.5920409999999947
+    },
+    {
+      "rollbackVisibleMs": 2.0550839999999937,
+      "rollbackFallbackMs": 2.647250000000014,
+      "killVisibleMs": 1.266791999999981,
+      "killFallbackMs": 1.673166999999978
+    },
+    {
+      "rollbackVisibleMs": 1.6823329999999999,
+      "rollbackFallbackMs": 2.1271660000000168,
+      "killVisibleMs": 1.5948750000000018,
+      "killFallbackMs": 2.0961250000000007
+    },
+    {
+      "rollbackVisibleMs": 1.9383750000000077,
+      "rollbackFallbackMs": 2.4110410000000115,
+      "killVisibleMs": 1.1350419999999986,
+      "killFallbackMs": 1.5724170000000015
+    },
+    {
+      "rollbackVisibleMs": 1.384666999999979,
+      "rollbackFallbackMs": 1.8070419999999956,
+      "killVisibleMs": 1.6705419999999833,
+      "killFallbackMs": 2.282541999999978
+    },
+    {
+      "rollbackVisibleMs": 1.7471249999999827,
+      "rollbackFallbackMs": 2.18558299999998,
+      "killVisibleMs": 1.0395420000000115,
+      "killFallbackMs": 1.4220420000000047
+    },
+    {
+      "rollbackVisibleMs": 1.6683340000000157,
+      "rollbackFallbackMs": 2.360584000000017,
+      "killVisibleMs": 1.2657920000000047,
+      "killFallbackMs": 2.928416999999996
+    },
+    {
+      "rollbackVisibleMs": 1.565041000000008,
+      "rollbackFallbackMs": 1.9248329999999783,
+      "killVisibleMs": 0.8979580000000169,
+      "killFallbackMs": 1.265041999999994
+    },
+    {
+      "rollbackVisibleMs": 1.2331249999999727,
+      "rollbackFallbackMs": 1.5947499999999764,
+      "killVisibleMs": 0.8573329999999828,
+      "killFallbackMs": 1.2874579999999582
+    },
+    {
+      "rollbackVisibleMs": 1.7088340000000244,
+      "rollbackFallbackMs": 2.1382090000000176,
+      "killVisibleMs": 1.060209000000043,
+      "killFallbackMs": 1.49429200000003
+    },
+    {
+      "rollbackVisibleMs": 1.7689170000000445,
+      "rollbackFallbackMs": 2.2021250000000236,
+      "killVisibleMs": 0.9752080000000092,
+      "killFallbackMs": 1.4110000000000014
+    },
+    {
+      "rollbackVisibleMs": 1.8491670000000227,
+      "rollbackFallbackMs": 2.393957999999998,
+      "killVisibleMs": 1.2279159999999933,
+      "killFallbackMs": 1.696957999999995
+    },
+    {
+      "rollbackVisibleMs": 1.5568339999999807,
+      "rollbackFallbackMs": 1.9670839999999998,
+      "killVisibleMs": 0.9706249999999841,
+      "killFallbackMs": 1.4067909999999983
+    },
+    {
+      "rollbackVisibleMs": 1.5691249999999854,
+      "rollbackFallbackMs": 2.0040410000000293,
+      "killVisibleMs": 0.9556670000000054,
+      "killFallbackMs": 1.33641700000004
+    },
+    {
+      "rollbackVisibleMs": 1.246708999999953,
+      "rollbackFallbackMs": 1.64874999999995,
+      "killVisibleMs": 0.9393329999999764,
+      "killFallbackMs": 1.3922919999999976
+    }
+  ]
+}

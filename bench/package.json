@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "bench": "node time-to-running.ts",
+    "bench:server": "node registry-server.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@mfeflow/registry": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

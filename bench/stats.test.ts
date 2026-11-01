@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { median, resultName, summarize } from './stats';
+import { median, percentile, resultName, summarize } from './stats';
 
 describe('median', () => {
   it('takes the middle of an odd list and the mean of the middle two of an even one', () => {
@@ -38,5 +38,19 @@ describe('resultName', () => {
     const date = new Date('2026-10-31T09:15:00.000Z');
     expect(resultName(date)).toBe('2026-10-31');
     expect(resultName(date, true)).toBe('2026-10-31T09-15-00');
+  });
+});
+
+describe('percentile', () => {
+  it('takes the nearest rank and does not reorder its input', () => {
+    const values = [30, 10, 20, 40, 50];
+    expect(percentile(values, 50)).toBe(30);
+    expect(percentile(values, 95)).toBe(50);
+    expect(percentile(values, 0)).toBe(10);
+    expect(values).toEqual([30, 10, 20, 40, 50]);
+  });
+
+  it('refuses an empty list', () => {
+    expect(() => percentile([], 95)).toThrow('nothing');
   });
 });
