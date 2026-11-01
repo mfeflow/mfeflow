@@ -1,0 +1,14 @@
+{
+  "name": "@test/hello",
+  "version": "1.0.0",
+  "description": "A class-name helper for the shell: adds src/hello.ts and the clsx package it imports.",
+  "keywords": ["demo", "greeting", "classnames"],
+  "files": [
+    {
+      "to": "src/hello.ts",
+      "target": "shell",
+      "content": "import { clsx } from 'clsx';\n\nexport function helloClass(loud: boolean): string {\n  return clsx('hello', loud && 'hello-loud');\n}\n"
+    }
+  ],
+  "dependencies": [{ "name": "clsx", "range": "^2.1.1", "target": "shell" }]
+}

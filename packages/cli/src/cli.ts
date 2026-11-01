@@ -14,6 +14,7 @@ import { BUDGET_ARGS, runBudget } from './commands/budget';
 import { DEV_ARGS, runDev } from './commands/dev';
 import { FEATURES_ARGS, runFeatures } from './commands/features';
 import { INIT_ARGS, runInit } from './commands/init';
+import { REGISTRY_ARGS, runRegistry } from './commands/registry';
 import { Cancelled, EXIT, exitCodeFor, reportOf, unexpectedReport, unexpectedText } from './exit';
 import { commandHelp, rootHelp, type CommandHelp } from './help';
 import { exitOf, type CliResult, type FailureResult } from './output';
@@ -66,11 +67,26 @@ export const COMMANDS: readonly Command[] = [
   },
   {
     name: 'features',
-    summary: 'list the features you can add',
+    summary: 'list and search the features you can add, from mfeflow and your registries',
     usage: 'mfeflow features [search] [options]',
     args: FEATURES_ARGS,
     examples: ['mfeflow features', 'mfeflow features lint', 'mfeflow features --json'],
     run: runFeatures,
+  },
+  {
+    name: 'registry',
+    summary: 'configure third-party feature registries, or build one to host',
+    usage:
+      'mfeflow registry add @namespace <url-template> | mfeflow registry list | mfeflow registry remove @namespace | mfeflow registry build <dir> [--out dir]',
+    args: REGISTRY_ARGS,
+    examples: [
+      'mfeflow registry add @acme https://acme.github.io/features/{name}.json',
+      'mfeflow registry add @test http://127.0.0.1:4010/{name}.json   # plain http: loopback hosts only',
+      'mfeflow registry list --json',
+      'mfeflow registry remove @acme --dry-run',
+      'mfeflow registry build ./my-registry --out ./site',
+    ],
+    run: runRegistry,
   },
   {
     name: 'doctor',

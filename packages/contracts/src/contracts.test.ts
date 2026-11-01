@@ -298,7 +298,10 @@ describe('mfeflow.json', () => {
       validateMfeflowProject({
         ...project,
         files: { 'apps/shell/src/a.ts': hash },
-        registries: { '@acme': 'https://acme.dev/{name}.json' },
+        registries: {
+          '@acme': 'https://acme.dev/{name}.json',
+          '@local': 'http://127.0.0.1:8080/{name}.json',
+        },
       }),
     ).toEqual([]);
     expect(

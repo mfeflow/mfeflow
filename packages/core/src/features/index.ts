@@ -6,6 +6,7 @@ export {
   type LoadOptions,
 } from './load';
 export {
+  fetchFeatureIndex,
   fetchRemoteText,
   getHttps,
   readCappedText,
@@ -16,3 +17,4 @@ export {
 export { resolveFeature, resolveOptions, type ResolveInput } from './resolve';
 export { type Trust } from './policy';
 export { isProtectedPath } from './write-policy';
+export { buildRegistry, type RegistryBuild, type RegistryFile } from './registry-build';
