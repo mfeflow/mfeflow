@@ -1,4 +1,4 @@
-import type { FetchLike } from '@mfeflow/core';
+import { configDirOf, type FetchLike } from '@mfeflow/core';
 import { assetRoots, type AssetRoots } from './assets';
 import { processIo, type Io } from './io';
 import { realDevHost, type DevHost } from './proc';
@@ -13,6 +13,8 @@ export interface Runtime {
   system: System;
   fetch: FetchLike;
   roots: AssetRoots;
+  /** Where per-user settings live, like the registries the user trusts. */
+  configDir: string;
   /** Processes, signals and file watching for `mfeflow dev`. Defaults to the real ones. */
   dev?: DevHost;
   /** `fetch` for S3 hosts. Tests stand in for the network. */
@@ -28,6 +30,7 @@ export function realRuntime(io: Io = processIo()): Runtime {
     system: createSystem(io),
     fetch: (url, init) => fetch(url, init),
     roots: assetRoots(),
+    configDir: configDirOf(io.env),
     dev: realDevHost(),
   };
 }

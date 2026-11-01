@@ -242,6 +242,14 @@ export const ERROR_CATALOGUE = {
     title: 'Local registry files and the host disagree',
     fix: `Run the deploy, promote or rollback that was meant to move the environment, or fix registry/envs by hand. Artifacts uploaded with --no-publish are not served until you deploy them. See ${DOCS_URL}/guide/deploy-and-rollback.`,
   },
+  E405: {
+    title: 'The registry is not trusted yet',
+    fix: 'Run `mfeflow registry trust @namespace` once to allow requests to it, or remove it from "registries".',
+  },
+  E406: {
+    title: 'The registry changed a feature since you added it',
+    fix: 'Nothing was written. Look at what changed; if you accept the new content, run the command again with --accept-changed-content.',
+  },
 } as const satisfies Record<string, ErrorInfo>;
 
 export type ErrorCode = keyof typeof ERROR_CATALOGUE;

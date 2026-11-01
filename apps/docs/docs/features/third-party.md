@@ -193,6 +193,38 @@ Switch the registry to its https URL before you commit `mfeflow.json`: run `regi
 | One namespace, one URL | `registry add` refuses to change a namespace that is set. Run `registry remove` first.                                                                                                             |
 | In use                 | `registry remove` refuses while a feature installed from that namespace is in the project: `mfeflow add remote` and `add shell` fetch installed registry features again and would fail without it. |
 
+### Trust a registry
+
+Anyone who clones your repo also gets the registries listed in `mfeflow.json`. So mfeflow asks nothing of a registry until you trust it on your own machine.
+
+Adding a registry trusts it, because you typed the address:
+
+```sh
+pnpm mfeflow registry add @acme https://acme.github.io/mfeflow-features/{name}.json
+```
+
+A registry that only came in with a cloned repo shows as "not trusted yet". Check its address, then trust it:
+
+```sh
+pnpm mfeflow registry list
+pnpm mfeflow registry trust @acme
+```
+
+Trust covers the namespace and its exact URL. If someone changes the URL in `mfeflow.json`, you are asked again. `mfeflow registry untrust @acme` takes it back.
+
+| Situation                                              | What happens                                                                             |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| CI run                                                 | Set `MFEFLOW_TRUST_REGISTRIES=@acme` for that run. It reaches public addresses only.     |
+| Registry on `localhost` or a private network           | Needs trust on your machine, or `@acme=<exact url>` in the CI variable.                  |
+| A public registry redirects to a private address       | Always refused.                                                                          |
+| `mfeflow add @acme/segment` on a public https registry | Allowed without trust: you named the feature, and nothing is written before you confirm. |
+
+mfeflow records a hash of each registry feature when you add it. If the registry later serves different content, `add remote` and `add shell` stop with `MFEFLOW_E406`. Read what changed, then run again with `--accept-changed-content`.
+
+Packages a registry feature adds are listed under **NEW PACKAGES** in the plan. Look at each one: npm and yarn run install scripts, pnpm 10 and later blocks them until you allow them.
+
+Tokens in a registry URL are shown as `***` in output, but they stay in `mfeflow.json` as written. Keep secrets out of files you commit.
+
 ### The index
 
 `index.json` sits in the folder the URL template starts in, before the first path segment with a placeholder:

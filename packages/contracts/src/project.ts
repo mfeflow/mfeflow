@@ -15,7 +15,15 @@ export interface MfeflowProject {
   /** npm scope for the project's own packages, e.g. `@shopco`. */
   scope: string;
   apps: Record<string, { kind: 'shell' | 'remote'; path: string; port?: number }>;
-  features: Record<string, { version: string; options?: Record<string, unknown> }>;
+  features: Record<
+    string,
+    {
+      version: string;
+      options?: Record<string, unknown>;
+      /** `sha256-<hex>` of the `feature.json` a registry served when the feature was added. Third-party features only. */
+      integrity?: string;
+    }
+  >;
   /** Hashes of copied files, so `upgrade` can tell when a file was edited. */
   files?: Record<string, string>;
   /** Third-party feature registries: `{ "@someone": "https://…/{name}.json" }`, https only (plain http for loopback hosts). `@mfeflow` is reserved. */
@@ -139,6 +147,11 @@ export function validateMfeflowProject(value: unknown): Issue[] {
       else {
         c.string(feature, 'version', at);
         c.object(feature, 'options', at, false);
+        if ('integrity' in feature) {
+          const integrity = c.string(feature, 'integrity', at);
+          if (integrity !== undefined && !FILE_HASH.test(integrity))
+            c.add(`${at}.integrity`, 'must be a hash like "sha256-<64 hex characters>"');
+        }
       }
     }
   }
