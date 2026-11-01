@@ -26,6 +26,7 @@ describe('first-party catalogue', () => {
       'forms',
       'data-react-query',
       'analytics-clarity',
+      'storybook',
       'ci-github',
       'git-hooks',
       'commit-prompt',

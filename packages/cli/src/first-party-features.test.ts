@@ -59,6 +59,7 @@ describe.each([
   'ui-shadcn',
   'analytics-clarity',
   'commit-prompt',
+  'storybook',
 ])('mfeflow add %s', (feature) => {
   it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
     await addRequired(feature);
@@ -101,6 +102,11 @@ describe.each([
       forms: ['src/forms/ContactForm.tsx', 'src/forms/schema.ts'],
       'analytics-clarity': [],
       'commit-prompt': [],
+      storybook: [
+        '.storybook/main.ts',
+        '.storybook/rsbuild.config.ts',
+        'src/exposed/App.stories.tsx',
+      ],
       'ui-shadcn': ['components.json', 'src/lib/utils.ts', 'src/components/ui/button.tsx'],
       'data-react-query': ['src/query/Query.tsx', 'src/query/keys.ts', 'src/query/useHealth.ts'],
     }[feature];
@@ -228,6 +234,45 @@ describe('commit-prompt', () => {
     const after = await readTree(project);
     for (const file of ['lefthook.yml', 'commitlint.config.js'])
       expect(after[file], file).toBe(hooks[file]);
+  });
+});
+
+describe('storybook', () => {
+  it('gives every app its scripts, and the root scripts that compose the shell Storybook', async () => {
+    expect(await add('storybook')).toBe(0);
+    for (const app of ['shell', 'cart', 'catalog']) {
+      const pkg = await json(`apps/${app}/package.json`);
+      expect(pkg.scripts?.['storybook:build'], app).toBe('storybook build -o dist/storybook');
+      expect(Object.keys(pkg.devDependencies ?? {})).toEqual(
+        expect.arrayContaining(['storybook', 'storybook-react-rsbuild', '@rsbuild/plugin-react']),
+      );
+    }
+    const root = await json('package.json');
+    expect(root.scripts?.['storybook:build']).toContain('storybook:remotes');
+    expect(await read('apps/shell/.storybook/main.ts')).toContain('mfeflow.json');
+  });
+
+  it('keeps Module Federation out of the stories build', async () => {
+    await add('storybook');
+    const config = await read('apps/cart/.storybook/rsbuild.config.ts');
+    expect(config).not.toContain('@mfeflow/rsbuild');
+    expect(await read('apps/cart/.storybook/main.ts')).toContain('.storybook/rsbuild.config.ts');
+  });
+
+  it('adds Button stories only with ui-shadcn', async () => {
+    await add('storybook');
+    expect(await readTree(project)).not.toHaveProperty([
+      'apps/cart/src/components/ui/button.stories.tsx',
+    ]);
+  });
+
+  it('adds Button stories when ui-shadcn is there first', async () => {
+    await add('tailwind');
+    await add('ui-shadcn');
+    await add('storybook');
+    expect(await readTree(project)).toHaveProperty([
+      'apps/cart/src/components/ui/button.stories.tsx',
+    ]);
   });
 });
 

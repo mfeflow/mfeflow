@@ -1,0 +1,119 @@
+{
+  "name": "storybook",
+  "version": "0.1.0",
+  "description": "Storybook 10 on Rsbuild (storybook-react-rsbuild) in every remote, and the shell's Storybook shows them all: it lists each remote's built Storybook as a ref, found from mfeflow.json, so a remote added later appears without an edit. Each remote has its own Storybook config, kept apart from the Module Federation build.",
+  "requires": ["core", "tsconfig"],
+  "files": [
+    {
+      "to": ".storybook/main.ts",
+      "target": "shell",
+      "from": "files/shell-main.ts"
+    },
+    {
+      "to": ".storybook/rsbuild.config.ts",
+      "target": "shell",
+      "from": "files/rsbuild.config.ts"
+    },
+    {
+      "to": "src/pages/Home.stories.tsx",
+      "target": "shell",
+      "from": "files/Home.stories.tsx"
+    },
+    {
+      "to": ".storybook/main.ts",
+      "target": "remotes",
+      "from": "files/remote-main.ts"
+    },
+    {
+      "to": ".storybook/rsbuild.config.ts",
+      "target": "remotes",
+      "from": "files/rsbuild.config.ts"
+    },
+    {
+      "to": "src/exposed/App.stories.tsx",
+      "target": "remotes",
+      "from": "files/App.stories.tsx.eta",
+      "template": true
+    },
+    {
+      "to": "src/components/ui/button.stories.tsx",
+      "target": "remotes",
+      "from": "files/button.stories.tsx",
+      "when": {
+        "feature:ui-shadcn": true
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "storybook",
+      "range": "10.6.5",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "storybook-react-rsbuild",
+      "range": "3.6.1",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "@rsbuild/plugin-react",
+      "range": "2.1.1",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "storybook",
+      "range": "10.6.5",
+      "target": "remotes",
+      "dev": true
+    },
+    {
+      "name": "storybook-react-rsbuild",
+      "range": "3.6.1",
+      "target": "remotes",
+      "dev": true
+    },
+    {
+      "name": "@rsbuild/plugin-react",
+      "range": "2.1.1",
+      "target": "remotes",
+      "dev": true
+    }
+  ],
+  "scripts": [
+    {
+      "name": "storybook",
+      "command": "storybook dev --no-open",
+      "target": "shell"
+    },
+    {
+      "name": "storybook:build",
+      "command": "storybook build -o dist/storybook",
+      "target": "shell"
+    },
+    {
+      "name": "storybook",
+      "command": "storybook dev --no-open --ci",
+      "target": "remotes"
+    },
+    {
+      "name": "storybook:build",
+      "command": "storybook build -o dist/storybook",
+      "target": "remotes"
+    },
+    {
+      "name": "storybook:remotes",
+      "command": "pnpm --filter \"./apps/*\" --filter \"!./apps/shell\" run --if-present storybook:build"
+    },
+    {
+      "name": "storybook",
+      "command": "pnpm storybook:remotes && pnpm --filter ./apps/shell run storybook"
+    },
+    {
+      "name": "storybook:build",
+      "command": "pnpm storybook:remotes && pnpm --filter ./apps/shell run storybook:build"
+    }
+  ]
+}

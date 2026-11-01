@@ -1,0 +1,8 @@
+import type { Meta, StoryObj } from 'storybook-react-rsbuild';
+import App from './App';
+
+const meta = { title: '<%= it.app.name %>/App', component: App } satisfies Meta<typeof App>;
+
+export default meta;
+
+export const Default: StoryObj<typeof meta> = {};
