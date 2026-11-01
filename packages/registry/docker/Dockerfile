@@ -1,24 +1,31 @@
-# The registry server as an image. It installs the published @mfeflow/registry package, so the
-# build context is just this folder. The base image is pinned by digest; Dependabot moves it.
+# The registry server as an image. It installs @mfeflow/registry exactly as a lockfile says, so the
+# build context must hold a package.json and a package-lock.json. The base image is pinned by
+# digest; Dependabot moves it. The build stops if the lock is missing.
 #
-# A release build puts a package.json and package-lock.json for the published version in this
-# folder (the release workflow makes them), and `npm ci` installs exactly that lock.
+# The release workflow makes both files for the version it just published. For a local build, make
+# them in this folder first.
 #
-# Without them, for a local build, it installs PACKAGE: a name and version, or tarballs made with
-# `pnpm pack` that you put in this folder and name under /ctx:
-#   docker build -t mfeflow-registry --build-arg PACKAGE=@mfeflow/registry@0.6.0 packages/registry/docker
-#   --build-arg "PACKAGE=/ctx/mfeflow-registry-0.6.0.tgz /ctx/mfeflow-contracts-0.6.0.tgz"
+# A published version:
+#   cd packages/registry/docker
+#   npm install --package-lock-only --ignore-scripts @mfeflow/registry@0.6.0
+#   docker build -t mfeflow-registry .
+#
+# Tarballs made with `pnpm pack` (copy them into this folder first; the lock then points at them
+# with relative file: paths, which resolve after the copy into /app):
+#   npm install --package-lock-only --ignore-scripts ./mfeflow-registry-0.6.0.tgz ./mfeflow-contracts-0.6.0.tgz
+#   docker build -t mfeflow-registry .
+#
+# These files are generated; .gitignore keeps them out of commits.
 ARG NODE_IMAGE=node:22-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
 
 FROM ${NODE_IMAGE} AS install
-ARG PACKAGE=@mfeflow/registry
 WORKDIR /app
-COPY . /ctx
-RUN if [ -f /ctx/package-lock.json ]; then \
-      cp /ctx/package.json /ctx/package-lock.json /app/ && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --prefix /app; \
-    else \
-      npm install --omit=dev --ignore-scripts --no-audit --no-fund --prefix /app ${PACKAGE}; \
-    fi
+COPY . /app
+RUN test -f package.json && test -f package-lock.json || { \
+      echo "package.json and package-lock.json are missing from the build context; see the top of this Dockerfile" >&2; \
+      exit 1; \
+    }
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && rm -f /app/*.tgz
 
 FROM ${NODE_IMAGE}
 ENV NODE_ENV=production \

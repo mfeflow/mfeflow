@@ -221,7 +221,7 @@ A promote needs a token that covers both envs (`env` `*`, or `admin`), since it 
 
 `mfeflow deploy`, `promote`, `rollback`, `status`, `rollout` and `kill` talk to the server when `MFEFLOW_REGISTRY_URL` is set (the token comes only from `MFEFLOW_REGISTRY_TOKEN`). See the [CLI reference](https://mfeflow.github.io/mfeflow/reference/cli) and [Run the registry server](https://mfeflow.github.io/mfeflow/guide/deploy/registry-server-runbook).
 
-`docker/Dockerfile` builds an image from the published package, and `docker/compose.yaml` runs it next to MinIO. The release workflow pushes `ghcr.io/mfeflow/mfeflow-registry` for each release that publishes this package.
+`docker/Dockerfile` builds an image from the published package and a lockfile that you or the release workflow make first (the steps are at the top of the file), and `docker/compose.yaml` runs it next to MinIO. The release workflow pushes `ghcr.io/mfeflow/mfeflow-registry` for each release that publishes this package.
 
 Not here yet: Postgres.
 

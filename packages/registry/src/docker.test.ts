@@ -20,7 +20,14 @@ describe('the image recipe', () => {
     expect(dockerfile).toContain('/healthz');
     expect(dockerfile).toMatch(/^ARG NODE_IMAGE=node:22-slim@sha256:[0-9a-f]{64}$/m);
     expect(dockerfile).toContain('npm ci --omit=dev --ignore-scripts');
-    expect(dockerfile).not.toContain('--no-package-lock');
+    expect(dockerfile).not.toMatch(/^\s*(RUN\s+)?npm install/m);
+    expect(
+      dockerfile
+        .split('\n')
+        .filter((l) => !l.startsWith('#'))
+        .join('\n'),
+    ).not.toContain('npm install');
+    expect(dockerfile).toContain('package-lock.json are missing');
     expect(dockerfile).toMatch(/MFEFLOW_REGISTRY_DB=\/data\//);
   });
 
@@ -61,6 +68,14 @@ function runScripts(workflow: string): string[] {
   });
   return scripts;
 }
+
+describe('the files a build makes', () => {
+  it('are ignored by git, so none is committed by accident', () => {
+    const ignored = read(path.join(pkg, 'docker/.gitignore')).split('\n');
+    for (const file of ['/package.json', '/package-lock.json', '/*.tgz'])
+      expect(ignored).toContain(file);
+  });
+});
 
 describe('the image job in the release workflow', () => {
   const jobs = release.split(/^ {2}(?=[a-z][a-z-]*:\n)/m).filter((j) => /^[a-z]/.test(j));
@@ -138,18 +153,15 @@ describe.skipIf(!dockerUp)('the image, built and run with Docker', () => {
       for (const file of ['Dockerfile', '.dockerignore'])
         fs.copyFileSync(path.join(pkg, 'docker', file), path.join(work, file));
       const tarballs = fs.readdirSync(work).filter((f) => f.endsWith('.tgz'));
-      const built = run(
-        'docker',
-        [
-          'build',
-          '-t',
-          tag,
-          '--build-arg',
-          `PACKAGE=${tarballs.map((t) => `/ctx/${t}`).join(' ')}`,
-          '.',
-        ],
+      // The lock the Dockerfile requires, made from the tarballs with relative file: paths.
+      const locked = run(
+        'npm',
+        ['install', '--package-lock-only', '--ignore-scripts', ...tarballs.map((t) => `./${t}`)],
         work,
       );
+      expect(locked.status, locked.stderr).toBe(0);
+      expect(fs.existsSync(path.join(work, 'package-lock.json'))).toBe(true);
+      const built = run('docker', ['build', '-t', tag, '.'], work);
       expect(built.status, built.stderr).toBe(0);
 
       expect(

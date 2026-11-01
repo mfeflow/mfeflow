@@ -1,0 +1,4 @@
+# Made for a build: the release workflow does it, or you do (see the Dockerfile).
+/package.json
+/package-lock.json
+/*.tgz

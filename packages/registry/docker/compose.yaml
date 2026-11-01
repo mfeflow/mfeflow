@@ -9,10 +9,8 @@
 services:
   registry:
     image: ghcr.io/mfeflow/mfeflow-registry:latest
-    # build:
-    #   context: .
-    #   args:
-    #     PACKAGE: '@mfeflow/registry@0.6.0'
+    # To build it yourself, make a lock first (see the top of the Dockerfile), then:
+    # build: .
     # The registry shares MinIO's network, so http://127.0.0.1:9000 means MinIO for the server and for
     # your browser alike. The server accepts plain http only for localhost, and this keeps one address.
     network_mode: 'service:minio'
