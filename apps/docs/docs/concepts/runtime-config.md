@@ -33,6 +33,25 @@ export const runtimeConfigSchema = z.object({
 });
 ```
 
+## Which keys does the shell read itself?
+
+Two optional keys tell the shell where to find the registry index. Without them it uses `/registry/index.json` on its own origin.
+
+| Key               | Meaning                                                                    |
+| ----------------- | -------------------------------------------------------------------------- |
+| `registryUrls`    | List of index URLs, primary first. A failed primary falls back to the next |
+| `registryOrigins` | Origins other than the page's that those URLs may be on                    |
+
+```json title="runtime-config.prod.json"
+{
+  "environment": "prod",
+  "registryUrls": ["https://cdn.example.com/registry/index.json", "/registry/index.json"],
+  "registryOrigins": ["https://cdn.example.com"]
+}
+```
+
+The shell waits at most 1.5 seconds for the config before it falls back to the default, so a slow config never blocks boot. See [The registry index](/concepts/registry-index).
+
 ## Who adds keys?
 
 You do, with one command, and some features do it for you. The command writes the schema entry and a placeholder into every environment file:

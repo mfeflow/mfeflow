@@ -64,7 +64,7 @@ pnpm mfeflow check-compat
 
 The first reports a singleton with more than one version across apps (E301). The second reports a remote that needs a range the shell does not satisfy (E302). A remote can state its needs under `platform` in `mfe.json`.
 
-At runtime, `@mfeflow/runtime` can read Module Federation's share scope and list packages that are missing or loaded twice. It runs when the page URL has `?mfeflow-assert`. The generated shell does not use it yet. The storefront example shows how to wire it.
+At runtime, `@mfeflow/runtime` can read Module Federation's share scope and list packages that are missing or loaded twice. The shell runs this check in development and when the page is opened with `?mfeflow-assert`. It does not run on every production page load.
 
 ## What should I do as a developer?
 

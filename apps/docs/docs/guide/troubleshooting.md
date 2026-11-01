@@ -5,7 +5,7 @@ description: Find a Module Federation, runtime or mfeflow CLI error by its exact
 
 # Troubleshooting
 
-This page lists errors by the text you see, with the cause and the fix. Search the page for your message. Each runtime failure is also printed to the browser console as `[mfeflow] <remote> <where>: <message>`.
+This page lists errors by the text you see, with the cause and the fix. Search the page for your message. Each runtime failure is also printed to the browser console as `[mfeflow] <remote> <where>: <message>`. When the registry gave a version, the remote shows as `cart@1.2.3`.
 
 ## Browser errors
 
@@ -51,9 +51,13 @@ The message reads `"cart" is skipped, its <field> is invalid`. One entry in the 
 
 A registry entry has only a manifest URL, and the shell was built without the manifest loader. Production shell builds drop that loader by default to stay small. Either publish the remote's `remoteEntry` in the index, or build the shell with `snapshot: true`. The generated shell already sets `snapshot: true`.
 
-### registry index ...: must be same-origin
+### MFE_REGISTRY_FALLBACK
 
-The shell only fetches the index from its own origin. Serve `/registry/index.json` from the same host as the shell, or write the index into the page as `window.__MFE_REGISTRY__`.
+The primary registry index failed and a later URL served the shell. The message names the first failure and the URL that worked, such as `registry index /registry/index.json: HTTP 503; using https://cdn.example.com/...`. The page works, but your primary source is down. Fix it before the fallback fails too. The URLs come from `registryUrls` in the runtime config.
+
+### registry index ...: must be same-origin or in allowedOrigins
+
+An index URL is on an origin the shell does not trust. By default it may only be on the shell's own origin. Serve the index from the same host, list its origin in `registryOrigins` in the runtime config, or write the index into the page as `window.__MFE_REGISTRY__`.
 
 ### registry index ...: HTTP 404
 

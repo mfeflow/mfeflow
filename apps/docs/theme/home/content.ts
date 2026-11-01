@@ -17,15 +17,19 @@ export const DOCUMENTED_FEATURES: readonly string[] = [
   'env-t3',
   'event-bus',
   'forms',
+  'git-hooks',
   'http',
   'i18n',
+  'lint-oxlint',
   'route-factory',
   'storybook',
   'tailwind',
   'telemetry-otel',
   'testing',
   'theming',
+  'tsconfig',
   'ui-shadcn',
+  'url-factory',
 ];
 
 export const FEATURE_GROUPS = [

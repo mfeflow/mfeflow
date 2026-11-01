@@ -48,14 +48,22 @@ A remote with an invalid field is skipped and reported as `MFE_INVALID_REMOTE`. 
 
 ## How does the shell read it?
 
-There are two paths, and the shell tries them in order.
+The shell tries these in order.
 
 ```text
  1. window.__MFE_REGISTRY__ set by the server or edge?  -> use it, no request
- 2. otherwise: GET /registry/index.json  (same origin, 5 s timeout)
+ 2. primary index   default /registry/index.json   (1.5 s cap)
+ 3. fallback index  next URL in registryUrls       (gets the rest of 5 s)
+ 4. every source failed -> report the error, render without remotes
 ```
 
 An edge function can write the index into the HTML. That saves a request before the first remote can load. The helper `registryInjection` in `@mfeflow/contracts` produces that HTML, plus preload hints for the route's remote files.
+
+## How does the fallback work?
+
+The runtime config may list `registryUrls`, primary first, and `registryOrigins` for any origin other than the page's. A failed primary (a 5xx, a network error, a timeout, bad JSON or an invalid index) moves the shell to the next URL. The switch is reported once as `MFE_REGISTRY_FALLBACK`. If all fail, the shell reports the error and renders without remotes. See [Runtime config](/concepts/runtime-config) for the keys.
+
+Reading the config never holds up boot. The shell waits at most 1.5 seconds for it, and uses the default same-origin URL if the file is late or missing. When the index is inlined, nothing is fetched at all.
 
 Then the shell calls `registerRemotesFromIndex`. It skips remotes whose URL is on an origin you did not allow, and reports them. The generated shell allows its own origin.
 
