@@ -18,7 +18,7 @@ Four commands check a project. They read your files. Only `budget` needs a build
 | `doctor`       | Everything above, plus ports, singleton versions, copied-file drift and env files                    |
 | `budget`       | The built JavaScript of the shell and each remote against the budget                                 |
 
-Run them in this order in CI: `validate`, `check-compat`, `doctor`, then `build`, then `budget`. Each prints one line per check, then a summary.
+Run them in this order in CI: validate, check-compat, doctor, then build, then budget. Each prints one line per check, then a summary.
 
 ## Add the GitHub workflow
 
@@ -57,7 +57,7 @@ A failing check exits with a code by area: 3 for project or config, 4 for featur
 pnpm --silent mfeflow doctor --json
 ```
 
-You should see one JSON document with `ok`, `summary`, `checks` and `findings`. The shape is in the [CLI reference](/reference/cli#output-and-exit-codes).
+You should see one JSON document with the result, a summary, the checks and the findings. The shape is in the [CLI reference](/reference/cli#output-and-exit-codes).
 
 ## What does the budget measure?
 

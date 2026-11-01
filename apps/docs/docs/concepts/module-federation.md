@@ -32,7 +32,9 @@ There are two roles. The host is the app the visitor opens. A remote is a separa
                                   render it inside the host page
 ```
 
-In mfeflow the host is called the shell. A remote lists what it exposes, such as `./App`. The shell asks for `cart/App`, which means the `./App` module of the remote named `cart`.
+In mfeflow the host is called the shell. A remote lists what it exposes, such as `./App`.
+
+The shell asks for `cart/App`. That means the `./App` module of the remote named cart.
 
 ## What are the terms?
 

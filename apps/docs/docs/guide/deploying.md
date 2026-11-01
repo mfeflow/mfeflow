@@ -111,9 +111,11 @@ To go back, put the old build of a remote back under its `/mfe/<name>/` folder, 
 
 The commands below are planned. They do not exist in 0.4.0, and typing them gives an unknown command error. This section only states the intent.
 
-- `deploy` would publish one remote's build and write its registry entry.
-- `promote` would move a build from one environment to the next.
-- `rollback` would change a pointer to a previous version, without a rebuild.
-- `status` would show what each environment serves.
+| Command    | Intent                                                    |
+| ---------- | --------------------------------------------------------- |
+| `deploy`   | Publish one remote's build and write its registry entry   |
+| `promote`  | Move a build from one environment to the next             |
+| `rollback` | Change a pointer to a previous version, without a rebuild |
+| `status`   | Show what each environment serves                         |
 
 The registry entry shape already has room for this. It can hold a `previous` version and a `rollout` with a percentage. Nothing reads those fields yet. The idea is that rolling back means changing a pointer in the registry, not building the old code again.

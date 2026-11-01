@@ -25,12 +25,21 @@ pnpm mfeflow add env-t3 --option env-t3.validator=valibot
 
 What changed:
 
-- `env.ts` and `.env.example` in the project root, the shell and every remote
-- `apps/shell/src/config/schema.ts`, the runtime config schema
-- `apps/shell/src/config/runtime.ts`, which loads the config at boot
-- `apps/shell/public/config/runtime-config.dev.json`, `.staging.json` and `.prod.json`
-- `scripts/check-runtime-config.ts`, wired up as `pnpm check:runtime-config`
-- an import of `./env` in each `rsbuild.config.ts`, and `loadRuntimeConfig` as a boot step in the shell
+```text
+env.ts, .env.example           # in the project root, the shell and every remote
+apps/shell/
+├── src/config/
+│   ├── schema.ts              # the runtime config schema
+│   └── runtime.ts             # loads the config at boot
+└── public/config/
+    ├── runtime-config.dev.json
+    ├── runtime-config.staging.json
+    └── runtime-config.prod.json
+scripts/
+└── check-runtime-config.ts    # wired up as pnpm check:runtime-config
+```
+
+Each `rsbuild.config.ts` now imports `./env`. The shell gets a boot step that loads the runtime config.
 
 ## Use it
 
@@ -41,7 +50,23 @@ pnpm mfeflow add env-key API_ORIGIN \
   --scope server --schema "z.url()" --value https://api.example.com
 ```
 
-The key lands in `env.ts` for every app, in each `.env.example`, and under `globalEnv` in `turbo.json`. Write the schema in your validator's syntax: `v.pipe(v.string(), v.url())` for valibot, `type('string.url')` for arktype. Pass `--app cart` for one app, or `--app root` for the root. Run it twice and nothing changes, and `--dry-run` prints the diff.
+The key lands in these places:
+
+```text
+env.ts          # every app
+.env.example    # every app
+turbo.json      # under globalEnv
+```
+
+Write the schema in your validator's syntax:
+
+```text
+zod      z.url()
+valibot  v.pipe(v.string(), v.url())
+arktype  type('string.url')
+```
+
+Pass `--app cart` for one app, or `--app root` for the root. Run it twice and nothing changes, and `--dry-run` prints the diff.
 
 This is the generated file before you add anything:
 
@@ -76,7 +101,7 @@ const { environment } = getRuntimeConfig();
 
 ### Serve and ship the right file
 
-There is no file named `runtime-config.json` in your project. `pnpm dev` and `rsbuild preview` answer `/config/runtime-config.json` with the dev file, and `MFE_ENV` picks another one:
+Your project has no file named `runtime-config.json`. The dev and preview servers answer that URL with the dev file. Set `MFE_ENV` to pick another one:
 
 ```sh
 MFE_ENV=staging pnpm exec rsbuild preview
@@ -102,11 +127,19 @@ The validator prompt is the only option in `feature.json`. Dependencies are pinn
 
 ## How it works
 
-`env.ts` runs in whatever process imports it, such as rsbuild or a script, and never ships to the browser. The browser bundle imports only the type of `runtimeConfigSchema`, so the validator library stays out of it. At boot, `loadRuntimeConfig()` calls `fetchRuntimeConfig()` from `@mfeflow/runtime`, which fetches the file once however many features read it.
+`env.ts` runs in whatever process imports it, such as rsbuild or a script, and never ships to the browser. The browser bundle imports only the type of `runtimeConfigSchema`, so the validator library stays out of it.
 
-Features that need browser settings add their own keys the same way you do: [analytics-gtm](/features/analytics-gtm) adds `gtmId`, [telemetry-otel](/features/telemetry-otel) adds `otlpEndpoint`, `traceSampleRatio` and `propagateTraceHeaderCorsUrls`, and [analytics-clarity](/features/analytics-clarity) adds `clarityId`. The order you add the features in does not matter.
+At boot, `loadRuntimeConfig()` fetches the file through the runtime package. It fetches once, however many features read it.
 
-`pnpm mfeflow doctor` also checks the setup:
+Features that need browser settings add their own keys the same way you do. The order you add the features in does not matter.
+
+| Feature                                          | Keys it adds                                                       |
+| ------------------------------------------------ | ------------------------------------------------------------------ |
+| [analytics-gtm](/features/analytics-gtm)         | `gtmId`                                                            |
+| [telemetry-otel](/features/telemetry-otel)       | `otlpEndpoint`, `traceSampleRatio`, `propagateTraceHeaderCorsUrls` |
+| [analytics-clarity](/features/analytics-clarity) | `clarityId`                                                        |
+
+Doctor also checks the setup:
 
 | Check                | Code                 | Finds                                                                                        |
 | -------------------- | -------------------- | -------------------------------------------------------------------------------------------- |
@@ -123,10 +156,14 @@ Doctor compares keys without running your code. The values are checked by `pnpm 
 Runtime config is public. Everything in `public/config/` is copied into `dist/`, so every environment's file ships with every build. Keep secrets in `env.ts`, never in a runtime-config file.
 :::
 
-- **`PUBLIC_*` variables are baked in.** Rsbuild inlines them at build time, so use them only for values that are the same everywhere (`PUBLIC_APP_NAME`, `PUBLIC_BUILD_VERSION`). Doctor warns about anything else with E120.
+- **`PUBLIC_*` variables are baked in.** Rsbuild inlines them at build time. Use them only for values that are the same everywhere, such as the app name and build version. Doctor warns about anything else with E120.
+
 - **An old `runtime-config.json`.** If a feature created `public/config/runtime-config.json` before you added env-t3, delete it. The per-environment files replace it, and doctor reports it as missing `environment` until it is gone.
+
 - **Only the shell has runtime config.** Remotes call nothing at boot. A remote that needs a value reads it from the shell's config or gets it from its own build.
+
 - **Node version.** The check script runs with `node --experimental-strip-types`, so it needs Node 22.12 or newer.
+
 - **t3-env is 0.x.** It is used only in `env.ts`, so replacing it later means changing those files and nothing else.
 
 ## Reference

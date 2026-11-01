@@ -9,7 +9,7 @@ This page shows how to get a pull request check that fails when a change breaks 
 
 ## What you get
 
-One workflow, `ci.yml`, with a single `check` job, plus a short `docs/ci.md` about preview deploys and cloud credentials. It is off by default, because `init` cannot know whether your project is the root of a GitHub repository, and a workflow anywhere else never runs.
+One workflow with a single `check` job, plus a short guide to preview deploys and cloud credentials. It is off by default, because `init` cannot know whether your project is the root of a GitHub repository, and a workflow anywhere else never runs.
 
 ## Add it
 
@@ -21,9 +21,14 @@ pnpm mfeflow add ci-github
 
 What changed:
 
-- `.github/workflows/ci.yml`
-- `docs/ci.md`
-- `mfeflow` added as a root dev dependency, so CI runs the version your lockfile pins
+```text
+.github/workflows/
+└── ci.yml   # the check job
+docs/
+└── ci.md    # preview deploys and cloud credentials
+```
+
+The `mfeflow` package is also added as a root dev dependency, so CI runs the version your lockfile pins.
 
 ## Use it
 

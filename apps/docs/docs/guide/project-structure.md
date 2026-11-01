@@ -82,7 +82,9 @@ The shell is the host app. Its entry file is `src/index.ts`. It calls `bootstrap
 
 A remote exposes one module, `./App`, from `src/exposed/App.tsx`. Everything outside `src/exposed/` is private to the remote.
 
-`src/index.ts` and `src/bootstrap.tsx` exist so you can run the remote alone with `pnpm dev` in its folder. Inside the shell only the exposed module is loaded. The remote's `rsbuild.config.ts` is a few lines that call a preset:
+Two files exist so you can run the remote alone with `pnpm dev` in its folder: `src/index.ts` and `src/bootstrap.tsx`. Inside the shell only the exposed module is loaded.
+
+The remote's Rsbuild config is a few lines that call a preset:
 
 ```ts title="apps/catalog/rsbuild.config.ts"
 import { createRemoteConfig } from '@mfeflow/rsbuild';

@@ -28,11 +28,11 @@ From 1.0, a major release is breaking, a minor adds features, and a patch fixes 
 
 A change to any of these is a breaking change:
 
-- CLI commands, flags, exit codes and `--json` output shapes
+- CLI commands, flags, exit codes and JSON output shapes
 - Error codes and what they mean
-- The `mfeflow.json`, `mfe.json` and registry index schemas
-- The `feature.json` format and the transform operations
-- Each package's `exports`
+- The schemas of the project file, the app file and the registry index
+- The feature file format and the transform operations
+- Each package's exports
 - The layout of a generated project
 
 Generated file contents that mfeflow does not migrate are not public API. They can change in a patch.

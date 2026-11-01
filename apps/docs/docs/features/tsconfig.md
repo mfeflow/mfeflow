@@ -17,10 +17,20 @@ You do not add this one. It is part of every project, so `mfeflow init` applies 
 
 What it wrote:
 
-- `tsconfig.json` in the shell and in every remote
-- `tsconfig.json` at the project root, for scripts and end-to-end tests
-- `@mfeflow/tsconfig` and `typescript` 7.0.2 as dev dependencies
-- a `typecheck` script in each app, and one at the root
+```text
+tsconfig.json               # project root, for scripts and end-to-end tests
+apps/
+├── shell/tsconfig.json     # extends a preset
+└── <remote>/tsconfig.json  # extends a preset
+```
+
+Dev dependencies and scripts:
+
+```text
+@mfeflow/tsconfig   # the presets
+typescript 7.0.2    # the compiler
+typecheck           # a script in each app and one at the root
+```
 
 ## Use it
 
@@ -80,10 +90,13 @@ Rsbuild does the building, so TypeScript only checks, which is why the app prese
 
 ## Gotchas
 
-- `noUncheckedIndexedAccess` makes `items[0]` possibly undefined. Check it, or destructure with a default.
-- `exactOptionalPropertyTypes` rejects passing `undefined` to an optional property. Leave the key out instead.
-- `verbatimModuleSyntax` requires `import type` for imports that are only types.
-- Add a new file or folder to `include` in the app's `tsconfig.json`, or the check will not see it.
+| Option                       | What you hit                                            | Fix                                     |
+| ---------------------------- | ------------------------------------------------------- | --------------------------------------- |
+| `noUncheckedIndexedAccess`   | `items[0]` may be undefined                             | Check it, or destructure with a default |
+| `exactOptionalPropertyTypes` | Passing `undefined` to an optional property is rejected | Leave the key out instead               |
+| `verbatimModuleSyntax`       | Type-only imports must use `import type`                | Write `import type`                     |
+
+Add a new file or folder to `include` in the app's `tsconfig.json`, or the check will not see it.
 
 ## Reference
 

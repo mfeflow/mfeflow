@@ -21,10 +21,22 @@ pnpm mfeflow add lint-oxlint
 
 What changed, at the project root:
 
-- `.oxlintrc.json`, extending `@mfeflow/oxlint-config`
-- `.prettierrc.json` and `.prettierignore`
-- `oxlint`, `oxlint-tsgolint`, `prettier` and `@mfeflow/oxlint-config` as dev dependencies
-- the `lint`, `format` and `format:check` scripts
+```text
+./
+├── .oxlintrc.json     # extends the shared oxlint config
+├── .prettierrc.json   # the Prettier style
+├── .prettierignore    # files Prettier skips
+└── package.json       # three new scripts and the dev dependencies
+```
+
+The new scripts are `lint`, `format` and `format:check`. These dev dependencies are added:
+
+```text
+oxlint
+oxlint-tsgolint
+prettier
+@mfeflow/oxlint-config
+```
 
 ## Use it
 
@@ -33,7 +45,13 @@ pnpm lint
 pnpm format
 ```
 
-`pnpm lint` runs `oxlint --type-aware --deny-warnings`, so a warning fails the run as an error would. Use `pnpm format:check` in CI and `pnpm format` locally. For a case you cannot fix, disable one rule on one line and say why.
+The lint script runs the command below, so a warning fails the run as an error would.
+
+```sh
+oxlint --type-aware --deny-warnings
+```
+
+Use `pnpm format:check` in CI and `pnpm format` locally. For a case you cannot fix, disable one rule on one line and say why.
 
 ```ts
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the deploy check validated this file against the schema
@@ -60,17 +78,29 @@ There are no install options. The generated config extends the shared one and on
 
 ## How it works
 
-The shared config turns on oxlint's `correctness`, `suspicious` and `perf` categories as errors, with the TypeScript, unicorn, oxc, import, node, React and accessibility plugins. On top of that it sets type-aware rules such as no floating promises, no misused promises, exhaustive `switch` statements and the family of `no-unsafe-*` checks.
+The shared config turns on three oxlint categories as errors: `correctness`, `suspicious` and `perf`. It also loads the TypeScript, unicorn, oxc, import, node, React and accessibility plugins.
 
-React hooks rules are errors, so the rules of hooks and exhaustive dependencies are enforced. The config also bans file extensions on imports, so you write `./client` and not `./client.ts`. Side-effect imports are an error too, except for CSS files, `./env` and `./src/theme/head-script`.
+On top of that it sets type-aware rules. Examples are no floating promises, no misused promises, exhaustive `switch` statements and the family of `no-unsafe-*` checks.
+
+React hooks rules are errors, so the rules of hooks and exhaustive dependencies are enforced. The config also bans file extensions on imports, so you write `./client` and not `./client.ts`.
+
+Side-effect imports are an error too. The exceptions are CSS files and two paths:
+
+```text
+./env
+./src/theme/head-script
+```
 
 Type-aware rules run on `oxlint-tsgolint`, which works from your TypeScript setup, so lint and [tsconfig](/features/tsconfig) stay in step.
 
 ## Gotchas
 
-- Type-aware rules need a working `tsconfig.json`. If lint reports odd type errors, run `pnpm typecheck` first.
+- Type-aware rules need a working tsconfig. If lint reports odd type errors, run `pnpm typecheck` first.
+
 - `--deny-warnings` is on, so a new warning from an oxlint upgrade can fail CI until you fix it or turn the rule off.
+
 - Prettier ignores `pnpm-lock.yaml` and `CHANGELOG.md`, so do not format them by hand.
+
 - Files under `scripts/` and `bin/` are allowed to use import extensions, because Node runs them directly.
 
 ## Reference

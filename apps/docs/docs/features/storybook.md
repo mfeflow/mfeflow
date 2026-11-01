@@ -17,13 +17,30 @@ Each remote gets a Storybook on Rsbuild and a starter story for its `App`. The s
 pnpm mfeflow add storybook
 ```
 
-What changed:
+What changed in the shell and every remote:
 
-- `.storybook/main.ts` and `.storybook/rsbuild.config.ts` in the shell and every remote
-- `src/exposed/App.stories.tsx` in each remote and `src/pages/Home.stories.tsx` in the shell
-- `src/components/ui/button.stories.tsx` in each remote, only when `ui-shadcn` is installed
-- `storybook` and `storybook:build` scripts in every app and at the project root
-- Storybook 10.6.5 with `storybook-react-rsbuild` 3.6.1, both pinned, as dev dependencies
+```text
+.storybook/
+├── main.ts            # addons and where stories are found
+└── rsbuild.config.ts  # the build config for Storybook
+```
+
+What changed in each remote:
+
+```text
+src/
+├── exposed/App.stories.tsx          # starter story for App
+└── components/ui/button.stories.tsx # only when ui-shadcn is installed
+```
+
+The shell gets one starter story, at `src/pages/Home.stories.tsx`. Every app and the project root get two scripts, `storybook` and `storybook:build`.
+
+Two dev dependencies are added, both pinned:
+
+```text
+storybook                 10.6.5
+storybook-react-rsbuild    3.6.1
+```
 
 ## Use it
 
@@ -63,15 +80,23 @@ There are no install options. These are the files you edit:
 
 ## How it works
 
-Each remote builds its Storybook to `apps/<remote>/storybook-static`, not into `dist`, because the build empties `dist` and everything in it gets deployed. The shell's `main.ts` reads `mfeflow.json`, copies each built remote under `/<remote>/` and registers it as a reference. A story from a remote renders in that remote's own frame, with its own dependencies and CSS.
+Each remote builds its Storybook to the folder below, not into `dist`. The build empties `dist`, and everything in it gets deployed.
 
-Storybook builds with `.storybook/rsbuild.config.ts`, which has React and nothing else. The app's own `rsbuild.config.ts` sets up Module Federation, which stories do not need. PostCSS config files, such as the one from `tailwind`, are picked up as they are.
+```text
+apps/<remote>/storybook-static
+```
+
+The shell's `main.ts` reads `mfeflow.json`, copies each built remote under `/<remote>/` and registers it as a reference. A story from a remote renders in that remote's own frame, with its own dependencies and CSS.
+
+Storybook builds with its own Rsbuild config, which has React and nothing else. The app's `rsbuild.config.ts` sets up Module Federation, which stories do not need. PostCSS config files, such as the one from `tailwind`, are picked up as they are.
 
 ## Gotchas
 
 - Remote stories in the shell's Storybook are the built copy, so rebuild with `pnpm storybook` after changing a remote. A remote without a built Storybook is skipped instead of breaking the shell's.
-- With `theming`, `i18n` or `data-react-query`, a remote's `App` works without the shell, so its story needs no decorator. A story that calls `useTheme()` does need one that wraps it in `ThemeProvider`.
-- `esbuild` is set to `false` in `allowBuilds` in `pnpm-workspace.yaml`. It works without its install script, and without that entry pnpm 11 stops the install to ask.
+
+- With theming, i18n or data-react-query, a remote's `App` works without the shell, so its story needs no decorator. A story that calls `useTheme()` does need one that wraps it in `ThemeProvider`.
+
+- The esbuild entry in `allowBuilds` is set to `false` in the workspace file. It works without its install script, and without that entry pnpm 11 stops the install to ask.
 
 ## Reference
 

@@ -83,11 +83,13 @@ A singleton is a package that must exist once per page, such as React. The prese
 
 There are two checks. At build and review time, `mfeflow doctor` compares singleton versions across apps (E301). `mfeflow check-compat` compares each remote's ranges with its shell (E302). Both run offline from your files.
 
-At run time, the runtime package has `checkSingletons`, which reads Module Federation's share scope and reports packages that are missing or loaded in more than one version. `assertRequested` turns it on when the page URL has `?mfeflow-assert`. The shell runs the check in development and when the page is opened with `?mfeflow-assert`. It does not run on every production page load. The storefront example wires it in `examples/storefront/shell/src/assert.ts`.
+At run time, the runtime package can read Module Federation's share scope. It reports packages that are missing or loaded in more than one version.
+
+The shell runs this check in development and when the page is opened with `?mfeflow-assert`. It does not run on every production page load. The storefront example wires it in `examples/storefront/shell/src/assert.ts`.
 
 ## How does development differ from production?
 
-In development, `mfeflow dev` starts every app and builds a dev registry from `mfeflow.json`. The shell build puts that registry into the HTML as `window.__MFE_REGISTRY__`. Remotes load from their own `localhost` ports.
+In development, `mfeflow dev` starts every app and builds a dev registry from the project. The shell build puts that registry into the HTML. Remotes load from their own localhost ports.
 
 In production, nothing runs the apps for you. You serve the shell and each remote as static files, and you serve a registry index. The shell expects remotes under `/mfe/<name>/` on its own origin. [Deploy](/guide/deploying) covers what that means today.
 

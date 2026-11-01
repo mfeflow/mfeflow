@@ -9,7 +9,7 @@ shadcn/ui gives you components as source files rather than a package. This featu
 
 ## What you get
 
-Every remote gets its own copy of a `Button`, a `cn` class helper and a shadcn config. Nothing is shared between remotes: a button in `cart` and a button in `catalog` are two files that look the same because they read the same theme tokens.
+Every remote gets its own copy of a `Button`, a class helper called `cn` and a shadcn config. Nothing is shared between remotes. A button in one remote and a button in another are two files that look the same because they read the same theme tokens.
 
 ## Add it
 
@@ -21,10 +21,22 @@ pnpm mfeflow add tailwind ui-shadcn
 
 What changed, in every remote:
 
-- `components.json`, shadcn's config, with the remote's `css` path and prefix
-- `src/lib/utils.ts`, the `cn` helper, and its test if you use [testing](/features/testing)
-- `src/components/ui/button.tsx`, and its test
-- `class-variance-authority`, `clsx` and `tailwind-merge` as dependencies
+```text
+components.json          # shadcn's config, with the remote's css path and prefix
+src/
+├── lib/
+│   └── utils.ts         # the cn helper
+└── components/ui/
+    └── button.tsx       # the Button
+```
+
+Each of the last two files also gets a test if you use [testing](/features/testing). Three packages are added as dependencies:
+
+```text
+class-variance-authority
+clsx
+tailwind-merge
+```
 
 ## Use it
 
@@ -66,13 +78,19 @@ There are no install options. These are the knobs you will actually reach for.
 
 ## How it works
 
-`cn` joins class names with `clsx` and then merges them with `tailwind-merge`, told about the remote's prefix. That is why `cn('cart:p-2', 'cart:p-4')` keeps only `cart:p-4`. The colours come from the tokens the [tailwind](/features/tailwind) feature defines, which read `--mf-*` variables, so with [theming](/features/theming) a theme switch recolours every remote's buttons together.
+`cn` joins class names with `clsx`, then merges them with `tailwind-merge`, which is told about the remote's prefix. That is why this keeps only the last padding class:
+
+```ts
+cn('cart:p-2', 'cart:p-4'); // 'cart:p-4'
+```
+
+The colours come from the tokens the [tailwind](/features/tailwind) feature defines. Those read the `--mf-*` variables, so with [theming](/features/theming) a theme switch recolours every remote's buttons together.
 
 The three helper libraries only reach a remote's bundle when something imports them. Nothing uses the `Button` yet, so a remote that does not use it pays nothing. Watch the default 10 KB remote budget when you start using it.
 
 ## Gotchas
 
-- To add more components with the shadcn CLI, first give the remote the `@/` alias it expects. Add this under `compilerOptions` in the remote's `tsconfig.json`; Rsbuild reads `paths` from it.
+- To add more components with the shadcn CLI, first give the remote the `@/` alias it expects. Add this to the remote's `tsconfig.json` under `compilerOptions`, and Rsbuild reads it from there.
 
   ```json
   "baseUrl": ".",

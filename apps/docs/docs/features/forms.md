@@ -25,10 +25,14 @@ pnpm mfeflow add forms --option forms.validator=valibot
 
 What changed, in every remote:
 
-- `src/forms/schema.ts`, the schema in the library you picked
-- `src/forms/ContactForm.tsx`
-- `src/forms/ContactForm.test.tsx`, if you use [testing](/features/testing)
-- `react-hook-form`, `@hookform/resolvers` and your validator added as dependencies
+```text
+src/forms/
+├── schema.ts             # the schema, in the library you picked
+├── ContactForm.tsx       # the example form
+└── ContactForm.test.tsx  # only if you use testing
+```
+
+The form library, its resolvers package and your validator are added as dependencies. The test file needs the [testing](/features/testing) feature.
 
 ## Use it
 
@@ -72,7 +76,11 @@ const ContactForm = lazy(() =>
 
 ## How it works
 
-The form uses `standardSchemaResolver`, which accepts any Standard Schema, so the form code is identical for all three libraries and only `schema.ts` differs. The option is separate from the `validator` of [env-t3](/features/env-t3), so the two can differ, although one library across the project is one less thing to learn. A validator inside a remote bundle is fine. What env-t3 keeps out of the browser is its own `env.ts` and runtime-config schema.
+The form uses `standardSchemaResolver`, which accepts any Standard Schema. The form code is identical for all three libraries, and only `schema.ts` differs.
+
+The option is separate from the validator of [env-t3](/features/env-t3), so the two can differ. One library across the project is one less thing to learn.
+
+A validator inside a remote bundle is fine. What env-t3 keeps out of the browser is its own env file and runtime-config schema.
 
 The test that comes with the form checks two things: errors show and nothing is sent when the values are wrong, and valid values are sent once even if the button is clicked twice.
 

@@ -19,9 +19,13 @@ pnpm mfeflow add analytics-gtm analytics-clarity
 
 What changed:
 
-- `apps/shell/src/analytics/clarity.ts`, the boot step that reads `clarityId` and adds the provider without holding up first render
-- `clarity.test.ts` next to it, if you have the `testing` feature
-- a `clarityId` key in the runtime config
+```text
+apps/shell/src/analytics/
+├── clarity.ts       # boot step: reads the id, adds the provider, never blocks first render
+└── clarity.test.ts  # only if you have the testing feature
+```
+
+The runtime config also gets a new `clarityId` key.
 
 ## Use it
 
@@ -57,14 +61,16 @@ addProvider(createClarityProvider({ projectId: 'k3x9m2abcd' }));
 
 The provider follows the visitor's consent in four steps:
 
-1. Until `analytics_storage` is granted, nothing is requested: no script, no cookie, no `clarity` function on `window`.
-2. When they grant it, the script is added once, and Clarity is told what was granted through `consentv2`.
+1. Until `analytics_storage` is granted, nothing is requested: no script, no cookie, no Clarity function on the page.
+2. When they grant it, the script is added once, and Clarity is told what was granted.
 3. On a later visit the stored choice arrives at start, so a returning visitor who agreed gets Clarity from the beginning, and one who declined never does.
 4. If they withdraw consent, Clarity is told so, which stops it and clears its cookies, and nothing more is sent.
 
 Events and page paths sent while consent is missing are dropped. Granting consent does not replay the past.
 
-`@mfeflow/analytics` runs more than one provider through `addProvider`. Both get every call, a provider that throws does not stop the other, and it does not matter which one starts first. A call like `tracker.track('add_to_cart', { sku })` reaches Clarity as the event name only, so nothing about the visitor leaves with it. Page views arrive as a `page_path` value.
+The analytics package runs more than one provider through `addProvider`. Both get every call, and a provider that throws does not stop the other.
+
+Start order does not matter. A tracker call reaches Clarity as the event name only, so nothing about the visitor leaves with it. Page views arrive as a path.
 
 ## Gotchas
 
@@ -72,8 +78,10 @@ Events and page paths sent while consent is missing are dropped. Granting consen
 Older projects may still call `initAnalytics(createGtmProvider(...))` in `src/analytics/init.ts`. Change it to `addProvider(...)`, imported from `@mfeflow/analytics/providers`. Otherwise whichever provider starts second is ignored.
 :::
 
-- **`identify` is not sent to Clarity** unless you pass `sendUserId: true` to `createClarityProvider`.
+- **`identify` is not sent to Clarity** unless you pass `sendUserId: true` to the provider.
+
 - **A bad id throws at start.** The provider rejects anything that is not 8 to 12 lowercase letters and digits, and the shell logs a warning instead of starting Clarity.
+
 - **Adding env-t3 afterwards.** The key moves into the schema and the environment files. Delete `apps/shell/public/config/runtime-config.json`, or doctor reports it as missing `environment`.
 
 ## Reference

@@ -19,9 +19,15 @@ pnpm mfeflow add url-factory
 
 What changed:
 
-- `apps/shell/src/api/endpoints.ts`
-- `apps/<remote>/src/api/endpoints.ts` in every remote
-- `@mfeflow/url-factory` added to the shell and every remote
+```text
+apps/
+├── shell/src/api/
+│   └── endpoints.ts      # the shell's endpoint table
+└── <remote>/src/api/
+    └── endpoints.ts      # the same in every remote
+```
+
+The `@mfeflow/url-factory` package is added to the shell and every remote.
 
 ## Use it
 
@@ -73,8 +79,9 @@ Because the base is read on every call, config that loads after the app starts w
 
 ## Gotchas
 
-- Paths must start with `/`, or `defineEndpoints` throws.
-- A parameter value of `.` or `..` is rejected, because it would walk out of the path. Other values are URL-encoded.
+- Paths must start with a slash, or `defineEndpoints` throws.
+- A parameter value of `.` or `..` is rejected, because it would walk out of the path.
+- Other parameter values are URL-encoded.
 - Using runtime config means the base URL is wrong until the shell has loaded it. Build URLs when you make a request, not at module load.
 
 ## Reference

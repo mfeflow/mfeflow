@@ -35,7 +35,9 @@ Look for E301, a singleton with more than one version, and E111, a workspace pac
 
 ### Shared module is not available for eager consumption
 
-The shell was built with `eager: false`, but its entry runs the app code directly. Make `src/index.ts` do only `import('./bootstrap')`, or remove `eager: false`. The generated shell uses the default, which avoids this.
+The shell was built with `eager: false`, but its entry runs the app code directly. Either make the shell's entry file do only a dynamic import of the bootstrap file, or remove the option.
+
+The generated shell uses the default, which avoids this.
 
 ### Nothing at /cart
 

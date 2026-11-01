@@ -19,10 +19,16 @@ pnpm mfeflow add data-react-query
 
 What changed:
 
-- `apps/shell/src/query/Query.tsx`, wrapped around the shell's `App`
-- `apps/<remote>/src/query/` with `Query.tsx`, `keys.ts` and `useHealth.ts`, wrapped around each remote's exposed `App`
-- tests for the shell and each remote, when `testing` is installed
-- `@tanstack/react-query` 5.105.0 in the shell and every remote
+```text
+apps/shell/src/query/
+└── Query.tsx      # provider wrapped around the shell's App
+apps/<remote>/src/query/
+├── Query.tsx      # wrapper around each remote's exposed App
+├── keys.ts        # query keys prefixed with the remote's name
+└── useHealth.ts   # the example query
+```
+
+Tests for the shell and each remote are added when `testing` is installed. TanStack Query 5.105.0 is added to the shell and every remote.
 
 ## Use it
 
@@ -70,13 +76,14 @@ export const queryClient = new QueryClient({
 
 ## How it works
 
-`@tanstack/react-query` is a shared singleton, so the shell loads it once and every remote receives that copy. A remote finds the shell's client through React context, which gives you one cache and one set of in-flight requests whichever remote asks first.
+TanStack Query is a shared singleton, so the shell loads it once and every remote receives that copy. A remote finds the shell's client through React context, which gives you one cache and one set of in-flight requests whichever remote asks first.
 
 The remote's `Query` wrapper checks for a client in context. Inside the shell it renders its children as they are. When you run `pnpm dev` inside a remote on its own, there is no shell, so the wrapper creates a client for that run.
 
 ## Gotchas
 
-- Two copies of the library would mean two caches and a context that never matches. `pnpm mfeflow doctor` checks that the apps install the same version.
+- Two copies of the library would mean two caches and a context that never matches. Doctor checks that the apps install the same version.
+
 - Share data between remotes by reading the same key on purpose, and only for data the shell owns, such as the signed-in user. Put that key in the shell or the contracts package rather than copying the string.
 - With `http`, a 4xx arrives as an `HttpError`. Use `retry` to skip retries for those.
 

@@ -17,12 +17,30 @@ The shell gets a provider, a theme picker, and a small script that applies the s
 pnpm mfeflow add theming
 ```
 
-What changed:
+What changed in the shell and each remote:
 
-- `apps/shell/src/theme/` with `themes.ts`, `Theme.tsx`, `ThemeToggle.tsx`, `theme.css`, `apply-stored.ts` and `head-script.ts`
-- `apps/<remote>/src/theme/tokens.ts` in every remote
-- tests for the stored theme, the toggle and the tokens, when `testing` is installed
-- the shell's `App.tsx` wrapped in `Theme`, a boot step in `bootstrap.tsx`, and an import in `rsbuild.config.ts`
+```text
+apps/shell/src/theme/
+├── themes.ts          # your light and dark tokens
+├── Theme.tsx          # the provider that wraps the app
+├── ThemeToggle.tsx    # the switch in the header
+├── theme.css          # base variables
+├── apply-stored.ts    # applies the saved theme at boot
+└── head-script.ts     # the no-flash script for the head
+
+apps/<remote>/src/theme/
+└── tokens.ts          # CSS variable references for the remote
+```
+
+Three existing shell files are edited:
+
+```text
+App.tsx            # wrapped in Theme
+bootstrap.tsx      # gets a boot step
+rsbuild.config.ts  # gets an import
+```
+
+If [testing](/features/testing) is installed, the stored theme, the toggle and the tokens get tests.
 
 ## Use it
 

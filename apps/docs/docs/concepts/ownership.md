@@ -45,7 +45,12 @@ Optional fields add a `contact`, the events the remote publishes and consumes, a
 - Two remotes that claim overlapping routes (E116)
 - A registry entry missing for an environment (E114)
 
-Overlap is checked by pattern, not by text. `/checkout/*` overlaps `/checkout/pay`. `/shop/:id` overlaps `/shop/new`. Comparison ignores case and a trailing slash.
+Overlap is checked by pattern, not by text. Comparison ignores case and a trailing slash. These pairs overlap:
+
+```text
+/checkout/*   and  /checkout/pay
+/shop/:id     and  /shop/new
+```
 
 ## How does it help in an incident?
 
