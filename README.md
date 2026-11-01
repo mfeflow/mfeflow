@@ -215,28 +215,29 @@ Every command takes `--dry-run` and `--json`. Run any command with `--help` for 
 
 ## Packages
 
-All 18 are on npm and versioned together, so one version number tells you what works with what. The [versioning guide](docs/versioning.md) covers the release flow.
+The first 18 are on npm and `@mfeflow/registry` joins at the next release. All are versioned together, so one version number tells you what works with what. The [versioning guide](docs/versioning.md) covers the release flow.
 
-| Package                                          | Role                                                                |
-| ------------------------------------------------ | ------------------------------------------------------------------- |
-| [mfeflow](packages/cli)                          | The CLI                                                             |
-| [create-mfeflow](packages/create-mfeflow)        | The `npm create` entry point                                        |
-| [@mfeflow/core](packages/core)                   | The engine behind the CLI: change plans, diffs, atomic apply        |
-| [@mfeflow/contracts](packages/contracts)         | Types and validators for the project, ownership and registry files  |
-| [@mfeflow/runtime](packages/runtime)             | Registry loading, remote boundaries with fallback, singleton checks |
-| [@mfeflow/rsbuild](packages/rsbuild)             | Rsbuild presets for the shell and remotes                           |
-| [@mfeflow/storage](packages/storage)             | Browser storage namespaced per remote                               |
-| [@mfeflow/theme](packages/theme)                 | Theme tokens as CSS variables                                       |
-| [@mfeflow/i18n](packages/i18n)                   | One i18next instance with per-remote messages                       |
-| [@mfeflow/url-factory](packages/url-factory)     | Typed API URLs                                                      |
-| [@mfeflow/http](packages/http)                   | A small fetch client over typed endpoints                           |
-| [@mfeflow/event-bus](packages/event-bus)         | A typed event bus with replay for late subscribers                  |
-| [@mfeflow/route-factory](packages/route-factory) | Typed links between remotes                                         |
-| [@mfeflow/analytics](packages/analytics)         | Analytics behind one provider interface                             |
-| [@mfeflow/telemetry](packages/telemetry)         | Telemetry behind one provider interface                             |
-| [@mfeflow/testing](packages/testing)             | Test helpers that wrap components in the shell's providers          |
-| [@mfeflow/tsconfig](packages/tsconfig)           | Strict TypeScript presets                                           |
-| [@mfeflow/oxlint-config](packages/oxlint-config) | Type-aware oxlint rules                                             |
+| Package                                          | Role                                                                     |
+| ------------------------------------------------ | ------------------------------------------------------------------------ |
+| [mfeflow](packages/cli)                          | The CLI                                                                  |
+| [create-mfeflow](packages/create-mfeflow)        | The `npm create` entry point                                             |
+| [@mfeflow/core](packages/core)                   | The engine behind the CLI: change plans, diffs, atomic apply             |
+| [@mfeflow/contracts](packages/contracts)         | Types and validators for the project, ownership and registry files       |
+| [@mfeflow/registry](packages/registry)           | Static registry core: build and gate the index, upload to a folder or S3 |
+| [@mfeflow/runtime](packages/runtime)             | Registry loading, remote boundaries with fallback, singleton checks      |
+| [@mfeflow/rsbuild](packages/rsbuild)             | Rsbuild presets for the shell and remotes                                |
+| [@mfeflow/storage](packages/storage)             | Browser storage namespaced per remote                                    |
+| [@mfeflow/theme](packages/theme)                 | Theme tokens as CSS variables                                            |
+| [@mfeflow/i18n](packages/i18n)                   | One i18next instance with per-remote messages                            |
+| [@mfeflow/url-factory](packages/url-factory)     | Typed API URLs                                                           |
+| [@mfeflow/http](packages/http)                   | A small fetch client over typed endpoints                                |
+| [@mfeflow/event-bus](packages/event-bus)         | A typed event bus with replay for late subscribers                       |
+| [@mfeflow/route-factory](packages/route-factory) | Typed links between remotes                                              |
+| [@mfeflow/analytics](packages/analytics)         | Analytics behind one provider interface                                  |
+| [@mfeflow/telemetry](packages/telemetry)         | Telemetry behind one provider interface                                  |
+| [@mfeflow/testing](packages/testing)             | Test helpers that wrap components in the shell's providers               |
+| [@mfeflow/tsconfig](packages/tsconfig)           | Strict TypeScript presets                                                |
+| [@mfeflow/oxlint-config](packages/oxlint-config) | Type-aware oxlint rules                                                  |
 
 ## Numbers
 

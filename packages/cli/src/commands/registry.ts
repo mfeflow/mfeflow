@@ -26,6 +26,7 @@ import { assertKnownFlags, GLOBAL_ARGS, readGlobals, text, type Globals } from '
 import { Cancelled } from '../exit';
 import type { RegistryEntryInfo, RegistryResult } from '../output';
 import type { Runtime } from '../runtime';
+import { raiseCli } from '../pipeline';
 import { trustedIn } from '../trust';
 
 export const REGISTRY_ARGS = {
@@ -95,8 +96,10 @@ async function save(
   project: MfeflowProject,
   registries: Record<string, string>,
 ): Promise<MfeflowProject> {
-  const { registries: _old, ...rest } = project;
-  const next: MfeflowProject = Object.keys(registries).length > 0 ? { ...rest, registries } : rest;
+  const { registries: old, ...rest } = project;
+  const changed = JSON.stringify(old ?? {}) !== JSON.stringify(registries);
+  const base = changed ? raiseCli(rest) : rest;
+  const next: MfeflowProject = Object.keys(registries).length > 0 ? { ...base, registries } : base;
   if (!globals.dryRun) await saveProject(root, next);
   return next;
 }

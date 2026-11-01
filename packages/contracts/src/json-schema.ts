@@ -12,7 +12,14 @@ import {
   TRANSFORM_OPS,
 } from './feature';
 import { ANALYTICS_EVENT, EVENT_NAME, EXPOSE, MFE_NAME, ROUTE } from './mfe-manifest';
-import { CHECKOUT_PATH, FILE_HASH, REGISTRY_NAMESPACE, SCOPE } from './project';
+import {
+  CHECKOUT_PATH,
+  FILE_HASH,
+  PROJECT_REPOS,
+  REGISTRY_NAMESPACE,
+  SCOPE,
+  SEMVER,
+} from './project';
 import { SAFE_RELATIVE_PATH } from './validate';
 import { VERSION } from './registry';
 import {
@@ -198,6 +205,8 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
   project: root('project', 'mfeflow.json', {
     properties: {
       version: { const: 1 },
+      cli: str(SEMVER),
+      repo: { enum: [...PROJECT_REPOS] },
       topology: { enum: ['monorepo', 'polyrepo', 'hybrid'] },
       packageManager: { enum: ['pnpm', 'npm'] },
       scope: str(SCOPE),
@@ -343,6 +352,9 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
             version: str(),
             routes: strings(ROUTE),
             owner: str(),
+            previous: str(),
+            history: strings(),
+            rolledBackFrom: str(),
           },
           ['name', 'entry'],
         ),

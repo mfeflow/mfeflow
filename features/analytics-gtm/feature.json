@@ -1,6 +1,6 @@
 {
   "name": "analytics-gtm",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Google Tag Manager with Consent Mode v2 behind @mfeflow/analytics: consent defaults before gtm.js, a consent banner hook, page views on route changes, and a typed tracker per remote. The container id comes from the runtime config.",
   "requires": ["core", "tsconfig"],
   "files": [

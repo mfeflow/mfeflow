@@ -55,6 +55,7 @@
     "@clack/prompts": "catalog:",
     "@mfeflow/contracts": "workspace:*",
     "@mfeflow/core": "workspace:*",
+    "@mfeflow/registry": "workspace:*",
     "citty": "catalog:",
     "semver": "catalog:",
     "yaml": "catalog:"

@@ -28,7 +28,7 @@ describe('mfeflow features', () => {
     const rt = testRuntime();
     expect(await main(['features', '--cwd', await emptyFolder()], rt)).toBe(0);
     const text = rt.io.out.join('\n');
-    expect(text).toMatch(/core\s+0\.1\.0\s+.*\[always\]/);
+    expect(text).toMatch(/core\s+\d+\.\d+\.\d+\s+.*\[always\]/);
     expect(text).toMatch(/lint-oxlint\s+.*\[default\]/);
     expect(text).toMatch(/git-hooks\s+.*\[opt-in\]/);
     expect(text).toContain('mfeflow add @namespace/name');
@@ -147,7 +147,7 @@ describe('mfeflow features across registries', () => {
     const rt = testRuntime({ fetch, trust: ALL });
     expect(await main(['features', '--cwd', cwd], rt)).toBe(0);
     const text = rt.io.out.join('\n');
-    expect(text).toMatch(/^ {2}mfeflow core +0\.1\.0 .*\[always\]/m);
+    expect(text).toMatch(/^ {2}mfeflow core +\d+\.\d+\.\d+ .*\[always\]/m);
     expect(text).toMatch(
       /^ {2}@alpha {2}@alpha\/hello +1\.2\.0 +Says hello \[registry, installed\]/m,
     );

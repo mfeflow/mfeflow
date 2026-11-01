@@ -269,6 +269,164 @@ describe('PlanBuilder catalog', () => {
   });
 });
 
+describe('PlanBuilder replace', () => {
+  it('overwrites an existing file and shows it as a patch', async () => {
+    const b = new PlanBuilder(reader({ 'src/a.ts': 'old\n' }));
+    await b.replace('src/a.ts', 'new\n');
+    const plan = b.build();
+    expect(plan.changes).toMatchObject([
+      { path: 'src/a.ts', action: 'patch', before: 'old\n', after: 'new\n', track: false },
+    ]);
+    expect(renderDiff(plan)).toContain('-old');
+    expect(renderDiff(plan)).toContain('+new');
+  });
+
+  it('records nothing when the content is the same', async () => {
+    const b = new PlanBuilder(reader({ 'a.txt': 'same\n' }));
+    await b.replace('a.txt', 'same\n');
+    expect(b.build().changes).toEqual([]);
+  });
+
+  it('refuses a file that does not exist', async () => {
+    const b = new PlanBuilder(reader({}));
+    expect(await rejection(b.replace('a.txt', 'x'))).toMatchObject({ code: 'MFEFLOW_E208' });
+  });
+
+  it('refuses a third-party change but allows the same content', async () => {
+    const b = new PlanBuilder(reader({ 'a.txt': 'one\n' })).scoped('third-party');
+    await b.replace('a.txt', 'one\n');
+    expect(await rejection(b.replace('a.txt', 'two\n'))).toMatchObject({ code: 'MFEFLOW_E207' });
+  });
+});
+
+describe('PlanBuilder setRange', () => {
+  const deps = (range: string) => pkg({ dependencies: { react: range, zod: '^4.0.0' } });
+
+  it('updates a plain range in place, keeping the order', async () => {
+    const b = new PlanBuilder(reader({ 'package.json': deps('^18.0.0') }));
+    await b.setRange('package.json', 'react', '^19.0.0');
+    const plan = b.build();
+    expect(plan.changes[0]?.after).toBe(deps('^19.0.0'));
+  });
+
+  it('finds a dev dependency', async () => {
+    const b = new PlanBuilder(
+      reader({ 'package.json': pkg({ devDependencies: { vitest: '^4.0.0' } }) }),
+    );
+    await b.setRange('package.json', 'vitest', '^5.0.0');
+    expect(b.build().changes[0]?.after).toContain('"vitest": "^5.0.0"');
+  });
+
+  it('changes the catalog entry, not package.json, for a catalog: dependency', async () => {
+    const workspace = '# versions\ncatalog:\n  react: 18.0.0 # keep\n';
+    const b = new PlanBuilder(
+      reader({ 'package.json': deps('catalog:'), 'pnpm-workspace.yaml': workspace }),
+    );
+    await b.setRange('package.json', 'react', '19.3.1');
+    const plan = b.build();
+    expect(plan.changes.map((c) => c.path)).toEqual(['pnpm-workspace.yaml']);
+    expect(plan.changes[0]?.after).toBe('# versions\ncatalog:\n  react: 19.3.1 # keep\n');
+  });
+
+  it('changes a named catalog', async () => {
+    const workspace = 'catalogs:\n  next:\n    react: 18.0.0\n';
+    const b = new PlanBuilder(
+      reader({ 'package.json': deps('catalog:next'), 'pnpm-workspace.yaml': workspace }),
+    );
+    await b.setRange('package.json', 'react', '19.3.1');
+    expect(b.build().changes[0]?.after).toBe('catalogs:\n  next:\n    react: 19.3.1\n');
+  });
+
+  it('does nothing when the range is already there or the dependency is a workspace link', async () => {
+    const same = new PlanBuilder(reader({ 'package.json': deps('^19.0.0') }));
+    await same.setRange('package.json', 'react', '^19.0.0');
+    const linked = new PlanBuilder(reader({ 'package.json': deps('workspace:*') }));
+    await linked.setRange('package.json', 'react', '^19.0.0');
+    expect(same.build().changes).toEqual([]);
+    expect(linked.build().changes).toEqual([]);
+  });
+
+  it('is an E208 for a missing file, dependency or catalog entry', async () => {
+    const b = new PlanBuilder(
+      reader({
+        'package.json': deps('catalog:'),
+        'pnpm-workspace.yaml': 'catalog:\n  zod: 4.0.0\n',
+      }),
+    );
+    expect(await rejection(b.setRange('other.json', 'react', '1.0.0'))).toMatchObject({
+      code: 'MFEFLOW_E208',
+    });
+    expect(await rejection(b.setRange('package.json', 'left-pad', '1.0.0'))).toMatchObject({
+      code: 'MFEFLOW_E208',
+    });
+    expect(await rejection(b.setRange('package.json', 'react', '1.0.0'))).toMatchObject({
+      code: 'MFEFLOW_E208',
+    });
+    const noWorkspace = new PlanBuilder(reader({ 'package.json': deps('catalog:') }));
+    expect(await rejection(noWorkspace.setRange('package.json', 'react', '1.0.0'))).toMatchObject({
+      code: 'MFEFLOW_E208',
+    });
+  });
+
+  it('leaves npm:, link:, file:, repository and URL specifiers alone, with a warning', async () => {
+    for (const specifier of [
+      'npm:other@^1.0.0',
+      'link:../react',
+      'file:./react.tgz',
+      'github:facebook/react',
+      'git+https://example.com/react.git',
+      'https://example.com/react.tgz',
+    ]) {
+      const b = new PlanBuilder(reader({ 'package.json': deps(specifier) }));
+      await b.setRange('package.json', 'react', '^19.0.0');
+      const plan = b.build();
+      expect(plan.changes, specifier).toEqual([]);
+      expect(plan.warnings[0], specifier).toContain(specifier);
+    }
+  });
+
+  it('accepts a semver range or a dist-tag, and refuses anything else (E202)', async () => {
+    for (const ok of ['^19.0.0', '>=18 <20', '19.x', 'next']) {
+      const b = new PlanBuilder(reader({ 'package.json': deps('^18.0.0') }));
+      await b.setRange('package.json', 'react', ok);
+      expect(b.build().changes[0]?.after, ok).toContain(`"react": "${ok}"`);
+    }
+    for (const bad of ['', 'not a range!', 'link:../x', 'catalog:', 'workspace:*', 'a/b']) {
+      const b = new PlanBuilder(reader({ 'package.json': deps('^18.0.0') }));
+      expect(await rejection(b.setRange('package.json', 'react', bad)), bad).toMatchObject({
+        code: 'MFEFLOW_E202',
+      });
+    }
+  });
+
+  it('says so when pnpm-workspace.yaml is not valid YAML', async () => {
+    const b = new PlanBuilder(
+      reader({
+        'package.json': deps('catalog:'),
+        'pnpm-workspace.yaml': 'catalog:\n  react: [1\n',
+      }),
+    );
+    const error = await rejection(b.setRange('package.json', 'react', '19.3.1'));
+    expect(error).toMatchObject({ code: 'MFEFLOW_E208' });
+    expect((error as Error).message).toContain('not valid YAML');
+  });
+
+  it('lets a third-party feature ask only for the range already there', async () => {
+    const b = new PlanBuilder(reader({ 'package.json': deps('^18.0.0') })).scoped('third-party');
+    await b.setRange('package.json', 'react', '^18.0.0');
+    expect(await rejection(b.setRange('package.json', 'react', '^19.0.0'))).toMatchObject({
+      code: 'MFEFLOW_E207',
+    });
+  });
+
+  it('keeps addDependency refusing to change an existing range', async () => {
+    const b = new PlanBuilder(reader({ 'package.json': deps('^18.0.0') }));
+    expect(await rejection(b.addDependency('package.json', 'react', '^19.0.0'))).toMatchObject({
+      code: 'MFEFLOW_E207',
+    });
+  });
+});
+
 describe('renderDiff', () => {
   it('shows creates, patches and deletes as unified diffs', async () => {
     const b = new PlanBuilder(reader({ 'a.txt': 'one\ntwo\nthree\n', 'gone.txt': 'bye\n' }));

@@ -1,7 +1,8 @@
 import { formatPatch, structuredPatch } from 'diff';
 import { isMap, parseDocument } from 'yaml';
-import { MfeflowError } from './errors';
-import { asRecord, editJsonObject } from './json';
+import { validRange } from 'semver';
+import { MfeflowError, messageOf } from './errors';
+import { asRecord, editJsonObject, parseJsonObject } from './json';
 import type { Trust } from './features/policy';
 import { PROJECT_FILE } from './project';
 
@@ -93,6 +94,7 @@ export interface PlanBuilderOptions {
 }
 
 const WORKSPACE_FILE = 'pnpm-workspace.yaml';
+const DEPENDENCY_SECTIONS = ['dependencies', 'devDependencies', 'optionalDependencies'] as const;
 
 interface Tracked {
   original: string | null;
@@ -194,6 +196,17 @@ export class PlanBuilder {
     entry.current = edit(entry.current);
   }
 
+  /** Overwrites a file that exists, shown as a modification. First-party only: a third-party feature never replaces content. */
+  async replace(file: string, content: string): Promise<void> {
+    const entry = await this.open(file);
+    if (entry.current === null) throw new MfeflowError('E208', `${file} does not exist`);
+    if (this.trust === 'third-party' && entry.current !== content) {
+      throw new MfeflowError('E207', file);
+    }
+    this.touch(entry);
+    entry.current = content;
+  }
+
   async delete(file: string): Promise<void> {
     const entry = await this.open(file);
     this.touch(entry);
@@ -235,6 +248,85 @@ export class PlanBuilder {
         ...(this.trust === 'third-party' ? { thirdParty: true } : {}),
       });
     }
+  }
+
+  /**
+   * Moves an existing dependency to `range`. A dependency on `catalog:` changes
+   * its entry in pnpm-workspace.yaml instead. A `workspace:` link, or any
+   * specifier that is not a registry range (`npm:`, `link:`, `file:`, a
+   * repository or a URL), is the project's own choice and is left alone with a
+   * warning. The new range must be a semver range or a dist-tag (E202). A
+   * missing dependency is an E208. A third-party feature can only ask for the
+   * range that is already there.
+   */
+  async setRange(file: string, name: string, range: string): Promise<void> {
+    if (!isRegistryRange(range)) {
+      throw new MfeflowError('E202', `${name}: "${range}" is not a semver range or a dist-tag`);
+    }
+    const source = await this.content(file);
+    if (source === undefined) throw new MfeflowError('E208', `${file} does not exist`);
+    const existing = this.declaredRange(file, source, name);
+    if (existing === range || existing.startsWith('workspace:')) return;
+    if (!existing.startsWith('catalog:') && !isRegistryRange(existing)) {
+      this.warn(
+        `${file}: ${name} is ${JSON.stringify(existing)}; left as it is, not moved to ${range}`,
+      );
+      return;
+    }
+    if (this.trust === 'third-party') {
+      throw new MfeflowError(
+        'E207',
+        `${file}: ${name} is already ${JSON.stringify(existing)}; the feature wants ${range}`,
+      );
+    }
+    if (existing.startsWith('catalog:')) {
+      await this.setCatalogEntry(name, existing.slice('catalog:'.length), range);
+      return;
+    }
+    await this.patch(file, (text) =>
+      editJsonObject(file, text, (pkg) => {
+        const section = DEPENDENCY_SECTIONS.find((key) => name in asRecord(pkg[key])) ?? '';
+        pkg[section] = { ...asRecord(pkg[section]), [name]: range };
+        return true;
+      }),
+    );
+  }
+
+  private declaredRange(file: string, source: string, name: string): string {
+    const pkg = parseJsonObject(file, source);
+    for (const section of DEPENDENCY_SECTIONS) {
+      const value = asRecord(pkg[section])[name];
+      if (typeof value === 'string') return value;
+    }
+    throw new MfeflowError('E208', `${file} does not depend on ${name}`);
+  }
+
+  private async setCatalogEntry(name: string, catalogName: string, range: string): Promise<void> {
+    const path =
+      catalogName === '' || catalogName === 'default' ? ['catalog'] : ['catalogs', catalogName];
+    const source = await this.content(WORKSPACE_FILE);
+    const doc = source === undefined ? undefined : parseDocument(source);
+    const problem = doc?.errors[0];
+    if (problem) {
+      throw new MfeflowError('E208', `${WORKSPACE_FILE} is not valid YAML (${problem.message})`, {
+        cause: problem,
+      });
+    }
+    if (doc === undefined || !isMap(doc.getIn(path)) || !doc.hasIn([...path, name])) {
+      throw new MfeflowError('E208', `${WORKSPACE_FILE} has no catalog entry for ${name}`);
+    }
+    doc.setIn([...path, name], range);
+    let text: string;
+    try {
+      text = doc.toString();
+    } catch (error) {
+      throw new MfeflowError(
+        'E208',
+        `${WORKSPACE_FILE} could not be written back (${messageOf(error)})`,
+        { cause: error },
+      );
+    }
+    await this.patch(WORKSPACE_FILE, () => text);
   }
 
   /** Adds a script. An identical one already there is a no-op; a different command under the same name is a conflict. */
@@ -302,6 +394,12 @@ export class PlanBuilder {
         : { projectBefore: this.state.projectBefore }),
     };
   }
+}
+
+/** True for a semver range or a dist-tag, the only things a registry resolves. */
+function isRegistryRange(range: string): boolean {
+  if (range === '' || range !== range.trim() || range.includes('/')) return false;
+  return /^[a-z][a-z0-9-]*$/.test(range) || validRange(range) !== null;
 }
 
 function isPinnedElsewhere(range: string): boolean {

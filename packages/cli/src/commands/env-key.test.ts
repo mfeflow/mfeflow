@@ -1,9 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { parseProject } from '@mfeflow/core';
+import { parseProject, serializeProject } from '@mfeflow/core';
 import { main, validateResult, type AddResult } from '..';
 import { readTree, removeDir, tempDir, testRuntime } from '../testing';
+import { readPackageJson } from '../version';
 
 let cwd = '';
 let project = '';
@@ -44,6 +45,32 @@ describe('mfeflow add env-key --scope server', () => {
       summary: { errors: 0, warnings: 0 },
     });
     expect(Object.keys(parseProject(await read('mfeflow.json')).features)).toContain('env-t3');
+  });
+
+  it('leaves mfeflow.json alone when the key is already there, with an older or no cli', async () => {
+    await envKey(['API_ORIGIN', ...SERVER]);
+    const { cli: _cli, ...unstamped } = parseProject(await read('mfeflow.json'));
+    for (const text of [
+      serializeProject(unstamped),
+      serializeProject({ ...unstamped, cli: '0.0.1' }),
+    ]) {
+      await fs.writeFile(path.join(project, 'mfeflow.json'), text);
+      const { rt } = await envKey(['API_ORIGIN', ...SERVER]);
+      expect(await read('mfeflow.json')).toBe(text);
+      expect(rt.io.out.join('\n')).toContain('nothing to do');
+    }
+  });
+
+  it('raises cli when it writes, and never lowers it', async () => {
+    const stored = parseProject(await read('mfeflow.json'));
+    const write = (cli: string) =>
+      fs.writeFile(path.join(project, 'mfeflow.json'), serializeProject({ ...stored, cli }));
+    await write('0.0.1');
+    await envKey(['FIRST_KEY', ...SERVER]);
+    expect(parseProject(await read('mfeflow.json')).cli).toBe(readPackageJson().version);
+    await write('99.0.0');
+    await envKey(['SECOND_KEY', ...SERVER]);
+    expect(parseProject(await read('mfeflow.json')).cli).toBe('99.0.0');
   });
 
   it('is idempotent: a second run says so and changes nothing', async () => {

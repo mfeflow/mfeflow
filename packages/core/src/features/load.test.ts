@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { rejection, thrown } from '../testing';
 import { listLocalFeatures, loadFeature, parseFeature } from './load';
+import { THIRD_PARTY_KEYS } from './policy';
 import { integrityOf, type FetchLike } from './remote';
 
 const good = {
@@ -55,6 +56,14 @@ describe('malicious third-party features are rejected', () => {
       expect(error.code).toBe('MFEFLOW_E203');
       expect(error.message).toContain(key);
     }
+  });
+
+  it('a well-formed migrations list, which only first-party features may declare', () => {
+    const migrations = [{ from: '1.0.0', to: '1.1.0', module: 'migrations/1.1.0.js' }];
+    const error = third({ migrations });
+    expect(error.code).toBe('MFEFLOW_E203');
+    expect(error.message).toContain('migrations');
+    expect(THIRD_PARTY_KEYS.has('migrations')).toBe(false);
   });
 
   it('atRoot and a dependency in the project scope, which are for features that ship with mfeflow', () => {

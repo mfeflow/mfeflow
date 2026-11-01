@@ -1,6 +1,6 @@
 {
   "name": "env-t3",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Typed env with t3-env: env.ts per app fails the build on a missing variable, runtime-config schema checked before deploy, no validator or env value in the browser bundle.",
   "requires": ["core", "tsconfig"],
   "prompts": [

@@ -68,6 +68,7 @@ describe('mfeflow add remote', () => {
     );
     const saved = await load();
     expect(saved.apps.checkout).toEqual({ kind: 'remote', path: 'apps/checkout', port: 4313 });
+    expect(saved.cli).toBe(readPackageJson().version);
     expect(Object.keys(saved.features)).toEqual([
       'core',
       'tsconfig',

@@ -106,10 +106,31 @@ jobs:
       - run: node scripts/release-plan.mjs pack release --tag ci-dry-run
       - run: node scripts/release-plan.mjs publish release --dry-run
 
+  # A feature or template folder that changed needs a new version in its feature.json, so `upgrade`
+  # can tell which ones moved. Compares against the merge-base with the PR's target branch.
+  feature-versions:
+    name: feature versions
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+      - name: Check the versions
+        env:
+          BASE: origin/${{ github.base_ref }}
+        run: node scripts/check-feature-versions.mjs "$BASE"
+
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [check, e2e, smoke, publish-check]
+    needs: [check, e2e, smoke, publish-check, feature-versions]
     runs-on: ubuntu-latest
     permissions: {}
     steps:
@@ -119,4 +140,5 @@ jobs:
           E2E: ${{ needs.e2e.result }}
           SMOKE: ${{ needs.smoke.result }}
           PUBLISH_CHECK: ${{ needs.publish-check.result }}
-        run: test "$CHECK" = "success" && test "$E2E" = "success" && test "$SMOKE" = "success" && test "$PUBLISH_CHECK" = "success"
+          FEATURE_VERSIONS: ${{ needs.feature-versions.result }}
+        run: test "$CHECK" = "success" && test "$E2E" = "success" && test "$SMOKE" = "success" && test "$PUBLISH_CHECK" = "success" && { test "$FEATURE_VERSIONS" = "success" || test "$FEATURE_VERSIONS" = "skipped"; }
