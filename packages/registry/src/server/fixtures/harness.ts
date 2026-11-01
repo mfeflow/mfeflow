@@ -5,6 +5,7 @@ import type { RegistryIndexRemote } from '@mfeflow/contracts';
 import { artifactPrefix, type PutOptions, type RegistryHost } from '../../static';
 import { BASE_URL, filesFor, manifestFor, shellManifest } from '../../static/fixtures/remote';
 import type { ServerConfig } from '../config';
+import { DEFAULT_GATE } from '../gate';
 import { startRegistryServer, type RegistryServer, type StartOptions } from '../server';
 import type { ArtifactSource } from '../service';
 import { openSqliteStorage } from '../sqlite';
@@ -26,6 +27,7 @@ export interface ApiBody {
   warnings: string[];
   remotes: RegistryIndexRemote[];
   entries: AuditEntry[];
+  rollout?: { id: string; stable: string; candidate: string; percent: number; steps: number[] };
   error: {
     code: string;
     message: string;
@@ -165,6 +167,9 @@ export async function startHarness(
     artifactBaseUrl: BASE_URL,
     corsOrigins: [],
     maxBodyBytes: 64 * 1024,
+    gate: DEFAULT_GATE,
+    beaconLimit: { burst: 1000, perMinute: 1000 },
+    trustProxy: false,
     ...overrides,
   };
   const server = await startRegistryServer({

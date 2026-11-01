@@ -76,6 +76,7 @@ export async function startRegistryServer(options: StartOptions): Promise<Regist
     storage,
     artifacts,
     artifactBaseUrl: config.artifactBaseUrl,
+    gate: config.gate,
     ...(options.now === undefined ? {} : { now: options.now }),
     onChange: (changed) => fallback?.request(changed),
     log,
@@ -87,6 +88,8 @@ export async function startRegistryServer(options: StartOptions): Promise<Regist
       storage,
       corsOrigins: config.corsOrigins,
       maxBodyBytes: config.maxBodyBytes,
+      beaconLimit: config.beaconLimit,
+      trustProxy: config.trustProxy,
       log,
     }),
   );

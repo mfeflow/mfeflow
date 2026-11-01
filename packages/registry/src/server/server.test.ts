@@ -12,6 +12,7 @@ import {
   startHarness,
   type Harness,
 } from './fixtures/harness';
+import { DEFAULT_GATE } from './gate';
 import { startRegistryServer } from './server';
 import { ArtifactTooLargeError, artifactUrl, DEPLOY_READ_BUDGET } from './service';
 import { openSqliteStorage } from './sqlite';
@@ -210,7 +211,7 @@ describe('POST /v1/deploy', () => {
     };
     const bad = async (patch: Record<string, unknown>): Promise<number> =>
       (await h.call('POST', '/v1/deploy', { token: admin, body: { ...base, ...patch } })).status;
-    expect(await bad({ rollout: { percent: 10 } })).toBe(400);
+    expect(await bad({ rollout: { percent: 'x' } })).toBe(400);
     expect(await bad({ extra: 1 })).toBe(400);
     expect(await bad({ manifestUrl: 'https://evil.example.com/cart/1.0.0/mf-manifest.json' })).toBe(
       400,
@@ -228,7 +229,7 @@ describe('POST /v1/deploy', () => {
       token: admin,
       body: { ...base, rollout: {} },
     });
-    expect(rollout.body.error.message).toContain('rollout is not available yet');
+    expect(rollout.body.error.message).toContain('rollout.percent');
   });
 
   it('says so when artifacts are missing or unreadable', async () => {
@@ -885,6 +886,9 @@ describe('static fallback', () => {
         artifactBaseUrl: undefined,
         corsOrigins: [],
         maxBodyBytes: 1024,
+        gate: DEFAULT_GATE,
+        beaconLimit: { burst: 10, perMinute: 10 },
+        trustProxy: false,
       },
       storage: await openSqliteStorage(h.dbFile),
       fallbackHost: host,
@@ -909,6 +913,9 @@ describe('static fallback', () => {
         artifactBaseUrl: undefined,
         corsOrigins: [],
         maxBodyBytes: 1024,
+        gate: DEFAULT_GATE,
+        beaconLimit: { burst: 10, perMinute: 10 },
+        trustProxy: false,
       },
       storage: await openSqliteStorage(':memory:'),
       log: (level, message) => logs.push(`${level} ${message}`),

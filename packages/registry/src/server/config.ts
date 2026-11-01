@@ -1,3 +1,5 @@
+import { DEFAULT_GATE, type GateSettings } from './gate';
+
 export class ConfigError extends Error {
   constructor(problems: readonly string[]) {
     super(`invalid registry server settings:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
@@ -18,6 +20,12 @@ export interface ServerConfig {
   /** Origins allowed to read the index endpoint from a browser. Empty: no CORS headers at all. */
   corsOrigins: string[];
   maxBodyBytes: number;
+  /** When a rollout candidate is halted. */
+  gate: GateSettings;
+  /** Beacons allowed per client address. */
+  beaconLimit: { burst: number; perMinute: number };
+  /** Read the client address from `X-Forwarded-For`; only behind your own proxy. */
+  trustProxy: boolean;
 }
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -39,6 +47,23 @@ function integer(
   const value = Number(raw);
   if (!Number.isInteger(value) || value < min || value > max) {
     problems.push(`${name} must be a whole number from ${String(min)} to ${String(max)}`);
+    return fallback;
+  }
+  return value;
+}
+
+function decimal(
+  env: Env,
+  name: string,
+  fallback: number,
+  [min, max]: [number, number],
+  problems: string[],
+): number {
+  const raw = present(env, name);
+  if (raw === undefined) return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < min || value > max) {
+    problems.push(`${name} must be a number from ${String(min)} to ${String(max)}`);
     return fallback;
   }
   return value;
@@ -100,6 +125,22 @@ export function configFromEnv(env: Env): ServerConfig {
     .map((s) => parseUrl(s, 'MFEFLOW_REGISTRY_CORS_ORIGINS', problems)?.origin)
     .filter((s) => s !== undefined);
   const artifactBaseUrl = artifactBase(env, problems);
+  const gate: GateSettings = {
+    minLoads: integer(
+      env,
+      'MFEFLOW_REGISTRY_GATE_MIN_LOADS',
+      DEFAULT_GATE.minLoads,
+      [1, 1_000_000],
+      problems,
+    ),
+    factor: decimal(env, 'MFEFLOW_REGISTRY_GATE_FACTOR', DEFAULT_GATE.factor, [1, 100], problems),
+    floor: decimal(env, 'MFEFLOW_REGISTRY_GATE_FLOOR', DEFAULT_GATE.floor, [0, 1], problems),
+  };
+  const beaconLimit = {
+    burst: integer(env, 'MFEFLOW_REGISTRY_BEACON_BURST', 60, [1, 10_000], problems),
+    perMinute: integer(env, 'MFEFLOW_REGISTRY_BEACON_PER_MINUTE', 60, [1, 100_000], problems),
+  };
+  const trustProxy = present(env, 'MFEFLOW_REGISTRY_TRUST_PROXY') === 'true';
   if (problems.length > 0) throw new ConfigError(problems);
   return {
     port,
@@ -109,6 +150,9 @@ export function configFromEnv(env: Env): ServerConfig {
     artifactBaseUrl,
     corsOrigins,
     maxBodyBytes,
+    gate,
+    beaconLimit,
+    trustProxy,
   };
 }
 

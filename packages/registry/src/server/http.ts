@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Log } from './fallback';
+import { createRateLimiter, type RateLimiter } from './rate-limit';
 import { ApiError, ENV_NAME, type RegistryService } from './service';
 import type { RegistryStorage, TokenRecord } from './storage';
 import { allows, verifyToken, type Need } from './tokens';
@@ -12,7 +13,16 @@ export interface HandlerOptions {
   corsOrigins: readonly string[];
   maxBodyBytes: number;
   log: Log;
+  /** Beacons per client address: `burst` at once, then `perMinute`. */
+  beaconLimit?: { burst: number; perMinute: number };
+  /** Read the client address from the last `X-Forwarded-For` entry; set only behind your own proxy. */
+  trustProxy?: boolean;
+  limiter?: RateLimiter;
 }
+
+/** A beacon is a handful of small counts; anything bigger is not one. */
+export const BEACON_MAX_BYTES = 1024;
+export const DEFAULT_BEACON_LIMIT = { burst: 60, perMinute: 60 };
 
 const JSON_TYPE = 'application/json; charset=utf-8';
 
@@ -42,9 +52,13 @@ function fail(res: ServerResponse, error: ApiError, headers: Record<string, stri
   );
 }
 
-async function readJson(req: IncomingMessage, max: number): Promise<unknown> {
+async function readJson(
+  req: IncomingMessage,
+  max: number,
+  accept: RegExp = /^application\/json\s*(;|$)/i,
+): Promise<unknown> {
   const type = req.headers['content-type'] ?? '';
-  if (!/^application\/json\s*(;|$)/i.test(type))
+  if (!accept.test(type))
     throw new ApiError(415, 'unsupported_media_type', 'send the body as application/json');
   const declared = Number(req.headers['content-length'] ?? 0);
   if (declared > max) throw new ApiError(413, 'too_large', `the body is over ${String(max)} bytes`);
@@ -75,6 +89,18 @@ function peek(body: unknown, key: string): string {
   return typeof value === 'string' ? value : '';
 }
 
+function clientAddress(req: IncomingMessage, trustProxy: boolean): string {
+  if (trustProxy) {
+    const forwarded = req.headers['x-forwarded-for'];
+    const last = (Array.isArray(forwarded) ? forwarded.join(',') : (forwarded ?? ''))
+      .split(',')
+      .at(-1)
+      ?.trim();
+    if (last !== undefined && last !== '') return last;
+  }
+  return req.socket.remoteAddress ?? 'unknown';
+}
+
 type Handler = (token: TokenRecord, body: unknown) => Promise<unknown>;
 
 /** The `node:http` request listener. No framework: five POST/GET routes and a health check. */
@@ -82,6 +108,18 @@ export function createHandler(
   options: HandlerOptions,
 ): (req: IncomingMessage, res: ServerResponse) => void {
   const { service, storage, log } = options;
+  const limiter = options.limiter ?? createRateLimiter(options.beaconLimit ?? DEFAULT_BEACON_LIMIT);
+  const corsFor = (req: IncomingMessage): Record<string, string> => {
+    const origin = req.headers.origin;
+    return options.corsOrigins.length === 0
+      ? {}
+      : {
+          vary: 'Origin',
+          ...(origin !== undefined && options.corsOrigins.includes(origin)
+            ? { 'access-control-allow-origin': origin }
+            : {}),
+        };
+  };
 
   const post: Record<string, { scope: (b: unknown) => Need[]; run: Handler }> = {
     '/v1/deploy': {
@@ -98,6 +136,18 @@ export function createHandler(
     '/v1/rollback': {
       scope: (b) => [{ action: 'rollback', env: peek(b, 'env'), remote: peek(b, 'remote') }],
       run: (t, b) => service.rollback(t.id, b),
+    },
+    '/v1/rollout/step': {
+      scope: (b) => [{ action: 'rollout', env: peek(b, 'env'), remote: peek(b, 'remote') }],
+      run: (t, b) => service.rolloutStep(t.id, b),
+    },
+    '/v1/rollout/complete': {
+      scope: (b) => [{ action: 'rollout', env: peek(b, 'env'), remote: peek(b, 'remote') }],
+      run: (t, b) => service.rolloutComplete(t.id, b),
+    },
+    '/v1/rollout/abort': {
+      scope: (b) => [{ action: 'rollout', env: peek(b, 'env'), remote: peek(b, 'remote') }],
+      run: (t, b) => service.rolloutAbort(t.id, b),
     },
     '/v1/kill': {
       scope: (b) => [{ action: 'kill', env: peek(b, 'env'), remote: peek(b, 'remote') }],
@@ -141,20 +191,30 @@ export function createHandler(
       const client = url.searchParams.get('u');
       if (client !== null && !/^[\w.:-]{1,128}$/.test(client))
         throw new ApiError(400, 'bad_request', '"u" must be 1 to 128 letters, digits and . : _ -');
-      const index = await service.index(env);
+      const index = await service.index(env, client ?? undefined);
       if (index === undefined) throw new ApiError(404, 'unknown_env', `no index for ${env}`);
-      const origin = req.headers.origin;
-      const cors =
-        options.corsOrigins.length === 0
-          ? {}
-          : {
-              vary: 'Origin',
-              ...(origin !== undefined && options.corsOrigins.includes(origin)
-                ? { 'access-control-allow-origin': origin }
-                : {}),
-            };
-      send(res, 200, index, { 'cache-control': INDEX_CACHE, ...cors });
+      send(res, 200, index, { 'cache-control': INDEX_CACHE, ...corsFor(req) });
       return 200;
+    }
+
+    if (pathname === '/v1/beacon') {
+      if (method !== 'POST') return wrongMethod('POST');
+      const taken = limiter.take(clientAddress(req, options.trustProxy === true));
+      if (!taken.ok) {
+        fail(res, new ApiError(429, 'rate_limited', 'too many beacons; slow down'), {
+          'retry-after': String(taken.retryAfterSeconds),
+        });
+        return 429;
+      }
+      // sendBeacon sends strings as text/plain, which skips the CORS preflight a browser would make for JSON.
+      const body = await readJson(
+        req,
+        Math.min(options.maxBodyBytes, BEACON_MAX_BYTES),
+        /^(application\/json|text\/plain)\s*(;|$)/i,
+      );
+      await service.beacon(body);
+      send(res, 202, { ok: true }, corsFor(req));
+      return 202;
     }
 
     if (pathname === '/v1/audit') {
@@ -205,7 +265,7 @@ export function createHandler(
     const url = new URL(req.url ?? '/', 'https://registry.invalid');
     route(req, res, url)
       .then((status) => {
-        if (req.method !== 'GET')
+        if (req.method !== 'GET' && url.pathname !== '/v1/beacon')
           log('info', `${req.method ?? ''} ${url.pathname} ${String(status)}`);
       })
       .catch((error: unknown) => {
