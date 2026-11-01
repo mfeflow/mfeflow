@@ -174,7 +174,7 @@ export interface RouteBudget {
   expose: string | null;
   /** Entry plus the expose's synchronous JS, gzip KB. */
   kb: number;
-  /** mfe.json budgets.initialJsKb, or null. */
+  /** mfeflow.app.json budgets.initialJsKb, or null. */
   budgetKb: number | null;
   pass: boolean | null;
 }

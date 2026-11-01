@@ -97,7 +97,7 @@ describe('mfeflow budget', () => {
     expect(result.findings[0]?.message).toMatch(/catalog's entry is 12(\.\d)? KB/);
   });
 
-  it('takes limits from mfeflow.json and mfe.json', async () => {
+  it('takes limits from mfeflow.json and mfeflow.app.json', async () => {
     const root = await project();
     await buildShell(root, [100]);
     await buildRemote(root, 'catalog', 12, 1);
@@ -106,7 +106,7 @@ describe('mfeflow budget', () => {
     const doc = JSON.parse(await fs.readFile(file, 'utf8')) as Record<string, unknown>;
     doc.budget = { remoteKb: 15, baselineKb: 60, shellKb: 32 };
     await fs.writeFile(file, JSON.stringify(doc));
-    const mfe = path.join(root, 'apps/cart/mfe.json');
+    const mfe = path.join(root, 'apps/cart/mfeflow.app.json');
     const cart = JSON.parse(await fs.readFile(mfe, 'utf8')) as Record<string, unknown>;
     cart.budgets = { initialJsKb: 5 };
     await fs.writeFile(mfe, JSON.stringify(cart));

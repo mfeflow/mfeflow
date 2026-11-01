@@ -15,6 +15,14 @@ export {
   type ErrorCode,
   type MfeflowErrorOptions,
 } from './errors';
+export {
+  APP_FILE,
+  LEGACY_APP_FILE,
+  legacyAppFileNotice,
+  readAppFile,
+  type AppFileName,
+  type AppFileText,
+} from './app-file';
 export { hashContent } from './hash';
 export { inOrder } from './sequence';
 export { realFs, symlinkedPrefix, writeFileAtomic, type FsOps } from './fs';

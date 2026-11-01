@@ -11,12 +11,12 @@ This guide shows how to run the project checks on every pull request and how to 
 
 Four commands check a project. They read your files. Only `budget` needs a build first.
 
-| Command        | Checks                                                                                               |
-| -------------- | ---------------------------------------------------------------------------------------------------- |
-| `validate`     | `mfeflow.json`, every `mfe.json` and every registry entry against their schemas, plus route overlaps |
-| `check-compat` | Each remote's shared package ranges against the shell it runs in                                     |
-| `doctor`       | Everything above, plus ports, singleton versions, copied-file drift and env files                    |
-| `budget`       | The built JavaScript of the shell and each remote against the budget                                 |
+| Command        | Checks                                                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------------------------ |
+| `validate`     | `mfeflow.json`, every `mfeflow.app.json` and every registry entry against their schemas, plus route overlaps |
+| `check-compat` | Each remote's shared package ranges against the shell it runs in                                             |
+| `doctor`       | Everything above, plus ports, singleton versions, copied-file drift and env files                            |
+| `budget`       | The built JavaScript of the shell and each remote against the budget                                         |
 
 Run them in this order in CI: validate, check-compat, doctor, then build, then budget. Each prints one line per check, then a summary.
 
@@ -94,7 +94,7 @@ The example above sets the baseline to 85 KB and raises the remote limit to 12 K
 
 ## Per-remote limits
 
-A remote can set a stricter number in its own `mfe.json` under `budgets.initialJsKb`. The budget command checks each route's exposed module against it. See the [mfe.json reference](/reference/mfe-json).
+A remote can set a stricter number in its own `mfeflow.app.json` under `budgets.initialJsKb`. The budget command checks each route's exposed module against it. See the [mfeflow.app.json reference](/reference/mfeflow-app-json).
 
 ## If the budget fails
 

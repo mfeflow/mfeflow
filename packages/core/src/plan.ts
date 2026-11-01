@@ -164,6 +164,11 @@ export class PlanBuilder {
     return (await this.open(file)).current ?? undefined;
   }
 
+  /** Whether `file` was on disk before this plan changed anything. */
+  async existed(file: string): Promise<boolean> {
+    return (await this.open(file)).original !== null;
+  }
+
   /** Remembers `mfeflow.json` as it is now; `applyPlan` refuses to continue if it changes before the write. */
   async captureProject(): Promise<void> {
     this.state.projectBefore = (await this.read(PROJECT_FILE)) ?? null;

@@ -133,8 +133,8 @@ async function remoteBudget(
         finding(
           'budget',
           'E304',
-          `${app.name} on ${route} loads ${String(total)} KB; mfe.json budgets.initialJsKb is ${String(budgetKb)}`,
-          { app: app.name, path: `${app.rel}/mfe.json` },
+          `${app.name} on ${route} loads ${String(total)} KB; mfeflow.app.json budgets.initialJsKb is ${String(budgetKb)}`,
+          { app: app.name, path: app.appFile },
         ),
       );
     }
@@ -151,7 +151,7 @@ export async function runBudget(
   assertKnownFlags(raw, BUDGET_ARGS);
   const globals = readGlobals(args, rt.io.env, rt.io.cwd);
   const dist = typeof args.dist === 'string' && args.dist !== '' ? args.dist : 'dist';
-  const view = await inspectProject(await findProjectRoot(globals.cwd));
+  const view = await inspectProject(await findProjectRoot(globals.cwd), rt.io);
   const model = modelOf(view);
   const findings: Finding[] = [];
   const baseline = view.project.budget?.baselineKb;

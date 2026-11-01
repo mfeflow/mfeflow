@@ -86,7 +86,7 @@ You should see one line per check. A passing run ends with:
 0 error(s), 0 warning(s), 0 skipped
 ```
 
-The checks cover app folders, `mfe.json` files, ports, routes, registry entries, singleton versions, workspace package versions, remote compatibility, copied-file drift, runtime plugins and the env files. Each failure prints a code, a fix and a link to its [error page](/reference/errors).
+The checks cover app folders, `mfeflow.app.json` files, ports, routes, registry entries, singleton versions, workspace package versions, remote compatibility, copied-file drift, runtime plugins and the env files. Each failure prints a code, a fix and a link to its [error page](/reference/errors).
 
 Some problems are safe to repair. Ask the doctor to fix them:
 

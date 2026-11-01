@@ -21,7 +21,7 @@ const host = localHost('./site');
 const { index, etag } = await readIndex(host, 'prod');
 
 const plan = planDeploy({
-  remote: mfeJson, // the remote's mfe.json
+  remote: appJson, // the remote's mfeflow.app.json
   version: '1.4.2+a1b2c3d',
   manifest: mfManifest, // its built mf-manifest.json
   files, // build output: path -> bytes
@@ -38,13 +38,13 @@ await applyPlan(host, plan);
 
 A deploy that fails a gate uploads nothing. The gates, by code:
 
-| Code            | Fails when                                                                                                        |
-| --------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `schema`        | the entry, the remote or the whole index is not valid, or `mf-manifest.json` is for another remote                |
-| `route-overlap` | one of the remote's routes can match a URL that another remote's route matches                                    |
-| `compat`        | a singleton range the remote asks for is not satisfied by the version the shell provides                          |
-| `budget`        | the initial JS (gzip) is over `mfe.json` `budgets.initialJsKb`, or, without one, the entry is over the cost model |
-| `rollout`       | a `rollout` is asked for; a static host cannot split traffic by percent                                           |
+| Code            | Fails when                                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `schema`        | the entry, the remote or the whole index is not valid, or `mf-manifest.json` is for another remote                        |
+| `route-overlap` | one of the remote's routes can match a URL that another remote's route matches                                            |
+| `compat`        | a singleton range the remote asks for is not satisfied by the version the shell provides                                  |
+| `budget`        | the initial JS (gzip) is over `mfeflow.app.json` `budgets.initialJsKb`, or, without one, the entry is over the cost model |
+| `rollout`       | a `rollout` is asked for; a static host cannot split traffic by percent                                                   |
 
 Shell versions come from the shell's `mf-manifest.json` `shared` entries, then from `workspaceVersions` for anything it does not list.
 
@@ -140,7 +140,7 @@ S3 credentials for the fallback host come from `AWS_ACCESS_KEY_ID`, `AWS_SECRET_
 | `GET /v1/audit?env=`      | `read`                                        | Who did what, when, and the versions before and after. Entries carry token ids and kill reasons (free text from the caller), so treat the log as internal. |
 | `GET /healthz`            | nothing                                       | Checks the database.                                                                                                                                       |
 
-A deploy sends `env`, `remote`, `version`, `owner`, `routes` and `manifestUrl`, which must be `<base>/<name>/<version>/mf-manifest.json` under the artifact base URL (`+` in a version is `_`). Optional: `platform` and `budgets.initialJsKb`, as in `mfe.json`. The server reads the manifest and the first-load files from the artifact host to measure and check them. A version is immutable: registering the same version with a different manifest is refused. A killed remote cannot be deployed, promoted or rolled back until it is restored.
+A deploy sends `env`, `remote`, `version`, `owner`, `routes` and `manifestUrl`, which must be `<base>/<name>/<version>/mf-manifest.json` under the artifact base URL (`+` in a version is `_`). Optional: `platform` and `budgets.initialJsKb`, as in `mfeflow.app.json`. The server reads the manifest and the first-load files from the artifact host to measure and check them. A version is immutable: registering the same version with a different manifest is refused. A killed remote cannot be deployed, promoted or rolled back until it is restored.
 
 **Caching.** The index is `Cache-Control: private, max-age=5`. A CDN or shared proxy must not cache it: the next release of this server picks the response per client (`u`), and a shared cache would hand one client's answer to another. Browsers keep it for 5 seconds. The static fallback index is separate, and public for 60 seconds.
 

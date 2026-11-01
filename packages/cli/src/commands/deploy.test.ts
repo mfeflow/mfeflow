@@ -165,7 +165,7 @@ describe('deploy gates', () => {
     await buildRemote(f.root, 'catalog', '1.0.0');
     await buildRemote(f.root, 'cart', '1.0.0');
     await f.run('deploy', 'catalog', '--env', 'prod');
-    const mfe = path.join(f.root, 'apps/cart/mfe.json');
+    const mfe = path.join(f.root, 'apps/cart/mfeflow.app.json');
     const cart = await readObject(mfe);
     await fs.writeFile(mfe, JSON.stringify({ ...cart, routes: ['/catalog/*'] }));
     const before = await f.hostTree();
@@ -367,7 +367,7 @@ describe('mfeflow rollback', () => {
   it('still rolls back when the remote is over today’s budget', async () => {
     const f = await project();
     await twoVersions(f);
-    const mfe = path.join(f.root, 'apps/catalog/mfe.json');
+    const mfe = path.join(f.root, 'apps/catalog/mfeflow.app.json');
     const catalog = await readObject(mfe);
     await fs.writeFile(mfe, JSON.stringify({ ...catalog, budgets: { initialJsKb: 1 } }));
     const { code, result } = await f.run('rollback', 'catalog', '--env', 'prod');

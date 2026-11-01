@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "The shell, the remotes, the registry and the workspace around them.",
   "files": [
     {
@@ -67,9 +67,9 @@
       "template": true
     },
     {
-      "to": "mfe.json",
+      "to": "mfeflow.app.json",
       "target": "shell",
-      "from": "files/shell/mfe.json.eta",
+      "from": "files/shell/mfeflow.app.json.eta",
       "template": true
     },
     {
@@ -121,9 +121,9 @@
       "template": true
     },
     {
-      "to": "mfe.json",
+      "to": "mfeflow.app.json",
       "target": "remotes",
-      "from": "files/remote/mfe.json.eta",
+      "from": "files/remote/mfeflow.app.json.eta",
       "template": true
     },
     {
@@ -323,5 +323,6 @@
       "command": "rsbuild build",
       "target": "remotes"
     }
-  ]
+  ],
+  "migrations": [{ "from": "0.3.0", "to": "0.4.0", "module": "migrations/0.4.0-app-file.mjs" }]
 }

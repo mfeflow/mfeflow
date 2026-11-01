@@ -67,7 +67,7 @@ pnpm mfeflow doctor
 pnpm mfeflow check-compat
 ```
 
-The first reports a singleton with more than one version across apps (E301). The second reports a remote that needs a range the shell does not satisfy (E302). A remote can state its needs under `platform` in `mfe.json`.
+The first reports a singleton with more than one version across apps (E301). The second reports a remote that needs a range the shell does not satisfy (E302). A remote can state its needs under `platform` in `mfeflow.app.json`.
 
 At runtime, `@mfeflow/runtime` can read Module Federation's share scope and list packages that are missing or loaded twice. In a generated project, the shell runs this check in development only, as remotes load. It reports a duplicate or missing React in the console and in the dev panel.
 
