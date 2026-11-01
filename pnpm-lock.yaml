@@ -406,9 +406,6 @@ importers:
       '@mfeflow/analytics':
         specifier: workspace:*
         version: link:../../../packages/analytics
-      '@mfeflow/event-bus':
-        specifier: workspace:*
-        version: link:../../../packages/event-bus
       '@mfeflow/i18n':
         specifier: workspace:*
         version: link:../../../packages/i18n

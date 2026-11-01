@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./events": "./src/events/index.ts",
-    "./routes/*": "./src/routes/*.ts"
+    "./routes/*": "./src/routes/*.ts",
+    "./storage/*": "./src/storage/*.ts"
   }
 }

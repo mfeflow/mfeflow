@@ -5,11 +5,12 @@ import { cssVar } from '@mfeflow/theme';
 import { tracker } from '../analytics';
 import { loadMessages } from '../i18n/load';
 import { cartStorage, isItems } from '../store';
+import { cartItems } from '@storefront/contracts/storage/cart';
 
 export default function CartApp() {
   const { t, ready } = useMfeTranslation('cart', loadMessages);
   useTrackOnMount(tracker, 'cart_viewed');
-  const [items, setItems] = useStoredState<string[]>(cartStorage, 'items', [], isItems);
+  const [items, setItems] = useStoredState<string[]>(cartStorage, cartItems.key, [], isItems);
   if (!ready) return <p>…</p>;
   return (
     <section data-testid="cart">

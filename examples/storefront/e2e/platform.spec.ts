@@ -15,7 +15,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe('event-bus', () => {
-  test('a click in the catalog reaches the cart and the shell, which import neither', async ({
+  test('a click in the catalog fills the cart and tells the shell, which import neither', async ({
     page,
   }) => {
     await open(page);
@@ -33,7 +33,7 @@ test.describe('event-bus', () => {
     expect(await page.evaluate(() => localStorage.getItem('cart:items'))).toBe('["2","3"]');
   });
 
-  test('one click is one item, with a single subscriber however often the cart remounts', async ({
+  test('one click is one item, and the shell keeps a single listener however often the cart remounts', async ({
     page,
   }) => {
     await open(page);
@@ -54,8 +54,24 @@ test.describe('event-bus', () => {
         listeners instanceof Map ? listeners.get('cart.item-added.v1') : undefined;
       return set instanceof Set ? set.size : -1;
     });
-    // The mini cart and the shell's status, and nothing left behind by the cart page.
-    expect(count).toBe(2);
+    // The shell's status, and nothing left behind by the cart page.
+    expect(count).toBe(1);
+    expect(await page.evaluate(() => localStorage.getItem('cart:items'))).toBe('["1"]');
+  });
+
+  test('an add is kept when the cart remote is down, and shows once it is back', async ({
+    page,
+  }) => {
+    await page.route('**/mfe/cart/**', (route) => route.fulfill({ status: 404, body: 'gone' }));
+    await page.goto('/catalog');
+    await expect(page.getByTestId('catalog-heading')).toBeVisible();
+    await expect(page.locator('[data-mfeflow-fallback="cart"]').first()).toBeVisible();
+    await page.getByTestId('product-3').getByRole('button').click();
+    await expect(page.getByTestId('last-added')).toHaveText('+3');
+    expect(await page.evaluate(() => localStorage.getItem('cart:items'))).toBe('["3"]');
+    await page.unroute('**/mfe/cart/**');
+    await page.reload();
+    await expect(page.getByTestId('mini-cart')).toHaveText('1 items');
   });
 });
 
