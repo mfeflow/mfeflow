@@ -694,3 +694,16 @@ ${keys}
     expect(check?.skipped).toContain('not valid JSON');
   });
 });
+
+describe('doctor when the shell is not in the repo', () => {
+  it('tells you to run check-compat --against', async () => {
+    const root = await project();
+    await fs.rm(path.join(root, 'apps/shell'), { recursive: true });
+    const { result } = await run(root, 'doctor');
+    const messages = result.findings.filter((f) => f.check === 'compat').map((f) => f.message);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain(
+      'shell is not in this repo, run `mfeflow check-compat --against <url|file>`',
+    );
+  });
+});

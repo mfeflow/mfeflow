@@ -11,6 +11,8 @@ export interface AgainstShell {
 }
 
 export const ABSENT_SHELL_WARNING = 'shell is not in this repo, pass --against <url|file>';
+const ABSENT_UNDER_DOCTOR =
+  'shell is not in this repo, run `mfeflow check-compat --against <url|file>`';
 
 async function versionsOf(app: AppView, names: readonly string[], root: string) {
   const found = await Promise.all(
@@ -86,7 +88,10 @@ const dedupe = (findings: Finding[]): Finding[] => {
  * manifest) when given, else from the shells in this repo; with neither, the check warns
  * instead of passing.
  */
-export function compatCheck(against?: AgainstShell): Check {
+export function compatCheck(
+  against?: AgainstShell,
+  under: 'check-compat' | 'doctor' = 'check-compat',
+): Check {
   return {
     id: 'compat',
     title: "each remote's shared ranges fit the shells it runs in",
@@ -117,10 +122,17 @@ export function compatCheck(against?: AgainstShell): Check {
         }
       }
       if (missing)
-        out.push(finding('compat', 'E302', ABSENT_SHELL_WARNING, { severity: 'warning' }));
+        out.push(
+          finding(
+            'compat',
+            'E302',
+            under === 'doctor' ? ABSENT_UNDER_DOCTOR : ABSENT_SHELL_WARNING,
+            { severity: 'warning' },
+          ),
+        );
       return { findings: dedupe(out) };
     },
   };
 }
 
-export const compat: Check = compatCheck();
+export const compat: Check = compatCheck(undefined, 'doctor');

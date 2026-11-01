@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FetchLike, FetchResponse } from '@mfeflow/core';
 import { main, validateResult, type ReportResult } from '..';
@@ -294,5 +295,52 @@ describe('check-compat --json', () => {
     expect(given.checks).toMatchObject([{ id: 'compat', status: 'pass', findings: 0 }]);
     const without = (await run(root, [])).result;
     expect(Object.keys(without)).not.toContain('against');
+  });
+});
+
+describe('check-compat --against edge cases', () => {
+  it('masks credentials and tokens in the E307 message, in stderr and in --json', async () => {
+    const root = await polyrepo();
+    const url = 'https://u:p@cdn.example.com/index.json?token=abc';
+    const rt = testRuntime({ fetch: serving({}) });
+    expect(await main(['check-compat', '--against', url, '--cwd', root], rt)).toBe(5);
+    const down: FetchLike = () => Promise.reject(new Error('connect ECONNREFUSED'));
+    for (const fetch of [serving({}), down]) {
+      const { err } = await run(root, ['--against', url], fetch);
+      expect(err).toContain('MFEFLOW_E307');
+      expect(err).not.toContain('abc');
+      expect(err).not.toContain('p@');
+    }
+    const plain = rt.io.err.join('') + rt.io.out.join('');
+    expect(plain).not.toContain('abc');
+    expect(plain).not.toContain('p@');
+  });
+
+  it('carries the index query to the shell manifest beside it', async () => {
+    const root = await polyrepo();
+    const index = 'https://cdn.example.com/envs/prod/index.json?sig=1';
+    const shell = 'https://cdn.example.com/envs/prod/shell/mf-manifest.json?sig=1';
+    const fetch = serving({
+      [index]: answer(JSON.stringify({ remotes: [] })),
+      [shell]: answer(manifest('18.3.1')),
+    });
+    const { code } = await run(root, ['--against', index], fetch);
+    expect(code).toBe(0);
+    expect(fetch.asked).toEqual([index, shell]);
+  });
+
+  it('reads a file: URL as a file path', async () => {
+    const root = await polyrepo();
+    const file = await write(root, 'shell.json', manifest('19.1.0'));
+    const { code, result } = await run(root, ['--against', pathToFileURL(file).href]);
+    expect(code).toBe(5);
+    expect(result.findings[0]?.message).toContain('the shell provides 19.1.0');
+  });
+
+  it('resolves a relative path with the platform separator from --cwd', async () => {
+    const root = await polyrepo();
+    await write(root, path.join('sub', 'shell.json'), manifest('18.3.1'));
+    const { code } = await run(root, ['--against', path.join('sub', 'shell.json')]);
+    expect(code).toBe(0);
   });
 });
