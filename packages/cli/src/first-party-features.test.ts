@@ -933,6 +933,8 @@ describe('registry-server', () => {
     const workflow = await read('.github/workflows/deploy-server.yml');
     expect(workflow).toContain('MFEFLOW_REGISTRY_TOKEN: ${{ secrets.MFEFLOW_REGISTRY_TOKEN }}');
     expect(workflow).toContain('permissions: {}');
+    expect(workflow).toContain('set -euo pipefail');
+    expect(workflow).toContain('lists no remotes to deploy');
     expect(workflow).toMatch(/uses: [\w./-]+@[0-9a-f]{40}/);
     expect(workflow).not.toMatch(/--token/);
   });

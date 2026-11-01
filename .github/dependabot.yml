@@ -19,3 +19,9 @@ updates:
         patterns: ['*']
     cooldown:
       default-days: 7
+  - package-ecosystem: docker
+    directory: /packages/registry/docker
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7

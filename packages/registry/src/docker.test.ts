@@ -18,7 +18,9 @@ describe('the image recipe', () => {
     expect(dockerfile).toMatch(/^VOLUME \["\/data"\]$/m);
     expect(dockerfile).toMatch(/^HEALTHCHECK /m);
     expect(dockerfile).toContain('/healthz');
-    expect(dockerfile).toContain('ARG NODE_IMAGE=node:22-slim');
+    expect(dockerfile).toMatch(/^ARG NODE_IMAGE=node:22-slim@sha256:[0-9a-f]{64}$/m);
+    expect(dockerfile).toContain('npm ci --omit=dev --ignore-scripts');
+    expect(dockerfile).not.toContain('--no-package-lock');
     expect(dockerfile).toMatch(/MFEFLOW_REGISTRY_DB=\/data\//);
   });
 
@@ -26,6 +28,8 @@ describe('the image recipe', () => {
     expect(read(path.join(pkg, 'docker/.dockerignore')).trim().split('\n')).toEqual([
       '*',
       '!*.tgz',
+      '!package.json',
+      '!package-lock.json',
     ]);
   });
 
@@ -38,6 +42,25 @@ describe('the image recipe', () => {
     expect(compose).toMatch(/stop_grace_period: 15s/);
   });
 });
+
+/** The text of every `run:` step, whole blocks included: a `run: |` runs to the next line that is indented no deeper. */
+function runScripts(workflow: string): string[] {
+  const lines = workflow.split('\n');
+  const scripts: string[] = [];
+  lines.forEach((line, i) => {
+    const match = /^(\s*)(?:- )?run:\s*(.*)$/.exec(line);
+    if (match === null) return;
+    const indent = (match[1] ?? '').length;
+    const body = [match[2] ?? ''];
+    for (const next of lines.slice(i + 1)) {
+      const depth = next.length - next.trimStart().length;
+      if (next.trim() !== '' && depth <= indent) break;
+      body.push(next);
+    }
+    scripts.push(body.join('\n'));
+  });
+  return scripts;
+}
 
 describe('the image job in the release workflow', () => {
   const jobs = release.split(/^ {2}(?=[a-z][a-z-]*:\n)/m).filter((j) => /^[a-z]/.test(j));
@@ -55,11 +78,18 @@ describe('the image job in the release workflow', () => {
     expect(release).toMatch(/^permissions: \{\}$/m);
   });
 
-  it('pins every action by commit SHA, and keeps ${{ }} out of run scripts', () => {
+  it('pins every action by commit SHA, and keeps ${{ }} out of every run script', () => {
     for (const line of release.split('\n').filter((l) => l.includes('uses:')))
       expect(line, line).toMatch(/uses: [\w./-]+@[0-9a-f]{40}( #.*)?$/);
-    for (const block of release.split(/^\s+run: /m).slice(1))
-      expect(block.split('\n')[0] ?? '').not.toContain('${{');
+    for (const script of runScripts(release)) expect(script).not.toContain('${{');
+  });
+
+  it('waits for the package, locks it, and builds with provenance and an SBOM', () => {
+    expect(image).toMatch(/for attempt in 1 2 3 4 5/);
+    expect(image).toContain('npm view');
+    expect(image).toContain('--package-lock-only');
+    expect(image).toMatch(/provenance: true/);
+    expect(image).toMatch(/sbom: true/);
   });
 
   it('builds only when the plan says @mfeflow/registry is being released', () => {
@@ -68,9 +98,13 @@ describe('the image job in the release workflow', () => {
   });
 });
 
-/** Strips GIT_* so a hook's variables never reach a child, as the other tests do. */
+/** Strips GIT_*, AWS_* and the registry token, so nothing a hook or a shell holds reaches a child. */
 const cleanEnv = (): NodeJS.ProcessEnv =>
-  Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
+  Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([k]) => !k.startsWith('GIT_') && !k.startsWith('AWS_') && k !== 'MFEFLOW_REGISTRY_TOKEN',
+    ),
+  );
 
 function run(cmd: string, args: string[], cwd: string): SpawnSyncReturns<string> {
   return spawnSync(cmd, args, { cwd, env: cleanEnv(), encoding: 'utf8' });
@@ -151,4 +185,11 @@ describe.skipIf(!dockerUp)('the image, built and run with Docker', () => {
       ).toBe('0');
     },
   );
+});
+
+describe('the workflow reader', () => {
+  it('reads a whole run block and stops where the indent returns', () => {
+    const text = ['steps:', '  - run: |', '      a', '      b ${{ x }}', '  - run: c'].join('\n');
+    expect(runScripts(text)).toEqual(['|\n      a\n      b ${{ x }}', 'c']);
+  });
 });

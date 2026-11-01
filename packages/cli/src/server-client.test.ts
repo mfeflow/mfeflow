@@ -33,6 +33,9 @@ describe('normalizeServerUrl', () => {
   it.each([
     'http://registry.example.com',
     'http://10.0.0.5:8787',
+    'http://localhost.evil.com',
+    'http://127.0.0.1.nip.io:8787',
+    'http://[::ffff:7f00:1]:8787',
     'https://u:p@registry.example.com',
     'https://registry.example.com/?token=x',
     'https://registry.example.com/#x',

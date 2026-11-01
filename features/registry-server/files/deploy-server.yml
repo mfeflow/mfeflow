@@ -50,8 +50,13 @@ jobs:
           MFEFLOW_S3_ENDPOINT: ${{ vars.MFEFLOW_S3_ENDPOINT }}
           MFEFLOW_S3_REGION: ${{ vars.MFEFLOW_S3_REGION }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
+          # With -e, a mfeflow.json that cannot be read or parsed stops the step here.
           remotes=$(node -p "Object.entries(JSON.parse(require('fs').readFileSync('mfeflow.json', 'utf8')).apps).filter(([, app]) => app.kind === 'remote').map(([name]) => name).join(' ')")
+          if [ -z "$remotes" ]; then
+            echo "::error::mfeflow.json lists no remotes to deploy"
+            exit 1
+          fi
           failed=""
           for remote in $remotes; do
             if ! pnpm mfeflow deploy "$remote" --env "$DEPLOY_ENV" --yes; then
