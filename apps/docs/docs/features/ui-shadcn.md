@@ -50,6 +50,5 @@ the remote has no Radix dependency until you want one.
 
 ## Cost
 
-`class-variance-authority`, `clsx` and `tailwind-merge` are about 4 KB gzip together, and only land in the remote's
-bundle when something imports them. The Button is not used by anything yet, so a remote that does not use it pays
+`class-variance-authority`, `clsx` and `tailwind-merge` only land in the remote's bundle when something imports them. The Button is not used by anything yet, so a remote that does not use it pays
 nothing. Mind the 10 KB budget when you do.

@@ -45,7 +45,7 @@ retry: (count, error) => !(isHttpError(error) && error.status < 500) && count < 
 
 ## Cost
 
-The shell pays for the library once (about 13 KB gzip); a remote adds only its wrapper. If the first load is tight,
+The shell pays for the library once; a remote adds only its wrapper (a few hundred bytes). If the first load is tight,
 load the provider with the first screen that needs data instead of at boot.
 
 ## Standalone remotes
