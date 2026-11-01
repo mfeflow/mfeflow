@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { screen } from '@testing-library/react';
 import { getI18n } from '@mfeflow/i18n';
 import { renderWithPlatform, resetPlatform } from '@mfeflow/testing';
@@ -26,5 +27,17 @@ describe('the <%= it.app.name %> messages', () => {
     await screen.findByText('Hello from <%= it.app.name %>');
     await getI18n().changeLanguage('ar');
     expect(await screen.findByText('مرحبا من <%= it.app.name %>')).toBeDefined();
+  });
+
+  it('starts one instance when StrictMode runs the effect twice', async () => {
+    renderWithPlatform(
+      <StrictMode>
+        <I18n>
+          <p>content</p>
+        </I18n>
+      </StrictMode>,
+    );
+    expect(await screen.findByText('Hello from <%= it.app.name %>')).toBeDefined();
+    expect(screen.getAllByText('Hello from <%= it.app.name %>')).toHaveLength(1);
   });
 });

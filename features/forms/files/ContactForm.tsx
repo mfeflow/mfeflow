@@ -8,7 +8,7 @@ interface ContactFormProps {
 }
 
 /**
- * An example to copy from. Load it where you need it with `lazy(() => import('./forms/ContactForm'))`,
+ * An example to copy from. Load it where you need it with `lazy(() => import('./forms/ContactForm').then((m) => ({ default: m.ContactForm })))`,
  * so the form library and the schema stay out of the remote's first load.
  */
 export function ContactForm({ onSubmit }: ContactFormProps) {

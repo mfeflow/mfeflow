@@ -1,12 +1,9 @@
 import { useLanguage, useMfeTranslation } from '@mfeflow/i18n/react';
-import { shellMessages } from './config';
-
-// The shell's messages are bundled, so nothing is loaded here.
-const noLoad = () => Promise.resolve(shellMessages);
+import { loadShellMessages } from './config';
 
 /** Your component: move it into the header or restyle it. Changing the language also sets <html lang dir>. */
 export function LanguageSwitcher() {
-  const { t } = useMfeTranslation('shell', noLoad);
+  const { t } = useMfeTranslation('shell', loadShellMessages);
   const { language, languages, setLanguage } = useLanguage();
   return (
     <label

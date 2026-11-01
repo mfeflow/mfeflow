@@ -24,6 +24,7 @@ export function resetPlatform(): void {
   if (typeof localStorage !== 'undefined') localStorage.clear();
   if (typeof sessionStorage !== 'undefined') sessionStorage.clear();
   Reflect.deleteProperty(globalThis, 'mfeflowI18n');
+  Reflect.deleteProperty(globalThis, 'mfeflowI18nPending');
   Reflect.deleteProperty(globalThis, 'mfeflowReports');
   if (typeof document !== 'undefined') {
     const root = document.documentElement;

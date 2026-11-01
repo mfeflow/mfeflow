@@ -110,3 +110,14 @@ describe('createClarityProvider', () => {
     expect(scripts()[0]?.src).toBe('http://localhost:9000/tag/k3x9m2abcd');
   });
 });
+
+describe('the script address', () => {
+  it('keeps the last path segment of a script URL with no trailing slash', () => {
+    createClarityProvider({ projectId: 'k3x9m2abcd', scriptUrl: 'http://localhost:9000/tag' }).init(
+      {
+        analytics_storage: 'granted',
+      },
+    );
+    expect(scripts()[0]?.src).toBe('http://localhost:9000/tag/k3x9m2abcd');
+  });
+});

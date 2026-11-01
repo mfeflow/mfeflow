@@ -62,7 +62,8 @@ export function createClarityProvider(options: ClarityOptions): AnalyticsProvide
     const script = document.createElement('script');
     script.async = true;
     script.setAttribute(CLARITY_SCRIPT_ATTRIBUTE, projectId);
-    script.src = new URL(projectId, options.scriptUrl ?? CLARITY_SCRIPT_URL).href;
+    const base = options.scriptUrl ?? CLARITY_SCRIPT_URL;
+    script.src = new URL(projectId, base.endsWith('/') ? base : `${base}/`).href;
     document.head.append(script);
   };
 
