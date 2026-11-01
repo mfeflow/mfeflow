@@ -390,6 +390,14 @@ describe('mfeflow.json', () => {
     ]);
   });
 
+  it('checks the hashes of kept files', () => {
+    const hash = `sha256-${'b'.repeat(64)}`;
+    expect(validateMfeflowProject({ ...project, kept: { 'env.ts': hash } })).toEqual([]);
+    expect(
+      paths(validateMfeflowProject({ ...project, kept: { '../env.ts': hash, 'a.ts': 'nope' } })),
+    ).toEqual(['kept.../env.ts', 'kept.a.ts']);
+  });
+
   it('checks the local checkout path', () => {
     const withLocal = (local: unknown) => ({ ...project, local });
     for (const ok of [

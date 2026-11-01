@@ -13,11 +13,14 @@ describe('exit codes', () => {
     expect(code('E201')).toBe(EXIT.feature);
     expect(code('E213')).toBe(EXIT.feature);
     expect(code('E401')).toBe(EXIT.registry);
+    expect(code('E601')).toBe(8);
+    expect(code('E604')).toBe(8);
   });
 
   it('maps a finding code the same way as an error', () => {
     expect(exitCodeOfCode('MFEFLOW_E114')).toBe(EXIT.project);
     expect(exitCodeOfCode('MFEFLOW_E301')).toBe(EXIT.build);
+    expect(exitCodeOfCode('MFEFLOW_E501')).toBe(EXIT.deploy);
     expect(exitCodeOfCode('MFEFLOW_E107')).toBe(EXIT.usage);
     expect(exitCodeOfCode('MFEFLOW_E999')).toBe(EXIT.unexpected);
     expect(exitCodeOfCode('UNEXPECTED')).toBe(EXIT.unexpected);
@@ -33,6 +36,7 @@ describe('exit codes', () => {
       build: 5,
       registry: 6,
       deploy: 7,
+      upgrade: 8,
       cancelled: 130,
     });
   });

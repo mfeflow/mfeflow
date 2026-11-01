@@ -225,9 +225,9 @@ describe('schemaKeys', () => {
 
   it('lists server keys with whether a missing value is accepted', () => {
     expect(schemaKeys(env, 'env.ts', 'server')).toEqual([
-      { name: 'API_ORIGIN', optional: false },
-      { name: 'NODE_ENV', optional: true },
-      { name: 'QUOTED-KEY', optional: true },
+      expect.objectContaining({ name: 'API_ORIGIN', optional: false }),
+      expect.objectContaining({ name: 'NODE_ENV', optional: true }),
+      expect.objectContaining({ name: 'QUOTED-KEY', optional: true }),
     ]);
   });
 
@@ -241,12 +241,12 @@ describe('schemaKeys', () => {
       expect(
         schemaKeys(`export const runtimeConfigSchema = ${init};`, 'schema.ts', 'runtime'),
       ).toEqual([
-        { name: 'a', optional: false },
-        { name: 'b', optional: true },
+        expect.objectContaining({ name: 'a', optional: false }),
+        expect.objectContaining({ name: 'b', optional: true }),
       ]);
     }
     expect(schemaKeys('export const cfg = { a: 1 };', 'schema.ts', 'runtime', 'cfg')).toEqual([
-      { name: 'a', optional: false },
+      expect.objectContaining({ name: 'a', optional: false }),
     ]);
   });
 
@@ -287,17 +287,26 @@ describe('schemaKeys', () => {
   it("reads an arktype 'key?' as an optional key named without the question mark", () => {
     const source = `export const runtimeConfigSchema = type({ a: 'string', 'b?': 'string', "c?": 'number', d: 'string | undefined', 'e-f?': 'string' });`;
     expect(schemaKeys(source, 'schema.ts', 'runtime')).toEqual([
-      { name: 'a', optional: false },
-      { name: 'b', optional: true },
-      { name: 'c', optional: true },
-      { name: 'd', optional: false },
-      { name: 'e-f', optional: true },
+      expect.objectContaining({ name: 'a', optional: false }),
+      expect.objectContaining({ name: 'b', optional: true }),
+      expect.objectContaining({ name: 'c', optional: true }),
+      expect.objectContaining({ name: 'd', optional: false }),
+      expect.objectContaining({ name: 'e-f', optional: true }),
     ]);
   });
 
   it("does not add an arktype key that exists as 'key?'", () => {
     const source = `export const runtimeConfigSchema = type({\n  'GTM_ID?': 'string',\n});\n`;
     expect(run(source, 'schema.ts', { schema: "'string'" })).toBe(source);
+  });
+
+  it('reads the validator as written', () => {
+    const source =
+      'export const env = createEnv({ server: { A: z.string().min(1), B: z.url() } });';
+    expect(schemaKeys(source, 'env.ts', 'server')?.map((k) => k.schema)).toEqual([
+      'z.string().min(1)',
+      'z.url()',
+    ]);
   });
 
   it('returns undefined when the file has no such object', () => {

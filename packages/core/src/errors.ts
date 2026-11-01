@@ -263,6 +263,10 @@ export const ERROR_CATALOGUE = {
     title: 'A feature migration could not be loaded or failed',
     fix: 'Nothing was written. Update mfeflow to a build that ships the migration, or report the feature and versions named above.',
   },
+  E604: {
+    title: 'Files you changed need a decision',
+    fix: 'Nothing was written. Run `mfeflow upgrade --dry-run` to see each diff, then pass --accept <path> to take the new version of a file, --keep <path> to keep yours, or `all` for every file.',
+  },
 } as const satisfies Record<string, ErrorInfo>;
 
 export type ErrorCode = keyof typeof ERROR_CATALOGUE;

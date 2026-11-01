@@ -18,6 +18,8 @@ export type {
   RegistryStatus,
   ReportResult,
   StatusResult,
+  UpgradeFileReport,
+  UpgradeResult,
 } from './output';
 export { realRuntime, type Runtime } from './runtime';
 export type { Io } from './io';
