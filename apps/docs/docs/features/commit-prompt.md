@@ -26,7 +26,8 @@ key you set yourself and is off unless you ask for it with `pnpm commit ai`.
 
 `git-hooks` is not required. When it is installed, its `commit-msg` hook runs commitlint on the
 message `pnpm commit` produced. The types in `cz.config.js` are the ones `@commitlint/config-conventional` accepts and
-the header limit is its 100 characters, so a message from the prompt passes. A message written by hand still goes through
+the header limit is its 100 characters, and the subject is lowercased (the conventional config rejects a capitalised one),
+so a message from the prompt passes. A message written by hand still goes through
 the same check.
 
 The prompt does not install a `prepare-commit-msg` hook, so plain `git commit` keeps working as it did, with

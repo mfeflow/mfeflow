@@ -214,6 +214,21 @@ describe('analytics-clarity', () => {
   });
 });
 
+describe('theming', () => {
+  it('puts the stored-theme script first in the shell head, through the config the shell already has', async () => {
+    expect(await add('theming')).toBe(0);
+    expect(await read('apps/shell/rsbuild.config.ts')).toContain(
+      "import './src/theme/head-script';",
+    );
+    expect(await read('apps/shell/src/theme/head-script.ts')).toContain(
+      "registerHeadScript('theme'",
+    );
+    expect(await read('apps/shell/src/bootstrap.tsx')).toContain('applyStoredTheme');
+    const remote = await read('apps/cart/rsbuild.config.ts');
+    expect(remote).not.toContain('head-script');
+  });
+});
+
 describe('commit-prompt', () => {
   it('wires pnpm commit to czg and offers only the types commitlint accepts', async () => {
     expect(await add('commit-prompt')).toBe(0);
@@ -222,6 +237,7 @@ describe('commit-prompt', () => {
     expect(root.devDependencies).toHaveProperty('czg');
     const config = await read('cz.config.js');
     expect(config).toContain('useEmoji: false');
+    expect(config).toContain('upperCaseSubject: false');
     for (const type of ['feat', 'fix', 'docs', 'refactor', 'chore', 'revert']) {
       expect(config).toContain(`value: '${type}'`);
     }

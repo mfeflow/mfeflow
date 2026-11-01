@@ -110,7 +110,7 @@ describe('@mfeflow/oxlint-config', () => {
     );
     fs.writeFileSync(
       path.join(dir, 'x.ts'),
-      "import './env';\nimport './styles.css';\nimport './polyfill';\nexport {};\n",
+      "import './env';\nimport './styles.css';\nimport './polyfill';\nimport './src/theme/head-script';\nexport {};\n",
     );
     const r = spawnSync(
       process.execPath,

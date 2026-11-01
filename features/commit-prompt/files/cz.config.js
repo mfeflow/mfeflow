@@ -2,6 +2,8 @@
 // The types are the ones commitlint's conventional config accepts, so the git-hooks check passes.
 export default {
   useEmoji: false,
+  // commitlint's conventional config rejects a capitalised subject, so the prompt lowercases it.
+  upperCaseSubject: false,
   allowCustomScopes: true,
   allowEmptyScopes: true,
   allowBreakingChanges: ['feat', 'fix'],

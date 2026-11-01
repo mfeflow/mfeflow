@@ -72,3 +72,19 @@ test('the language reaches every remote, flips the page direction and is remembe
   for (const name of remotes) await expect(page.getByTestId(`${name}-hello`)).toHaveText(`مرحبا من ${name}`);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 });
+
+test('a stored dark theme is on <html> before any JavaScript has run', async ({ browser }) => {
+  const context = await browser.newContext({ colorScheme: 'light' });
+  await context.addInitScript(() => {
+    localStorage.setItem('shell:theme', JSON.stringify('dark'));
+  });
+  const page = await context.newPage();
+  await page.route('**/*.js', (route) => route.abort());
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  const background = await page.evaluate(() =>
+    document.documentElement.style.getPropertyValue('--mf-color-bg'),
+  );
+  expect(background).not.toBe('');
+  await context.close();
+});
