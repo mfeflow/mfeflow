@@ -3,6 +3,7 @@ import { redactUrlsIn } from '@mfeflow/contracts';
 import { isMfeflowError, MfeflowError } from '@mfeflow/core';
 import { defineCommand, runCommand, type CommandDef } from 'citty';
 import { ADD_ARGS, runAdd } from './commands/add';
+import { ADOPT_ARGS, runAdopt } from './commands/adopt';
 import {
   COMPAT_ARGS,
   DOCTOR_ARGS,
@@ -66,6 +67,20 @@ export const COMMANDS: readonly Command[] = [
       'mfeflow init my-app --yes --local ~/code/mfeflow   # link a local checkout',
     ],
     run: runInit,
+  },
+  {
+    name: 'adopt',
+    summary:
+      'set up mfeflow in an existing Module Federation project, without touching its build config',
+    usage: 'mfeflow adopt [options]',
+    args: ADOPT_ARGS,
+    examples: [
+      'mfeflow adopt --dry-run          # print what would be written, change nothing',
+      'mfeflow adopt',
+      'mfeflow adopt --yes --no-install',
+      'mfeflow adopt --json --dry-run',
+    ],
+    run: runAdopt,
   },
   {
     name: 'add',

@@ -13,28 +13,29 @@ Run the command with `--help` for the options and examples of one command.
 
 ## Commands
 
-| Command                                          | Does                                                                             |
-| ------------------------------------------------ | -------------------------------------------------------------------------------- |
-| `init [dir]`                                     | Create a project: a shell and remotes, in one repo or one repo per team          |
-| `add remote <name>`                              | Add a remote, its registry entries and a shell route                             |
-| `add shell <name>`                               | Add a shell that routes to every remote                                          |
-| `add team-repo <name>`                           | In a polyrepo shell repo: add a remote in a new repo next to the others          |
-| `add <feature...>`                               | Add features, or `@namespace/feature` from a registry                            |
-| `add env-key <KEY>`                              | Add a typed env key                                                              |
-| `upgrade`                                        | Move the project to the version of mfeflow you run, keeping your edits           |
-| `features [search]`                              | List and search features from mfeflow and your registries                        |
-| `registry add`, `list`, `remove`, `build`        | Configure or build third-party registries                                        |
-| `doctor`                                         | Check singletons, compatibility, config and drift                                |
-| `validate`                                       | Check `mfeflow.json`, every `mfeflow.app.json` and every registry entry          |
-| `check-compat`                                   | Check each remote's shared ranges against its shells                             |
-| `budget`                                         | Measure built JavaScript against the cost model                                  |
-| `dev`                                            | Run the shell and every remote with a dev registry                               |
-| `deploy <remote>`                                | Upload a remote's build to a static registry host and point an environment at it |
-| `promote <remote>`                               | Point one environment at the version another serves; no upload                   |
-| `rollback <remote>`                              | Point an environment back at an earlier version; no rebuild                      |
-| `status`                                         | What each environment serves, the version before it, and drift                   |
-| `rollout step\|complete\|abort\|status <remote>` | Move or read a percentage rollout (registry server only)                         |
-| `kill <remote>`, `restore <remote>`              | Take a remote out of the served index, or put it back (registry server only)     |
+| Command                                          | Does                                                                              |
+| ------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `init [dir]`                                     | Create a project: a shell and remotes, in one repo or one repo per team           |
+| `adopt`                                          | Set up mfeflow in an existing Module Federation project; never edits build config |
+| `add remote <name>`                              | Add a remote, its registry entries and a shell route                              |
+| `add shell <name>`                               | Add a shell that routes to every remote                                           |
+| `add team-repo <name>`                           | In a polyrepo shell repo: add a remote in a new repo next to the others           |
+| `add <feature...>`                               | Add features, or `@namespace/feature` from a registry                             |
+| `add env-key <KEY>`                              | Add a typed env key                                                               |
+| `upgrade`                                        | Move the project to the version of mfeflow you run, keeping your edits            |
+| `features [search]`                              | List and search features from mfeflow and your registries                         |
+| `registry add`, `list`, `remove`, `build`        | Configure or build third-party registries                                         |
+| `doctor`                                         | Check singletons, compatibility, config and drift                                 |
+| `validate`                                       | Check `mfeflow.json`, every `mfeflow.app.json` and every registry entry           |
+| `check-compat`                                   | Check each remote's shared ranges against its shells                              |
+| `budget`                                         | Measure built JavaScript against the cost model                                   |
+| `dev`                                            | Run the shell and every remote with a dev registry                                |
+| `deploy <remote>`                                | Upload a remote's build to a static registry host and point an environment at it  |
+| `promote <remote>`                               | Point one environment at the version another serves; no upload                    |
+| `rollback <remote>`                              | Point an environment back at an earlier version; no rebuild                       |
+| `status`                                         | What each environment serves, the version before it, and drift                    |
+| `rollout step\|complete\|abort\|status <remote>` | Move or read a percentage rollout (registry server only)                          |
+| `kill <remote>`, `restore <remote>`              | Take a remote out of the served index, or put it back (registry server only)      |
 
 This release has no command to remove a feature.
 
@@ -85,6 +86,28 @@ With `--topology polyrepo`, `dir` is a folder that holds one git repo per `platf
 ```bash
 mfeflow init my-org --topology polyrepo --remotes catalog,cart
 ```
+
+## adopt
+
+Sets up mfeflow in a project that already uses Module Federation. The tutorial is in [Bring an existing Module Federation app](/guide/adopt).
+
+```bash
+mfeflow adopt [--dry-run] [--json] [--yes] [--no-install]
+```
+
+It reads the build config as source text and writes `mfeflow.json`, one `mfeflow.app.json` per app, `registry/envs/<env>/<remote>.json` for dev, staging and prod, and adds `@mfeflow/runtime` to each shell's `package.json`. It never edits a build config file. It prints a line to paste into your shared list instead.
+
+| Flag        | Meaning                                                       |
+| ----------- | ------------------------------------------------------------- |
+| `--dry-run` | Print the summary and every diff, write nothing               |
+| `--yes`     | Write without asking. Required when there is no terminal      |
+| `--json`    | Print one JSON document. Needs `--yes` unless it is a dry run |
+
+In a terminal the command asks once before it writes. Without a terminal, and without `--yes` or `--dry-run`, it exits with code 2 and writes nothing. The files are written all or nothing.
+
+If `mfeflow.json` already exists the command stops with E123. A folder with no shell stops with E124. Parts of the config that could not be read, or have no home in mfeflow, are printed as `not carried over:` with a reason. They do not change the exit code: a partial adoption exits 0 and the plan carries warnings.
+
+`--json` prints `{ ok, command: "adopt", dryRun, root, scope, apps[], notAdopted[] (dir, file, field, reason), buildConfig[], snippet, next, plan, written, installed, diff }`.
 
 ## add
 
@@ -333,6 +356,7 @@ The success documents have these shapes. Each has `ok` and `command`.
 | Command                              | Main fields                                                                                                           |
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
 | `init`                               | `dryRun`, `root`, `plan`, `written`, `installed`, `scope`, `apps`, `next`, `diff` on a dry run                        |
+| `adopt`                              | The same as `init`, plus `notAdopted[]`, `buildConfig[]` and `snippet`                                                |
 | `add`                                | The same as `init`, plus `kind`, `added` and `skipped`                                                                |
 | `features`                           | `search`, `features[]` (`source`, `name`, `version`, `description`, `always`, `default`, `installed`), `registries[]` |
 | `registry`                           | `action`, `dryRun`, `root`, `changed`, `registries[]`, `build`                                                        |

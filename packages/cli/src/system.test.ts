@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createSystem, isolatedEnv, run, type Run } from './system';
+import { gitRunner } from './testing';
 
 const quiet = { stderr: () => undefined };
 
@@ -157,27 +158,10 @@ describe('isolatedEnv', () => {
 });
 
 describe('initRepo', () => {
-  const cleanRunner: Run = (command, args, options) => {
-    const env = Object.fromEntries(
-      Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')),
-    );
-    try {
-      const output = execFileSync(command, [...args], {
-        cwd: options.cwd,
-        env,
-        encoding: 'utf8',
-        stdio: 'pipe',
-      });
-      return Promise.resolve({ code: 0, output });
-    } catch {
-      return Promise.resolve({ code: 1, output: '' });
-    }
-  };
-
   it('makes a repo of its own inside a folder that is already inside another work tree', async () => {
     const outer = await fs.mkdtemp(path.join(os.tmpdir(), 'mfeflow-outer-'));
     try {
-      const system = createSystem(quiet, cleanRunner);
+      const system = createSystem(quiet, gitRunner);
       expect(await system.gitInit(outer)).toBe(true);
       const inner = path.join(outer, 'inner');
       await fs.mkdir(inner);

@@ -75,6 +75,11 @@ export { RUNTIME_CONFIG_FILE, runtimeConfigFiles } from './runtime-config';
 export { applyTransform, dotenvKeys, schemaKeys, type SchemaKey } from './transforms';
 export {
   detectFederation,
+  planAdoption,
+  type AdoptAppFile,
+  type AdoptInput,
+  type AdoptPlan,
+  type AdoptRemote,
   type BuildTool,
   type DetectedApp,
   type DetectedRemote,

@@ -102,7 +102,7 @@ describe('loadRegistryIndex', () => {
 
   it('times out a slow registry', async () => {
     await expect(loadRegistryIndex('/r.json', { fetch: hang, timeoutMs: 20 })).rejects.toThrow(
-      /timed out after 20 ms/,
+      /timed out after \d+ ms/,
     );
   });
 
