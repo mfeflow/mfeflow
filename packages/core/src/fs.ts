@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { hasErrno, MfeflowError, messageOf } from './errors';
+import { resolveInRoot } from './paths';
 
 /** The file system calls the engine makes, so tests can make one of them fail. */
 export interface FsOps {
@@ -71,4 +72,24 @@ export async function writeFileAtomic(ops: FsOps, file: string, content: string)
     await ops.rm(temp).catch(() => undefined);
     throw new MfeflowError('E106', `${file}: ${messageOf(error)}`, { cause: error });
   }
+}
+
+/**
+ * The first part of a project-relative path, from the root down, that is itself a symlink:
+ * a folder on the way or the file. Undefined when none is. The root itself is not looked at.
+ */
+export async function symlinkedPrefix(
+  ops: FsOps,
+  root: string,
+  relative: string,
+): Promise<string | undefined> {
+  const parts = relative.split('/');
+  const prefixes = parts.map((_, i) => parts.slice(0, i + 1).join('/'));
+  const linked = await Promise.all(
+    prefixes.map(async (prefix) => ({
+      prefix,
+      link: await ops.isSymlink(resolveInRoot(root, prefix)),
+    })),
+  );
+  return linked.find((entry) => entry.link)?.prefix;
 }

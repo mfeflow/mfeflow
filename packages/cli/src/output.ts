@@ -53,8 +53,10 @@ export interface UpgradeFileReport {
   reason: 'edited' | 'untracked' | 'edited-by-cli' | 'skipped-feature' | 'symlink';
   /** `accept`: written with the new version. `keep`: left, and remembered. `undecided`: left, and the run fails without a person to ask. */
   decision: 'accept' | 'keep' | 'undecided';
-  /** Keys in your file that the new version lacks; accepting drops them. */
+  /** Keys in your file that the new version lacks or has with another value; accepting drops them. */
   lostKeys: string[];
+  /** The part of `lostKeys` that the new version has with another value. */
+  changedValues: string[];
   /** Unified diff from your file to the new version. */
   diff: string;
 }
@@ -73,6 +75,8 @@ export interface UpgradeResult extends WriteReport {
   /** package.json, pnpm-workspace.yaml and turbo.json, edited in place. */
   edited: string[];
   diverged: UpgradeFileReport[];
+  /** Registry features by name: `verified` against the recorded hash, `first-seen` when none was recorded, or `accepted-changed`. */
+  integrity: Record<string, 'verified' | 'first-seen' | 'accepted-changed'>;
   /** Generated files you deleted. Not brought back. */
   missing: string[];
   /** Files the new version no longer generates. Left in place. */
@@ -567,7 +571,16 @@ export function validateResult(value: unknown): Issue[] {
           c.add(`${p}decision`, 'must be accept, keep or undecided');
         }
         c.texts(f, 'lostKeys', p);
+        c.texts(f, 'changedValues', p);
       });
+      if (!isObj(value.integrity)) c.add('integrity', 'must be an object');
+      else {
+        for (const [name, state] of Object.entries(value.integrity)) {
+          if (!['verified', 'first-seen', 'accepted-changed'].includes(String(state))) {
+            c.add(`integrity.${name}`, 'must be verified, first-seen or accepted-changed');
+          }
+        }
+      }
       c.objects(value, 'migrations', '', (m, p) => {
         for (const key of ['feature', 'from', 'to']) c.string(m, key, p);
       });
