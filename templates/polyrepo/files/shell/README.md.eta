@@ -1,0 +1,32 @@
+# <%= it.scope.slice(1) %>-shell
+
+The shell of a polyrepo made with [mfeflow](https://github.com/mfeflow/mfeflow): routes, layout and
+the registry that tells it which build of each remote to load. The remotes are in their own repos.
+
+```
+apps/shell                                  the host
+apps/shell/public/config/runtime-config.*   per environment; dev lists where the remotes run
+registry/envs                               which build of each remote staging and prod serve
+```
+
+## Run it
+
+```sh
+pnpm install
+pnpm dev
+```
+
+`pnpm dev` starts the shell on http://localhost:4300. It finds each remote in `devRemotes` in
+`apps/shell/public/config/runtime-config.dev.json`. Start a remote with `pnpm dev` in its own repo.
+
+`pnpm mfeflow dev` runs the shell the same way and reloads the list when that file changes.
+Point one remote somewhere else for a run with `pnpm mfeflow dev --remote cart=http://localhost:3001`.
+
+## Add a team repo
+
+```sh
+pnpm mfeflow add team-repo checkout
+```
+
+This creates `../checkout` as a new git repo and registers it here. Run `git init` and the GitHub
+steps yourself.

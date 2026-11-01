@@ -20,7 +20,11 @@ const runtimeIn = (out: string[], err: string[]) => ({
     select: () => Promise.reject(new Error('no prompts')),
     confirm: () => Promise.reject(new Error('no prompts')),
   },
-  system: { install: () => Promise.resolve(), gitInit: () => Promise.resolve(false) },
+  system: {
+    install: () => Promise.resolve(),
+    gitInit: () => Promise.resolve(false),
+    initRepo: () => Promise.resolve(false),
+  },
   fetch: () => Promise.reject(new Error('no network')),
   roots: {
     features: path.resolve(import.meta.dirname, '../../../features'),

@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -8,7 +9,7 @@ import type { Io } from './io';
 import type { DevHost, DevProcess, DevSpec, WaitPolicy } from './proc';
 import type { Prompter } from './prompter';
 import type { Runtime } from './runtime';
-import type { System } from './system';
+import { createSystem, type System } from './system';
 
 /** The checkout this package lives in; `--local` tests point at it. */
 export const REPO = path.resolve(import.meta.dirname, '../../..');
@@ -55,6 +56,7 @@ export function scriptedPrompter(answers: readonly unknown[] = []): Prompter & {
 export interface SystemCalls {
   installs: { root: string; packageManager: string; verbose: boolean }[];
   gitInits: string[];
+  repoInits: string[];
 }
 
 export function fakeSystem(
@@ -62,15 +64,21 @@ export function fakeSystem(
 ): System & SystemCalls {
   const installs: SystemCalls['installs'] = [];
   const gitInits: string[] = [];
+  const repoInits: string[] = [];
   return {
     installs,
     gitInits,
+    repoInits,
     install: (root, packageManager, verbose) => {
       installs.push({ root, packageManager, verbose });
       return options.installError ? Promise.reject(options.installError) : Promise.resolve();
     },
     gitInit: (root) => {
       gitInits.push(root);
+      return Promise.resolve(options.gitInit ?? true);
+    },
+    initRepo: (root) => {
+      repoInits.push(root);
       return Promise.resolve(options.gitInit ?? true);
     },
   };
@@ -223,4 +231,33 @@ export function thrown(fn: () => unknown): MfeflowError {
     throw error;
   }
   throw new Error('expected the call to throw');
+}
+
+/** The environment without any `GIT_*` variable, so git works on the folder it is run in and nothing else. */
+export function cleanGitEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.entries(env).filter(([key]) => !key.startsWith('GIT_')));
+}
+
+/** Runs git with a clean environment in `cwd`; returns what it printed. */
+export function git(cwd: string, ...args: string[]): string {
+  const result = spawnSync('git', args, { cwd, env: cleanGitEnv(), encoding: 'utf8' });
+  if (result.status !== 0) throw new Error(`git ${args.join(' ')}: ${result.stderr}`);
+  return result.stdout.trim();
+}
+
+/** A system that runs the real `git init` (with a clean environment) and no install. */
+export function gitSystem(): System & SystemCalls {
+  const fake = fakeSystem();
+  const real = createSystem(fakeIo(), (command, args, options) => {
+    const result = spawnSync(command, args, {
+      cwd: options.cwd,
+      env: cleanGitEnv(),
+      encoding: 'utf8',
+    });
+    return Promise.resolve({
+      code: result.status ?? 1,
+      output: `${result.stdout}${result.stderr}`,
+    });
+  });
+  return { ...fake, initRepo: (root) => real.initRepo(root) };
 }

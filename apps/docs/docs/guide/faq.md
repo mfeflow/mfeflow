@@ -87,9 +87,9 @@ No. The presets are for Rsbuild and its Module Federation plugin. Vite is not su
 
 ## Can I use separate repositories for each remote?
 
-Not yet. This release creates a monorepo only.
+Yes. `mfeflow init --topology polyrepo` creates a platform repo, a shell repo and a repo for each remote, and `mfeflow add team-repo` adds one more. See [One repo per team](/guide/polyrepo).
 
-The project file has room for polyrepo and hybrid layouts, but the CLI accepts only `monorepo` today.
+The `hybrid` layout in the project file is not available yet.
 
 ## Is there a command to remove a feature?
 

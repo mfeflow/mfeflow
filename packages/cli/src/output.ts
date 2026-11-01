@@ -32,10 +32,23 @@ interface WriteReport {
   diff?: string;
 }
 
+/** One repo of a polyrepo `init`. */
+export interface RepoReport {
+  /** The folder inside `root`. */
+  name: string;
+  repo: 'platform' | 'shell' | 'remote';
+  root: string;
+  /** Files written in this repo, relative to it. */
+  written: string[];
+  installed: boolean;
+}
+
 export interface InitResult extends WriteReport {
   command: 'init';
   scope: string;
   apps: AppReport[];
+  /** Only for `--topology polyrepo`: the repos made, in the order they were written. */
+  repos?: RepoReport[];
   next: string[];
 }
 
@@ -54,11 +67,13 @@ export interface AdoptResult extends WriteReport {
 
 export interface AddResult extends WriteReport {
   command: 'add';
-  kind: 'remote' | 'shell' | 'feature' | 'env-key';
+  kind: 'remote' | 'shell' | 'feature' | 'env-key' | 'team-repo';
   /** What was added: an app name, or feature names. */
   added: string[];
   /** Features that were already part of the project. */
   skipped: string[];
+  /** `add team-repo` only: the new repo's folder, next to this one. */
+  created?: string;
 }
 
 export interface UpgradeFileReport {
@@ -556,6 +571,16 @@ export function validateResult(value: unknown): Issue[] {
         if (app.port !== null && typeof app.port !== 'number')
           c.add(`${p}port`, 'must be a number or null');
       });
+      if (value.repos !== undefined) {
+        c.objects(value, 'repos', '', (repo, p) => {
+          for (const key of ['name', 'root']) c.string(repo, key, p);
+          if (!['platform', 'shell', 'remote'].includes(String(repo.repo))) {
+            c.add(`${p}repo`, 'must be platform, shell or remote');
+          }
+          c.texts(repo, 'written', p);
+          c.boolean(repo, 'installed', p);
+        });
+      }
       break;
     case 'adopt':
       checkWrite(c, value);
@@ -577,11 +602,12 @@ export function validateResult(value: unknown): Issue[] {
       break;
     case 'add':
       checkWrite(c, value);
-      if (!['remote', 'shell', 'feature', 'env-key'].includes(String(value.kind))) {
-        c.add('kind', 'must be remote, shell, feature or env-key');
+      if (!['remote', 'shell', 'feature', 'env-key', 'team-repo'].includes(String(value.kind))) {
+        c.add('kind', 'must be remote, shell, feature, env-key or team-repo');
       }
       c.texts(value, 'added', '');
       c.texts(value, 'skipped', '');
+      if (value.created !== undefined) c.string(value, 'created', '');
       break;
     case 'upgrade':
       checkWrite(c, value);

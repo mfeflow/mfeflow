@@ -8,7 +8,7 @@ export interface MfeflowProject {
   version: 1;
   /** Version of the CLI that last wrote this file. */
   cli?: string;
-  /** Which repo this is in a multi-repo setup. Absent means a platform monorepo. */
+  /** Which repo this is in a multi-repo setup. Absent means a monorepo. A `platform` or `remote` repo may have no shell. */
   repo?: 'platform' | 'shell' | 'remote';
   topology: 'monorepo' | 'polyrepo' | 'hybrid';
   packageManager: 'pnpm' | 'npm';
@@ -140,7 +140,9 @@ export function validateMfeflowProject(value: unknown): Issue[] {
       if (port !== undefined && !Number.isInteger(port))
         c.add(`${at}.port`, 'must be a whole number');
     }
-    if (shells === 0 && repo !== 'remote') c.add('apps', 'needs at least one shell');
+    if (shells === 0 && repo !== 'remote' && repo !== 'platform') {
+      c.add('apps', 'needs at least one shell');
+    }
   }
   const features = c.object(value, 'features', '');
   if (features) {

@@ -7,7 +7,9 @@ import {
   type LoadedFeature,
   type MfeflowProject,
 } from '@mfeflow/core';
+import type { Globals } from './args';
 import type { AssetRoots } from './assets';
+import type { Runtime } from './runtime';
 
 export const SHELL_PORT = 4300;
 export const REMOTE_PORT = 4311;
@@ -48,6 +50,34 @@ export function routeComponent(remote: string): string {
   return `${pascal(remote)}Route`;
 }
 
+export function portFor(
+  args: Record<string, unknown>,
+  project: Pick<MfeflowProject, 'apps'>,
+  start: number,
+): number {
+  const given = args.port;
+  if (typeof given !== 'string' || given === '') return freePort(project, start);
+  const port = Number(given);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new MfeflowError('E107', `--port "${given}" must be a whole number from 1 to 65535`);
+  }
+  const owner = Object.entries(project.apps).find(([, app]) => app.port === port);
+  if (owner) throw new MfeflowError('E107', `--port ${given} is already used by ${owner[0]}`);
+  return port;
+}
+
+export async function nameFrom(
+  rt: Runtime,
+  globals: Globals,
+  given: string | undefined,
+  what: string,
+): Promise<string> {
+  if (given !== undefined) return given;
+  if (globals.canPrompt) {
+    return rt.prompter.text({ message: `Name of the new ${what}` });
+  }
+  throw new MfeflowError('E107', `add ${what} needs a name: mfeflow add ${what} <name>`);
+}
 export const REGISTRY_ENVS = ['dev', 'staging', 'prod'] as const;
 
 const ENV_HOSTS = {
@@ -71,6 +101,8 @@ export interface GlueOptions {
   remote: RemoteSpec;
   /** Write `registry/envs/<env>/<name>.json`. */
   registry: boolean;
+  /** Which environments get an entry (default all). A polyrepo shell has no dev entry: its dev remotes are in config. */
+  registryEnvs?: readonly string[];
   /** Apps (a shell name, or "shell" for every shell) that get a route to the remote. */
   shells: readonly string[];
 }
@@ -120,7 +152,11 @@ export async function remoteGlue(options: GlueOptions): Promise<LoadedFeature> {
   const files: FeatureFile[] = [];
   const transforms: TransformOp[] = [];
   if (options.registry) {
-    files.push(...(await registryEntryFiles(options.roots, options.remote)).map(asFeatureFile));
+    files.push(
+      ...(await registryEntryFiles(options.roots, options.remote, options.registryEnvs)).map(
+        asFeatureFile,
+      ),
+    );
   }
   if (options.shells.length > 0) {
     const route = await glueTemplate(options.roots, 'route.tsx.eta');

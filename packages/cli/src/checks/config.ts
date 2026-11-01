@@ -102,10 +102,15 @@ export const routes: Check = {
   },
 };
 
+const REGISTRY_IN_SHELL = 'the registry is in the shell repo';
+
 export const registry: Check = {
   id: 'config.registry',
   title: 'every remote has a valid registry entry in dev, staging and prod',
-  run: ({ apps, registry: entries }) => {
+  run: ({ apps, project, registry: entries }) => {
+    // A remote's repo has no registry: the shell repo owns it, and its entries name remotes of other repos.
+    if (project.repo === 'remote')
+      return Promise.resolve({ findings: [], skipped: REGISTRY_IN_SHELL });
     const out = [];
     const remotes = apps.filter((app) => app.kind === 'remote');
     for (const env of ENVS) {
@@ -131,7 +136,7 @@ export const registry: Check = {
       }
       const known = new Set(remotes.map((r) => r.name));
       for (const name of Object.keys(entries[env] ?? {})) {
-        if (!known.has(name)) {
+        if (!known.has(name) && project.repo !== 'shell') {
           out.push(
             finding(
               'config.registry',

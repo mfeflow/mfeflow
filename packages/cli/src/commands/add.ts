@@ -12,8 +12,16 @@ import {
 } from '@mfeflow/core';
 import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals, repeated, text, type Globals } from '../args';
-import { loadAny, OPTIONAL_FEATURES } from '../catalog';
-import { assertAppName, freePort, partsForApp, remoteGlue, REMOTE_PORT, SHELL_PORT } from '../glue';
+import { inCatalogueOrder, loadAny, OPTIONAL_FEATURES } from '../catalog';
+import {
+  assertAppName,
+  nameFrom,
+  partsForApp,
+  portFor,
+  remoteGlue,
+  REMOTE_PORT,
+  SHELL_PORT,
+} from '../glue';
 import {
   assertOptionsAreForFeatures,
   mergeOptions,
@@ -22,6 +30,7 @@ import {
 } from '../options';
 import { planReport, type AddResult } from '../output';
 import { addEnvKey } from './env-key';
+import { addTeamRepo } from './team-repo';
 import { chooseLocal } from '../local';
 import { createBuilder } from '../pipeline';
 import { loadPreset } from '../preset';
@@ -72,31 +81,6 @@ export const ADD_ARGS = {
   },
   ...GLOBAL_ARGS,
 } as const satisfies ArgsDef;
-
-function portFor(args: Record<string, unknown>, project: MfeflowProject, start: number): number {
-  const given = args.port;
-  if (typeof given !== 'string' || given === '') return freePort(project, start);
-  const port = Number(given);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new MfeflowError('E107', `--port "${given}" must be a whole number from 1 to 65535`);
-  }
-  const owner = Object.entries(project.apps).find(([, app]) => app.port === port);
-  if (owner) throw new MfeflowError('E107', `--port ${given} is already used by ${owner[0]}`);
-  return port;
-}
-
-async function nameFrom(
-  rt: Runtime,
-  globals: Globals,
-  given: string | undefined,
-  what: string,
-): Promise<string> {
-  if (given !== undefined) return given;
-  if (globals.canPrompt) {
-    return rt.prompter.text({ message: `Name of the new ${what}` });
-  }
-  throw new MfeflowError('E107', `add ${what} needs a name: mfeflow add ${what} <name>`);
-}
 
 /**
  * What a new app of `kind` gets: the app-level parts of `core` and of every feature already
@@ -326,14 +310,6 @@ function assertThirdPartyAllowed(names: readonly string[], globals: Globals, can
   }
 }
 
-const rank = (name: string) => OPTIONAL_FEATURES.indexOf(name);
-
-/** First-party features in the order `init` applies them, then the rest as typed: a feature may edit another's files. */
-export function inCatalogueOrder(names: readonly string[]): string[] {
-  const known = names.filter((n) => rank(n) !== -1).toSorted((a, b) => rank(a) - rank(b));
-  return [...known, ...names.filter((n) => rank(n) === -1)];
-}
-
 async function addFeatures(
   rt: Runtime,
   globals: Globals,
@@ -432,6 +408,7 @@ export async function runAdd(
   const [first, ...rest] = positional;
   if (first === 'remote' || first === 'shell') return addApp(rt, globals, args, first, rest[0]);
   if (first === 'env-key') return addEnvKey(rt, globals, args, rest[0]);
+  if (first === 'team-repo') return addTeamRepo(rt, globals, args, rest[0]);
   const preset = globals.preset
     ? await loadPreset(globals.preset, { cwd: globals.cwd, fetch: rt.fetch })
     : {};

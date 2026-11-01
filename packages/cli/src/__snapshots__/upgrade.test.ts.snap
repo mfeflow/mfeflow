@@ -46,7 +46,7 @@ exports[`planProjectUpgrade on the 0.1.0 fixture > plans the real deltas between
   "features": {
     "analytics-gtm": "0.2.0",
     "ci-github": "0.2.0",
-    "core": "0.4.0",
+    "core": "0.5.0",
     "env-t3": "0.2.0",
     "lint-oxlint": "0.2.0",
     "testing": "0.2.0",

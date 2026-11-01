@@ -32,11 +32,26 @@ import {
   parseFeatureOptions,
   type FeatureOptions,
 } from '../options';
-import { planReport, type InitResult } from '../output';
+import { planReport, type InitResult, type PlanReport } from '../output';
+import { Cancelled } from '../exit';
 import { chooseLocal } from '../local';
 import { createBuilder } from '../pipeline';
 import { loadPreset, type Preset } from '../preset';
 import type { Runtime } from '../runtime';
+import {
+  assertFeaturesFit,
+  checkOrg,
+  notReposWarning,
+  mergeReports,
+  planRepo,
+  prefixReport,
+  remotePorts,
+  writeRepos,
+  PLATFORM_DIR,
+  SHELL_DIR,
+  type RepoPlan,
+  type RepoRequest,
+} from '../polyrepo';
 import { writePlan } from '../write';
 import type { ArgsDef } from 'citty';
 
@@ -68,8 +83,15 @@ export const INIT_ARGS = {
   },
   topology: {
     type: 'string',
-    description: 'monorepo (the only one in this release)',
+    description:
+      'monorepo (default), or polyrepo: a platform repo, a shell repo and a repo for each remote',
     valueHint: 'name',
+  },
+  org: {
+    type: 'string',
+    description:
+      'polyrepo: the GitHub owner the CI and Renovate files point at (default: the scope without @)',
+    valueHint: 'owner',
   },
   option: {
     type: 'string',
@@ -83,7 +105,11 @@ const DEFAULT_DIR = 'mfeflow-app';
 const DEFAULT_REMOTES = ['catalog', 'cart'];
 const SCOPE = /^@[a-z0-9][a-z0-9-._]*$/;
 
+export type Topology = 'monorepo' | 'polyrepo';
+
 export interface InitOptions {
+  topology: Topology;
+  org?: string;
   dir: string;
   scope: string;
   remotes: string[];
@@ -135,6 +161,16 @@ function only(flag: string, value: string | undefined, allowed: string): void {
   }
 }
 
+function topologyOf(value: string | undefined): Topology {
+  if (value === undefined || value === 'monorepo' || value === 'polyrepo') {
+    return value ?? 'monorepo';
+  }
+  throw new MfeflowError(
+    'E107',
+    `--topology ${value}: only monorepo and polyrepo are available in this release`,
+  );
+}
+
 /** Flags win over the preset, the preset over prompts, prompts over defaults. */
 export async function resolveInitOptions(
   rt: Runtime,
@@ -144,7 +180,7 @@ export async function resolveInitOptions(
   preset: Preset,
 ): Promise<InitOptions> {
   only('package-manager', text(args, 'package-manager') ?? preset.packageManager, 'pnpm');
-  only('topology', text(args, 'topology') ?? preset.topology, 'monorepo');
+  const topology = topologyOf(text(args, 'topology') ?? preset.topology);
   const { canPrompt } = globals;
   const { prompter } = rt;
 
@@ -183,22 +219,36 @@ export async function resolveInitOptions(
   checkRemotes(remotes);
 
   const featuresFlag = splitList(text(args, 'features')) ?? preset.features;
+  const defaults = topology === 'polyrepo' ? [] : DEFAULT_FEATURES;
   const features = checkFeatures(
     featuresFlag ??
       (canPrompt
         ? await prompter.multiselect({
             message: 'Features',
             choices: OPTIONAL_FEATURES.map((name) => ({ value: name, label: name })),
-            initialValues: DEFAULT_FEATURES,
+            initialValues: defaults,
           })
-        : DEFAULT_FEATURES),
+        : defaults),
   );
+  if (topology === 'polyrepo') assertFeaturesFit(features);
 
   const featureOptions = mergeOptions(
     preset.options ?? {},
     parseFeatureOptions(repeated(raw, 'option')),
   );
-  return { dir, scope, remotes, features, featureOptions };
+  const org = checkOrg(text(args, 'org'));
+  if (org !== undefined && topology !== 'polyrepo') {
+    throw new MfeflowError('E107', '--org is for --topology polyrepo');
+  }
+  return {
+    topology,
+    ...(org === undefined ? {} : { org }),
+    dir,
+    scope,
+    remotes,
+    features,
+    featureOptions,
+  };
 }
 
 export async function assertEmpty(
@@ -258,6 +308,7 @@ export async function runInit(
   const options = await resolveInitOptions(rt, globals, args, raw, preset);
   const root = path.resolve(globals.cwd, options.dir);
   await assertEmpty(root);
+  if (options.topology === 'polyrepo') return runPolyrepoInit(rt, globals, options, root);
 
   const chosen = chooseLocal(skeleton(options), root, globals.cwd, globals.local);
   const { project } = chosen;
@@ -333,9 +384,123 @@ export async function runInit(
   return result;
 }
 
-function printInit(rt: Runtime, result: InitResult): void {
+/** A polyrepo: a platform repo, a shell repo and one repo per remote, side by side in `org`. */
+async function runPolyrepoInit(
+  rt: Runtime,
+  globals: Globals,
+  options: InitOptions,
+  org: string,
+): Promise<InitResult> {
+  const remotes = remotePorts(options.remotes);
+  if (options.remotes.includes(PLATFORM_DIR)) {
+    throw new MfeflowError('E215', `"${PLATFORM_DIR}" is a reserved name in a polyrepo`);
+  }
+  const base = {
+    scope: options.scope,
+    ...(options.org === undefined ? {} : { org: options.org }),
+    features: options.features,
+    featureOptions: options.featureOptions,
+    local: globals.local,
+    cwd: globals.cwd,
+  };
+  const requests: RepoRequest[] = [
+    { ...base, kind: 'platform', dir: PLATFORM_DIR, root: path.join(org, PLATFORM_DIR) },
+    {
+      ...base,
+      kind: 'shell',
+      dir: SHELL_DIR,
+      root: path.join(org, SHELL_DIR),
+      shellRemotes: remotes,
+    },
+    ...remotes.map((remote): RepoRequest => ({
+      scope: base.scope,
+      org: options.org,
+      features: base.features,
+      featureOptions: base.featureOptions,
+      local: base.local,
+      cwd: base.cwd,
+      kind: 'remote',
+      dir: remote.name,
+      root: path.join(org, remote.name),
+      remote,
+    })),
+  ];
+  const plans: RepoPlan[] = await Promise.all(requests.map((request) => planRepo(rt, request)));
+  if (globals.canPrompt) {
+    rt.io.stdout(`${options.dir}/\n${requests.map((r) => `  ${r.dir}/`).join('\n')}`);
+    const ok = await rt.prompter.confirm({
+      message: `Create these ${String(requests.length)} repos?`,
+    });
+    if (!ok) throw new Cancelled();
+  }
+  const { writes: written, notRepos } = await writeRepos(rt, globals, org, plans);
+  const dryRun = written.every((w) => w.outcome.dryRun);
+  const installed = !dryRun && written.every((w) => w.outcome.installed);
+  const dirs = requests.map((r) => r.dir);
+  const result: InitResult = {
+    ok: true,
+    command: 'init',
+    dryRun,
+    root: org,
+    scope: options.scope,
+    apps: written.flatMap(({ repo }) =>
+      Object.entries(repo.project.apps).map(([name, app]) => ({
+        name,
+        kind: app.kind,
+        path: `${repo.request.dir}/${app.path}`,
+        port: app.port ?? null,
+      })),
+    ),
+    plan: withWarnings(
+      mergeReports(
+        written.map(({ repo, outcome }) =>
+          prefixReport(planReport(outcome.shown), repo.request.dir),
+        ),
+      ),
+      notReposWarning(notRepos),
+    ),
+    written: written.flatMap(({ repo, outcome }) =>
+      outcome.written.map((file) => `${repo.request.dir}/${file}`),
+    ),
+    installed,
+    repos: written.map(({ repo, outcome }) => ({
+      name: repo.request.dir,
+      repo: repo.request.kind,
+      root: repo.request.root,
+      written: outcome.written,
+      installed: outcome.installed,
+    })),
+    next: [
+      ...(path.resolve(globals.cwd) === org ? [] : [`cd ${options.dir}`]),
+      ...(installed || dryRun ? [] : dirs.map((dir) => `pnpm -C ${dir} install`)),
+      `pnpm -C ${PLATFORM_DIR} build`,
+      `pnpm -C ${SHELL_DIR} dev`,
+      ...options.remotes.map((remote) => `pnpm -C ${remote} dev   # in its own terminal`),
+    ],
+    ...(dryRun ? { diff: written.map((w) => w.outcome.diff ?? '').join('\n') } : {}),
+  };
+  if (!globals.json) printInit(rt, result, options.org ?? options.scope.slice(1));
+  return result;
+}
+
+function withWarnings(plan: PlanReport, warnings: readonly string[]): PlanReport {
+  return { ...plan, warnings: [...plan.warnings, ...warnings] };
+}
+
+function printInit(rt: Runtime, result: InitResult, org?: string): void {
   if (result.dryRun) {
     rt.io.stdout('\nDry run: nothing was written.');
+    return;
+  }
+  if (result.repos !== undefined) {
+    const names = result.repos.map((repo) => repo.name);
+    const problem = result.plan.warnings.find((w) => w.includes('not a git repo'));
+    rt.io.stdout(
+      `\nCreated ${result.root} with ${String(names.length)} repos (${names.join(', ')})${problem === undefined ? ', each with its own git repo' : ''}.`,
+    );
+    if (problem !== undefined) rt.io.stdout(`Warning: ${problem}`);
+    rt.io.stdout(`CI calls ${org ?? ''}/platform's reusable workflow; check the owner.`);
+    rt.io.stdout(`Next:\n${result.next.map((line) => `  ${line}`).join('\n')}`);
     return;
   }
   const remotes = result.apps.filter((a) => a.kind === 'remote').map((a) => a.name);
