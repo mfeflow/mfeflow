@@ -362,6 +362,7 @@ describe('analytics-gtm', () => {
     const tree = await readTree(project);
     expect(tree['apps/shell/src/analytics/init.test.ts']).toContain('startAnalytics');
     expect(tree['apps/cart/src/analytics.test.ts']).toContain('cart_viewed');
+    expect(tree['apps/cart/src/analytics.test.ts']).toContain("mfe_name: 'cart'");
     expect(tree['apps/shell/src/analytics/ConsentBanner.test.tsx']).toContain('Accept analytics');
   });
 

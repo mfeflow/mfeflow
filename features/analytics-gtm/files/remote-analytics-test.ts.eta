@@ -12,7 +12,7 @@ describe('the <%= it.app.name %> tracker', () => {
     expect(provider.calls.at(-1)).toMatchObject({
       type: 'track',
       event: '<%= it.app.name %>_viewed',
-      params: { mfe: { name: '<%= it.app.name %>' } },
+      params: { mfe_name: '<%= it.app.name %>', mfe_version: null },
     });
   });
 });
