@@ -54,6 +54,16 @@ describe('mfeflow registry add', () => {
     expect(text).toContain('"$schema"');
   });
 
+  it('never lowers cli, and does not stamp when nothing changes', async () => {
+    const newer = await projectWith({ cli: '99.0.0' });
+    await run(['add', '@acme', URL_A], newer);
+    expect((await loadProject(newer)).cli).toBe('99.0.0');
+    const same = await projectWith({ registries: { '@acme': URL_A } });
+    const before = await fs.readFile(path.join(same, 'mfeflow.json'), 'utf8');
+    await run(['add', '@acme', URL_A], same);
+    expect(await fs.readFile(path.join(same, 'mfeflow.json'), 'utf8')).toBe(before);
+  });
+
   it('keeps the registries it already has', async () => {
     const cwd = await projectWith({ registries: { '@one': 'https://one.example/{name}.json' } });
     await run(['add', '@acme', URL_A], cwd);

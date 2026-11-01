@@ -19,7 +19,7 @@ import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals, text, type Globals } from '../args';
 import type { RegistryEntryInfo, RegistryResult } from '../output';
 import type { Runtime } from '../runtime';
-import { readPackageJson } from '../version';
+import { raiseCli } from '../pipeline';
 
 export const REGISTRY_ARGS = {
   out: {
@@ -82,10 +82,10 @@ async function save(
   project: MfeflowProject,
   registries: Record<string, string>,
 ): Promise<MfeflowProject> {
-  const { registries: _old, ...rest } = project;
-  const stamped: MfeflowProject = { ...rest, cli: readPackageJson().version };
-  const next: MfeflowProject =
-    Object.keys(registries).length > 0 ? { ...stamped, registries } : stamped;
+  const { registries: old, ...rest } = project;
+  const changed = JSON.stringify(old ?? {}) !== JSON.stringify(registries);
+  const base = changed ? raiseCli(rest) : rest;
+  const next: MfeflowProject = Object.keys(registries).length > 0 ? { ...base, registries } : base;
   if (!globals.dryRun) await saveProject(root, next);
   return next;
 }
