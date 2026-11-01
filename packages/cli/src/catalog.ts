@@ -69,6 +69,7 @@ async function loadFirstParty(name: string, roots: AssetRoots): Promise<LoadedFe
   return {
     manifest: parseFeature(text, 'first-party', 'core/feature.json'),
     trust: 'first-party',
+    dir,
     readAsset: async (relative) => {
       if (!isSafeRelativePath(relative)) throw new MfeflowError('E105', `"${relative}"`);
       return realFs.readFile(path.join(dir, ...relative.split('/')));
