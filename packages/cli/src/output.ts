@@ -266,7 +266,7 @@ export interface StatusResult {
 export interface RolloutCommandResult {
   ok: boolean;
   command: 'rollout';
-  action: 'step' | 'complete' | 'abort';
+  action: 'step' | 'complete' | 'abort' | 'status';
   dryRun: boolean;
   root: string;
   host: string;
@@ -277,6 +277,15 @@ export interface RolloutCommandResult {
   percent: number | null;
   /** What the index serves now. */
   serves: string | null;
+  /** `rollout status` only: the browser reports behind the gate. */
+  report?: {
+    startedAt: string;
+    steps: number[];
+    candidateCounts: { loads: number; errors: number; clients: number };
+    stableCounts: { loads: number; errors: number; clients: number };
+    gate: { verdict: 'wait' | 'ok' | 'halt'; reason: string | null };
+    reporterCapFull: boolean;
+  };
 }
 
 /** `mfeflow kill` and `mfeflow restore`. */
@@ -634,8 +643,8 @@ export function validateResult(value: unknown): Issue[] {
       break;
     case 'rollout':
       checkServerAction(c, value);
-      if (!['step', 'complete', 'abort'].includes(String(value.action)))
-        c.add('action', 'must be step, complete or abort');
+      if (!['step', 'complete', 'abort', 'status'].includes(String(value.action)))
+        c.add('action', 'must be step, complete, abort or status');
       for (const key of ['stable', 'candidate', 'serves'])
         if (value[key] !== null && typeof value[key] !== 'string')
           c.add(key, 'must be text or null');

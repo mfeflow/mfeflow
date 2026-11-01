@@ -204,6 +204,15 @@ describe.skipIf(!supported)('server mode against a real server on 127.0.0.1', ()
       rollout: { stable: '1.0.0', candidate: '2.0.0', percent: 10, steps: [50, 100] },
     });
     expect(await served()).toBe('1.0.0');
+    const status = await go(['rollout', 'status', 'catalog', '--env', 'prod']);
+    expect(status.code).toBe(0);
+    expect(status.json).toMatchObject({
+      action: 'status',
+      candidate: '2.0.0',
+      stable: '1.0.0',
+      percent: 10,
+      report: { steps: [50, 100], gate: { verdict: 'wait' }, reporterCapFull: false },
+    });
     const step = await go(['rollout', 'step', 'catalog', '--env', 'prod']);
     expect(step.json).toMatchObject({ command: 'rollout', action: 'step', percent: 50 });
     const abort = await go([

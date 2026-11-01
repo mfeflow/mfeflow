@@ -194,11 +194,13 @@ export const COMMANDS: readonly Command[] = [
   },
   {
     name: 'rollout',
-    summary: 'move a percentage rollout on the registry server: step, complete or abort',
-    usage: 'mfeflow rollout step|complete|abort <remote> --env <env> [--registry-url <url>]',
+    summary:
+      'read or move a percentage rollout on the registry server: status, step, complete, abort',
+    usage: 'mfeflow rollout step|complete|abort|status <remote> --env <env> [--registry-url <url>]',
     args: ROLLOUT_CMD_ARGS,
     examples: [
       'mfeflow promote catalog --from staging --to prod --percent 10 --steps 50,100',
+      'mfeflow rollout status catalog --env prod',
       'mfeflow rollout step catalog --env prod',
       'mfeflow rollout complete catalog --env prod',
       'mfeflow rollout abort catalog --env prod --reason "checkout errors up"',

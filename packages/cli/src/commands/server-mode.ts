@@ -661,6 +661,35 @@ export async function statusViaServer(
   };
 }
 
+const countsOf = (value: unknown): { loads: number; errors: number; clients: number } => {
+  const c = isObj(value) ? value : {};
+  return { loads: numberOf(c.loads), errors: numberOf(c.errors), clients: numberOf(c.clients) };
+};
+
+/** What `GET /v1/rollout` says, as the fields of a rollout result. */
+function statusOf(
+  body: unknown,
+): Pick<RolloutCommandResult, 'stable' | 'candidate' | 'percent' | 'serves' | 'report'> {
+  const b = isObj(body) ? body : {};
+  const gate = isObj(b.gate) ? b.gate : {};
+  const cap = isObj(gate.reporterCap) ? gate.reporterCap : {};
+  const verdict = gate.verdict === 'ok' || gate.verdict === 'halt' ? gate.verdict : 'wait';
+  return {
+    stable: textOf(b.stable),
+    candidate: textOf(b.candidate),
+    percent: typeof b.percent === 'number' ? b.percent : null,
+    serves: textOf(b.stable),
+    report: {
+      startedAt: textOf(b.startedAt) ?? '',
+      steps: Array.isArray(b.steps) ? b.steps.map(numberOf) : [],
+      candidateCounts: countsOf(b.candidateCounts),
+      stableCounts: countsOf(b.stableCounts),
+      gate: { verdict, reason: textOf(gate.reason) },
+      reporterCapFull: cap.full === true,
+    },
+  };
+}
+
 export async function runRolloutCommand(
   rt: Runtime,
   args: Record<string, unknown>,
@@ -672,12 +701,12 @@ export async function runRolloutCommand(
   const [action, name] = positionals(
     args,
     2,
-    'mfeflow rollout step|complete|abort <remote> --env <env>',
+    'mfeflow rollout step|complete|abort|status <remote> --env <env>',
   );
-  if (action !== 'step' && action !== 'complete' && action !== 'abort')
+  if (action !== 'step' && action !== 'complete' && action !== 'abort' && action !== 'status')
     throw new MfeflowError(
       'E107',
-      'write mfeflow rollout step|complete|abort <remote> --env <env>',
+      'write mfeflow rollout step|complete|abort|status <remote> --env <env>',
     );
   if (name === undefined) throw new MfeflowError('E107', `name the remote to ${action}`);
   if (client === undefined)
@@ -698,6 +727,15 @@ export async function runRolloutCommand(
     env,
     remote: name,
   };
+  if (action === 'status') {
+    const s = await client.run(() =>
+      client.get(
+        `/v1/rollout?env=${encodeURIComponent(env)}&remote=${encodeURIComponent(name)}`,
+        true,
+      ),
+    );
+    return { ...base, ...statusOf(s) };
+  }
   if (globals.dryRun)
     return { ...base, stable: null, candidate: null, percent: null, serves: null };
   await confirmed(rt, globals, `${action} the rollout of ${name} in ${env}?`);
@@ -761,8 +799,24 @@ export async function runKillCommand(
   return { ...base, changed: b.changed === true, killed: b.killed === true };
 }
 
+const rate = (c: { loads: number; errors: number }): string =>
+  `${String(c.loads)} loads, ${String(c.errors)} errors`;
+
 export function formatServerAction(result: RolloutCommandResult | KillCommandResult): string {
   if (result.command === 'rollout') {
+    if (result.action === 'status' && result.report !== undefined) {
+      const r = result.report;
+      const verdict =
+        r.gate.verdict === 'ok'
+          ? 'ok'
+          : `${r.gate.verdict}${r.gate.reason === null ? '' : `: ${r.gate.reason}`}`;
+      return [
+        `${result.remote} in ${result.env}: ${result.candidate ?? ''} is at ${String(result.percent)}%${r.steps.length === 0 ? '' : `, then ${r.steps.map((n) => `${String(n)}%`).join(', ')}`}; everyone else is on ${result.stable ?? ''}.`,
+        `Candidate: ${rate(r.candidateCounts)} from ${String(r.candidateCounts.clients)} browsers.`,
+        `Stable: ${rate(r.stableCounts)} from ${String(r.stableCounts.clients)} browsers.`,
+        `Gate: ${verdict}.${r.reporterCapFull ? ' The reporter cap is full: new browsers are no longer counted.' : ''}`,
+      ].join('\n');
+    }
     if (result.dryRun)
       return `Dry run: would ${result.action} the rollout of ${result.remote} in ${result.env} (${result.host}). Nothing was sent.`;
     const head = `Rollout ${result.action} for ${result.remote} in ${result.env}: `;
