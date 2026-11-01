@@ -34,6 +34,9 @@ export interface RegistryEntry {
   rollout?: { candidate: string; stable: string; percent: number };
 }
 
+/** The `code` of the issues `validateRegistryIndex` reports for overlapping routes. */
+export const ROUTE_OVERLAP = 'route-overlap';
+
 export const VERSION = /^[0-9A-Za-z.+-]+$/;
 
 function addIssues(c: Checker, issues: Issue[], at: string): void {
@@ -98,6 +101,7 @@ export function validateRegistryIndex(value: unknown): Issue[] {
           c.add(
             `${at}.routes`,
             `route "${route}" of "${name}" overlaps route "${other.route}" of "${other.remote}"`,
+            ROUTE_OVERLAP,
           );
       }
     }

@@ -1,0 +1,64 @@
+{
+  "name": "@mfeflow/registry",
+  "version": "0.4.0",
+  "description": "A static remote registry for mfeflow: build the index, gate a deploy, upload to a folder or any S3-compatible bucket.",
+  "keywords": [
+    "micro-frontend",
+    "mfe",
+    "module-federation",
+    "registry",
+    "s3",
+    "deploy",
+    "rollback"
+  ],
+  "homepage": "https://mfeflow.github.io/mfeflow/",
+  "bugs": "https://github.com/mfeflow/mfeflow/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfeflow/mfeflow.git",
+    "directory": "packages/registry"
+  },
+  "license": "MIT",
+  "author": "Sanjeev Sharma <speedsharma.ai@gmail.com>",
+  "type": "module",
+  "exports": {
+    "./static": {
+      "types": "./dist/static/index.d.ts",
+      "import": "./dist/static.js",
+      "default": "./dist/static.js"
+    },
+    "./s3": {
+      "types": "./dist/s3/index.d.ts",
+      "import": "./dist/s3.js",
+      "default": "./dist/s3.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "rslib build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mfeflow/contracts": "workspace:*",
+    "semver": "catalog:"
+  },
+  "devDependencies": {
+    "@rslib/core": "catalog:",
+    "@types/node": "catalog:",
+    "@types/semver": "catalog:",
+    "typescript": "catalog:"
+  },
+  "sideEffects": false,
+  "mfeflow": {
+    "bucket": "stateless"
+  }
+}

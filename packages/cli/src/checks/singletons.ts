@@ -1,19 +1,9 @@
-import semver from 'semver';
+import { comparable } from '@mfeflow/registry/static';
 import { finding, type Check, type Finding } from '../findings';
 import { versionIn } from '../inspect';
 import { SINGLETON_PACKAGES, specifiersOf } from '../singletons';
 
-/**
- * The comparable version behind an installed version or a declared range. Undefined for a spec
- * that names no version (`link:`, `workspace:*`, `catalog:`, `latest`): it is only known after install.
- */
-export function comparable(version: string): string | undefined {
-  const exact = semver.valid(version);
-  if (exact !== null) return exact;
-  return semver.validRange(version) === null
-    ? undefined
-    : (semver.minVersion(version)?.version ?? undefined);
-}
+export { comparable };
 
 /** The warning for specs that cannot be compared before install. */
 export function unresolved(
