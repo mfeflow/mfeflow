@@ -115,30 +115,54 @@ export async function removeTrusted(
   return current.length - kept.length;
 }
 
-/** The namespaces in `value` (`@a,@b`), as `TRUST_ENV` spells them. */
-export function namespacesFromEnv(value: string | undefined): string[] {
+/** One item of `TRUST_ENV`: a namespace, optionally pinned to the URL template it must have. */
+export interface EnvTrust {
+  namespace: string;
+  template?: string;
+}
+
+/** Reads `@a,@b=https://host/{name}.json`: items split on commas, anything that is not a namespace dropped. */
+export function parseTrustEnv(value: string | undefined): EnvTrust[] {
   return (value ?? '')
     .split(',')
     .map((part) => part.trim())
-    .filter((part) => REGISTRY_NAMESPACE.test(part));
+    .flatMap((part): EnvTrust[] => {
+      const eq = part.indexOf('=');
+      const namespace = eq === -1 ? part : part.slice(0, eq).trim();
+      if (!REGISTRY_NAMESPACE.test(namespace)) return [];
+      const template = eq === -1 ? '' : part.slice(eq + 1).trim();
+      return [template === '' ? { namespace } : { namespace, template }];
+    });
+}
+
+export interface Trusted {
+  /** Registries that may be asked at all. */
+  fetch: Set<string>;
+  /** Registries that may also be on a loopback or private address. */
+  privateOk: Set<string>;
 }
 
 /**
- * The namespaces in `registries` the user trusts: recorded with this very template, or named in
- * `fromEnv`. A namespace whose URL changed since it was trusted is not trusted any more.
+ * What the user trusts among `registries`. The trust file and a pinned env item (`@ns=<template>`
+ * with the template the project has) allow everything; an env item with only a namespace allows
+ * asking a public registry but never a loopback or private address, so a pull request cannot aim
+ * a CI job at an internal host.
  */
 export function trustedNamespaces(
   registries: Record<string, string>,
   recorded: readonly TrustedRegistry[],
-  fromEnv: readonly string[] = [],
-): Set<string> {
-  return new Set(
-    Object.entries(registries)
-      .filter(
-        ([namespace, template]) =>
-          fromEnv.includes(namespace) ||
-          recorded.some((e) => e.namespace === namespace && e.template === template),
-      )
-      .map(([namespace]) => namespace),
-  );
+  fromEnv: readonly EnvTrust[] = [],
+): Trusted {
+  const fetch = new Set<string>();
+  const privateOk = new Set<string>();
+  for (const [namespace, template] of Object.entries(registries)) {
+    const inFile = recorded.some((e) => e.namespace === namespace && e.template === template);
+    const items = fromEnv.filter((e) => e.namespace === namespace);
+    const pinned = items.some((e) => e.template === template);
+    if (inFile || pinned) privateOk.add(namespace);
+    if (inFile || items.some((e) => e.template === undefined || e.template === template)) {
+      fetch.add(namespace);
+    }
+  }
+  return { fetch, privateOk };
 }

@@ -5,6 +5,7 @@ import {
   isMfeflowError,
   loadProject,
   type MfeflowProject,
+  type Trusted,
 } from '@mfeflow/core';
 import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals } from '../args';
@@ -68,18 +69,23 @@ interface Fetched {
 function fetchIndexes(
   rt: Runtime,
   registries: Record<string, string>,
-  trusted: ReadonlySet<string>,
+  trusted: Trusted,
 ): Promise<Fetched[]> {
   return Promise.all(
     Object.entries(registries)
       .toSorted(([a], [b]) => a.localeCompare(b))
       .map(async ([namespace, template]): Promise<Fetched> => {
         const base = { namespace, index: redactUrl(registryIndexUrl(template)) };
-        if (!trusted.has(namespace)) {
+        if (!trusted.fetch.has(namespace)) {
           return { status: { ...base, trusted: false, items: 0, error: null }, items: [] };
         }
         try {
-          const items = await fetchFeatureIndex(namespace, registries, rt.fetch, true);
+          const items = await fetchFeatureIndex(
+            namespace,
+            registries,
+            rt.fetch,
+            trusted.privateOk.has(namespace),
+          );
           return { status: { ...base, trusted: true, items: items.length, error: null }, items };
         } catch (error) {
           const report = isMfeflowError(error) ? reportOf(error) : unexpectedReport(error);

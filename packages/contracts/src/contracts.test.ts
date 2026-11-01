@@ -464,6 +464,21 @@ describe('isPrivateHost', () => {
     '[fe80::1]',
     '[::ffff:7f00:1]',
     '[::ffff:c0a8:101]',
+    '100.64.0.1',
+    '100.100.100.200',
+    '100.127.255.254',
+    '192.0.0.1',
+    '[::a9fe:a9fe]',
+    '[::7f00:1]',
+    '[64:ff9b::a9fe:a9fe]',
+    '[64:ff9b::a00:1]',
+    '[2002:a9fe:a9fe::1]',
+    '[2002:c0a8:101::]',
+    '[fec0::1]',
+    '[febf::1]',
+    'metadata.google.internal',
+    'printer.local',
+    'host.internal.',
   ])('is true for %s', (host) => {
     expect(isPrivateHost(host)).toBe(true);
   });
@@ -479,6 +494,14 @@ describe('isPrivateHost', () => {
     '[2606:4700::1111]',
     '[::ffff:808:808]',
     'localhost.example.com',
+    '100.63.255.255',
+    '100.128.0.1',
+    '192.0.1.1',
+    '[::808:808]',
+    '[64:ff9b::808:808]',
+    '[2002:808:808::1]',
+    'internal.example.com',
+    'local.dev',
   ])('is false for %s', (host) => {
     expect(isPrivateHost(host)).toBe(false);
   });
@@ -501,6 +524,25 @@ describe('redactUrl', () => {
     expect(redactUrl('https://r.dev/x?X-Amz-Signature=aa&X-Amz-Credential=bb&a=1')).toBe(
       'https://r.dev/x?X-Amz-Signature=***&X-Amz-Credential=***&a=1',
     );
+  });
+
+  it('also hides jwt, bearer, session, pat, access and code, but not look-alikes', () => {
+    for (const key of ['jwt', 'bearer', 'session', 'pat', 'access', 'code', 'session_id']) {
+      expect(redactUrl(`https://r.dev/x?${key}=s3cret`), key).toBe(`https://r.dev/x?${key}=***`);
+    }
+    expect(redactUrl('https://r.dev/x?path=/a&patch=1&codec=2&accessory=3')).toBe(
+      'https://r.dev/x?path=/a&patch=1&codec=2&accessory=3',
+    );
+  });
+
+  it('hides secrets in the fragment and after a semicolon', () => {
+    expect(redactUrl('https://r.dev/x#access_token=abc&state=1')).toBe(
+      'https://r.dev/x#access_token=***&state=1',
+    );
+    expect(redactUrl('https://r.dev/x?a=1;token=abc;b=2')).toBe(
+      'https://r.dev/x?a=1;token=***;b=2',
+    );
+    expect(redactUrl('https://r.dev/x?a=1&sig=z#top')).toBe('https://r.dev/x?a=1&sig=***#top');
   });
 
   it('hides a user name and password', () => {

@@ -1,4 +1,5 @@
 import { stripVTControlCharacters } from 'node:util';
+import { redactUrlsIn } from '@mfeflow/contracts';
 import { isMfeflowError, MfeflowError } from '@mfeflow/core';
 import { defineCommand, runCommand, type CommandDef } from 'citty';
 import { ADD_ARGS, runAdd } from './commands/add';
@@ -175,7 +176,8 @@ function fail(error: unknown, rt: Runtime, json: boolean, verbose: boolean): num
   if (isMfeflowError(mfe)) {
     if (json) rt.io.stdout(JSON.stringify(failure(mfe), null, 2));
     else rt.io.stderr(mfe.format());
-    if (verbose && mfe.cause !== undefined) rt.io.stderr(unexpectedText(mfe.cause, true));
+    if (verbose && mfe.cause !== undefined)
+      rt.io.stderr(redactUrlsIn(unexpectedText(mfe.cause, true)));
     return exitCodeFor(mfe);
   }
   if (json) {
