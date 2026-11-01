@@ -69,6 +69,10 @@
 }
 
 /* Hero */
+.mf-hero__copy {
+  min-width: 0;
+}
+
 .mf-hero {
   display: grid;
   gap: 40px;

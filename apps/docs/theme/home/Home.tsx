@@ -51,7 +51,9 @@ export function Home() {
     <div className="mf-home">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replaceAll('<', String.raw`\u003c`),
+        }}
       />
 
       <section className="mf-hero mf-wrap" aria-labelledby="mf-title">

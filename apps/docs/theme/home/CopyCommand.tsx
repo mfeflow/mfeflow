@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 const subscribe = () => () => undefined;
 
@@ -9,6 +9,8 @@ export function CopyCommand({ command }: { command: string }) {
     () => false,
   );
   const [status, setStatus] = useState('');
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   async function copy() {
     try {
@@ -17,7 +19,8 @@ export function CopyCommand({ command }: { command: string }) {
     } catch {
       setStatus('Copy failed, select the command instead');
     }
-    setTimeout(() => setStatus(''), 2000);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setStatus(''), 2000);
   }
 
   return (

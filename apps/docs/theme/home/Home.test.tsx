@@ -29,7 +29,7 @@ describe('home page', () => {
       'pnpm create mfeflow my-platform',
       'Read the docs',
       '5.3 s',
-      '+151 ms',
+      '+160 ms',
       'From empty folder to a running platform.',
       'Many teams, one platform that holds.',
       'Roll back by pointer, not by rebuild.',

@@ -56,9 +56,9 @@ export const STATS = [
     source: 'bench, median of 5, warm pnpm store',
   },
   {
-    value: '+151 ms',
+    value: '+160 ms',
     label: 'LCP against the same pages built as one app',
-    source: 'CI perf job on every PR, budget 300 ms',
+    source: 'Lighthouse mobile, median of 10, budget 300 ms',
   },
   { value: '21', label: 'features, each one command away', source: 'mfeflow add <feature>' },
   { value: '18', label: 'packages, versioned together', source: 'MIT, npm provenance' },
