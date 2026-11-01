@@ -85,7 +85,7 @@ export async function buildRegistry(dir: string, ops: FsOps = realFs): Promise<R
       });
     } catch (error) {
       if (!isMfeflowError(error)) throw error;
-      problems.push(error.message.includes(label) ? error.message : `${label}: ${error.message}`);
+      problems.push(`${label}: ${error.message.replace(`${label}: `, '')}`);
     }
   }
   if (looked === 0) {

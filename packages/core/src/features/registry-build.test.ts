@@ -82,7 +82,7 @@ describe('buildRegistry', () => {
   it('names the rule a feature broke, as the loader does', async () => {
     await put('hello', feature({ files: [{ to: 'package.json', content: '{}' }] }));
     const message = await messageOf();
-    expect(message).toContain('hello/feature.json');
+    expect(message).toContain('- hello/feature.json: A third-party feature');
     expect(message).toContain('package.json');
     expect(message).toContain('outside src/');
   });
@@ -107,7 +107,8 @@ describe('buildRegistry', () => {
     const message = await messageOf();
     expect(message).toContain('3 problem(s)');
     for (const folder of ['one', 'two', 'three'])
-      expect(message).toContain(`${folder}/feature.json`);
+      expect(message).toContain(`- ${folder}/feature.json: `);
+    expect(message.match(/two\/feature\.json/g)).toHaveLength(1);
   });
 
   it('needs a semver version and a description, and keeps "index" free', async () => {
