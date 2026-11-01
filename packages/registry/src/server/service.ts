@@ -10,12 +10,16 @@ import {
 } from '@mfeflow/contracts';
 import { artifactPrefix, buildIndex, type GateFailure } from '../static';
 import type { Log } from './fallback';
+import { DEFAULT_GATE, evaluateGate, type GateSettings } from './gate';
+import { inRollout } from './rollout';
 import {
   RevisionConflictError,
   type AuditEntry,
+  type EnvChange,
   type EnvState,
   type PointerRecord,
   type RegistryStorage,
+  type RolloutRecord,
   type TokenRecord,
   type VersionRecord,
 } from './storage';
@@ -78,6 +82,10 @@ export interface ServiceOptions {
   now?: () => Date;
   /** Called after every committed change, with the env. The fallback republish hangs off it. */
   onChange?: (env: string) => void;
+  /** When a rollout candidate is halted. */
+  gate?: GateSettings;
+  /** Browsers counted per rollout. Default 20000. */
+  maxReporters?: number;
   log?: Log;
 }
 
@@ -93,6 +101,49 @@ export interface MoveResult {
   previous: string | null;
   rolledBackFrom: string | null;
   warnings: string[];
+  /** Set when the deploy started a rollout: `version` is the candidate and `servedBefore` stays stable. */
+  rollout?: RolloutSummary;
+}
+
+export interface RolloutSummary {
+  id: string;
+  stable: string;
+  candidate: string;
+  percent: number;
+  steps: number[];
+}
+
+export interface RolloutResult {
+  ok: true;
+  env: string;
+  remote: string;
+  action: 'step' | 'complete' | 'abort';
+  stable: string;
+  candidate: string;
+  percent: number;
+  /** What the index serves now: the candidate after `complete`, stable otherwise. */
+  serves: string;
+}
+
+/** A page reports each remote once, and a page has few remotes. */
+export const BEACON_MAX_ENTRIES = 20;
+export const DEFAULT_MAX_REPORTERS = 20_000;
+const CLIENT_ID = /^[\w.:-]{1,128}$/;
+
+export interface RolloutStatus extends RolloutSummary {
+  env: string;
+  remote: string;
+  startedAt: string;
+  candidateCounts: { loads: number; errors: number; clients: number };
+  stableCounts: { loads: number; errors: number; clients: number };
+  gate: {
+    verdict: 'wait' | 'ok' | 'halt';
+    /** Why it is waiting, or why it would halt. */
+    reason?: string;
+    settings: GateSettings;
+    /** `full` means new browsers are no longer counted, so the gate has stopped learning. */
+    reporterCap: { max: number; full: boolean };
+  };
 }
 
 export interface KillResult {
@@ -126,8 +177,6 @@ function optionalField(body: Body, key: string, pattern?: RegExp): string | unde
 function rejectUnknown(body: Body, allowed: readonly string[]): void {
   const extra = Object.keys(body).filter((k) => !allowed.includes(k));
   if (extra.length === 0) return;
-  if (extra.includes('rollout'))
-    throw bad('rollout is not available yet: this server serves the current pointer only');
   throw bad(`unknown field ${extra.map((k) => `"${k}"`).join(', ')}`);
 }
 
@@ -170,6 +219,32 @@ function routesOf(value: unknown): string[] {
   });
 }
 
+function wholeNumber(value: unknown, key: string, min: number, max: number): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max)
+    throw bad(`"${key}" must be a whole number from ${String(min)} to ${String(max)}`);
+  return value;
+}
+
+function rolloutOf(value: unknown): { percent: number; steps: number[] } | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw bad('"rollout" must be an object like {"percent": 10, "steps": [50, 100]}');
+  const body = asBody(value);
+  rejectUnknown(body, ['percent', 'steps']);
+  const percent = wholeNumber(body.percent, 'rollout.percent', 1, 99);
+  const raw = body.steps ?? [];
+  if (!Array.isArray(raw) || raw.length > 20)
+    throw bad('"rollout.steps" must be a list of up to 20 percents');
+  const steps = raw.map((step) => wholeNumber(step, 'rollout.steps', 1, 100));
+  let last = percent;
+  for (const step of steps) {
+    if (step <= last)
+      throw bad('"rollout.steps" must rise, and each step must be over "rollout.percent"');
+    last = step;
+  }
+  return { percent, steps };
+}
+
 const sha256 = (bytes: Uint8Array): string =>
   crypto.createHash('sha256').update(bytes).digest('hex');
 
@@ -188,6 +263,23 @@ function indexOf(state: EnvState): RegistryIndex {
     remotes: state.remotes.filter((r) => !r.killed).map((r) => r.remote),
   };
 }
+
+/** The pointer as it is, for a change that only touches the rollout. */
+const stay = (p: PointerRecord): EnvChange['pointer'] => ({
+  name: p.name,
+  version: p.version,
+  remote: p.remote,
+  killed: p.killed,
+  ...(p.killReason === undefined ? {} : { killReason: p.killReason }),
+});
+
+const summaryOf = (r: RolloutRecord): RolloutSummary => ({
+  id: r.id,
+  stable: r.stable,
+  candidate: r.candidate,
+  percent: r.percent,
+  steps: r.steps.filter((s) => s > r.percent),
+});
 
 const failuresOf = (failures: readonly GateFailure[]): Record<string, unknown> => ({
   failures: failures.map((f) => ({ ...f })),
@@ -214,13 +306,30 @@ export class RegistryService {
     this.now = options.now ?? (() => new Date());
   }
 
-  /** What `GET /v1/index/:env` serves: the current pointers, killed remotes left out. */
-  async index(env: string): Promise<RegistryIndex | undefined> {
+  /**
+   * What `GET /v1/index/:env` serves. Killed remotes are left out. A client that falls in a remote's
+   * rollout group gets the candidate for it; a client without an id, or outside the group, gets stable.
+   */
+  async index(env: string, clientId?: string): Promise<RegistryIndex | undefined> {
     const state = await this.storage.readEnv(env);
-    return state === undefined ? undefined : indexOf(state);
+    if (state === undefined) return undefined;
+    const stable = indexOf(state);
+    if (clientId === undefined) return stable;
+    const rollouts = await this.storage.listRollouts(env);
+    if (rollouts.length === 0) return stable;
+    return {
+      ...stable,
+      remotes: stable.remotes.map((remote) => {
+        const rollout = rollouts.find((r) => r.remote === remote.name);
+        return rollout !== undefined &&
+          inRollout(clientId, remote.name, rollout.id, rollout.percent)
+          ? rollout.candidateRemote
+          : remote;
+      }),
+    };
   }
 
-  /** What the static fallback holds. Rollout candidates, once they exist, never go in it. */
+  /** What the static fallback holds: stable only. A rollout candidate never goes in it. */
   stableIndex(env: string): Promise<RegistryIndex | undefined> {
     return this.index(env);
   }
@@ -256,7 +365,7 @@ export class RegistryService {
    * An env has one revision, so a change to another remote also fails the compare-and-swap. When
    * the remote this request touches is unchanged, nothing it checked is stale: run it again.
    */
-  private async retrying(run: () => Promise<MoveResult>): Promise<MoveResult> {
+  private async retrying<T>(run: () => Promise<T>): Promise<T> {
     for (let attempt = 0; ; attempt += 1) {
       try {
         // oxlint-disable-next-line no-await-in-loop -- each attempt re-reads the env
@@ -279,7 +388,9 @@ export class RegistryService {
       'routes',
       'platform',
       'budgets',
+      'rollout',
     ]);
+    const rolloutPlan = rolloutOf(body.rollout);
     const env = envOf(body);
     const name = nameOf(body, 'remote');
     const version = field(body, 'version', SAFE_VERSION);
@@ -306,6 +417,16 @@ export class RegistryService {
         'killed',
         `${name} is killed in ${env}; restore it with POST /v1/kill {"restore":true} first`,
       );
+    await this.assertNoRollout(env, name);
+    if (rolloutPlan !== undefined) {
+      if (current === undefined)
+        throw conflict(
+          'no_stable',
+          `${name} has no stable version in ${env}; deploy it without a rollout first`,
+        );
+      if (current.version === version)
+        throw conflict('no_target', `${env} already serves ${name}@${version}`);
+    }
 
     const { manifest, manifestBytes, files } = await this.fetchVersion(base, prefix);
     const hash = sha256(manifestBytes);
@@ -348,7 +469,7 @@ export class RegistryService {
     const remote = built.index.remotes.find((r) => r.name === name);
     if (remote === undefined) throw new ApiError(500, 'internal_error', 'index has no remote');
     const warnings = [...shell.warnings, ...built.warnings];
-    if (current?.version === version && existing !== undefined)
+    if (rolloutPlan === undefined && current?.version === version && existing !== undefined)
       return this.result('deploy', env, remote, current.version, false, warnings);
     const record: VersionRecord = {
       env,
@@ -364,6 +485,48 @@ export class RegistryService {
       createdAt: at,
       createdBy: actor,
     };
+    if (rolloutPlan !== undefined && current !== undefined) {
+      const rollout: RolloutRecord = {
+        env,
+        remote: name,
+        id: crypto.randomBytes(6).toString('hex'),
+        stable: current.version,
+        candidate: version,
+        candidateRemote: remote,
+        percent: rolloutPlan.percent,
+        steps: rolloutPlan.steps,
+        startedAt: at,
+        updatedAt: at,
+      };
+      await this.commit(
+        {
+          env,
+          expectedRev: state?.rev ?? 0,
+          at,
+          versions: [record],
+          pointer: stay(current),
+          rollout: { set: rollout },
+          audit: {
+            at,
+            tokenId: actor,
+            action: 'deploy',
+            env,
+            remote: name,
+            before: current.version,
+            after: version,
+            detail: {
+              warnings: warnings.length,
+              rollout: { id: rollout.id, percent: rollout.percent, steps: rollout.steps },
+            },
+          },
+        },
+        { seen: current },
+      );
+      return {
+        ...this.result('deploy', env, remote, current.version, true, warnings),
+        rollout: summaryOf(rollout),
+      };
+    }
     await this.commit(
       {
         env,
@@ -421,6 +584,7 @@ export class RegistryService {
     const explicit = optionalField(body, 'to');
     if (body.force !== undefined && typeof body.force !== 'boolean')
       throw bad('"force" must be true or false');
+    await this.assertNoRollout(env, name);
     const state = await this.storage.readEnv(env);
     const current = state?.remotes.find((r) => r.name === name);
     if (current === undefined)
@@ -452,6 +616,262 @@ export class RegistryService {
       force: body.force === true,
       seen: { state },
     });
+  }
+
+  private async assertNoRollout(env: string, name: string): Promise<void> {
+    const active = (await this.storage.listRollouts(env)).find((r) => r.remote === name);
+    if (active !== undefined)
+      throw conflict(
+        'rollout_active',
+        `${name} is rolling out ${active.candidate} in ${env}; complete or abort that first`,
+      );
+  }
+
+  rolloutStep(actor: string | null, raw: unknown): Promise<RolloutResult> {
+    return this.retrying(() => this.endOrMove(actor, raw, 'step'));
+  }
+
+  rolloutComplete(actor: string | null, raw: unknown): Promise<RolloutResult> {
+    return this.retrying(() => this.endOrMove(actor, raw, 'complete'));
+  }
+
+  rolloutAbort(actor: string | null, raw: unknown): Promise<RolloutResult> {
+    return this.retrying(() => this.endOrMove(actor, raw, 'abort'));
+  }
+
+  private async endOrMove(
+    actor: string | null,
+    raw: unknown,
+    action: RolloutResult['action'],
+    halt?: { reason: string; detail: Record<string, unknown>; rolloutId: string },
+  ): Promise<RolloutResult> {
+    const body = asBody(raw);
+    rejectUnknown(body, action === 'abort' ? ['env', 'remote', 'reason'] : ['env', 'remote']);
+    const env = envOf(body);
+    const name = nameOf(body);
+    const reason = action === 'abort' ? optionalField(body, 'reason') : undefined;
+    const state = await this.storage.readEnv(env);
+    const pointer = state?.remotes.find((r) => r.name === name);
+    const rollout = (await this.storage.listRollouts(env)).find((r) => r.remote === name);
+    if (state === undefined || pointer === undefined || rollout === undefined)
+      throw new ApiError(404, 'no_rollout', `${name} has no rollout in ${env}`);
+    if (halt !== undefined && halt.rolloutId !== rollout.id)
+      throw new ApiError(404, 'no_rollout', `${name} has no rollout in ${env}`);
+    const at = this.now().toISOString();
+    const audit = (
+      name_: string,
+      after: string | null,
+      detail: Record<string, unknown>,
+    ): EnvChange['audit'] => ({
+      at,
+      tokenId: actor,
+      action: name_,
+      env,
+      remote: name,
+      before: rollout.stable,
+      after,
+      detail: { rolloutId: rollout.id, candidate: rollout.candidate, ...detail },
+    });
+    const result = (percent: number, serves: string): RolloutResult => ({
+      ok: true,
+      env,
+      remote: name,
+      action,
+      stable: rollout.stable,
+      candidate: rollout.candidate,
+      percent,
+      serves,
+    });
+
+    if (action === 'step') {
+      const next = rollout.steps.find((s) => s > rollout.percent);
+      if (next === undefined)
+        throw conflict(
+          'no_next_step',
+          `${name} is at ${String(rollout.percent)}% with no step left; complete it or abort it`,
+        );
+      await this.commit(
+        {
+          env,
+          expectedRev: state.rev,
+          at,
+          versions: [],
+          pointer: stay(pointer),
+          rollout: { set: { ...rollout, percent: next, updatedAt: at } },
+          audit: audit('rollout.step', rollout.candidate, {
+            fromPercent: rollout.percent,
+            toPercent: next,
+          }),
+        },
+        { seen: pointer },
+      );
+      return result(next, rollout.stable);
+    }
+
+    if (action === 'complete') {
+      if (pointer.killed) throw conflict('killed', `${name} is killed in ${env}; restore it first`);
+      const others = state.remotes.filter((r) => !r.killed && r.name !== name).map((r) => r.remote);
+      const overlap = validateRegistryIndex({
+        remotes: [...others, rollout.candidateRemote],
+      }).filter((i) => i.code === ROUTE_OVERLAP);
+      if (overlap.length > 0)
+        throw conflict(
+          'route_overlap',
+          `${name}@${rollout.candidate} cannot become stable: ${overlap.map((i) => i.message).join('; ')}. The rollout is still running; abort it or change the other remote`,
+        );
+      await this.commit(
+        {
+          env,
+          expectedRev: state.rev,
+          at,
+          versions: [],
+          pointer: {
+            name,
+            version: rollout.candidate,
+            remote: rollout.candidateRemote,
+            killed: false,
+          },
+          rollout: { clear: rollout.id },
+          audit: audit('rollout.complete', rollout.candidate, { percent: rollout.percent }),
+        },
+        { seen: pointer },
+      );
+      return result(100, rollout.candidate);
+    }
+
+    await this.commit(
+      {
+        env,
+        expectedRev: state.rev,
+        at,
+        versions: [],
+        pointer: stay(pointer),
+        rollout: { clear: rollout.id },
+        audit: audit(halt === undefined ? 'rollout.abort' : 'rollout.halt', rollout.stable, {
+          percent: rollout.percent,
+          ...(halt === undefined
+            ? reason === undefined
+              ? {}
+              : { reason }
+            : { reason: halt.reason, ...halt.detail }),
+        }),
+      },
+      { seen: pointer },
+    );
+    return result(0, rollout.stable);
+  }
+
+  /**
+   * One page's report: its client id `u` and up to 20 `{remote, version, loads, errors}` entries,
+   * each `loads` 0 or 1 and `errors` no more than `loads`. A browser counts once per rollout side,
+   * however often it reports (the dedupe is a table in storage). Entries for anything that is not
+   * the candidate or stable of a running rollout are dropped without a write, and so is an entry
+   * for the side `u` is not assigned to (candidate when `u` falls inside the percent, else stable).
+   * A remote named twice in one body is refused. Then the gate runs.
+   */
+  async beacon(raw: unknown): Promise<void> {
+    const body = asBody(raw);
+    rejectUnknown(body, ['env', 'u', 'entries']);
+    const env = envOf(body);
+    const client = field(body, 'u', CLIENT_ID);
+    const list = body.entries;
+    if (!Array.isArray(list) || list.length === 0 || list.length > BEACON_MAX_ENTRIES)
+      throw bad(`"entries" must be a list of 1 to ${String(BEACON_MAX_ENTRIES)} reports`);
+    const entries = list.map((item) => {
+      const entry = asBody(item);
+      rejectUnknown(entry, ['remote', 'version', 'loads', 'errors']);
+      const loads = wholeNumber(entry.loads, 'loads', 0, 1);
+      const errors = wholeNumber(entry.errors, 'errors', 0, 1);
+      if (errors > loads) throw bad('"errors" cannot be more than "loads"');
+      return {
+        remote: nameOf(entry),
+        version: field(entry, 'version', SAFE_VERSION),
+        loads,
+        errors,
+      };
+    });
+    const names = entries.map((e) => e.remote);
+    if (new Set(names).size !== names.length) throw bad('"entries" names a remote more than once');
+    const rollouts = await this.storage.listRollouts(env);
+    const maxReporters = this.options.maxReporters ?? DEFAULT_MAX_REPORTERS;
+    const judged = new Map<string, RolloutRecord>();
+    for (const { remote, version, loads, errors } of entries) {
+      const rollout = rollouts.find((r) => r.remote === remote);
+      if (loads === 0 || rollout === undefined) continue;
+      const side = inRollout(client, remote, rollout.id, rollout.percent)
+        ? rollout.candidate
+        : rollout.stable;
+      if (version !== side) continue;
+      // oxlint-disable-next-line no-await-in-loop -- at most 20 small writes
+      await this.storage.addRolloutReport(rollout.id, version, client, errors === 1, maxReporters);
+      if (version === rollout.candidate) judged.set(rollout.id, rollout);
+    }
+    for (const rollout of judged.values()) {
+      // oxlint-disable-next-line no-await-in-loop -- a page rarely has more than a couple
+      await this.judge(rollout);
+    }
+  }
+
+  /** A running rollout's numbers and what the gate thinks of them right now. */
+  async rolloutStatus(env: string, remote: string): Promise<RolloutStatus> {
+    const rollout = (await this.storage.listRollouts(env)).find((r) => r.remote === remote);
+    if (rollout === undefined)
+      throw new ApiError(404, 'no_rollout', `${remote} has no rollout in ${env}`);
+    const settings = this.options.gate ?? DEFAULT_GATE;
+    const counts = await this.storage.rolloutCounts(rollout.id);
+    const none = { loads: 0, errors: 0, clients: 0 };
+    const candidate = counts[rollout.candidate] ?? none;
+    const stable = counts[rollout.stable] ?? none;
+    const verdict = evaluateGate(candidate, stable, settings);
+    const maxReporters = this.options.maxReporters ?? DEFAULT_MAX_REPORTERS;
+    const full = candidate.clients + stable.clients >= maxReporters;
+    return {
+      env,
+      remote,
+      ...summaryOf(rollout),
+      startedAt: rollout.startedAt,
+      candidateCounts: candidate,
+      stableCounts: stable,
+      gate: {
+        verdict: verdict.verdict,
+        ...('reason' in verdict ? { reason: verdict.reason } : {}),
+        settings,
+        reporterCap: { max: maxReporters, full },
+      },
+    };
+  }
+
+  private async judge(rollout: RolloutRecord): Promise<void> {
+    const settings = this.options.gate ?? DEFAULT_GATE;
+    const counts = await this.storage.rolloutCounts(rollout.id);
+    const none = { loads: 0, errors: 0, clients: 0 };
+    const candidate = counts[rollout.candidate] ?? none;
+    const stable = counts[rollout.stable] ?? none;
+    const verdict = evaluateGate(candidate, stable, settings);
+    if (verdict.verdict !== 'halt') return;
+    try {
+      await this.retrying(() =>
+        this.endOrMove(null, { env: rollout.env, remote: rollout.remote }, 'abort', {
+          reason: verdict.reason,
+          rolloutId: rollout.id,
+          detail: {
+            gate: 'error-rate',
+            candidateCounts: candidate,
+            stableCounts: stable,
+            candidateRate: verdict.candidateRate,
+            stableRate: verdict.stableRate,
+            settings,
+          },
+        }),
+      );
+    } catch (error) {
+      // Another request ended this rollout first: nothing left to halt.
+      if (error instanceof ApiError && error.code === 'no_rollout') return;
+      this.options.log?.(
+        'error',
+        `could not halt ${rollout.remote}@${rollout.candidate} in ${rollout.env}: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+    }
   }
 
   /** Removes a remote from the served index at once, or with `restore` puts it back. Retries a lost race: a kill must land. */
@@ -540,6 +960,7 @@ export class RegistryService {
       seen?: { state: EnvState | undefined };
     },
   ): Promise<MoveResult> {
+    await this.assertNoRollout(m.env, m.name);
     const state = m.seen === undefined ? await this.storage.readEnv(m.env) : m.seen.state;
     const before = state?.remotes.find((r) => r.name === m.name);
     if (before?.killed === true)
