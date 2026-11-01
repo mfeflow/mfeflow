@@ -82,7 +82,7 @@ function buildConfigsOf(report: FederationReport): string[] {
     app.configFile,
     app.federationFile ?? app.configFile,
   ]);
-  return [...new Set(files)].toSorted();
+  return [...new Set(files)].toSorted((a, b) => a.localeCompare(b));
 }
 
 function assertMayWrite(globals: ReturnType<typeof readGlobals>): void {
