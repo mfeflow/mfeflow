@@ -179,6 +179,10 @@ export const ERROR_CATALOGUE = {
     title: 'A dev server could not start',
     fix: "Free the port or change it in mfeflow.json and the app's rsbuild config, then run `mfeflow dev` again.",
   },
+  E307: {
+    title: 'The shell to check against could not be read',
+    fix: 'Pass --against a registry index, a deployed shell mf-manifest.json or a local file of either. A URL must be https (http only for localhost) and under 1 MB.',
+  },
   E401: {
     title: 'Could not fetch from the registry',
     fix: 'Check the URL in "registries" and your network, then try again.',
