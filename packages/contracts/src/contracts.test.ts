@@ -11,6 +11,7 @@ import {
   validateRegistryEntry,
   validateRegistryIndex,
 } from '.';
+import { JSON_SCHEMAS } from './json-schema';
 
 const cart = {
   name: 'cart',
@@ -404,6 +405,56 @@ describe('mfeflow.json', () => {
       'budget.remoteKb',
     ]);
     expect(paths(validateMfeflowProject(withBudget([])))).toEqual(['budget']);
+  });
+
+  it('checks the registry host and base URL', () => {
+    const withRegistry = (registry: unknown) => ({ ...project, registry });
+    for (const host of [
+      'file:./site',
+      'file:/srv/registry',
+      'file:C:/site',
+      's3://my-bucket',
+      's3://my-bucket/a/b',
+    ])
+      expect(
+        validateMfeflowProject(withRegistry({ host, baseUrl: 'https://cdn.example.com/x' })),
+      ).toEqual([]);
+    for (const host of [
+      './site',
+      'file:',
+      's3://',
+      's3://key:secret@bucket',
+      'https://x.test',
+      's3://Bad_Bucket',
+    ])
+      expect(paths(validateMfeflowProject(withRegistry({ host })))).toEqual(['registry.host']);
+    for (const baseUrl of [
+      'cdn.example.com',
+      'https://cdn.example.com/',
+      'https://u:p@cdn.test',
+      'https://cdn.test?x=1',
+      'ftp://x.test',
+    ])
+      expect(paths(validateMfeflowProject(withRegistry({ baseUrl })))).toEqual([
+        'registry.baseUrl',
+      ]);
+    expect(paths(validateMfeflowProject(withRegistry([])))).toEqual(['registry']);
+  });
+
+  it('keeps the JSON schema in step with the registry check', () => {
+    interface Pattern {
+      pattern: string;
+    }
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the schema's shape is fixed in json-schema.ts
+    const schema = JSON_SCHEMAS.project as unknown as {
+      properties: { registry: { properties: { host: Pattern; baseUrl: Pattern } } };
+    };
+    const { host, baseUrl } = schema.properties.registry.properties;
+    expect(new RegExp(host.pattern).test('s3://my-bucket/prefix')).toBe(true);
+    expect(new RegExp(host.pattern).test('s3://k:s@bucket')).toBe(false);
+    expect(new RegExp(baseUrl.pattern).test('https://cdn.example.com')).toBe(true);
+    expect(new RegExp(baseUrl.pattern).test('https://cdn.example.com/')).toBe(false);
+    expect(new RegExp(baseUrl.pattern).test('https://u:p@cdn.test')).toBe(false);
   });
 
   it('publishes schema URLs', () => {
