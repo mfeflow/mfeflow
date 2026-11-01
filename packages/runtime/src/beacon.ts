@@ -10,7 +10,11 @@ export interface BeaconTarget {
 }
 
 const SERVER_INDEX = /\/v1\/index\/([a-z][a-z0-9-]*)$/;
+/** The server takes 20 entries and 4 KiB per beacon. */
 const MAX_ENTRIES = 20;
+const MAX_BYTES = 4096;
+/** Most remotes a page keeps counts for; sent in several beacons if needed. */
+const MAX_PENDING = 200;
 export const CLIENT_ID_KEY = 'mfeflow:client';
 
 /** The first index URL that is a registry server's `/v1/index/<env>`. A static host has no beacon. */
@@ -65,6 +69,8 @@ export function withClientId(url: string, id: string = clientId()): string {
   return absolute ? target.href : `${target.pathname}${target.search}${target.hash}`;
 }
 
+const byteLength = (text: string): number => new TextEncoder().encode(text).length;
+
 export type Send = (url: string, body: string) => boolean;
 
 export interface BeaconReporter {
@@ -95,26 +101,35 @@ export function createBeaconReporter(
     if (before !== undefined && (before || !failed)) return;
     const known = pending.get(key);
     if (known !== undefined) known.failed ||= failed;
-    else if (pending.size < MAX_ENTRIES) pending.set(key, { remote, version, failed });
+    else if (pending.size < MAX_PENDING) pending.set(key, { remote, version, failed });
   };
   const flush = (): void => {
     if (pending.size === 0) return;
     const batch = [...pending.entries()];
     pending.clear();
     for (const [key, { failed }] of batch) sent.set(key, failed);
-    send(
-      target.url,
-      JSON.stringify({
-        env: target.env,
-        u: client,
-        entries: batch.map(([, { remote, version, failed }]) => ({
-          remote,
-          version,
-          loads: 1,
-          errors: failed ? 1 : 0,
-        })),
-      }),
-    );
+    const head = JSON.stringify({ env: target.env, u: client, entries: [] });
+    let chunk: { remote: string; version: string; loads: 1; errors: 0 | 1 }[] = [];
+    let size = head.length;
+    const emit = (): void => {
+      if (chunk.length > 0)
+        send(target.url, JSON.stringify({ env: target.env, u: client, entries: chunk }));
+      chunk = [];
+      size = head.length;
+    };
+    for (const [, { remote, version, failed }] of batch) {
+      const entry = {
+        remote,
+        version,
+        loads: 1 as const,
+        errors: failed ? (1 as const) : (0 as const),
+      };
+      const extra = byteLength(JSON.stringify(entry)) + 1;
+      if (chunk.length === MAX_ENTRIES || size + extra > MAX_BYTES) emit();
+      chunk.push(entry);
+      size += extra;
+    }
+    emit();
   };
   const onError = (event: Event): void => {
     const detail: unknown = event instanceof CustomEvent ? event.detail : undefined;
