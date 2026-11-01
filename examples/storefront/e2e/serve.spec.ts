@@ -256,7 +256,7 @@ test.describe('SERVE_REGISTRY_DIR', () => {
       const stderr = await serving(4373, { SERVE_REGISTRY_DIR: dir }, 'x', async (base) => {
         expect((await fetch(`${base}/registry/index.json?a=%0d%0aforged`)).status).toBe(503);
       });
-      expect(stderr).toContain('"GET" "/registry/index.json?a=%0d%0aforged"');
+      expect(stderr).toContain('GET /registry/index.json?a=%0d%0aforged:');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

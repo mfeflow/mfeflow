@@ -322,19 +322,19 @@ function monolithHandler(req: http.IncomingMessage, res: http.ServerResponse): v
   send(req, res, target, cacheFor(target));
 }
 
+/** Request text for a log line: control characters (CR, LF and the rest) become `?`, so a request cannot forge log lines. */
+function printable(value: string): string {
+  return value.replace(/\p{Cc}/gu, '?');
+}
+
 /** One bad request must never take the server down: log it and answer 503 (a missing build) or 500. */
 function guarded(handler: http.RequestListener): http.RequestListener {
   return (req, res) => {
     try {
       handler(req, res);
     } catch (error) {
-      // JSON.stringify escapes CR, LF and other control characters from the request line.
-      console.error(
-        '%s %s:',
-        JSON.stringify(req.method ?? 'GET'),
-        JSON.stringify(req.url ?? ''),
-        error,
-      );
+      // The request line is attacker-controlled: strip control characters before it reaches the log.
+      console.error('%s %s:', printable(req.method ?? 'GET'), printable(req.url ?? ''), error);
       if (res.headersSent) {
         res.destroy();
         return;
