@@ -243,6 +243,81 @@ describe('resolveFeature', () => {
     expect(await run({ alsoAdding: ['env-t3', 'adaptive'] })).toEqual(['apps/shell/with-env.txt']);
   });
 
+  it('fills the app name into a file destination, and writes it from the root with atRoot', async () => {
+    const perApp: FeatureManifest = {
+      name: 'per-app',
+      version: '1.0.0',
+      files: [
+        {
+          to: 'packages/contracts/src/routes/{{app.name}}.ts',
+          target: 'remotes',
+          atRoot: true,
+          content: '// {{app.name}}\n',
+          template: false,
+        },
+        { to: 'src/{{app.name}}.ts', target: 'remotes', content: 'x' },
+      ],
+    };
+    const builder = new PlanBuilder(reader());
+    await resolveFeature({ feature: local(perApp), project, builder });
+    expect(builder.build().changes.map((c) => c.path)).toEqual([
+      'apps/cart/src/cart.ts',
+      'apps/catalog/src/catalog.ts',
+      'packages/contracts/src/routes/cart.ts',
+      'packages/contracts/src/routes/catalog.ts',
+    ]);
+  });
+
+  it('writes an atRoot file once however many times its destination is asked for', async () => {
+    const twice: FeatureManifest = {
+      name: 'twice',
+      version: '1.0.0',
+      files: [{ to: 'packages/shared/index.ts', target: 'remotes', atRoot: true, content: 'x' }],
+    };
+    const builder = new PlanBuilder(reader());
+    await resolveFeature({ feature: local(twice), project, builder });
+    expect(builder.build().changes.map((c) => c.path)).toEqual(['packages/shared/index.ts']);
+  });
+
+  it('names a dependency in the project scope with {{scope}}', async () => {
+    const scoped: FeatureManifest = {
+      name: 'scoped',
+      version: '1.0.0',
+      dependencies: [
+        { name: '{{scope}}/contracts', range: 'workspace:*', target: 'remotes' },
+        { name: '{{scope}}/contracts', range: 'workspace:*', target: 'shell' },
+      ],
+    };
+    const builder = new PlanBuilder(reader());
+    await resolveFeature({ feature: local(scoped), project, builder });
+    expect(builder.build().dependencies).toEqual(
+      ['catalog', 'cart', 'shell'].map((app) => ({
+        file: `apps/${app}/package.json`,
+        name: '@shopco/contracts',
+        range: 'workspace:*',
+        dev: false,
+      })),
+    );
+  });
+
+  it('refuses atRoot and a scoped dependency from a third-party feature, even if the loader was bypassed (E203)', async () => {
+    const attempts: FeatureManifest[] = [
+      { name: '@acme/a', version: '1', files: [{ to: 'src/x.ts', atRoot: true, content: 'x' }] },
+      {
+        name: '@acme/b',
+        version: '1',
+        dependencies: [{ name: '{{scope}}/contracts', range: '^1.0.0' }],
+      },
+    ];
+    for (const manifest of attempts) {
+      const feature: LoadedFeature = { manifest, trust: 'third-party' };
+      const error = await rejection(
+        resolveFeature({ feature, project, builder: new PlanBuilder(reader()) }),
+      );
+      expect(error.code).toBe('MFEFLOW_E203');
+    }
+  });
+
   it('creates runtime-config.json for a first runtime key and adds the next to it', async () => {
     const key = (name: string): FeatureManifest => ({
       name: `adds-${name}`,

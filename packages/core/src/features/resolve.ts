@@ -112,6 +112,11 @@ function applies(
   );
 }
 
+/** Fills in `{{scope}}`, `{{app.name}}` and the other template values; text without any is returned as it is. */
+function fill(text: string, data: TemplateData, label: string): string {
+  return text.includes('{{') ? substitute(text, data, label) : text;
+}
+
 /** `relative` is the path inside the target app; `file` is the project path it ends up at. */
 function assertWritable(file: string, relative: string, trusted: boolean): void {
   if (!isSafeRelativePath(file)) throw new MfeflowError('E105', `"${file}"`);
@@ -167,17 +172,29 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
   const steps: (() => Promise<void>)[] = [];
 
   for (const file of (manifest.files ?? []).filter((f) => applies(f, options, present))) {
+    if (file.atRoot && !trusted) {
+      throw new MfeflowError(
+        'E203',
+        `${manifest.name}: "${file.to}" uses atRoot, which only features that ship with mfeflow may`,
+      );
+    }
     for (const place of placesFor(file.target, project)) {
-      const to = joinPosix(place.dir, file.to);
-      assertWritable(to, file.to, trusted);
-      steps.push(async () => builder.create(to, await contentOf(file, feature, dataFor(place))));
+      const data = dataFor(place);
+      const relative = fill(file.to, data, `${manifest.name}:${file.to}`);
+      const to = file.atRoot ? relative : joinPosix(place.dir, relative);
+      assertWritable(to, relative, trusted);
+      steps.push(async () => builder.create(to, await contentOf(file, feature, data)));
     }
   }
 
   for (const dep of (manifest.dependencies ?? []).filter((d) => applies(d, options, present))) {
     for (const place of placesFor(dep.target, project)) {
       const pkg = joinPosix(place.dir, 'package.json');
-      steps.push(() => builder.addDependency(pkg, dep.name, dep.range, dep.dev));
+      if (!trusted && dep.name.includes('{{')) {
+        throw new MfeflowError('E203', `${manifest.name}: ${dep.name} is for first-party features`);
+      }
+      const name = fill(dep.name, dataFor(place), `${manifest.name}:${dep.name}`);
+      steps.push(() => builder.addDependency(pkg, name, dep.range, dep.dev));
     }
   }
 

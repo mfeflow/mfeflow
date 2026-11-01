@@ -57,6 +57,15 @@ describe('malicious third-party features are rejected', () => {
     }
   });
 
+  it('atRoot and a dependency in the project scope, which are for features that ship with mfeflow', () => {
+    expect(third({ files: [{ to: 'src/x.ts', atRoot: true, content: 'x' }] }).code).toBe(
+      'MFEFLOW_E203',
+    );
+    expect(third({ dependencies: [{ name: '{{scope}}/contracts', range: '^1.0.0' }] }).code).toBe(
+      'MFEFLOW_E203',
+    );
+  });
+
   it('an unknown op, even next to valid ones', () => {
     const error = third({
       transforms: [...good.transforms, { op: 'exec', file: 'a', command: 'rm -rf /' }],

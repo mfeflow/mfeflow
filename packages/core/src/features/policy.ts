@@ -134,6 +134,12 @@ export function assertThirdPartyContent(manifest: FeatureManifest, label: string
         `${label}: "${file.to}" reads a local file (from); use inline content`,
       );
     }
+    if (file.atRoot) {
+      throw new MfeflowError(
+        'E203',
+        `${label}: "${file.to}" uses atRoot, which is first-party only`,
+      );
+    }
     assertThirdPartyPath(file.to, file.to);
   }
   for (const t of manifest.transforms ?? []) {
@@ -141,6 +147,12 @@ export function assertThirdPartyContent(manifest: FeatureManifest, label: string
     for (const file of files) assertThirdPartyPath(file, file);
   }
   for (const dep of manifest.dependencies ?? []) {
+    if (dep.name.includes('{{')) {
+      throw new MfeflowError(
+        'E203',
+        `${label}: ${dep.name} names a package in the project's scope`,
+      );
+    }
     if (!isRegistryRange(dep.range)) {
       throw new MfeflowError(
         'E203',
