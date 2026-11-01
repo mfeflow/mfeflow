@@ -1,0 +1,61 @@
+{
+  "name": "registry-static",
+  "version": "0.1.0",
+  "description": "Publish remotes to a static registry (a folder, S3, R2 or MinIO) with mfeflow deploy, promote, rollback and status. Adds registry:deploy, registry:rollback and registry:status scripts, a guide, and, when ci-github is present, a workflow that deploys every remote when main changes. Credentials come from CI secrets and the environment only.",
+  "requires": ["core"],
+  "prompts": [
+    {
+      "name": "host",
+      "type": "string",
+      "message": "Registry host (file:<dir> or s3://<bucket>[/prefix]), empty to set it later",
+      "default": ""
+    },
+    {
+      "name": "baseUrl",
+      "type": "string",
+      "message": "URL the host's files are served from (https://cdn.example.com), empty to set it later",
+      "default": ""
+    }
+  ],
+  "files": [
+    {
+      "to": "docs/registry.md",
+      "target": "root",
+      "from": "files/registry.md.eta",
+      "template": true
+    },
+    {
+      "to": ".github/workflows/deploy.yml",
+      "target": "root",
+      "from": "files/deploy.yml",
+      "when": {
+        "feature:ci-github": true
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "mfeflow",
+      "range": "latest",
+      "target": "root",
+      "dev": true
+    }
+  ],
+  "scripts": [
+    {
+      "name": "registry:deploy",
+      "command": "mfeflow deploy",
+      "target": "root"
+    },
+    {
+      "name": "registry:rollback",
+      "command": "mfeflow rollback",
+      "target": "root"
+    },
+    {
+      "name": "registry:status",
+      "command": "mfeflow status",
+      "target": "root"
+    }
+  ]
+}

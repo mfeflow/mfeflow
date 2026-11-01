@@ -66,8 +66,8 @@ describe('home page', () => {
     }
   });
 
-  it('keeps the 21 features and 19 packages counts true to the repo', () => {
-    expect(fs.readdirSync(path.join(ROOT, 'features'))).toHaveLength(21);
+  it('keeps the 23 features and 19 packages counts true to the repo', () => {
+    expect(fs.readdirSync(path.join(ROOT, 'features'))).toHaveLength(23);
     expect(fs.readdirSync(path.join(ROOT, 'packages'))).toHaveLength(19);
   });
 

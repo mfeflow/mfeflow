@@ -64,6 +64,17 @@ export function positionals(args: Record<string, unknown>, max: number, usage: s
   return given;
 }
 
+/**
+ * `registry.host` or `registry.baseUrl` from mfeflow.json; failing that, the option of the same name
+ * the `registry-static` feature was added with. A flag still wins over both.
+ */
+function configured(view: ProjectView, key: 'host' | 'baseUrl'): string | undefined {
+  const own = view.project.registry?.[key];
+  if (own !== undefined) return own;
+  const option = view.project.features['registry-static']?.options?.[key];
+  return typeof option === 'string' && option !== '' ? option : undefined;
+}
+
 export async function openSession(
   rt: Runtime,
   args: Record<string, unknown>,
@@ -71,7 +82,7 @@ export async function openSession(
 ): Promise<Session> {
   const view = await inspectProject(await findProjectRoot(raw.cwd));
   const flag = text(args, 'host');
-  const spec = flag ?? view.project.registry?.host;
+  const spec = flag ?? configured(view, 'host');
   if (spec === undefined)
     throw new MfeflowError('E506', 'no host: pass --host or set registry.host in mfeflow.json');
   const parsed = parseHostSpec(spec, flag === undefined ? view.root : raw.cwd);
@@ -86,12 +97,10 @@ export async function openSession(
     throw hostFailure(error, secrets);
   }
   const flagUrl = text(args, 'base-url');
-  const baseUrl =
-    flagUrl === undefined
-      ? view.project.registry?.baseUrl === undefined
-        ? undefined
-        : normalizeBaseUrl(view.project.registry.baseUrl, 'registry.baseUrl')
-      : normalizeBaseUrl(flagUrl, '--base-url');
+  const fileUrl = configured(view, 'baseUrl');
+  let baseUrl: string | undefined;
+  if (flagUrl !== undefined) baseUrl = normalizeBaseUrl(flagUrl, '--base-url');
+  else if (fileUrl !== undefined) baseUrl = normalizeBaseUrl(fileUrl, 'registry.baseUrl');
   return {
     rt,
     globals: raw,

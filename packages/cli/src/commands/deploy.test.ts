@@ -499,6 +499,78 @@ describe('where the registry lives', () => {
     expect(result.host).toBe(`file:${f.site}`);
   });
 
+  describe('with the registry-static feature', () => {
+    const addFeature = async (f: Fixture, ...options: string[]) =>
+      main(
+        [
+          'add',
+          'registry-static',
+          '--no-install',
+          ...options.flatMap((o) => ['--option', `registry-static.${o}`]),
+          '--cwd',
+          f.root,
+        ],
+        testRuntime(),
+      );
+
+    it('reads host and baseUrl from the options it was added with', async () => {
+      const f = await fixture({ configure: true });
+      open.push(f);
+      expect(await addFeature(f, `host=file:${f.site}`, `baseUrl=${BASE_URL}`)).toBe(0);
+      await buildRemote(f.root, 'catalog', '1.0.0');
+      const { code, result } = await f.run('deploy', 'catalog', '--env', 'prod');
+      expect(code).toBe(0);
+      expect(result.host).toBe(`file:${f.site}`);
+      expect((await f.served('prod'))?.entry).toBe(`${BASE_URL}/catalog/1.0.0/mf-manifest.json`);
+    });
+
+    it('lets registry.host in mfeflow.json and then a flag win over the options', async () => {
+      const f = await fixture({ configure: true });
+      open.push(f);
+      const elsewhere = path.join(path.dirname(f.site), 'elsewhere-site');
+      expect(await addFeature(f, `host=file:${elsewhere}`, `baseUrl=${BASE_URL}`)).toBe(0);
+      const file = path.join(f.root, 'mfeflow.json');
+      const config = await readObject(file);
+      await fs.writeFile(file, JSON.stringify({ ...config, registry: { host: `file:${f.site}` } }));
+      await buildRemote(f.root, 'catalog', '1.0.0');
+      const { result } = await f.run('deploy', 'catalog', '--env', 'prod');
+      expect(result.host).toBe(`file:${f.site}`);
+      expect((await f.served('prod'))?.version).toBe('1.0.0');
+      const flagged = await f.run(
+        'deploy',
+        'catalog',
+        '--env',
+        'prod',
+        '--host',
+        `file:${elsewhere}`,
+      );
+      expect(flagged.result.host).toBe(`file:${elsewhere}`);
+      await fs.rm(elsewhere, { recursive: true, force: true });
+    });
+
+    it('treats empty options as not set', async () => {
+      const f = await fixture({ configure: true });
+      open.push(f);
+      expect(await addFeature(f)).toBe(0);
+      await buildRemote(f.root, 'catalog', '1.0.0');
+      const none = await f.fail('deploy', 'catalog', '--env', 'prod');
+      expect(none.result.error.code).toBe('MFEFLOW_E506');
+      expect(none.result.error.message).toContain('no host');
+    });
+  });
+
+  it('deploys the version in package.json, which is where the release feature puts it', async () => {
+    const f = await project();
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    const pkgFile = path.join(f.root, 'apps/catalog/package.json');
+    const pkg = await readObject(pkgFile);
+    // What `changeset version` does to a private remote.
+    await fs.writeFile(pkgFile, JSON.stringify({ ...pkg, version: '1.1.0' }));
+    const { code, result } = await f.run('deploy', 'catalog', '--env', 'prod', '--dry-run');
+    expect(code).toBe(0);
+    expect(result.version).toBe('1.1.0');
+  });
+
   it('fails with E506 when no host is set, or the spec is wrong', async () => {
     const f = await fixture({ configure: true });
     open.push(f);

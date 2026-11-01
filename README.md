@@ -50,9 +50,9 @@ shell   | ready   built in 0.28s
 What you get:
 
 - A shell and remotes on Module Federation 2.0 and Rsbuild, with React shared once.
-- 21 features you add one at a time, each with a diff you can preview.
+- 23 features you add one at a time, each with a diff you can preview.
 - Checks for compatibility, ownership and bundle size that run in CI.
-- A registry design that supports rollback by pointer (the command is in progress).
+- A static registry: `mfeflow deploy` and `mfeflow rollback` move a pointer, with no rebuild.
 - About 5 seconds from create to a running platform, measured.
 
 Read the [docs](https://mfeflow.github.io/mfeflow/) for the full guide.
@@ -77,7 +77,7 @@ Splitting an app into micro-frontends is easy on day one. The trouble starts a f
 | Remotes drift onto different library versions | A compatibility check compares each remote with its shell, locally and in CI |
 | Nobody knows who owns a route                 | Each app has an ownership file, and the CLI validates it                     |
 | Bundles creep up unnoticed                    | A size budget flags the shell or a remote when it grows too much             |
-| Rolling back means rebuilding                 | The registry is built for rollback by pointer. The command is in progress    |
+| Rolling back means rebuilding                 | `mfeflow rollback` moves the registry pointer back; nothing is rebuilt       |
 
 mfeflow is not for a single team with one app. A plain Rsbuild or Vite project is simpler there.
 
@@ -156,14 +156,16 @@ There are 21 first-party features. Each lives in `features/` and can be added on
 
 **Foundation**
 
-| Feature                                                                   | What it does                                             |
-| ------------------------------------------------------------------------- | -------------------------------------------------------- |
-| tsconfig                                                                  | Strict TypeScript 7 presets                              |
-| lint-oxlint                                                               | Type-aware oxlint and Prettier                           |
-| [testing](https://mfeflow.github.io/mfeflow/features/testing)             | Vitest, Testing Library, MSW and a Playwright smoke test |
-| git-hooks                                                                 | Commit message and typecheck hooks with lefthook         |
-| [commit-prompt](https://mfeflow.github.io/mfeflow/features/commit-prompt) | An interactive Conventional Commits prompt               |
-| [ci-github](https://mfeflow.github.io/mfeflow/features/ci-github)         | A pull request workflow that runs every check            |
+| Feature                                                                       | What it does                                             |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------- |
+| tsconfig                                                                      | Strict TypeScript 7 presets                              |
+| lint-oxlint                                                                   | Type-aware oxlint and Prettier                           |
+| [testing](https://mfeflow.github.io/mfeflow/features/testing)                 | Vitest, Testing Library, MSW and a Playwright smoke test |
+| git-hooks                                                                     | Commit message and typecheck hooks with lefthook         |
+| [commit-prompt](https://mfeflow.github.io/mfeflow/features/commit-prompt)     | An interactive Conventional Commits prompt               |
+| [ci-github](https://mfeflow.github.io/mfeflow/features/ci-github)             | A pull request workflow that runs every check            |
+| [registry-static](https://mfeflow.github.io/mfeflow/features/registry-static) | Deploy and roll back remotes on a folder or bucket       |
+| [release](https://mfeflow.github.io/mfeflow/features/release)                 | Changesets versions each remote, and deploy uses it      |
 
 **Data and contracts**
 
@@ -243,10 +245,11 @@ The first 18 are on npm and `@mfeflow/registry` joins at the next release. All a
 
 These are measured, and each links to its raw data.
 
-| Measure                                   | Result                                                                   | Source                                                         |
-| ----------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------- |
-| Create to a shell and two remotes running | About 5 s (median of 5 runs, warm pnpm store, arm64 laptop)              | [bench/results/2026-10-31.json](bench/results/2026-10-31.json) |
-| Largest contentful paint, against one app | +160 ms on the catalog page (Lighthouse mobile, simulated, median of 10) | [perf-summary.json](examples/storefront/e2e/perf-summary.json) |
+| Measure                                   | Result                                                                                                    | Source                                                                           |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Create to a shell and two remotes running | About 5 s (median of 5 runs, warm pnpm store, arm64 laptop)                                               | [bench/results/2026-10-31.json](bench/results/2026-10-31.json)                   |
+| Rollback visible on a fresh page load     | About 0.7 s after the command exits, on a local file host (median of 5 runs, arm64 laptop). No CDN, no S3 | [bench/results/2026-11-01-rollback.json](bench/results/2026-11-01-rollback.json) |
+| Largest contentful paint, against one app | +160 ms on the catalog page (Lighthouse mobile, simulated, median of 10)                                  | [perf-summary.json](examples/storefront/e2e/perf-summary.json)                   |
 
 The CI perf job checks these budgets on pull requests that touch the runtime, the build preset or the storefront. Its run on 2026-11-01 ([run 41312499587](https://github.com/mfeflow/mfeflow/actions/runs/41312499587)):
 
@@ -272,7 +275,7 @@ What is still open:
 
 - There is no `mfeflow remove`. Adding a feature is tested. Removing one is not supported.
 - The generated GitHub Actions workflow has not yet run on a fresh GitHub repository.
-- Deploy, rollback, upgrade and the MCP server do not exist yet. Nothing above depends on them.
+- Upgrade and the MCP server do not exist yet. Percentage rollouts and a kill switch need the registry server, which is not built.
 
 This section is the status board. Update it in the same pull request that starts or finishes a phase.
 

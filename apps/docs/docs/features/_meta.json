@@ -98,6 +98,20 @@
   },
   {
     "type": "section-header",
+    "label": "Delivery"
+  },
+  {
+    "type": "file",
+    "name": "registry-static",
+    "label": "registry-static"
+  },
+  {
+    "type": "file",
+    "name": "release",
+    "label": "release"
+  },
+  {
+    "type": "section-header",
     "label": "UI"
   },
   {
