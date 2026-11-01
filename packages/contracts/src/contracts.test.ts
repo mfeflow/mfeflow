@@ -338,12 +338,13 @@ describe('mfeflow.json', () => {
     expect(paths(validateMfeflowProject({ ...project, repo: 3 }))).toEqual(['repo']);
   });
 
-  it('allows zero shells only in a remote repo', () => {
+  it('allows zero shells only in a platform or remote repo', () => {
     const remoteOnly = { ...project, apps: { cart: project.apps.cart } };
     expect(paths(validateMfeflowProject(remoteOnly))).toEqual(['apps']);
-    expect(paths(validateMfeflowProject({ ...remoteOnly, repo: 'platform' }))).toEqual(['apps']);
     expect(paths(validateMfeflowProject({ ...remoteOnly, repo: 'shell' }))).toEqual(['apps']);
     expect(validateMfeflowProject({ ...remoteOnly, repo: 'remote' })).toEqual([]);
+    expect(validateMfeflowProject({ ...remoteOnly, repo: 'platform' })).toEqual([]);
+    expect(validateMfeflowProject({ ...project, apps: {}, repo: 'platform' })).toEqual([]);
   });
 
   it('checks the dev server port of an app', () => {
