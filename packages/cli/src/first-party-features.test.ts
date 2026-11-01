@@ -507,8 +507,11 @@ describe('event-bus', () => {
     expect(remote).toContain("declare module '@mfeflow/event-bus'");
     expect(remote).toContain('interface EventMap extends Events {}');
     expect(remote).toContain("publish('mfe.ready.v1', { mfe: 'cart' })");
-    expect(await read('apps/shell/src/events.ts')).toContain("import '@mfeflow/event-bus';");
-    expect(await read('apps/shell/src/bootstrap.tsx')).toContain("import './events';");
+    expect(await read('apps/shell/src/events.ts')).toContain("configureEvent('mfe.ready.v1'");
+    const boot = await read('apps/shell/src/bootstrap.tsx');
+    expect(boot).toContain("import { configureShellEvents } from './events';");
+    expect(boot.indexOf('configureShellEvents();')).toBeLessThan(boot.indexOf('.render('));
+    expect(boot).not.toContain('await configureShellEvents');
   });
 
   it('writes a unit test for the shell and each remote when testing is installed', async () => {
@@ -516,7 +519,7 @@ describe('event-bus', () => {
     await add('event-bus');
     const tree = await readTree(project);
     expect(tree['apps/cart/src/events.test.ts']).toContain('onOtherRemoteReady');
-    expect(tree['apps/shell/src/events.test.ts']).toContain("subscribe('mfe.ready.v1'");
+    expect(tree['apps/shell/src/events.test.ts']).toContain('configureShellEvents');
   });
 
   it('gives a remote added later its own events and the dependency', async () => {

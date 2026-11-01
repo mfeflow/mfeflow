@@ -75,10 +75,12 @@
   ],
   "transforms": [
     {
-      "op": "add-import",
+      "op": "add-boot-step",
       "file": "src/bootstrap.tsx",
       "target": "shell",
-      "from": "./events"
+      "call": "configureShellEvents",
+      "from": "./events",
+      "await": false
     }
   ]
 }
