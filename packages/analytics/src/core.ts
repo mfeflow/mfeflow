@@ -9,6 +9,10 @@ import type { AnalyticsProvider, ConsentUpdate, EventParams } from './types';
 
 const KEY = Symbol.for('mfeflow.analytics');
 const QUEUE_LIMIT = 100;
+/** How long, after the first call, a provider that joins late still gets the calls made before it. */
+const BOOT_WINDOW_MS = 10_000;
+
+let keepCalls = false;
 
 type Call = (provider: AnalyticsProvider) => void;
 
@@ -18,6 +22,8 @@ interface State {
   consent: ConsentUpdate;
   listeners: Set<() => void>;
   lastPage: string | undefined;
+  /** Calls kept for providers that join later; only set once `@mfeflow/analytics/providers` is loaded. */
+  replay?: { calls: Call[]; since: number | undefined } | undefined;
 }
 
 function isState(value: unknown): value is State {
@@ -35,6 +41,7 @@ function state(): State {
     consent: readStoredConsent(),
     listeners: new Set(),
     lastPage: undefined,
+    replay: keepCalls ? { calls: [], since: undefined } : undefined,
   };
   Reflect.set(globalThis, KEY, fresh);
   return fresh;
@@ -42,6 +49,12 @@ function state(): State {
 
 function send(call: Call): void {
   const s = state();
+  const keep = s.replay;
+  if (keep) {
+    keep.since ??= Date.now();
+    if (Date.now() - keep.since > BOOT_WINDOW_MS) s.replay = undefined;
+    else if (keep.calls.length < QUEUE_LIMIT) keep.calls.push(call);
+  }
   if (s.provider) call(s.provider);
   else if (s.queue.length < QUEUE_LIMIT) s.queue.push(call);
 }
@@ -65,11 +78,29 @@ export function runningProvider(): AnalyticsProvider | undefined {
   return state().provider;
 }
 
-/** Makes `joined` (a combination that includes `added`) the running provider and starts `added` with the stored consent. */
+/** For `./providers`: from now on, keep the first calls (for ten seconds, at most 100) for providers that join later. */
+export function keepCallsForJoiners(): void {
+  keepCalls = true;
+  const s = state();
+  s.replay ??= { calls: [], since: undefined };
+}
+
+/**
+ * Starts `added` with the stored consent, and only then makes `joined` (a combination that includes it) the
+ * running provider, so a provider whose `init` throws leaves the running one as it was and can be added
+ * again. Then sends it the calls made since analytics began, if they are still kept.
+ */
 export function joinProvider(joined: AnalyticsProvider, added: AnalyticsProvider): void {
   const s = state();
-  s.provider = joined;
   added.init({ ...s.consent });
+  s.provider = joined;
+  for (const call of s.replay?.calls ?? []) {
+    try {
+      call(added);
+    } catch {
+      // one bad call must not stop the rest
+    }
+  }
 }
 
 export function isAnalyticsReady(): boolean {
