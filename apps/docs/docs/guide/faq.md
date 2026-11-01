@@ -33,9 +33,9 @@ At boot it reads a registry index, a JSON list of remotes with their entry URLs.
 
 ## Can I deploy or roll back one remote without redeploying the shell?
 
-You can deploy one remote on its own today. Replace its files under `/mfe/<name>/`, and the shell loads the new build the next time a visitor opens the page. Rollback is manual: put the old files back.
+Yes. Publish the remote's new version and change one entry in the registry index. The shell loads the new build the next time a visitor opens the page.
 
-A command that rolls back by changing a pointer, with no rebuild, is planned and not built. See [Deploy](/guide/deploying).
+To go back, point the entry at the earlier version. Nothing is rebuilt. The `mfeflow rollback` command does this for you, and you can also edit the index by hand. See [Deploy and roll back a remote](/guide/deploy-and-rollback) and the [Deploy overview](/guide/deploy/).
 
 ## Who owns the contracts between remotes?
 

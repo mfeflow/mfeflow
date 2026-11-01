@@ -111,6 +111,7 @@ MFEFLOW_E108 The target folder is not empty: /work/app already has notes.txt
 | 5    | build or runtime problem: `MFEFLOW_E3xx`                                |
 | 6    | feature registry problem: `MFEFLOW_E4xx`                                |
 | 7    | deploy problem: `MFEFLOW_E5xx`                                          |
+| 8    | upgrade problem, or files that need a decision: `MFEFLOW_E6xx`          |
 | 130  | cancelled at a prompt (nothing was written), or Ctrl+C in `mfeflow dev` |
 
 ## Try it from a checkout

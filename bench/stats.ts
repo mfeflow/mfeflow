@@ -32,3 +32,54 @@ export function resultName(date: Date, withTime = false): string {
   const iso = date.toISOString();
   return withTime ? iso.slice(0, 19).replaceAll(':', '-') : iso.slice(0, 10);
 }
+
+/** One rollback measurement. */
+export interface RollbackRun {
+  /** How long `mfeflow rollback` itself took. Not part of the visible time. */
+  commandMs: number;
+  /** From the command exiting to a fresh load showing the old version. */
+  visibleMs: number;
+  /** Fresh loads it took (1 unless the first still showed the new version). */
+  attempts: number;
+}
+
+export function summarizeRollback(runs: readonly RollbackRun[]): RollbackRun {
+  const of = (pick: (run: RollbackRun) => number): number => Math.round(median(runs.map(pick)));
+  return {
+    commandMs: of((r) => r.commandMs),
+    visibleMs: of((r) => r.visibleMs),
+    attempts: of((r) => r.attempts),
+  };
+}
+
+/** `2026-10-31-rollback`, so the rollback result sits next to the time-to-running one of the same day. */
+export function rollbackResultName(date: Date, withTime = false): string {
+  return `${resultName(date, withTime)}-rollback`;
+}
+
+/** Whether a registry index (as parsed JSON) has `remote` at `version`. The HTTP fallback's "is the old version live". */
+export function indexServes(index: unknown, remote: string, version: string): boolean {
+  if (typeof index !== 'object' || index === null) return false;
+  const remotes: unknown = Reflect.get(index, 'remotes');
+  if (!Array.isArray(remotes)) return false;
+  return remotes.some(
+    (r: unknown) =>
+      typeof r === 'object' &&
+      r !== null &&
+      Reflect.get(r, 'name') === remote &&
+      Reflect.get(r, 'version') === version,
+  );
+}
+
+/** The `remoteEntry` URL an index lists for `remote`, if it lists one. */
+export function remoteEntryOf(index: unknown, remote: string): string | undefined {
+  if (typeof index !== 'object' || index === null) return undefined;
+  const remotes: unknown = Reflect.get(index, 'remotes');
+  if (!Array.isArray(remotes)) return undefined;
+  for (const r of remotes as unknown[]) {
+    if (typeof r !== 'object' || r === null || Reflect.get(r, 'name') !== remote) continue;
+    const entry: unknown = Reflect.get(r, 'remoteEntry');
+    return typeof entry === 'string' ? entry : undefined;
+  }
+  return undefined;
+}

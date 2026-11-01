@@ -47,7 +47,7 @@ It does not make a bad split good. If your teams cut the product along the wrong
 
 Some things are not built yet or are out of scope for this release:
 
-- Deploy, promote and rollback commands. They are planned for Phase 05. See [Deploy](/guide/deploying).
+- A registry server with percentage rollouts. It is planned for Phase 05. Deploy, promote and rollback commands for a static host are built. See [Deploy](/guide/deploy/).
 - Frameworks other than React, and server-side rendering.
 - CSS isolation between remotes beyond what the `tailwind` feature gives you.
 - A package manager other than pnpm.

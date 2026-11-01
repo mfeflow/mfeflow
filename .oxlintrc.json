@@ -47,7 +47,8 @@
         "e2e/matrix/run.ts",
         "e2e/matrix/registry.ts",
         "e2e/matrix/ui-checks.ts",
-        "bench/time-to-running.ts"
+        "bench/time-to-running.ts",
+        "bench/rollback-visible.ts"
       ],
       "rules": {
         "import/extensions": "off"

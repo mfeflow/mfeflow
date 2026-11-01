@@ -77,7 +77,7 @@ Every action is pinned to a commit SHA with the version in a comment, which mean
 ## Gotchas
 
 - The workflow runs on `pull_request` only. It does not run on pushes to your default branch.
-- This release generates no deploy workflow. `docs/ci.md` describes the shape to follow when you add one: read-only permissions, `id-token: write` for short-lived cloud credentials instead of stored keys, and each preview uploaded to its own path. See [Deploying](/guide/deploying).
+- This release generates no deploy workflow. `docs/ci.md` describes the shape to follow when you add one: read-only permissions, `id-token: write` for short-lived cloud credentials instead of stored keys, and each preview uploaded to its own path. See [Deploying](/guide/deploy/).
 
 ## Reference
 
