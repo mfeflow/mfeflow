@@ -266,5 +266,6 @@ Every `mfeflow.json` has `topology` set to `polyrepo` and a `repo` of `platform`
 
 ## Next
 
+- Follow the same steps with real output in the [polyrepo-teams example](https://github.com/mfeflow/mfeflow/tree/main/examples/polyrepo-teams).
 - [Deploy and roll back](/guide/deploy-and-rollback) a remote from its own repo.
 - [CLI reference](/reference/cli) for every flag of `init` and `add`.
