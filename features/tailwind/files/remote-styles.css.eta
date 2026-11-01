@@ -1,4 +1,4 @@
-<%_ const prefix = it.app.name.replace(/[0-9]/g, (digit) => 'abcdefghij'[Number(digit)] ?? '').replace(/[^a-z]/g, '') || 'app' _%>
+<%_ const prefix = it.app.tailwindPrefix _%>
 /* No reset here: the shell has it. Classes are written <%= prefix %>:flex, and the theme variables are --<%= prefix %>-*. */
 @layer theme, base, components, utilities;
 @import 'tailwindcss/theme.css' layer(theme) prefix(<%= prefix %>);

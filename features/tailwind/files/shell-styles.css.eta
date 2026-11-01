@@ -1,4 +1,4 @@
-<%_ const prefix = it.app.name.replace(/[0-9]/g, (digit) => 'abcdefghij'[Number(digit)] ?? '').replace(/[^a-z]/g, '') || 'app' _%>
+<%_ const prefix = it.app.tailwindPrefix _%>
 /* The shell is the only app that loads Tailwind's reset (preflight). */
 @layer theme, base, components, utilities;
 @import 'tailwindcss/theme.css' layer(theme) prefix(<%= prefix %>);

@@ -23,9 +23,10 @@ change to one remote's tokens changes the other remote.
 
 ## The prefix
 
-Every app has a prefix made of its name's letters: `cart` writes `cart:flex cart:p-4 cart:bg-primary`; `cart2` becomes
-`cartc` (Tailwind accepts lowercase letters only, so a digit becomes the letter at that position in the alphabet and
-other characters are dropped). The theme variables are prefixed as well (`--cart-spacing`), so two remotes cannot write
+Every app has a prefix: a name made of letters is its own prefix (`cart` writes `cart:flex cart:p-4 cart:bg-primary`). Tailwind
+accepts lowercase letters only, so any other name (`cart_b`, `cart1`) keeps its letters and gets four more from a hash of
+the whole name (`cartqzvk`), which keeps `cart_b`, `cartb` and `cart1` apart. If two apps would still share a prefix,
+`mfeflow add` stops and names both. The theme variables are prefixed as well (`--cart-spacing`), so two remotes cannot write
 to the same variable. Pick the prefix yourself by editing the `prefix(...)` in `styles.css` and in the classes.
 
 Two remotes can then define the same token differently:

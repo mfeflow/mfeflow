@@ -292,6 +292,26 @@ describe('storybook', () => {
   });
 });
 
+describe('tailwind prefixes', () => {
+  it('gives remotes whose names sanitise alike different prefixes, in the css and in the classes', async () => {
+    for (const name of ['cart_b', 'cart1', 'cartb']) {
+      expect(
+        await main(['add', 'remote', name, '--no-install', '--cwd', project], testRuntime()),
+      ).toBe(0);
+    }
+    expect(await add('tailwind')).toBe(0);
+    const prefixes: string[] = [];
+    for (const name of ['cart', 'cart_b', 'cart1', 'cartb']) {
+      const css = await read(`apps/${name}/src/styles.css`);
+      const prefix = /prefix\((\w+)\)/.exec(css)?.[1] ?? '';
+      expect(prefix, name).toMatch(/^[a-z]+$/);
+      expect(await read(`apps/${name}/src/tailwind/Scope.tsx`), name).toContain(`${prefix}:p-2`);
+      prefixes.push(prefix);
+    }
+    expect(new Set(prefixes).size).toBe(4);
+  });
+});
+
 describe('forms', () => {
   it.each([
     ['zod', "from 'zod'"],
