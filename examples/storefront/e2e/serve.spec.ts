@@ -250,12 +250,13 @@ test.describe('SERVE_REGISTRY_DIR', () => {
     });
   });
 
-  test('answers 503 until something is deployed', async () => {
+  test('answers 503 until something is deployed, and logs the request quoted', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'storefront-host-'));
     try {
-      await serving(4373, { SERVE_REGISTRY_DIR: dir }, 'x', async (base) => {
-        expect((await fetch(`${base}/registry/index.json`)).status).toBe(503);
+      const stderr = await serving(4373, { SERVE_REGISTRY_DIR: dir }, 'x', async (base) => {
+        expect((await fetch(`${base}/registry/index.json?a=%0d%0aforged`)).status).toBe(503);
       });
+      expect(stderr).toContain('"GET" "/registry/index.json?a=%0d%0aforged"');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

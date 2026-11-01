@@ -328,7 +328,13 @@ function guarded(handler: http.RequestListener): http.RequestListener {
     try {
       handler(req, res);
     } catch (error) {
-      console.error('%s %s:', req.method ?? 'GET', req.url ?? '', error);
+      // JSON.stringify escapes CR, LF and other control characters from the request line.
+      console.error(
+        '%s %s:',
+        JSON.stringify(req.method ?? 'GET'),
+        JSON.stringify(req.url ?? ''),
+        error,
+      );
       if (res.headersSent) {
         res.destroy();
         return;
