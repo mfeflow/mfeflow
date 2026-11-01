@@ -28,6 +28,7 @@ describe('first-party catalogue', () => {
       'analytics-clarity',
       'ci-github',
       'git-hooks',
+      'commit-prompt',
     ]);
     expect(DEFAULT_FEATURES).toEqual(['lint-oxlint', 'url-factory', 'env-t3', 'testing']);
     expect(isFirstParty('git-hooks')).toBe(true);

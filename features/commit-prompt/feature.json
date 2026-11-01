@@ -1,0 +1,27 @@
+{
+  "name": "commit-prompt",
+  "version": "0.1.0",
+  "description": "An interactive Conventional Commits prompt (czg): pnpm commit asks for the type, scope and message, then runs git commit. No emoji. Works with git-hooks, whose commitlint hook checks the same message.",
+  "requires": ["core"],
+  "files": [
+    {
+      "to": "cz.config.js",
+      "target": "root",
+      "from": "files/cz.config.js"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "czg",
+      "range": "1.14.0",
+      "target": "root",
+      "dev": true
+    }
+  ],
+  "scripts": [
+    {
+      "name": "commit",
+      "command": "czg"
+    }
+  ]
+}

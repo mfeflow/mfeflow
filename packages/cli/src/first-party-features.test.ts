@@ -58,6 +58,7 @@ describe.each([
   'data-react-query',
   'ui-shadcn',
   'analytics-clarity',
+  'commit-prompt',
 ])('mfeflow add %s', (feature) => {
   it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
     await addRequired(feature);
@@ -99,6 +100,7 @@ describe.each([
       tailwind: ['postcss.config.mjs', 'src/styles.css', 'src/tailwind/Scope.tsx'],
       forms: ['src/forms/ContactForm.tsx', 'src/forms/schema.ts'],
       'analytics-clarity': [],
+      'commit-prompt': [],
       'ui-shadcn': ['components.json', 'src/lib/utils.ts', 'src/components/ui/button.tsx'],
       'data-react-query': ['src/query/Query.tsx', 'src/query/keys.ts', 'src/query/useHealth.ts'],
     }[feature];
@@ -203,6 +205,29 @@ describe('analytics-clarity', () => {
     await add('analytics-clarity');
     expect(await add('env-t3')).toBe(0);
     expect(await read('apps/shell/src/config/schema.ts')).toContain('clarityId');
+  });
+});
+
+describe('commit-prompt', () => {
+  it('wires pnpm commit to czg and offers only the types commitlint accepts', async () => {
+    expect(await add('commit-prompt')).toBe(0);
+    const root = await json('package.json');
+    expect(root.scripts?.commit).toBe('czg');
+    expect(root.devDependencies).toHaveProperty('czg');
+    const config = await read('cz.config.js');
+    expect(config).toContain('useEmoji: false');
+    for (const type of ['feat', 'fix', 'docs', 'refactor', 'chore', 'revert']) {
+      expect(config).toContain(`value: '${type}'`);
+    }
+  });
+
+  it('sits next to git-hooks without touching its files', async () => {
+    expect(await add('git-hooks')).toBe(0);
+    const hooks = await readTree(project);
+    expect(await add('commit-prompt')).toBe(0);
+    const after = await readTree(project);
+    for (const file of ['lefthook.yml', 'commitlint.config.js'])
+      expect(after[file], file).toBe(hooks[file]);
   });
 });
 

@@ -77,6 +77,7 @@ describe('mfeflow features', () => {
       'analytics-clarity': false,
       'ci-github': false,
       'git-hooks': false,
+      'commit-prompt': false,
     });
     const outside = testRuntime();
     await main(['features', '--json', '--cwd', cwd], outside);
