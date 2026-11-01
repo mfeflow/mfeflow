@@ -191,6 +191,15 @@ describe('s3Host conditional writes and integrity', () => {
     await expect(put).rejects.toBeInstanceOf(PreconditionFailedError);
   });
 
+  it('says the bucket is missing when If-Match meets NoSuchBucket', async () => {
+    const f = fakeFetch(
+      () => new Response('<Error><Code>NoSuchBucket</Code></Error>', { status: 404 }),
+    );
+    const put = s3Host(base({ fetch: f.fetch })).put('i', '{}', { ...opts, ifMatch: '"e"' });
+    await expect(put).rejects.toThrow('bucket "my-registry" does not exist');
+    await expect(put).rejects.not.toBeInstanceOf(PreconditionFailedError);
+  });
+
   it('does not call a plain 404 on put a precondition failure', async () => {
     const f = fakeFetch(() => new Response('', { status: 404 }));
     await expect(s3Host(base({ fetch: f.fetch })).put('k', 'x', opts)).rejects.toThrow(

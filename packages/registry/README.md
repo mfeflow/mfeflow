@@ -50,7 +50,7 @@ Shell versions come from the shell's `mf-manifest.json` `shared` entries, then f
 
 Each remote keeps `previous` and the last 10 versions in `history` (newest first), so a rollback knows where to go.
 
-**Rollback.** Deploying a version that is already in `history` is a rollback. The remote then records the version it left in `rolledBackFrom`, and `previous` and `history` hold only versions older than the one you went back to. Rolling back again goes to the next older version and never returns to the bad one. Deploying a new version clears `rolledBackFrom`.
+**Rollback.** Deploying a version that is already in `history` is a rollback. The remote then records the version it left in `rolledBackFrom`, and `previous` and `history` hold only versions older than the one you went back to. Rolling back again goes to the next older version and never returns to the bad one. Deploying a new version clears `rolledBackFrom`, and the version you rolled back from is forgotten: after v1, v2, v3, a rollback to v2 and a deploy of v4, the history is v2, v1 and v3 is gone from the index.
 
 Warnings (`plan.warnings`) are checks that could not run, for example a shell version of `workspace:*` or a package the shell manifest lists with no version. They do not fail the deploy.
 
@@ -64,7 +64,7 @@ Warnings (`plan.warnings`) are checks that could not run, for example a shell ve
 
 A host is `{ put, get, head, list? }`. The index is written with `If-Match` (or `If-None-Match: *` for the first one in an env), so two deploys cannot overwrite each other; the loser gets a `PreconditionFailedError` and reads the index again. `planDeploy` needs `currentIndexEtag` whenever you pass `currentIndex`. Artifacts are written create-only with their SHA-256 stored alongside, so a version can never be replaced with different content.
 
-**A folder.** `localHost(dir)` writes files (to a temp file, then a rename, so a crash never leaves half a file) and refuses any key that leaves `dir`: `..`, absolute paths, drive letters, backslashes, `:` in a name, Windows device names, and symlinks that point outside.
+**A folder.** `localHost(dir)` writes files (to a temp file, then a rename, so a crash never leaves half a file) and refuses any key that leaves `dir`: `..`, absolute paths, drive letters, backslashes, `:` in a name, Windows device names, and symlinks that point outside. An index update takes a `.lock` file next to the index; one left behind by a crash is cleared after 30 seconds, and a fresh one that does not go away within 2 seconds fails with its path.
 
 **S3-compatible storage.** AWS S3, Cloudflare R2 and MinIO, signed with SigV4 on `node:crypto` and the global `fetch`. No SDK.
 

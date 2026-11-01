@@ -107,6 +107,71 @@ describe('localHost', () => {
     expect(await host.list?.('')).toEqual(['envs/prod/index.json']);
   });
 
+  describe('lock file', () => {
+    const lockPath = () => path.join(dir, 'envs', 'prod', 'index.json.lock');
+    const seed = async (host: ReturnType<typeof localHost>) => {
+      const first = await host.put('envs/prod/index.json', '0', opts);
+      await fs.writeFile(lockPath(), '');
+      return first.etag ?? '';
+    };
+
+    it('clears a lock left by a crash and carries on', async () => {
+      const host = localHost(dir, { staleLockMs: 1000 });
+      const etag = await seed(host);
+      const old = new Date(Date.now() - 60_000);
+      await fs.utimes(lockPath(), old, old);
+      await host.put('envs/prod/index.json', '1', { ...opts, ifMatch: etag });
+      expect(await fs.readFile(path.join(dir, 'envs', 'prod', 'index.json'), 'utf8')).toBe('1');
+      await expect(fs.stat(lockPath())).rejects.toThrow();
+    });
+
+    it('waits for a fresh lock, then fails naming the file and how to clear it', async () => {
+      const host = localHost(dir, { lockWaitMs: 60 });
+      const etag = await seed(host);
+      const error = await host
+        .put('envs/prod/index.json', '1', { ...opts, ifMatch: etag })
+        .catch((e: unknown) => e);
+      expect(error).not.toBeInstanceOf(PreconditionFailedError);
+      expect((error as Error).message).toContain(lockPath());
+      expect((error as Error).message).toContain('delete that file');
+      expect(await fs.readFile(path.join(dir, 'envs', 'prod', 'index.json'), 'utf8')).toBe('0');
+    });
+
+    it('takes the lock once a held one is released while waiting', async () => {
+      const host = localHost(dir, { lockWaitMs: 2000 });
+      const etag = await seed(host);
+      setTimeout(() => void fs.rm(lockPath(), { force: true }), 40);
+      await host.put('envs/prod/index.json', '1', { ...opts, ifMatch: etag });
+      expect(await fs.readFile(path.join(dir, 'envs', 'prod', 'index.json'), 'utf8')).toBe('1');
+    });
+  });
+
+  describe('link fallback', () => {
+    const noLink = (code: string) =>
+      (() => {
+        const error = Object.assign(new Error(code), { code });
+        return Promise.reject(error);
+      }) as typeof fs.link;
+
+    it.each(['EPERM', 'ENOTSUP', 'ENOSYS', 'EXDEV'])(
+      'stays create-only when link fails with %s',
+      async (code) => {
+        const host = localHost(dir, { link: noLink(code) });
+        await host.put('a/b.js', 'one', { ...opts, ifNoneMatch: '*' });
+        await expect(
+          host.put('a/b.js', 'two', { ...opts, ifNoneMatch: '*' }),
+        ).rejects.toBeInstanceOf(PreconditionFailedError);
+        expect(await fs.readFile(path.join(dir, 'a', 'b.js'), 'utf8')).toBe('one');
+        expect(await fs.readdir(path.join(dir, 'a'))).toEqual(['b.js']);
+      },
+    );
+
+    it('still surfaces other link errors', async () => {
+      const host = localHost(dir, { link: noLink('EIO') });
+      await expect(host.put('a.js', 'x', { ...opts, ifNoneMatch: '*' })).rejects.toThrow('EIO');
+    });
+  });
+
   describe('ifNoneMatch', () => {
     it('creates once, then refuses', async () => {
       const host = localHost(dir);

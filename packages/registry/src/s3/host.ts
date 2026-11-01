@@ -127,11 +127,13 @@ export function s3Host(options: S3Options): RegistryHost {
         },
         bytes,
       );
-      const conflict =
-        res.status === 412 ||
-        res.status === 409 ||
-        (res.status === 404 && put.ifMatch !== undefined);
-      if (conflict) {
+      if (res.status === 404 && put.ifMatch !== undefined) {
+        const text = await res.text().catch(() => '');
+        if (text.includes('NoSuchBucket'))
+          throw new HostError(`bucket "${options.bucket}" does not exist (NoSuchBucket)`, 404);
+        throw new PreconditionFailedError(key);
+      }
+      if (res.status === 412 || res.status === 409) {
         await release(res);
         throw new PreconditionFailedError(key);
       }

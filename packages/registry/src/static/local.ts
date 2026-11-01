@@ -63,16 +63,46 @@ async function realAncestor(target: string): Promise<string> {
   }
 }
 
-async function write(file: string, bytes: Uint8Array, createOnly: boolean): Promise<boolean> {
+const NO_LINK = ['EPERM', 'ENOTSUP', 'ENOSYS', 'EXDEV'];
+const byCodePoint = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Create-only without `link` (some filesystems refuse it): `wx` still fails if the file exists. */
+async function createExclusive(file: string, bytes: Uint8Array): Promise<boolean> {
+  let handle;
+  try {
+    handle = await fs.open(file, 'wx');
+  } catch (error) {
+    if (hasCode(error, 'EEXIST')) return false;
+    throw error;
+  }
+  try {
+    await handle.writeFile(bytes);
+  } catch (error) {
+    await handle.close().catch(() => undefined);
+    await fs.rm(file, { force: true });
+    throw error;
+  }
+  await handle.close();
+  return true;
+}
+
+async function write(
+  file: string,
+  bytes: Uint8Array,
+  createOnly: boolean,
+  link: typeof fs.link,
+): Promise<boolean> {
   await fs.mkdir(path.dirname(file), { recursive: true });
   const temp = path.join(path.dirname(file), `.${path.basename(file)}.${crypto.randomUUID()}.tmp`);
   try {
     await fs.writeFile(temp, bytes);
     if (createOnly) {
       try {
-        await fs.link(temp, file);
+        await link(temp, file);
       } catch (error) {
         if (hasCode(error, 'EEXIST')) return false;
+        if (hasCode(error, ...NO_LINK)) return await createExclusive(file, bytes);
         throw error;
       }
     } else await fs.rename(temp, file);
@@ -82,13 +112,54 @@ async function write(file: string, bytes: Uint8Array, createOnly: boolean): Prom
   }
 }
 
+export interface LocalHostOptions {
+  /** For tests: replaces `fs.link`. */
+  link?: typeof fs.link;
+  /** A lock file older than this is treated as left by a crash. Default 30 s. */
+  staleLockMs?: number;
+  /** How long to wait for a held lock before giving up. Default 2 s. */
+  lockWaitMs?: number;
+}
+
 /**
  * A registry in a folder, for local runs and for a Pages-style workflow that publishes the folder.
  * ETags are SHA-256 of the content. Writes go to a temp file in the same folder and are renamed into
  * place, so a crash never leaves half a file. A symlink that points out of the folder is refused.
  */
-export function localHost(dir: string): RegistryHost {
+export function localHost(dir: string, options: LocalHostOptions = {}): RegistryHost {
   const root = path.resolve(dir);
+  const link = options.link ?? fs.link;
+  const staleLockMs = options.staleLockMs ?? 30_000;
+  const lockWaitMs = options.lockWaitMs ?? 2000;
+
+  /** Takes `<file>.lock`; a lock older than `staleLockMs` is a crashed writer's and is cleared. */
+  async function lockFor(lock: string): Promise<fs.FileHandle> {
+    const started = Date.now();
+    let delay = 10;
+    for (;;) {
+      try {
+        // oxlint-disable-next-line no-await-in-loop -- retries until the lock is free
+        return await fs.open(lock, 'wx');
+      } catch (error) {
+        if (!hasCode(error, 'EEXIST')) throw error;
+      }
+      // oxlint-disable-next-line no-await-in-loop -- retries until the lock is free
+      const info = await fs.stat(lock).catch(() => undefined);
+      if (info === undefined) continue;
+      if (Date.now() - info.mtimeMs > staleLockMs) {
+        // oxlint-disable-next-line no-await-in-loop -- retries until the lock is free
+        await fs.rm(lock, { force: true });
+        continue;
+      }
+      if (Date.now() - started >= lockWaitMs)
+        throw new HostError(
+          `${lock} is held by another deploy. If none is running, delete that file and retry.`,
+        );
+      // oxlint-disable-next-line no-await-in-loop -- retries until the lock is free
+      await sleep(delay);
+      delay = Math.min(delay * 2, 200);
+    }
+  }
 
   async function fileOf(key: string): Promise<string> {
     assertSafeKey(key);
@@ -109,33 +180,30 @@ export function localHost(dir: string): RegistryHost {
   }
 
   return {
-    async put(key, body, options: PutOptions) {
+    async put(key, body, put: PutOptions) {
       const file = await fileOf(key);
       const bytes = toBytes(body);
-      if (options.ifMatch === undefined) {
-        if (!(await write(file, bytes, options.ifNoneMatch === '*')))
+      if (put.ifMatch === undefined) {
+        if (!(await write(file, bytes, put.ifNoneMatch === '*', link)))
           throw new PreconditionFailedError(key);
         return { etag: etagOf(bytes) };
       }
       // Check and write under a lock file, so two writers holding the same ETag cannot both win.
       const lock = `${file}.lock`;
       await fs.mkdir(path.dirname(file), { recursive: true });
-      let handle;
-      try {
-        handle = await fs.open(lock, 'wx');
-      } catch (error) {
-        if (hasCode(error, 'EEXIST')) throw new PreconditionFailedError(key);
-        throw error;
-      }
+      const handle = await lockFor(lock);
       try {
         const current = await readOrUndefined(file);
-        if (current === undefined || etagOf(current) !== options.ifMatch)
+        if (current === undefined || etagOf(current) !== put.ifMatch)
           throw new PreconditionFailedError(key);
-        await write(file, bytes, false);
+        await write(file, bytes, false, link);
         return { etag: etagOf(bytes) };
       } finally {
-        await handle.close();
-        await fs.rm(lock, { force: true });
+        try {
+          await handle.close();
+        } finally {
+          await fs.rm(lock, { force: true });
+        }
       }
     },
     async get(key): Promise<StoredObject | undefined> {
@@ -153,7 +221,7 @@ export function localHost(dir: string): RegistryHost {
       await walk(root, '', all);
       return all
         .filter((key) => key.startsWith(prefix) && !key.endsWith('.tmp') && !key.endsWith('.lock'))
-        .toSorted();
+        .toSorted(byCodePoint);
     },
   };
 }

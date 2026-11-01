@@ -1,7 +1,12 @@
 import crypto from 'node:crypto';
-import { ROUTE_OVERLAP, validateRegistryIndex, type RegistryIndex } from '@mfeflow/contracts';
+import {
+  isPortableRelativePath,
+  ROUTE_OVERLAP,
+  validateRegistryIndex,
+  type RegistryIndex,
+} from '@mfeflow/contracts';
 import { artifactPrefix, buildIndex, indexKey, type DeployInput, type GateFailure } from './build';
-import { assertSafeKey, HostError, PreconditionFailedError, type RegistryHost } from './host';
+import { HostError, PreconditionFailedError, type RegistryHost } from './host';
 
 export const IMMUTABLE = 'public, max-age=31536000, immutable';
 export const INDEX_CACHE_CONTROL = 'public, max-age=60';
@@ -88,13 +93,21 @@ export function planDeploy(input: PlanInput): DeployPlan {
       version: input.version,
     });
   }
-  if (failures.length > 0) return { uploads: [], index, indexKey: key, failures, warnings };
   const prefix = artifactPrefix(input.remote.name, input.version);
+  for (const file of Object.keys(input.files)) {
+    if (isPortableRelativePath(`${prefix}/${file}`)) continue;
+    failures.push({
+      code: 'schema',
+      message: `${input.remote.name}@${input.version}: build file "${file}" has a name that is not safe to upload (.., absolute path, drive letter, backslash, ":" or a Windows device name)`,
+      remote: input.remote.name,
+      version: input.version,
+    });
+  }
+  if (failures.length > 0) return { uploads: [], index, indexKey: key, failures, warnings };
   const artifacts = Object.entries(input.files)
     .toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([file, body]): Upload => {
       const target = `${prefix}/${file}`;
-      assertSafeKey(target);
       return {
         key: target,
         body,

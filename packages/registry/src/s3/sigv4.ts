@@ -37,6 +37,9 @@ export const encodeRfc3986 = (value: string): string =>
     (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
   );
 
+/** Code point order, which SigV4 requires; `localeCompare` would break signatures. */
+const byCodePoint = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
 function canonicalPath(url: URL): string {
   return url.pathname
     .split('/')
@@ -67,7 +70,7 @@ export function signRequest(input: SignInput): Signed {
   const signed = new Map<string, string>([['host', url.host]]);
   for (const [name, value] of Object.entries(sent))
     signed.set(name.toLowerCase(), value.trim().replaceAll(/\s+/g, ' '));
-  const names = [...signed.keys()].toSorted();
+  const names = [...signed.keys()].toSorted(byCodePoint);
   const signedHeaders = names.join(';');
   const canonicalRequest = [
     input.method.toUpperCase(),

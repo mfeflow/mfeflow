@@ -78,7 +78,11 @@ describe('planDeploy', () => {
   it('refuses a file path that would leave the version folder', () => {
     const manifest = manifestFor();
     const files = { ...filesFor(manifest), '../other/x.js': new Uint8Array([1]) };
-    expect(() => planDeploy(input({ files }))).toThrow(/unsafe key/);
+    const plan = planDeploy(input({ files }));
+    expect(plan.uploads).toEqual([]);
+    expect(plan.failures).toHaveLength(1);
+    expect(plan.failures[0]).toMatchObject({ code: 'schema', remote: 'cart', version: '1.0.0' });
+    expect(plan.failures[0]?.message).toContain('"../other/x.js"');
   });
 });
 
