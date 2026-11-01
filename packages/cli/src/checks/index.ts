@@ -9,8 +9,6 @@ import { workspaceVersions } from './workspace';
 /** What `mfeflow validate` runs: the files against their schemas and each other. */
 export const VALIDATE_CHECKS: readonly Check[] = [appsOnDisk, mfeJson, routes, registry];
 
-export const COMPAT_CHECKS: readonly Check[] = [compat];
-
 /** Every check `mfeflow doctor` runs, in order. */
 export const DOCTOR_CHECKS: readonly Check[] = [
   appsOnDisk,

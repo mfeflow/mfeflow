@@ -1,7 +1,10 @@
+import { redactUrl } from '@mfeflow/contracts';
 import { findProjectRoot, type MfeflowProject, type PlanBuilder } from '@mfeflow/core';
 import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals, type Globals } from '../args';
-import { COMPAT_CHECKS, DOCTOR_CHECKS, VALIDATE_CHECKS } from '../checks';
+import { loadShell } from '../against';
+import { DOCTOR_CHECKS, VALIDATE_CHECKS } from '../checks';
+import { compatCheck } from '../checks/compat';
 import type { Check, Finding } from '../findings';
 import { freePort, REMOTE_PORT, registryEntryFiles } from '../glue';
 import { inspectProject, type ProjectView } from '../inspect';
@@ -21,7 +24,15 @@ export const DOCTOR_ARGS = {
 } as const satisfies ArgsDef;
 
 export const VALIDATE_ARGS = { ...GLOBAL_ARGS } as const satisfies ArgsDef;
-export const COMPAT_ARGS = { ...GLOBAL_ARGS } as const satisfies ArgsDef;
+export const COMPAT_ARGS = {
+  against: {
+    type: 'string',
+    description:
+      'Check against the shell a registry index or a deployed mf-manifest.json describes (file or https URL)',
+    valueHint: 'url|file',
+  },
+  ...GLOBAL_ARGS,
+} as const satisfies ArgsDef;
 
 const DEFAULT_VERSION = '0.0.0';
 
@@ -116,20 +127,21 @@ async function runGroup(
   raw: readonly string[],
   defs: ArgsDef,
   command: ReportResult['command'],
-  checks: readonly Check[],
+  checks: readonly Check[] | ((globals: Globals) => Promise<readonly Check[]>),
   fix: boolean,
 ): Promise<ReportResult> {
   assertKnownFlags(raw, defs);
   const globals = readGlobals(args, rt.io.env, rt.io.cwd);
   const root = await findProjectRoot(globals.cwd);
+  const list = typeof checks === 'function' ? await checks(globals) : checks;
   let view = await inspectProject(root, rt.io);
-  let report = await runChecks(view, checks);
+  let report = await runChecks(view, list);
   let fixed = 0;
   if (fix && report.findings.some((f) => f.fixable)) {
     fixed = await fixAll(rt, globals, view, report.findings);
     if (fixed > 0) {
       view = await inspectProject(root, rt.io);
-      report = await runChecks(view, checks);
+      report = await runChecks(view, list);
     }
   }
   const summary = summarizeReport(report, fixed);
@@ -165,5 +177,20 @@ export function runCheckCompat(
   args: Record<string, unknown>,
   raw: readonly string[],
 ): Promise<ReportResult> {
-  return runGroup(rt, args, raw, COMPAT_ARGS, 'check-compat', COMPAT_CHECKS, false);
+  const against = typeof args.against === 'string' ? args.against : undefined;
+  return runGroup(
+    rt,
+    args,
+    raw,
+    COMPAT_ARGS,
+    'check-compat',
+    async (globals) => [
+      compatCheck(
+        against === undefined
+          ? undefined
+          : await loadShell(against, { cwd: globals.cwd, fetch: rt.fetch }),
+      ),
+    ],
+    false,
+  ).then((result) => (against === undefined ? result : { ...result, against: redactUrl(against) }));
 }

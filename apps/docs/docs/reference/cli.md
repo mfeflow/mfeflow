@@ -144,25 +144,27 @@ The build action lists every problem and writes nothing if there is one (E404).
 Moves the project to the version of mfeflow you run. It never asks npm for a newer one. The tutorial is in [Versions and upgrades](/guide/upgrading).
 
 ```bash
-mfeflow upgrade [--to <version>] [--dry-run] [--json] [--yes] [--accept <path|all>] [--keep <path|all>]
+mfeflow upgrade [--to <version>] [--dry-run] [--json] [--yes] [--accept <path|all>] [--keep <path|all>] [--accept-changed-content [features]]
 ```
 
-| Flag                       | Meaning                                                                                                      |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `--dry-run`                | Print the summary and every diff, write nothing                                                              |
-| `--accept <path\|all>`     | Replace a file you changed with the new version. A path, a comma list, or `all`. Symlinks are never replaced |
-| `--keep <path\|all>`       | Keep your file. It is raised again only when the new version of it changes                                   |
-| `--yes`                    | Never ask. A changed file still needs `--accept` or `--keep`, and a registry feature is applied              |
-| `--accept-changed-content` | Take a registry feature whose content differs from the recorded hash                                         |
-| `--to <version>`           | Must be the version that runs, because the files come from it. Anything else is E107                         |
+| Flag                                  | Meaning                                                                                                                                   |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `--dry-run`                           | Print the summary and every diff, write nothing                                                                                           |
+| `--accept <path\|all>`                | Replace a file you changed with the new version. A path, a comma list, or `all`. Symlinks are never replaced                              |
+| `--keep <path\|all>`                  | Keep your file. It is raised again only when the new version of it changes                                                                |
+| `--yes`                               | Never ask. A changed file still needs `--accept` or `--keep`, and a registry feature is applied                                           |
+| `--accept-changed-content [features]` | Take registry content that differs from the recorded hash. Alone it takes every feature; with a comma list (`@acme/a,@acme/b`) only those |
+| `--to <version>`                      | Must be the version that runs, because the files come from it. Anything else is E107                                                      |
 
 A generated file you did not edit is replaced and a new file is created. `package.json`, `pnpm-workspace.yaml` and `turbo.json` only get small edits. Files the new version no longer makes, and files you deleted, are listed and left alone. A file you changed is offered only when the new version generates something different from the old one. It is never written unless you accept it.
 
-Without a terminal there is nobody to ask. A changed file with no decision stops the run before anything is written, with E604 and exit code 8, even with `--yes`. A `--dry-run` never fails that way: it prints everything and exits 0. A symlink is reported and never written over, with or without `--accept all`. It needs no decision and never blocks a run.
+Without a terminal there is nobody to ask. A changed file with no decision stops the run before anything is written, with E604 and exit code 8, even with `--yes`. A `--dry-run` never fails that way: it prints everything and exits 0. A symlink is reported and never written over, with or without `--accept all`. So is a file under a symlinked folder: every part of the path from the project root down is checked. A symlink needs no decision and never blocks a run.
 
-A feature from a registry is applied only after you confirm in a terminal, or pass `--yes` without one. The content of each registry feature is compared with the hash in `mfeflow.json`. If the registry now serves other bytes for the same version, the run stops with E406. Pass `--accept-changed-content` to take them. The files are written all or nothing, and the install runs in the same step.
+A feature from a registry is applied only after you confirm in a terminal, or pass `--yes` without one. The content of each registry feature is compared with the hash in `mfeflow.json`. If the registry now serves other bytes for the same version, the run stops with E406. Pass `--accept-changed-content` to take them, or name the features, as in `--accept-changed-content @acme/hello`. Repeat the flag to add names. A name that is not an installed feature, or an empty `=`, is E107. The new hash is saved even when no file changes. A feature with no recorded hash is shown as first seen and its hash is recorded. The files are written all or nothing, and the install runs in the same step.
 
-`--json` prints `{ ok, command: "upgrade", dryRun, root, from, fromSource, to, upToDate, replaced, created, edited, diverged: [{ path, reason, decision, lostKeys, diff }], missing, removed, migrations, plan, written, installed, diff }`.
+`integrity` maps each registry feature to `verified`, `first-seen` or `accepted-changed`. `changedValues` is the part of `lostKeys` that the new version has with another value.
+
+`--json` prints `{ ok, command: "upgrade", dryRun, root, from, fromSource, to, upToDate, replaced, created, edited, diverged: [{ path, reason, decision, lostKeys, changedValues, diff }], integrity, missing, removed, migrations, plan, written, installed, diff }`.
 
 ## doctor, validate and check-compat
 
@@ -173,6 +175,38 @@ A feature from a registry is applied only after you confirm in a terminal, or pa
 | `check-compat` | Remote ranges against their shells                                                                                                                                      |
 
 `doctor --fix` repairs a missing workspace version (E111) and missing registry entry files (E114). Add `--dry-run` to see the diff first.
+
+### check-compat
+
+Checks each remote's shared ranges against the shell it runs in. By default it reads the shell's versions from `node_modules` in this repo.
+
+```bash
+mfeflow check-compat [--against <url|file>] [--json]
+```
+
+| Flag                    | Meaning                                                                                  |
+| ----------------------- | ---------------------------------------------------------------------------------------- |
+| `--against <url\|file>` | Read the shell's versions from a deployed shell instead of this repo. See the list below |
+
+`--against` takes one of three things:
+
+- A registry index for an environment. The shell's `mf-manifest.json` is read from `shell/mf-manifest.json` beside it.
+- A deployed shell `mf-manifest.json`.
+- A local file of either kind.
+
+Every remote in this repo is then checked against the versions the shell shares. A remote that needs a React the shell does not provide is an error (E302) and exits with code 5.
+
+A URL must be https. Plain http is allowed for localhost only. The answer may not be larger than 1 MB, and a redirect to a private address is refused. A source that cannot be read is E307.
+
+Some versions cannot be compared before install, such as `workspace:*` or `catalog:`. Each one is a warning, not an error.
+
+If the shell is not in this repo and you pass no `--against`, the check cannot compare anything. It does not pass silently. It prints this warning:
+
+```text
+warning shell is not in this repo, pass --against <url|file>
+```
+
+A warning does not change the exit code, as with every other check. The command exits 0 unless there is an error. With `--json`, `against` holds the source you passed, with any token in a URL hidden.
 
 ## budget
 
