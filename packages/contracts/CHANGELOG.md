@@ -1,5 +1,11 @@
 # @mfeflow/contracts
 
+## 0.2.0
+
+### Minor Changes
+
+- [#28](https://github.com/mfeflow/mfeflow/pull/28) [`8043f00`](https://github.com/mfeflow/mfeflow/commit/8043f00627e0ac0c6e665b745cf29f2cfe428c61) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - `mfe.json` `events` takes `<domain>.<event>.v<major>` (`cart.item-added.v1`). `feature.json` accepts `atRoot` on a file and `{{scope}}/<name>` as a dependency name.
+
 ## 0.1.0
 
 ### Minor Changes
