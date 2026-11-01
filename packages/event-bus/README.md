@@ -63,7 +63,7 @@ configureEvent('cart.item-added.v1', { validate: fromStandardSchema(itemAddedSch
 
 ## Module Federation sharing
 
-Bucket: **singleton**. Share `@mfeflow/event-bus` and `@mfeflow/event-bus/react` (`@mfeflow/rsbuild` does). The registry also lives on `globalThis`, so a second copy of the same version still reaches the same subscribers. A copy that finds a registry from an incompatible version keeps its own, warns in development, and talks to other copies through `window` events.
+Bucket: **singleton**. Share `@mfeflow/event-bus` and `@mfeflow/event-bus/react` (`@mfeflow/rsbuild` does). The registry also lives on `globalThis`, so a second copy of the same version still reaches the same subscribers (and warns in development that two copies are loaded). A copy that finds a registry from an incompatible version keeps its own, warns in development, and talks to other copies through `window` events.
 
 ## Links
 

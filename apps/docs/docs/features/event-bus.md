@@ -89,7 +89,7 @@ never the payload.
 
 `@mfeflow/event-bus` and `@mfeflow/event-bus/react` are shared singletons (`@mfeflow/rsbuild` adds them), so every
 remote uses the shell's copy. The subscribers also live on `globalThis`, so a second copy of the same version still
-reaches them. A copy that finds a registry from an incompatible version keeps its own, warns in development, and
+reaches them; in development it warns that a remote is bundling its own copy. A copy that finds a registry from an incompatible version keeps its own, warns in development, and
 exchanges events with other copies through `window` events.
 
 A handler that throws is logged and does not stop the other handlers.

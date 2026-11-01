@@ -295,7 +295,10 @@ describe('event names', () => {
 
 describe('two copies of the package on one page', () => {
   it('share subscribers, so a remote with its own copy still hears the others', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const first = await import('.');
+    first.listenerCount('cart.cleared.v1');
+    expect(warn).not.toHaveBeenCalled();
     vi.resetModules();
     const second = await import('.');
     expect(second.publish).not.toBe(first.publish);
@@ -304,5 +307,30 @@ describe('two copies of the package on one page', () => {
     second.publish('cart.cleared.v1');
     expect(heard).toHaveBeenCalledOnce();
     expect(second.listenerCount('cart.cleared.v1')).toBe(1);
+  });
+
+  it('warn once in development that a second copy is loaded, and stay quiet in production', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const first = await import('.');
+    first.listenerCount('cart.cleared.v1');
+    vi.resetModules();
+    const second = await import('.');
+    second.listenerCount('cart.cleared.v1');
+    second.publish('cart.cleared.v1');
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]?.[0]).toContain('two copies of @mfeflow/event-bus');
+    expect(warn.mock.calls[0]?.[0]).toContain('singleton');
+
+    first.resetEventBusForTests();
+    warn.mockClear();
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.resetModules();
+    const third = await import('.');
+    third.listenerCount('cart.cleared.v1');
+    vi.resetModules();
+    const fourth = await import('.');
+    fourth.listenerCount('cart.cleared.v1');
+    vi.unstubAllEnvs();
+    expect(warn).not.toHaveBeenCalled();
   });
 });

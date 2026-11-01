@@ -16,12 +16,21 @@ export interface Registry {
   /** The last payload of each event that replays. */
   last: Map<string, unknown>;
   config: Map<string, Config>;
+  /** One entry per copy of this package that has used the registry. */
+  copies: Set<symbol>;
 }
 
 const KEY = Symbol.for('mfeflow.event-bus');
+const COPY = Symbol('copy');
 
 function create(): Registry {
-  return { protocol: PROTOCOL, listeners: new Map(), last: new Map(), config: new Map() };
+  return {
+    protocol: PROTOCOL,
+    listeners: new Map(),
+    last: new Map(),
+    config: new Map(),
+    copies: new Set(),
+  };
 }
 
 function isRegistry(value: unknown): value is Registry {
@@ -31,7 +40,8 @@ function isRegistry(value: unknown): value is Registry {
     Reflect.get(value, 'protocol') === PROTOCOL &&
     Reflect.get(value, 'listeners') instanceof Map &&
     Reflect.get(value, 'last') instanceof Map &&
-    Reflect.get(value, 'config') instanceof Map
+    Reflect.get(value, 'config') instanceof Map &&
+    Reflect.get(value, 'copies') instanceof Set
   );
 }
 
@@ -40,6 +50,18 @@ let own: Registry | undefined;
 /** True when this copy keeps its own registry and bridges to other copies through the window. */
 export function isIsolated(): boolean {
   return own !== undefined;
+}
+
+/** Registers this copy, and says so in development when it is not the only one. */
+function attach(shared: Registry): Registry {
+  if (shared.copies.has(COPY)) return shared;
+  shared.copies.add(COPY);
+  if (shared.copies.size > 1) {
+    warnOnce(
+      'two copies of @mfeflow/event-bus are loaded on this page. They share their subscribers, so events still arrive, but a remote is bundling its own copy: share @mfeflow/event-bus as a singleton (@mfeflow/rsbuild does) and make sure the shell imports it.',
+    );
+  }
+  return shared;
 }
 
 /**
@@ -54,9 +76,9 @@ export function registry(): Registry {
   if (existing === undefined) {
     const fresh = create();
     Reflect.set(globalThis, KEY, fresh);
-    return fresh;
+    return attach(fresh);
   }
-  if (isRegistry(existing)) return existing;
+  if (isRegistry(existing)) return attach(existing);
   warnOnce(
     'another copy of @mfeflow/event-bus on this page speaks a different protocol, so this copy cannot share its subscribers. It falls back to window events; share @mfeflow/event-bus as a singleton so one copy is loaded.',
   );
