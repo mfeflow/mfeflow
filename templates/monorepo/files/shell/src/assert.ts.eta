@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/no-underscore-dangle -- __MFEFLOW_SINGLETONS__ is the name the rsbuild preset defines */
 import { checkSingletons, reportRemoteError } from '@mfeflow/runtime';
 
 // The shell's rsbuild preset defines the packages it shares; an older preset does not, so fall back.

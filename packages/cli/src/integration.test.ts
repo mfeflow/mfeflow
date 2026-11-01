@@ -130,6 +130,7 @@ describe('mfeflow init --local --yes --no-install', () => {
     const boot = tree['apps/shell/src/bootstrap.tsx'];
     expect(boot).toContain("if (DEV) void import('./assert');");
     expect(boot).not.toMatch(/^import .* from '\.\/assert'/m);
+    expect(tree['apps/shell/src/assert.ts']).toContain('eslint/no-underscore-dangle');
     expect(tree['apps/shell/src/assert.ts']).toContain('checkSingletons(SINGLETONS)');
     expect(tree['apps/shell/src/assert.ts']).toContain(
       "typeof __MFEFLOW_SINGLETONS__ === 'undefined'",
