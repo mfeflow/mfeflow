@@ -1,5 +1,11 @@
 # @mfeflow/rsbuild
 
+## 0.5.0
+
+### Patch Changes
+
+- [#50](https://github.com/mfeflow/mfeflow/pull/50) [`7e9aac2`](https://github.com/mfeflow/mfeflow/commit/7e9aac2bf5acbf7003ab8aaf4887771c92856d71) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - Projects from `mfeflow init` now run the browser singleton check, which the docs and README already promised. The shell runs `src/assert.ts` in development, and production pays nothing. It reports a duplicated or missing React, runtime or other shared package in the console and the dev overlay. The list it checks comes from what the shell really shares: `createShellConfig` defines it as `__MFEFLOW_SINGLETONS__`.
+
 ## 0.4.0
 
 No changes in this release.

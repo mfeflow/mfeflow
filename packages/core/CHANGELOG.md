@@ -1,5 +1,32 @@
 # @mfeflow/core
 
+## 0.5.0
+
+### Minor Changes
+
+- [#51](https://github.com/mfeflow/mfeflow/pull/51) [`fe74360`](https://github.com/mfeflow/mfeflow/commit/fe74360bdec93b458bc6211aeb5b1c7cf06a43e0) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - New commands `mfeflow deploy`, `promote`, `rollback` and `status` publish remotes to a static registry. `deploy` uploads a remote's build and points an environment at it, `promote` copies the pointer from one environment to another, `rollback` goes back to the previous version (or `--to`) without a rebuild, and `status` shows what each environment serves and any drift. Hosts are `file:<dir>` or `s3://<bucket>[/prefix]`, with S3 settings and credentials read from environment variables only. All four take `--json`, `--dry-run`, `--cwd` and `--yes`. Gate failures exit with 7 and the new `MFEFLOW_E501` to `E512` codes; exit code 7 is now the deploy range (it was reserved for upgrade), and the `EXIT.upgrade` key of the exported `EXIT` table is now `EXIT.deploy`; the number is unchanged.
+  
+  `mfeflow.json` gains `registry.host` and `registry.baseUrl`, validated and in the published JSON schema. `@mfeflow/core` lists the new error codes.
+
+- [#53](https://github.com/mfeflow/mfeflow/pull/53) [`e2b7c0d`](https://github.com/mfeflow/mfeflow/commit/e2b7c0d0ce2de97936e0385e28d68ebf882eb67e) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - `mfeflow.json` now records which version of the CLI last wrote it (`cli`) and, for projects split across repos, which kind of repo it is (`repo`: `platform`, `shell` or `remote`). Both are optional, so existing projects keep working; a project without `repo` is a platform monorepo. A remote repo may have no shell in its `apps`.
+  
+  `init`, `add` and `registry add` fill in `cli` when they save the file. The plan builder can now replace a file's content and move an existing dependency to a new range, following `catalog:` into `pnpm-workspace.yaml`. These are the building blocks for `mfeflow upgrade`.
+  
+  Features and the monorepo template that changed since 0.1.0 have a new version.
+
+- [#52](https://github.com/mfeflow/mfeflow/pull/52) [`8c7570f`](https://github.com/mfeflow/mfeflow/commit/8c7570fdbeadac7b5a18f5fb6b1e8b8f0721ab83) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - Third-party registries are now opt-in on your machine. `mfeflow features` no longer asks a registry that only appears in a cloned `mfeflow.json`; it says "not trusted yet" and tells you to run `mfeflow registry trust @namespace`. `registry add` trusts what it adds, `registry untrust` takes it back, and `MFEFLOW_TRUST_REGISTRIES=@a,@b` trusts namespaces for one CI run, for public addresses only; pin a template (`@a=https://…/{name}.json`) to allow a private one. The choice lives in `trusted-registries.json` in your user config folder, per namespace and exact URL template. Loopback and private addresses (localhost, 127/8, ::1, 10/8, 172.16/12, 192.168/16, 169.254/16, 100.64/10, fc00::/7 and more) are only requested from a trusted registry, and a redirect from a public address can never lead there (`MFEFLOW_E405`). An explicit `mfeflow add @ns/name` on a public https registry still works without trust; `add remote` and `add shell`, which fetch installed registry features again, need it.
+  
+  `mfeflow add` records the sha256 of a registry feature's `feature.json` as `integrity` in `mfeflow.json`. When `add remote` or `add shell` fetch it again and the bytes differ, the command stops with `MFEFLOW_E406`; pass `--accept-changed-content` to take the new content on purpose. An index `version` that differs from the `feature.json` version is an error (`MFEFLOW_E402`).
+  
+  The add plan lists the packages a registry feature brings under NEW PACKAGES, with a note that npm and yarn run install scripts and pnpm 10+ blocks them. Tokens in registry URLs (token, key, sig, auth, password, secret, X-Amz-*) are shown as `***` in `registry add/list`, `features` and error messages.
+  
+  `@mfeflow/contracts` adds `isPrivateHost`, `redactUrl` and `redactUrlsIn`, and `integrity` on `mfeflow.json` features. `@mfeflow/core` adds the trust-file helpers, `checkIntegrity`, `integrityOf` and `indexedVersion`, and `fetchRemoteText`, `fetchFeatureIndex` and `getHttps` refuse private addresses unless told they are trusted.
+
+### Patch Changes
+
+- Updated dependencies [[`fe74360`](https://github.com/mfeflow/mfeflow/commit/fe74360bdec93b458bc6211aeb5b1c7cf06a43e0), [`3c5bb1c`](https://github.com/mfeflow/mfeflow/commit/3c5bb1c7c329dad7e68832a2acfde1171786bc43), [`e2b7c0d`](https://github.com/mfeflow/mfeflow/commit/e2b7c0d0ce2de97936e0385e28d68ebf882eb67e), [`8c7570f`](https://github.com/mfeflow/mfeflow/commit/8c7570fdbeadac7b5a18f5fb6b1e8b8f0721ab83), [`7c20bf9`](https://github.com/mfeflow/mfeflow/commit/7c20bf9be1ffceed50bf7dd4ca71ed4472b85215)]:
+  - @mfeflow/contracts@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes

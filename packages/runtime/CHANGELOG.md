@@ -1,5 +1,26 @@
 # @mfeflow/runtime
 
+## 0.5.0
+
+### Minor Changes
+
+- [#38](https://github.com/mfeflow/mfeflow/pull/38) [`3c5bb1c`](https://github.com/mfeflow/mfeflow/commit/3c5bb1c7c329dad7e68832a2acfde1171786bc43) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - The registry index has one shape now. `RegistryIndexRemote` and its browser-safe check live in `@mfeflow/contracts/entry`, and the shell runtime, the CLI's dev registry and the contracts validator all use them, so a new field is added once. Remote names follow the Module Federation global-name rule (hyphens and capitals are fine; every name `mfe.json` allows still works), and `exposes` is now a known field.
+  
+  Route collisions are found by overlap instead of exact match: `/checkout/*` collides with `/checkout/pay` and `/checkout`, and `/p/:id` with `/p/42`. `routesOverlap(a, b)` is exported from `@mfeflow/contracts`, and `mfeflow doctor` and the registry validator name both remotes and both routes. The runtime now skips a remote whose `entry` is not an http(s) URL when it loads the index, instead of failing later at registration.
+
+- [#41](https://github.com/mfeflow/mfeflow/pull/41) [`791ea6d`](https://github.com/mfeflow/mfeflow/commit/791ea6d760f0cced6b74c5b5c30bed5afd18905f) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - The shell can now fall back to a second registry. `loadRegistryIndex` takes one URL or an ordered list: the primary gets 1.5 s by default, and the last URL gets what is left of the budget. A 5xx, a network error, a timeout, a body that is not JSON or an invalid envelope moves on to the next URL, and the fallback is reported once as `MFE_REGISTRY_FALLBACK`. Every URL must be on the page's origin or in the new `allowedOrigins` option.
+  
+  The monorepo template reads `registryUrls` and `registryOrigins` from `runtime-config.json`, so a CDN-hosted registry and its remotes are no longer rejected in production. Without them it still loads `/registry/index.json` from the same origin.
+  
+  Error reports now carry the remote's `version`, so the console, the dev overlay and telemetry (`mfe.version`) say `cart@1.2.3`.
+  
+  The entry retry no longer replaces a load that another caller started right after a failed attempt.
+
+### Patch Changes
+
+- Updated dependencies [[`fe74360`](https://github.com/mfeflow/mfeflow/commit/fe74360bdec93b458bc6211aeb5b1c7cf06a43e0), [`3c5bb1c`](https://github.com/mfeflow/mfeflow/commit/3c5bb1c7c329dad7e68832a2acfde1171786bc43), [`e2b7c0d`](https://github.com/mfeflow/mfeflow/commit/e2b7c0d0ce2de97936e0385e28d68ebf882eb67e), [`8c7570f`](https://github.com/mfeflow/mfeflow/commit/8c7570fdbeadac7b5a18f5fb6b1e8b8f0721ab83), [`7c20bf9`](https://github.com/mfeflow/mfeflow/commit/7c20bf9be1ffceed50bf7dd4ca71ed4472b85215)]:
+  - @mfeflow/contracts@0.5.0
+
 ## 0.4.0
 
 ### Patch Changes
