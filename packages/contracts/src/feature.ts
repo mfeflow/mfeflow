@@ -198,6 +198,8 @@ export interface FeatureManifest {
   name: string;
   version: string;
   description?: string;
+  /** Words a registry's `index.json` lists for search. */
+  keywords?: string[];
   prompts?: FeaturePrompt[];
   requires?: string[];
   conflicts?: string[];
@@ -418,6 +420,7 @@ export function validateFeatureManifest(value: unknown): Issue[] {
   });
   c.string(value, 'version', '');
   c.string(value, 'description', '', { required: false });
+  c.stringArray(value, 'keywords', '', { required: false });
   c.stringArray(value, 'requires', '', { required: false, pattern: FEATURE_NAME });
   c.stringArray(value, 'conflicts', '', { required: false, pattern: FEATURE_NAME });
   eachObject(c, value, 'prompts', (p, at) => {

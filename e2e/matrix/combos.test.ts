@@ -205,4 +205,16 @@ describe('the matrix workflow', () => {
       for (const c of combinations()) expect([c.id, installs(c.id)]).toEqual([c.id, runsE2e(c)]);
     }
   });
+
+  it('runs the third-party registry flow, and reruns when the fixture changes', () => {
+    const yml = fs.readFileSync(
+      path.join(import.meta.dirname, '../../.github/workflows/matrix.yml'),
+      'utf8',
+    );
+    expect(yml).toContain('- e2e/registry-fixture/**');
+    expect(yml).toContain('- run: node e2e/matrix/registry.ts');
+    expect(
+      fs.existsSync(path.join(import.meta.dirname, '../registry-fixture/hello/feature.json')),
+    ).toBe(true);
+  });
 });

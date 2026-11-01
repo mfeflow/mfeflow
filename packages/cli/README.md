@@ -13,20 +13,23 @@ pnpm dev                                    # shell on :4300, remotes on :4311, 
 
 ## Commands
 
-| Command                               | Does                                                                                 |
-| ------------------------------------- | ------------------------------------------------------------------------------------ |
-| `mfeflow init [dir]`                  | New project: a shell, remotes (default `catalog`, `cart`), pnpm workspace, Turborepo |
-| `mfeflow add remote <name>`           | New remote with its registry entries and a route in every shell                      |
-| `mfeflow add shell <name>`            | New shell that routes to every existing remote                                       |
-| `mfeflow add <feature...>`            | Add features, or `@namespace/feature` from a registry in `mfeflow.json`              |
-| `mfeflow add env-key <KEY>`           | Add a typed env key: `--scope server` (env.ts) or `runtime`, with `--schema <expr>`  |
-| `mfeflow features [search]`           | List the features you can add                                                        |
-| `mfeflow dev`                         | Run the shell and every remote, one prefixed log each; follows `add remote`          |
-| `mfeflow doctor`                      | Singletons, compatibility, config health, drift; `--fix` repairs the safe ones       |
-| `mfeflow validate`                    | `mfeflow.json`, every `mfe.json` and every registry entry against their schemas      |
-| `mfeflow check-compat`                | Each remote's shared ranges against the shells it runs in                            |
-| `mfeflow budget`                      | Built first-load JS of the shell and each remote against the cost-model budget       |
-| `mfeflow --version`, `mfeflow --help` | Version, and help with examples (`mfeflow <command> --help` for one command)         |
+| Command                               | Does                                                                                  |
+| ------------------------------------- | ------------------------------------------------------------------------------------- |
+| `mfeflow init [dir]`                  | New project: a shell, remotes (default `catalog`, `cart`), pnpm workspace, Turborepo  |
+| `mfeflow add remote <name>`           | New remote with its registry entries and a route in every shell                       |
+| `mfeflow add shell <name>`            | New shell that routes to every existing remote                                        |
+| `mfeflow add <feature...>`            | Add features, or `@namespace/feature` from a registry you added with `registry add`   |
+| `mfeflow add env-key <KEY>`           | Add a typed env key: `--scope server` (env.ts) or `runtime`, with `--schema <expr>`   |
+| `mfeflow features [search]`           | List and search the features you can add, from mfeflow and every configured registry  |
+| `mfeflow registry add @ns <url>`      | Add a third-party feature registry (`https`, or `http` on loopback) to `mfeflow.json` |
+| `mfeflow registry list`, `remove @ns` | List the registries, or remove one                                                    |
+| `mfeflow registry build <dir>`        | Check a folder of features and write `index.json` and the files to host               |
+| `mfeflow dev`                         | Run the shell and every remote, one prefixed log each; follows `add remote`           |
+| `mfeflow doctor`                      | Singletons, compatibility, config health, drift; `--fix` repairs the safe ones        |
+| `mfeflow validate`                    | `mfeflow.json`, every `mfe.json` and every registry entry against their schemas       |
+| `mfeflow check-compat`                | Each remote's shared ranges against the shells it runs in                             |
+| `mfeflow budget`                      | Built first-load JS of the shell and each remote against the cost-model budget        |
+| `mfeflow --version`, `mfeflow --help` | Version, and help with examples (`mfeflow <command> --help` for one command)          |
 
 Features that ship with it: `core` and `tsconfig` (always), `lint-oxlint`, `url-factory`, `env-t3` and `testing`
 (default), `ci-github` and `git-hooks` (opt-in). `init` takes `--scope`, `--remotes a,b`, `--features a,b` and

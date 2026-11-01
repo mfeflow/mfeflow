@@ -29,8 +29,7 @@ keep many teams on one React, one tag manager and one tracer.
 
 ## Status
 
-The first release is being prepared: every public package is versioned together and
-will start at 0.1.0. Nothing is on npm yet. See [versioning and releases](docs/versioning.md) for the version policy and the release flow.
+0.3.0 is on npm; every public package is versioned together (see [versioning and releases](docs/versioning.md) for the version policy and the release flow). Phase 04 (features) is built, with three things still open: there is no `mfeflow remove`, so "adds and removes cleanly" is tested for adding only; the dev overlay is not built; and the generated GitHub Actions workflow has not yet been run on a fresh GitHub repository.
 
 What works today, from the repo:
 
@@ -41,7 +40,8 @@ What works today, from the repo:
 - `@mfeflow/event-bus`, `@mfeflow/route-factory` and `@mfeflow/http`: typed events between remotes (a shared singleton, with replay for late subscribers), typed links between remotes from a contracts package, and a fetch client over the url-factory endpoints with retries for idempotent requests. The `event-bus`, `route-factory` and `http` features wire them into a project.
 - The react-scale features, built on `@mfeflow/theme`, `@mfeflow/i18n` and `@mfeflow/analytics`: `theming`, `i18n`, `tailwind` (reset in the shell, a class prefix per app), `ui-shadcn`, `forms`, `data-react-query`, `storybook` (composed in the shell), `analytics-clarity` (after consent) and `commit-prompt`. See the feature pages in the docs.
 - `@mfeflow/core`: the engine behind the CLI. It loads and saves `mfeflow.json`, plans a change as data with a unified diff, applies it atomically with rollback, edits files with seven built-in transform ops, and resolves features from a local folder or a namespaced registry. Third-party features are declarative only and never run code.
-- `mfeflow` and `create-mfeflow`: `init`, `add remote|shell|<feature>` and `features`; the first features (`tsconfig`, `lint-oxlint`, `url-factory`, `git-hooks`); `--local` to run a generated project from a checkout.
+- Third-party registries: `mfeflow registry add @ns <url>` adds one, `mfeflow features` searches it next to the first-party features, `mfeflow add @ns/name` installs from it, and `mfeflow registry build <dir>` checks and writes a registry to host on any static host (GitHub Pages works). The [`e2e/registry-fixture`](e2e/registry-fixture/README.md) registry is served from `127.0.0.1` in the tests and in the matrix. See [Third-party features](apps/docs/docs/features/third-party.md).
+- `mfeflow` and `create-mfeflow`: `init`, `add remote|shell|<feature>`, `features` and `registry`; the first features (`tsconfig`, `lint-oxlint`, `url-factory`, `git-hooks`); `--local` to run a generated project from a checkout.
 - `mfeflow dev` (one command for the shell and every remote, a dev registry that follows `add remote`, `--remote name=url` overrides), `mfeflow doctor` (with `--fix` and `--json`), `validate`, `check-compat` and `budget` for CI.
 
 Checked in CI: unit tests with coverage, the storefront e2e, a smoke job that generates a project and runs `mfeflow dev`, the

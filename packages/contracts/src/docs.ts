@@ -8,6 +8,7 @@ export const SCHEMA_URLS = {
   feature: `${DOCS_URL}/schema/feature.json`,
   registryEntry: `${DOCS_URL}/schema/registry-entry.json`,
   registryIndex: `${DOCS_URL}/schema/registry-index.json`,
+  featureRegistryIndex: `${DOCS_URL}/schema/feature-registry-index.json`,
 } as const;
 
 export type SchemaName = keyof typeof SCHEMA_URLS;

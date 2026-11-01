@@ -12,6 +12,9 @@ export type {
   FeaturesResult,
   InitResult,
   PlanReport,
+  RegistryEntryInfo,
+  RegistryResult,
+  RegistryStatus,
   ReportResult,
 } from './output';
 export { realRuntime, type Runtime } from './runtime';

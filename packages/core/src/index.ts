@@ -17,7 +17,7 @@ export {
 } from './errors';
 export { hashContent } from './hash';
 export { inOrder } from './sequence';
-export { realFs, type FsOps } from './fs';
+export { realFs, writeFileAtomic, type FsOps } from './fs';
 export {
   findDiverged,
   findProjectRoot,
@@ -56,6 +56,8 @@ export { renderTemplate, substitute, type TemplateData } from './templates';
 export { RUNTIME_CONFIG_FILE, runtimeConfigFiles } from './runtime-config';
 export { applyTransform, dotenvKeys, schemaKeys, type SchemaKey } from './transforms';
 export {
+  buildRegistry,
+  fetchFeatureIndex,
   fetchRemoteText,
   isProtectedPath,
   listLocalFeatures,
@@ -70,6 +72,8 @@ export {
   type FetchResponse,
   type LoadedFeature,
   type LoadOptions,
+  type RegistryBuild,
+  type RegistryFile,
   type ResolveInput,
   type Trust,
 } from './features';

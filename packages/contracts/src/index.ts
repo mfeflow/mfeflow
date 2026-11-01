@@ -26,7 +26,21 @@ export {
   type RegistryIndexRemote,
 } from './registry';
 export {
+  isFeatureRegistryIndex,
+  isLoopbackHttp,
+  isRegistryProtocol,
+  registryIndexUrl,
+  registryTemplateProblem,
+  validateFeatureRegistryIndex,
+  MAX_DESCRIPTION,
+  MAX_INDEX_ITEMS,
+  REGISTRY_ITEM_NAME,
+  type FeatureRegistryIndex,
+  type FeatureRegistryItem,
+} from './feature-registry';
+export {
   FILE_HASH,
+  REGISTRY_NAMESPACE,
   isMfeflowProject,
   validateMfeflowProject,
   type MfeflowProject,
