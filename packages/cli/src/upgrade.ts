@@ -1,5 +1,7 @@
+import path from 'node:path';
 import {
   messageOf,
+  realFs,
   planUpgrade,
   type LoadedFeature,
   type MfeflowProject,
@@ -84,5 +86,6 @@ export async function planProjectUpgrade(
     features,
     glue,
     skipped,
+    isSymlink: (file) => realFs.isSymlink(path.join(root, ...file.split('/'))),
   });
 }

@@ -9,7 +9,7 @@ import type { LoadedFeature } from './features/load';
 import { resolveFeature } from './features/resolve';
 import { hashContent, normalizeEol } from './hash';
 import { asRecord, editJsonObject, parseJsonObject } from './json';
-import { PlanBuilder, type Plan, type PlanFeature, type ReadFile } from './plan';
+import { PlanBuilder, type FileChange, type Plan, type PlanFeature, type ReadFile } from './plan';
 import type { MfeflowProject } from './project';
 
 /**
@@ -32,6 +32,8 @@ export interface UpgradeInput {
   glue?: readonly LoadedFeature[];
   /** Recorded features the caller could not load. Their files are left alone and nothing is reported as removed. */
   skipped?: readonly { name: string; reason: string }[];
+  /** Whether a project file is itself a symlink. Such a file is never replaced. */
+  isSymlink?: (file: string) => Promise<boolean>;
   /** Loads a migration module. Defaults to a dynamic `import()`. */
   importModule?: (file: string) => Promise<unknown>;
 }
@@ -42,7 +44,11 @@ export type DivergeReason =
   /** The CLI never wrote this file, but a file is there and differs. */
   | 'untracked'
   /** The CLI edits this file after generating it (`add env-key`), so a match with the recorded hash proves nothing. */
-  | 'edited-by-cli';
+  | 'edited-by-cli'
+  /** A feature that could not be replayed may have patched this file, so a matching hash proves nothing. */
+  | 'skipped-feature'
+  /** The path is a symlink; it is not replaced with a regular file. */
+  | 'symlink';
 
 /** A file the new version wants to change that the upgrade will not write. */
 export interface DivergedUpgrade {
@@ -165,7 +171,9 @@ export async function detectBaseline(
 
 function minimum(range: string): string | undefined {
   if (semver.validRange(range) === null) return undefined;
-  return semver.minVersion(range)?.version;
+  const min = semver.minVersion(range)?.version;
+  // `*`, `x` and `>=0` allow anything; they say nothing about the version that made the project.
+  return min === '0.0.0' ? undefined : min;
 }
 
 function recordedOptions(
@@ -237,6 +245,12 @@ async function replay(project: MfeflowProject, input: UpgradeInput): Promise<Rep
   };
 }
 
+/** A file that used CRLF keeps it, so Windows checkouts do not see the whole file change. */
+function keepLineEndings(change: FileChange): FileChange {
+  if (change.after === null || !change.before?.includes('\r\n')) return change;
+  return { ...change, after: normalizeEol(change.after).replaceAll('\n', '\r\n') };
+}
+
 function unifiedDiff(file: string, yours: string, incoming: string): string {
   return formatPatch(structuredPatch(`a/${file} (yours)`, `b/${file} (new)`, yours, incoming));
 }
@@ -256,6 +270,7 @@ function judge(
   disk: string | undefined,
   incoming: string,
   recorded?: string,
+  anySkipped = false,
 ): Verdict {
   if (disk === undefined) {
     if (recorded !== undefined) return 'missing';
@@ -267,7 +282,8 @@ function judge(
   if (USER_DATA.test(file)) return 'leave';
   if (recorded === undefined) return 'untracked';
   if (ENV_KEY_FILES.test(file)) return 'edited-by-cli';
-  return recorded === hashContent(disk) ? 'replace' : 'edited';
+  if (recorded !== hashContent(disk)) return 'edited';
+  return anySkipped ? 'skipped-feature' : 'replace';
 }
 
 /** Replaces, creates or flags every generated file that is not structured. */
@@ -276,6 +292,7 @@ async function compareFiles(
   fresh: Replay,
   read: ReadFile,
   builder: PlanBuilder,
+  options: { anySkipped: boolean; isSymlink?: (file: string) => Promise<boolean> },
 ): Promise<Classified> {
   const out: Classified = { diverged: [], missing: [], matching: [] };
   const entries = [...fresh.files].toSorted(([a], [b]) => (a < b ? -1 : 1));
@@ -283,7 +300,9 @@ async function compareFiles(
     // oxlint-disable-next-line no-await-in-loop -- reading in order keeps the plan deterministic
     const disk = await read(file);
     if (isStructured(file) && disk !== undefined) continue;
-    const verdict = judge(file, disk, incoming, project.files?.[file]);
+    let verdict = judge(file, disk, incoming, project.files?.[file], options.anySkipped);
+    // oxlint-disable-next-line no-await-in-loop -- only asked for a file that would be replaced
+    if (verdict === 'replace' && (await options.isSymlink?.(file))) verdict = 'symlink';
     if (verdict === 'missing') out.missing.push(file);
     else if (verdict === 'matching') out.matching.push(file);
     else if (verdict === 'create') {
@@ -309,7 +328,12 @@ function diverge(
 }
 
 /** Adds the catalog entries and `allowBuilds` rules the new template has and the workspace file lacks. */
-async function editWorkspace(fresh: Replay, read: ReadFile, builder: PlanBuilder): Promise<void> {
+async function editWorkspace(
+  fresh: Replay,
+  read: ReadFile,
+  builder: PlanBuilder,
+  local: boolean,
+): Promise<void> {
   const incoming = fresh.files.get(WORKSPACE_FILE);
   const disk = await read(WORKSPACE_FILE);
   if (incoming === undefined || disk === undefined) return;
@@ -319,7 +343,7 @@ async function editWorkspace(fresh: Replay, read: ReadFile, builder: PlanBuilder
   for (const section of ['catalog', 'allowBuilds']) {
     const have = doc.get(section);
     for (const [name, value] of Object.entries(asRecord(wanted[section]))) {
-      if (isMap(have) && have.has(name)) continue;
+      if ((isMap(have) && have.has(name)) || (local && isOwn(name))) continue;
       doc.setIn([section, name], value);
       changed = true;
     }
@@ -340,6 +364,15 @@ async function editTurbo(fresh: Replay, read: ReadFile, builder: PlanBuilder): P
       turbo.tasks = { ...tasks, ...Object.fromEntries(missing) };
       return true;
     }),
+  );
+}
+
+/** Every `[name, range]` pair, once per section that lists it. */
+function listed(pkg: Record<string, unknown>): [string, string][] {
+  return DEPENDENCY_SECTIONS.flatMap((section) =>
+    Object.entries(asRecord(pkg[section])).flatMap(([name, range]): [string, string][] =>
+      typeof range === 'string' ? [[name, range]] : [],
+    ),
   );
 }
 
@@ -403,7 +436,7 @@ async function editPackage(
   if (local) return;
   const target = `^${toVersion}`;
   const current = parseJsonObject(file, (await builder.content(file)) ?? source);
-  for (const [name, range] of declared(current)) {
+  for (const [name, range] of listed(current)) {
     if (!isOwn(name) || range === target || KEEP_RANGE.test(range)) continue;
     // oxlint-disable-next-line no-await-in-loop -- each edit patches the same file
     await builder.setRange(file, name, target);
@@ -526,8 +559,11 @@ export async function planUpgrade(
   const builder = new PlanBuilder(input.read, {});
   await builder.captureProject();
 
-  const compared = await compareFiles(project, fresh, input.read, builder);
-  await editWorkspace(fresh, input.read, builder);
+  const compared = await compareFiles(project, fresh, input.read, builder, {
+    anySkipped: (input.skipped ?? []).length > 0,
+    ...(input.isSymlink ? { isSymlink: input.isSymlink } : {}),
+  });
+  await editWorkspace(fresh, input.read, builder, project.local !== undefined);
   await editTurbo(fresh, input.read, builder);
   const local = project.local !== undefined;
   const packageFiles = new Set(
@@ -550,8 +586,10 @@ export async function planUpgrade(
   const skipped = input.skipped ?? [];
   const removed = skipped.length === 0 ? await findRemoved(project, fresh, input.read) : [];
 
+  const built = builder.build();
   const plan: Plan = {
-    ...builder.build(),
+    ...built,
+    changes: built.changes.map(keepLineEndings),
     features: fresh.features,
     warnings: [
       ...fresh.warnings,

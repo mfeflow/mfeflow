@@ -13,6 +13,8 @@ import { rejection } from './testing';
 import { detectBaseline, planUpgrade, type UpgradeInput } from './upgrade';
 
 const parse = (text: string | null | undefined) => parseJsonObject('test', text ?? '{}');
+const isStructuredPath = (file: string) =>
+  file.endsWith('package.json') || file.endsWith('.yaml') || file === 'turbo.json';
 const json = (value: object) => `${JSON.stringify(value, null, 2)}\n`;
 
 const WORKSPACE = [
@@ -197,7 +199,7 @@ describe('detectBaseline', () => {
     expect(found.version).toBe('0.1.4');
   });
 
-  it.each(['workspace:*', 'link:../mfeflow/packages/runtime', 'latest'])(
+  it.each(['workspace:*', 'link:../mfeflow/packages/runtime', 'latest', '*', 'x', '>=0'])(
     'refuses a %s range with E601',
     async (range) => {
       const error = await rejection(
@@ -206,6 +208,25 @@ describe('detectBaseline', () => {
       expect(error.code).toBe('MFEFLOW_E601');
     },
   );
+
+  it('takes the lowest version of a range with alternatives', async () => {
+    const found = await detectBaseline(
+      projectOf({}),
+      read({ 'apps/shell/package.json': shellWith('^0.1.0 || ^0.2.0') }),
+    );
+    expect(found.version).toBe('0.1.0');
+  });
+
+  it('accepts a prerelease cli, and refuses to move from a release back to a prerelease', async () => {
+    const pre = projectOf({}, { cli: '0.5.0-beta.1' });
+    expect((await detectBaseline(pre, read({}))).version).toBe('0.5.0-beta.1');
+    const up = await planUpgrade(projectOf(OLD, { cli: '0.5.0-beta.1' }), input(OLD));
+    expect(up.from).toBe('0.5.0-beta.1');
+    const error = await rejection(
+      planUpgrade(projectOf(OLD, { cli: '0.5.0' }), { ...input(OLD), toVersion: '0.5.0-beta.1' }),
+    );
+    expect(error.code).toBe('MFEFLOW_E602');
+  });
 
   it('refuses when nothing says which version made the project', async () => {
     const error = await rejection(detectBaseline(projectOf({}), read({})));
@@ -370,6 +391,93 @@ describe('planUpgrade', () => {
     const root = up.plan.changes.find((c) => c.path === 'package.json')?.after ?? '';
     expect(root).toContain('"@mfeflow/tsconfig": "^0.1.0"');
     expect(root).not.toContain('oxlint-config');
+  });
+
+  it('never replaces a file a skipped feature may have patched', async () => {
+    const withThird = projectOf(OLD, {
+      features: { core: { version: '0.1.0' }, '@acme/seo': { version: '1.0.0' } },
+    });
+    const skipped = [{ name: '@acme/seo', reason: 'registry unreachable' }];
+    const up = await planUpgrade(withThird, input(OLD, { skipped }));
+    expect(
+      up.plan.changes.filter((c) => c.action === 'patch' && !isStructuredPath(c.path)),
+    ).toEqual([]);
+    expect(up.diverged.find((d) => d.path === 'README.md')?.reason).toBe('skipped-feature');
+    expect(up.diverged.find((d) => d.path === 'src/config.ts')?.reason).toBe('skipped-feature');
+    expect(up.plan.warnings.join(' ')).toContain('@acme/seo');
+  });
+
+  it('updates a dependency in every section that lists it', async () => {
+    const both = pkg({
+      dependencies: { '@mfeflow/tsconfig': '^0.1.0' },
+      devDependencies: { '@mfeflow/tsconfig': '^0.1.0' },
+    });
+    const up = await planUpgrade(
+      projectOf(OLD, { cli: '0.1.0' }),
+      input({ ...OLD, 'package.json': both }),
+    );
+    const after = parse(up.plan.changes.find((c) => c.path === 'package.json')?.after);
+    expect(after.dependencies).toEqual({ '@mfeflow/tsconfig': '^0.5.0' });
+    expect(after.devDependencies).toMatchObject({ '@mfeflow/tsconfig': '^0.5.0' });
+  });
+
+  it('still updates the second section when the first already has the target', async () => {
+    const split = pkg({
+      dependencies: { '@mfeflow/tsconfig': '^0.5.0' },
+      devDependencies: { '@mfeflow/tsconfig': '^0.1.0' },
+    });
+    const up = await planUpgrade(
+      projectOf(OLD, { cli: '0.1.0' }),
+      input({ ...OLD, 'package.json': split }),
+    );
+    const after = parse(up.plan.changes.find((c) => c.path === 'package.json')?.after);
+    expect(after.dependencies).toEqual({ '@mfeflow/tsconfig': '^0.5.0' });
+    expect(after.devDependencies).toMatchObject({ '@mfeflow/tsconfig': '^0.5.0' });
+  });
+
+  it('does not write a placeholder range into the catalog of a linked project', async () => {
+    const own = [
+      'packages:',
+      '  - apps/*',
+      'catalog:',
+      '  zod: 4.0.0',
+      '  "@mfeflow/runtime": latest',
+      '',
+    ].join('\n');
+    const core = newCore();
+    for (const f of core.manifest.files ?? []) {
+      if (f.to === 'pnpm-workspace.yaml') f.content = own;
+    }
+    const linked = projectOf(OLD, { cli: '0.1.0', local: '../mfeflow' });
+    const up = await planUpgrade(linked, { ...input(OLD), features: [core] });
+    const after = up.plan.changes.find((c) => c.path === 'pnpm-workspace.yaml')?.after ?? '';
+    expect(after).not.toContain('@mfeflow/runtime');
+    expect(after).not.toContain('latest');
+  });
+
+  it('reports a tracked symlink instead of replacing it', async () => {
+    const up = await planUpgrade(
+      project(),
+      input(OLD, { isSymlink: (file) => Promise.resolve(file === 'README.md') }),
+    );
+    expect(up.diverged.find((d) => d.path === 'README.md')?.reason).toBe('symlink');
+    expect(up.plan.changes.map((c) => c.path)).not.toContain('README.md');
+    expect(up.plan.changes.map((c) => c.path)).toContain('src/config.ts');
+  });
+
+  it('keeps CRLF line endings in a file it replaces or edits', async () => {
+    const crlf = (text: string) => text.replaceAll('\n', '\r\n');
+    const disk = {
+      ...OLD,
+      'README.md': crlf(OLD['README.md'] ?? ''),
+      'package.json': crlf(OLD['package.json'] ?? ''),
+    };
+    const up = await planUpgrade(projectOf(OLD), input(disk));
+    const byPath = Object.fromEntries(up.plan.changes.map((c) => [c.path, c.after]));
+    expect(byPath['README.md']).toBe('new readme\r\n');
+    expect(byPath['package.json']).toContain('\r\n');
+    expect(byPath['package.json']?.replaceAll('\r\n', '')).not.toContain('\n');
+    expect(byPath['src/config.ts']).toBe('new config\n');
   });
 
   it('records cli, feature versions and fresh hashes', async () => {
