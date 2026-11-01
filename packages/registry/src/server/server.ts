@@ -21,6 +21,8 @@ export interface StartOptions {
   fallbackHost?: RegistryHost;
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   now?: () => Date;
+  /** How long `close()` lets running requests finish before it cuts them. Default 10 s. */
+  drainMs?: number;
 }
 
 export interface RegistryServer {
@@ -115,8 +117,12 @@ export async function startRegistryServer(options: StartOptions): Promise<Regist
     url: `http://${host}:${String(port)}`,
     async close() {
       await new Promise<void>((resolve) => {
-        server.close(() => resolve());
-        server.closeAllConnections();
+        const cut = setTimeout(() => server.closeAllConnections(), options.drainMs ?? 10_000);
+        server.close(() => {
+          clearTimeout(cut);
+          resolve();
+        });
+        server.closeIdleConnections();
       });
       await fallback?.close();
       await storage.close();
