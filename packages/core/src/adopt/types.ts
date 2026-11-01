@@ -64,11 +64,18 @@ export interface FederationReport {
 }
 
 export interface DetectFederationOptions {
-  /** Reads a file by absolute path; undefined when it does not exist. Defaults to the disk. */
+  /**
+   * Reads a file by absolute path; undefined when it does not exist. Defaults
+   * to a reader that stays inside the folder. A custom reader replaces that
+   * guard and gets only the lexical checks (imports that leave the folder or
+   * enter node_modules are refused by path), so custom readers must enforce
+   * containment, symlinks and size themselves.
+   */
   read?: ReadFile;
   /**
    * Names of the sub-folders of an absolute path, used to expand workspace
    * globs; an empty list when the folder does not exist. Defaults to the disk.
+   * Like `read`, a custom one must enforce containment and symlinks itself.
    */
   listDirs?: (dir: string) => Promise<string[]>;
 }

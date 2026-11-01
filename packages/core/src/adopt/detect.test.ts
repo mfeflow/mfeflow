@@ -761,4 +761,72 @@ export default { plugins: [mf.pluginModuleFederation({ name: 'ns' })] };
       },
     ]);
   });
+
+  it('does not trust an exported const that the followed file changes later', async () => {
+    const report = await inMemory({
+      'rsbuild.config.ts': rsbuild('mf', "import { mf } from './mf';"),
+      'mf.ts': "export const mf = { name: 'x', remotes: {} };\nmf.remotes.a = 'a@http://x/y.js';\n",
+    });
+    expect(report.apps).toEqual([]);
+    expect(report.notAdopted).toEqual([
+      {
+        dir: '.',
+        file: 'rsbuild.config.ts',
+        field: 'options',
+        reason: "are imported from './mf', where mf is changed later in the file",
+      },
+    ]);
+    const listed = await inMemory({
+      'rsbuild.config.ts': rsbuild('cfg', "import { cfg } from './mf';"),
+      'mf.ts':
+        "const mf = { name: 'x' };\nexport { mf as cfg };\nObject.assign(mf, { name: 'y' });\n",
+    });
+    expect(listed.apps).toEqual([]);
+    expect(listed.notAdopted[0]?.reason).toBe(
+      "are imported from './mf', where mf is changed later in the file",
+    );
+  });
+
+  it('does not trust a top-level const hidden by a block or a destructured parameter', async () => {
+    const top = "const remotes = { a: 'a@http://localhost:1/mf-manifest.json' };";
+    const hidden = 'refers to remotes, which is declared again inside a function around the call';
+    const block = await inMemory({
+      'rsbuild.config.ts': `${RSBUILD}
+${top}
+export default defineConfig(() => {
+  if (process.argv.length) {
+    const remotes = load();
+    return { plugins: [pluginModuleFederation({ name: 'x', remotes })] };
+  }
+  return {};
+});
+`,
+    });
+    expect(block.apps[0]?.remotes).toEqual({});
+    expect(block.notAdopted.map((n) => [n.field, n.reason])).toEqual([['remotes', hidden]]);
+    const destructured = await inMemory({
+      'rsbuild.config.ts': `${RSBUILD}
+${top}
+export default ({ remotes }) => ({
+  plugins: [pluginModuleFederation({ name: 'x', remotes })],
+});
+`,
+    });
+    expect(destructured.apps[0]?.remotes).toEqual({});
+    expect(destructured.notAdopted.map((n) => [n.field, n.reason])).toEqual([['remotes', hidden]]);
+  });
+
+  it('keeps imports inside the folder even with a custom reader', async () => {
+    const reads: string[] = [];
+    const fs = memoryFs(root, { 'rsbuild.config.ts': rsbuild('mf', "import mf from '../mf';") });
+    const report = await detectFederation(root, {
+      listDirs: fs.listDirs,
+      read: (file) => {
+        reads.push(file);
+        return fs.read(file);
+      },
+    });
+    expect(report.notAdopted[0]?.reason).toBe("are imported from outside the project ('../mf')");
+    expect(reads.every((file) => file.startsWith(root))).toBe(true);
+  });
 });

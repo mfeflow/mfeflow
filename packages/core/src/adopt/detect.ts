@@ -295,6 +295,12 @@ async function resolveOptions(
         : `are imported from '${binding.source}', which has no export ${binding.imported}`,
     );
   }
+  const local = imported.exportedFrom.get(binding.imported);
+  if (local && imported.mutated.has(local)) {
+    return fail(
+      `are imported from '${binding.source}', where ${local} is changed later in the file`,
+    );
+  }
   return resolveOptions(ctx, exported, imported, hops + 1);
 }
 

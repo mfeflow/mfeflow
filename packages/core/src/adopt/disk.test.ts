@@ -18,14 +18,20 @@ let base: string;
 let root: string;
 let outside: string;
 
-async function link(target: string, at: string): Promise<boolean> {
+async function canLink(): Promise<boolean> {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'mfeflow-adopt-probe-'));
   try {
-    await fs.symlink(target, at, 'dir');
+    await fs.symlink(dir, path.join(dir, 'probe'), 'dir');
     return true;
   } catch {
     return false;
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
   }
 }
+
+const canSymlink = await canLink();
+const link = (target: string, at: string): Promise<void> => fs.symlink(target, at, 'dir');
 
 beforeEach(async () => {
   base = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'mfeflow-adopt-')));
@@ -58,9 +64,9 @@ describe('guardedDisk', () => {
     expect(await disk.read(path.join(root, 'a.ts', 'deeper'))).toBeUndefined();
   });
 
-  it('refuses a symlink that leads outside the root', async () => {
+  it.skipIf(!canSymlink)('refuses a symlink that leads outside the root', async () => {
     await fs.writeFile(path.join(outside, 'secret.ts'), 'export default {};');
-    if (!(await link(outside, path.join(root, 'link')))) return;
+    await link(outside, path.join(root, 'link'));
     const refused: Refusal[] = [];
     const disk = guardedDisk(root, refused);
     expect(await disk.read(path.join(root, 'link', 'secret.ts'))).toBeUndefined();
@@ -91,38 +97,47 @@ describe('guardedDisk', () => {
 });
 
 describe('detectFederation on a real folder', () => {
-  it('does not follow an import through a symlink that leaves the project', async () => {
-    await fs.writeFile(path.join(outside, 'secret.ts'), "export default { name: 'stolen' };");
-    await fs.writeFile(path.join(root, 'rsbuild.config.ts'), importing);
-    if (!(await link(outside, path.join(root, 'link')))) return;
-    const report = await detectFederation(root);
-    expect(report.apps).toEqual([]);
-    expect(report.notAdopted).toContainEqual({
-      dir: '.',
-      file: 'link/secret.ts',
-      field: 'file',
-      reason: 'is (or goes through) a link that leads outside the project',
-    });
-  });
+  it.skipIf(!canSymlink)(
+    'does not follow an import through a symlink that leaves the project',
+    async () => {
+      await fs.writeFile(path.join(outside, 'secret.ts'), "export default { name: 'stolen' };");
+      await fs.writeFile(path.join(root, 'rsbuild.config.ts'), importing);
+      await link(outside, path.join(root, 'link'));
+      const report = await detectFederation(root);
+      expect(report.apps).toEqual([]);
+      expect(report.notAdopted).toContainEqual({
+        dir: '.',
+        file: 'link/secret.ts',
+        field: 'file',
+        reason: 'is (or goes through) a link that leads outside the project',
+      });
+    },
+  );
 
-  it('does not enter a workspace folder that is a symlink out of the root', async () => {
-    await fs.mkdir(path.join(outside, 'app'));
-    await fs.writeFile(path.join(outside, 'app', 'package.json'), '{"name":"evil"}');
-    await fs.writeFile(path.join(outside, 'app', 'rsbuild.config.ts'), config('evil'));
-    await fs.writeFile(path.join(root, 'package.json'), '{"workspaces":["pkgs/app"]}');
-    await fs.mkdir(path.join(root, 'pkgs'));
-    if (!(await link(path.join(outside, 'app'), path.join(root, 'pkgs', 'app')))) return;
-    const report = await detectFederation(root);
-    expect(report.apps).toEqual([]);
-    expect(report.notAdopted.map((n) => n.file)).toContain('pkgs/app/package.json');
-  });
+  it.skipIf(!canSymlink)(
+    'does not enter a workspace folder that is a symlink out of the root',
+    async () => {
+      await fs.mkdir(path.join(outside, 'app'));
+      await fs.writeFile(path.join(outside, 'app', 'package.json'), '{"name":"evil"}');
+      await fs.writeFile(path.join(outside, 'app', 'rsbuild.config.ts'), config('evil'));
+      await fs.writeFile(path.join(root, 'package.json'), '{"workspaces":["pkgs/app"]}');
+      await fs.mkdir(path.join(root, 'pkgs'));
+      await link(path.join(outside, 'app'), path.join(root, 'pkgs', 'app'));
+      const report = await detectFederation(root);
+      expect(report.apps).toEqual([]);
+      expect(report.notAdopted.map((n) => n.file)).toContain('pkgs/app/package.json');
+    },
+  );
 
-  it('reads an app when the scanned folder itself is reached through a symlink', async () => {
-    await fs.writeFile(path.join(root, 'rsbuild.config.ts'), config('inside'));
-    const alias = path.join(base, 'alias');
-    if (!(await link(root, alias))) return;
-    expect((await detectFederation(alias)).apps.map((a) => a.name)).toEqual(['inside']);
-  });
+  it.skipIf(!canSymlink)(
+    'reads an app when the scanned folder itself is reached through a symlink',
+    async () => {
+      await fs.writeFile(path.join(root, 'rsbuild.config.ts'), config('inside'));
+      const alias = path.join(base, 'alias');
+      await link(root, alias);
+      expect((await detectFederation(alias)).apps.map((a) => a.name)).toEqual(['inside']);
+    },
+  );
 
   it('reports a config over the size cap and one that is a folder', async () => {
     await fs.writeFile(path.join(root, 'rsbuild.config.ts'), 'x'.repeat(MAX_FILE_BYTES + 1));

@@ -66,6 +66,8 @@ export interface Scope {
   mutated: Set<string>;
   /** Exported name (`default` for the default export) to the exported expression. */
   exports: Map<string, Node>;
+  /** Exported name to the local const it was exported from, when there is one. */
+  exportedFrom: Map<string, string>;
 }
 
 /** Strips `as`, `satisfies`, `!` and `<T>x` so only the value is left. */
@@ -218,6 +220,7 @@ function mutatedNames(ast: File): Set<string> {
 export function scopeOf(ast: File, file: string): Scope {
   const bindings = new Map<string, Binding>();
   const exports = new Map<string, Node>();
+  const exportedFrom = new Map<string, string>();
   const localExports: [string, string][] = [];
   for (const statement of ast.program.body) {
     if (isImportDeclaration(statement)) {
@@ -244,7 +247,10 @@ export function scopeOf(ast: File, file: string): Scope {
       if (decl && isVariableDeclaration(decl)) {
         bindVariables(decl, bindings);
         for (const d of decl.declarations) {
-          if (isIdentifier(d.id) && d.init) exports.set(d.id.name, d.init);
+          if (isIdentifier(d.id) && d.init) {
+            exports.set(d.id.name, d.init);
+            exportedFrom.set(d.id.name, d.id.name);
+          }
         }
       }
       if (!statement.source) {
@@ -266,9 +272,12 @@ export function scopeOf(ast: File, file: string): Scope {
   }
   for (const [exported, local] of localExports) {
     const binding = bindings.get(local);
-    if (binding?.kind === 'const') exports.set(exported, binding.init);
+    if (binding?.kind === 'const') {
+      exports.set(exported, binding.init);
+      exportedFrom.set(exported, local);
+    }
   }
-  return { file, bindings, exports, mutated: mutatedNames(ast) };
+  return { file, bindings, exports, exportedFrom, mutated: mutatedNames(ast) };
 }
 
 /** `process.env` or `import.meta.env` itself, as text. */
