@@ -1,43 +1,82 @@
+---
+title: commit-prompt - guided Conventional Commit messages
+description: Answer a few prompts and get a correctly formatted Conventional Commit message, so nobody has to remember the format.
+---
+
 # commit-prompt
 
-An interactive Conventional Commits prompt. Off by default.
+This page shows how to write commit messages in the Conventional Commits format by answering questions instead of remembering the rules. It suits teams where not everyone has the format memorised.
+
+## What you get
+
+A `pnpm commit` command that asks for the type, scope and description, then runs the commit for you. It is off by default.
+
+## Add it
 
 ```sh
 pnpm mfeflow add commit-prompt
+```
+
+What changed:
+
+- `cz.config.js` at the project root
+- a `commit` script in the root `package.json` that runs `czg`
+- `czg` 1.14.0 as a root dev dependency
+
+## Use it
+
+Stage your changes, then run the prompt instead of `git commit`:
+
+```sh
 git add -p
 pnpm commit
 ```
 
-`pnpm commit` runs [`czg`](https://github.com/Zhengqbbb/cz-git), which asks for the type, the scope, a short
-description, a longer one and any breaking change or issue it closes, then runs `git commit` with the message it
-built: `feat(cart): add the coupon field`.
+It asks for the type, the scope, a short description, a longer one, and any breaking change or issue it closes. Then it commits with a message like this:
 
-## What you get
+```text
+feat(cart): add the coupon field
+```
 
-| File            | What it is for                                                                                   |
-| --------------- | ------------------------------------------------------------------------------------------------ |
-| `cz.config.js`  | The prompt's settings: the eleven Conventional Commits types, no emoji, a scope list you extend. |
-| `commit` script | `czg`, in the root `package.json`.                                                               |
+## Configure it
 
-`czg` is the only dependency (a dev dependency of the root package). Its optional AI subject generator needs an API
-key you set yourself and is off unless you ask for it with `pnpm commit ai`.
+Everything is in `cz.config.js`, and the only edit most projects need is the scope list:
 
-## With git-hooks
+```js title="cz.config.js"
+export default {
+  useEmoji: false,
+  upperCaseSubject: false,
+  allowCustomScopes: true,
+  allowEmptyScopes: true,
+  allowBreakingChanges: ['feat', 'fix'],
+  maxHeaderLength: 100,
+  scopes: ['deps', 'ci'],
+  skipQuestions: ['footerPrefix'],
+  // types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+};
+```
 
-`git-hooks` is not required. When it is installed, its `commit-msg` hook runs commitlint on the
-message `pnpm commit` produced. The types in `cz.config.js` are the ones `@commitlint/config-conventional` accepts and
-the header limit is its 100 characters, and the subject is lowercased (the conventional config rejects a capitalised one),
-so a message from the prompt passes. A message written by hand still goes through
-the same check.
+| Setting                | Default       | What it does                                       |
+| ---------------------- | ------------- | -------------------------------------------------- |
+| `scopes`               | `deps`, `ci`  | The list offered; add your remotes and areas       |
+| `allowCustomScopes`    | `true`        | Lets you type a scope that is not in the list      |
+| `maxHeaderLength`      | 100           | Longest first line the prompt accepts              |
+| `upperCaseSubject`     | `false`       | Keeps the subject lowercase, as commitlint expects |
+| `allowBreakingChanges` | `feat`, `fix` | Types that offer a breaking-change question        |
 
-The prompt does not install a `prepare-commit-msg` hook, so plain `git commit` keeps working as it did, with
-your editor.
+## How it works
 
-## Scopes
+`czg` reads `cz.config.js`, builds the message from your answers and passes it to `git commit`. The types are the eleven that `@commitlint/config-conventional` accepts, and the header limit and lowercase subject match its rules, so a message from the prompt passes the check in [git-hooks](/features/git-hooks) when that is installed.
 
-`scopes` in `cz.config.js` is a list shown to pick from; the prompt also lets you type another or leave it empty.
-Put your remotes and areas in it (`'cart'`, `'shell'`, `'deps'`).
+The prompt does not install a hook of its own. Plain `git commit` still opens your editor as before, and a hand-written message goes through the same commitlint check.
 
-## Not interactive
+## Gotchas
 
-The prompt needs a terminal. In CI, or from a script, use `git commit -m "feat(cart): ..."`.
+- The prompt needs a terminal. In CI or a script, use `git commit -m "feat(cart): ..."` directly.
+- Emoji is switched off. Set `useEmoji` to `true` if your team wants it, but check that your commitlint rules allow it.
+
+## Reference
+
+- [git-hooks](/features/git-hooks)
+- [czg](https://github.com/Zhengqbbb/cz-git)
+- [Conventional Commits](https://www.conventionalcommits.org)

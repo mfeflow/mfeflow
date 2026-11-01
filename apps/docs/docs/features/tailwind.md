@@ -1,68 +1,94 @@
+---
+title: tailwind - Tailwind 4 without style collisions
+description: Tailwind CSS 4 with one reset in the shell and a class prefix per app, so two remotes can use the same utility with different tokens.
+---
+
 # tailwind
 
-Tailwind CSS 4 with one reset and one class prefix per app. Off by default.
+Two remotes that are built and deployed separately end up on the same page. If both use Tailwind the usual way, both define `.flex` and `--color-primary`, the last stylesheet to load wins, and a token change in one remote quietly restyles the other. This feature gives every app its own class prefix and loads the reset only once.
+
+## What you get
+
+Each app gets Tailwind 4 through PostCSS, a stylesheet with colour tokens that follow your theme, and utilities written with the app's prefix, such as `cart:flex`. The shell owns the reset, and remotes bring only their theme and utilities.
+
+## Add it
 
 ```sh
 pnpm mfeflow add tailwind
 ```
 
-## The problem it solves
+If two apps would end up with the same prefix, `add` stops and names both ([E208](/errors/E208)).
 
-Two remotes are built and deployed on their own, then loaded into the same page. If both use Tailwind the usual way,
-both ship the reset and both define `.flex`, `.p-4` and `--color-primary`. Whichever stylesheet loads last wins, so a
-change to one remote's tokens changes the other remote.
+What changed:
 
-## What you get
+- `postcss.config.mjs` in the shell and every remote
+- `src/styles.css` in the shell (theme, reset and utilities) and in every remote (theme and utilities)
+- `src/tailwind/Scope.tsx` in each remote, wrapping its `App` and loading its stylesheet, plus a test if you use [testing](/features/testing)
+- `tailwindcss` and `@tailwindcss/postcss` at 4.3.3, as dev dependencies of every app
+- an import of `./styles.css` in the shell's `src/bootstrap.tsx`
 
-| File                                   | What it is for                                                                                                                      |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/<app>/postcss.config.mjs`        | Tailwind's PostCSS plugin. Rsbuild picks the file up on its own.                                                                    |
-| `apps/shell/src/styles.css`            | Theme, **reset (preflight)** and utilities. The only app with the reset.                                                            |
-| `apps/<remote>/src/styles.css`         | Theme and utilities only, with the remote's prefix.                                                                                 |
-| `apps/<remote>/src/tailwind/Scope.tsx` | Wraps the remote's `App` and loads its stylesheet. The outline is a sample of the `primary` token; replace it with your own markup. |
+## Use it
 
-## The prefix
+Write classes with your app's prefix. This is what the generated `Scope` does in a remote called `cart`.
 
-Every app has a prefix: a name made of letters is its own prefix (`cart` writes `cart:flex cart:p-4 cart:bg-primary`). Tailwind
-accepts lowercase letters only, so any other name (`cart_b`, `cart1`) keeps its letters and gets four more from a hash of
-the whole name (`cartqzvk`), which keeps `cart_b`, `cartb` and `cart1` apart. If two apps would still share a prefix,
-`mfeflow add` stops and names both. The theme variables are prefixed as well (`--cart-spacing`), so two remotes cannot write
-to the same variable. Pick the prefix yourself by editing the `prefix(...)` in `styles.css` and in the classes.
+```tsx title="apps/cart/src/tailwind/Scope.tsx"
+const classes = 'cart:p-2 cart:outline-2 cart:outline-primary';
 
-Two remotes can then define the same token differently:
+export function Scope({ children }: { children: ReactNode }) {
+  return (
+    <div data-tailwind="cart" className={classes}>
+      {children}
+    </div>
+  );
+}
+```
 
-```css
-/* apps/cart/src/styles.css */
+The outline is a sample of the `primary` token. Delete it when you have your own markup.
+
+Because the prefix scopes the tokens too, two remotes can define the same name differently and both stay correct on one page.
+
+```css title="apps/cart/src/styles.css"
 @theme inline {
   --color-primary: #0f766e;
 }
-/* apps/catalog/src/styles.css */
+```
+
+```css title="apps/catalog/src/styles.css"
 @theme inline {
   --color-primary: #b91c1c;
 }
 ```
 
-`cart:bg-primary` is teal and `catalog:bg-primary` is red, on the same page. The matrix runs exactly this in a browser
-and compares the computed colours.
+Here `cart:bg-primary` is teal and `catalog:bg-primary` is red.
 
-## Tokens and the theme
+## Configure it
 
-The generated tokens use shadcn's names (`background`, `foreground`, `surface`, `primary`, `primary-foreground`, `secondary`, `accent`, `destructive`, `border`, `ring`) and read the `--mf-*` variables from [`theming`](./theming), each with a
-fallback, so they follow the active theme when `theming` is installed (before or after), and keep working without it.
+The feature has no install options. The prefix and the tokens live in `src/styles.css`.
 
-## Reset in the shell only
+| Setting           | Where                                              | Default                                                                                                                        |
+| ----------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Class prefix      | `prefix(...)` in `styles.css`, and in your classes | the app name; see below for names with other characters                                                                        |
+| Colour tokens     | `@theme inline` in `styles.css`                    | `background`, `foreground`, `surface`, `primary`, `primary-foreground`, `secondary`, `accent`, `destructive`, `border`, `ring` |
+| Reset (preflight) | the shell's `styles.css` only                      | on in the shell, absent from remotes                                                                                           |
+| Layers            | `@layer theme, base, components, utilities`        | all Tailwind output is layered                                                                                                 |
 
-Preflight is `@layer base`. The shell loads it once for the page, so remotes do not repeat it and do not fight over it.
-The consequence: a remote opened on its own (`pnpm dev` in its folder) has no reset. Add
-`@import 'tailwindcss/preflight.css' layer(base);` to that remote's `styles.css` while you work on it, and remove it
-before you deploy.
+A name made only of lowercase letters is its own prefix. Tailwind accepts nothing else, so a name like `cart_b` or `cart1` keeps its letters and gets four more from a hash of the whole name (`cart_b` becomes something like `cartqzvk`). That keeps `cart_b`, `cartb` and `cart1` apart. You can pick a prefix yourself by editing it in `styles.css` and in the classes.
 
-## Layers
+## How it works
 
-Everything Tailwind emits is in a cascade layer (`theme`, `base`, `components`, `utilities`). CSS that is not in a
-layer beats all of it, so plain CSS from a remote or a library is never overridden by a utility by accident.
+The generated tokens use shadcn's names and read the `--mf-*` variables from [theming](/features/theming), each with a fallback. They follow the active theme when `theming` is installed, whether you add it before or after, and keep working without it. The theme variables are prefixed as well, as in `--cart-spacing`, so two remotes cannot write to the same one.
 
-## Versions
+Preflight is the only part that cannot be scoped, so the shell loads it once and remotes leave it out. Everything Tailwind emits sits in a cascade layer. CSS outside any layer beats all of it, so plain CSS from a remote or a library is never overridden by a utility by accident.
 
-`tailwindcss` and `@tailwindcss/postcss` are pinned to 4.3.3 and installed as dev dependencies of each app. The
-integration is the PostCSS plugin, which works with Rsbuild 2 (the build is checked on every matrix run).
+## Gotchas
+
+- A remote opened on its own with `pnpm dev` has no reset. Add `@import 'tailwindcss/preflight.css' layer(base);` to that remote's `styles.css` while you work, and take it out before you deploy.
+- Every utility needs the prefix. An unprefixed `flex` in a remote does nothing.
+- The integration is the PostCSS plugin, which Rsbuild picks up from `postcss.config.mjs` without extra setup.
+
+## Reference
+
+- [ui-shadcn](/features/ui-shadcn), components built on these tokens
+- [theming](/features/theming)
+- [Project structure](/guide/project-structure)
+- [feature.json reference](/reference/feature-json)
