@@ -39,7 +39,12 @@ Many entries have a `target` that says where they apply.
 
 ## Conditions
 
-An entry with `when` applies only if every condition holds. A plain key is one of the feature's own options and must equal the given value, for example `{ "validator": "zod" }`. A key `feature:<name>` with `true` or `false` asks whether that feature is installed, or is being added in the same command.
+An entry with `when` applies only if every condition holds. There are two kinds of key.
+
+| Key              | Meaning                                                               | Example                      |
+| ---------------- | --------------------------------------------------------------------- | ---------------------------- |
+| A plain name     | One of the feature's own options; it must equal the value             | `{ "validator": "zod" }`     |
+| `feature:<name>` | Whether that feature is installed, or being added in the same command | `{ "feature:env-t3": true }` |
 
 ## prompts
 
@@ -76,11 +81,13 @@ Each file needs exactly one of `from` or `content`. Paths use forward slashes an
 
 ## scripts
 
-Each has a `name`, a `command`, and optional `target` and `when`. Names use letters, digits and `: _ . -`. The script is added to the `package.json` files. It is not run. A third-party script name must start with the feature's own name.
+Each has a name, a command, and optional target and condition. Names use letters, digits and a few separators.
+
+The script is added to the package files. It is not run. A third-party script name must start with the feature's own name.
 
 ## transforms
 
-Each transform has an `op`, a `file` to edit and optional `target` and `when`. The built-in operations are a public, versioned API.
+Each transform names an operation and a file to edit, with an optional target and condition. The built-in operations are a public, versioned API.
 
 | `op`                | Does                                          | Main fields                                                                         |
 | ------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------- |
@@ -92,7 +99,9 @@ Each transform has an `op`, a `file` to edit and optional `target` and `when`. T
 | `add-route`         | Adds a route to a route array                 | `path`, `component`, `from`, `routes`                                               |
 | `add-workflow-step` | Adds a step to a CI workflow job              | `job`, `step`, `after`                                                              |
 
-For `add-env-key`, `schema` is source text, or an object with one text per validator (`zod`, `valibot`, `arktype`). The one matching the file's validator is used. An unknown operation is E204. A file that is missing or shaped differently than expected is E208.
+For the env key operation, the schema is source text, or an object with one text per validator: zod, valibot or arktype. The one matching the file's validator is used.
+
+An unknown operation is E204. A file that is missing or shaped differently than expected is E208.
 
 ## migrations
 

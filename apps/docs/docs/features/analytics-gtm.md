@@ -19,13 +19,16 @@ pnpm mfeflow add analytics-gtm
 
 What changed:
 
-- `apps/shell/src/analytics/init.ts`, the boot step that reads `gtmId` and starts GTM
-- `apps/shell/src/analytics/Analytics.tsx`, which wraps the shell's `App`
-- `apps/shell/src/analytics/ConsentBanner.tsx`, an unstyled banner for you to restyle
-- `apps/<remote>/src/analytics.ts` in every remote
-- `@mfeflow/analytics` added to the shell and every remote
-- a `gtmId` key in the runtime config (see below)
-- unit tests next to each file, if you have the `testing` feature
+```text
+apps/shell/src/analytics/
+├── init.ts            # boot step: reads the container id and starts GTM
+├── Analytics.tsx      # wraps the shell's App
+└── ConsentBanner.tsx  # an unstyled banner for you to restyle
+apps/<remote>/src/
+└── analytics.ts       # the remote's typed tracker, one per remote
+```
+
+The analytics package is added to the shell and every remote. The runtime config gets a `gtmId` key. Unit tests sit next to each file if you have the `testing` feature.
 
 ## Use it
 
@@ -67,7 +70,9 @@ useTrackOnMount(tracker, 'cart_viewed'); // once per mount, also under StrictMod
 tracker.track('add_to_cart', { sku, qty });
 ```
 
-Every event carries `mfe_name` and `mfe_version` (`null` when the remote has none). In GTM these are the Data Layer Variables `mfe_name` and `mfe_version`. Both are always present, because the data layer merges nested objects and a missing key would keep the previous remote's value.
+Every event carries `mfe_name` and `mfe_version`, which is `null` when the remote has none. In GTM these are Data Layer Variables of the same names.
+
+Both are always present. The data layer merges nested objects, so a missing key would keep the previous remote's value.
 
 ### Build your own consent banner
 
@@ -96,11 +101,15 @@ The generated banner is honest about what each button does. **Accept analytics**
 | `allowPii`        | `createGtmProvider` option | `false`           |
 | `pageViews`       | `<AnalyticsProvider>` prop | `true`            |
 
-`feature.json` itself has no prompts. The `gtmId` value must be empty or `GTM-` followed by 4 to 12 capital letters or digits, and `pnpm check:runtime-config` checks that. Change the provider options in `apps/shell/src/analytics/init.ts`.
+The feature has no install prompts. The `gtmId` value must be empty or `GTM-` followed by 4 to 12 capital letters or digits, and the runtime config check enforces it.
+
+Change the provider options in the shell's analytics `init.ts`.
 
 ## How it works
 
-On a first visit, the provider pushes the four consent signals to `dataLayer`, all `denied`, before it adds the `gtm.js` script. The visitor's choice is saved in `localStorage` under `mfeflow:consent`. On the next visit it is sent as a consent update right after the defaults, still before `gtm.js` is requested.
+On a first visit, the provider pushes the four consent signals to the data layer, all denied, before it adds the GTM script.
+
+The visitor's choice is saved in the browser's local storage. On the next visit it is sent as a consent update right after the defaults, still before the script is requested.
 
 ```js
 dataLayer = [
@@ -121,7 +130,17 @@ dataLayer = [
 
 The signals are pushed as an `arguments` object because that is the only form GTM understands. An array of the same values is ignored.
 
-`<Analytics>` sends a `page_view` with `page_path`, `page_location` and `page_title` for the first page and after every `pushState`, `replaceState`, back or forward, and hash change, whatever router you use. The same path and query is never sent twice in a row. Hash routers such as `/#/catalog?x=1` are followed. The title is read after the route renders, so a page view can reach the data layer up to 300 ms after the navigation.
+`<Analytics>` sends a `page_view` for the first page and after every navigation, whatever router you use. That covers history pushes and replaces, back, forward, and hash changes.
+
+The event carries these parameters:
+
+| Parameter       | Value              |
+| --------------- | ------------------ |
+| `page_path`     | the path and query |
+| `page_location` | the full URL       |
+| `page_title`    | the document title |
+
+The same path and query is never sent twice in a row. Hash routers are followed. The title is read after the route renders, so a page view can reach the data layer up to 300 ms after the navigation.
 
 In development, the tracker warns once about a name it did not declare or one GA4 would reject. GA4 names use letters, digits and underscores, start with a letter and run to 40 characters at most. Production builds stay quiet. In tests, `createRecordingProvider()` records every call and `noopProvider` drops them.
 
@@ -131,11 +150,26 @@ In development, the tracker warns once about a name it did not declare or one GA
 Turn off the automatic page view in your GA4 configuration tag. If you leave it on, every page is counted twice.
 :::
 
-- **Personal data is dropped by default.** Parameters named like personal data (`email`, `phone`, `name`, `address`) or holding an email address are removed, and a development warning names them. The same goes for the query string in `page_path` and `page_location`: it loses anything that looks personal or secret (`email`, `token`, `auth`, `session`, `code`, any value that contains an email address). `utm_*`, `gclid` and `fbclid` stay, and the `#fragment` is never sent. Pass `allowPii: true` to turn off the parameter filter.
+- **Personal data is dropped by default.** Parameters named like personal data, or holding an email address, are removed, and a development warning names them. Pass `allowPii: true` to turn off that parameter filter.
+
+  The same goes for the query string in the two page URL parameters. It loses anything that looks personal or secret, and the fragment after the hash is never sent. Tracking parameters such as `utm_*`, `gclid` and `fbclid` stay.
+
+  | Dropped from parameters | Dropped from the query string                    |
+  | ----------------------- | ------------------------------------------------ |
+  | `email`                 | `email`                                          |
+  | `phone`                 | `token`                                          |
+  | `name`                  | `auth`                                           |
+  | `address`               | `session`, `code`, any value containing an email |
+
 - **`identify` sends nothing** unless you pass `sendUserId: true`, and traits are never sent.
+
 - **A remote opened on its own** with `pnpm dev` in its folder has no shell, so its events wait for analytics to start and are dropped.
+
 - **Adding env-t3 afterwards.** The key moves into the schema and the environment files. Delete `apps/shell/public/config/runtime-config.json`, or doctor reports it as missing `environment`.
-- **A second provider.** `init.ts` starts GTM with `addProvider`, so another provider such as [analytics-clarity](/features/analytics-clarity) can run next to it. If your project predates `addProvider` and still has `initAnalytics(createGtmProvider(...))` in that file, change it to `addProvider(...)`, imported from `@mfeflow/analytics/providers`. Otherwise the provider that starts second is ignored.
+
+- **A second provider.** `init.ts` starts GTM with `addProvider`, so another provider such as [analytics-clarity](/features/analytics-clarity) can run next to it. Older projects may still call `initAnalytics(createGtmProvider(...))` there.
+
+  Change that call to `addProvider(...)`, imported from `@mfeflow/analytics/providers`. Otherwise the provider that starts second is ignored.
 
 ## Reference
 

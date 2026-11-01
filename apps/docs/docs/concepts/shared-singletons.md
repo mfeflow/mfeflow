@@ -27,11 +27,14 @@ A singleton is a package that Module Federation loads once and hands to everyone
 
 ## Which packages are shared?
 
-The presets share a fixed list, for each package the app depends on:
+The presets share a fixed list, for each package the app depends on. The mfeflow packages in it are the ones that keep page-wide state:
 
-- `react`, `react/jsx-runtime`, `react-dom` and `react-dom/client`
-- `react-router`, `@tanstack/react-query`, `i18next` and `react-i18next`
-- the mfeflow packages that keep page-wide state: runtime, analytics, telemetry, event-bus, storage, theme and i18n
+```text
+react, react/jsx-runtime, react-dom, react-dom/client
+react-router, @tanstack/react-query, i18next, react-i18next
+@mfeflow/runtime, analytics, telemetry, event-bus,
+  storage, theme, i18n (and their /react subpaths)
+```
 
 Subpaths such as `react-dom/client` are listed on purpose. Module Federation shares each import path separately, and a missed subpath escaped sharing in a real React 19 bug.
 
@@ -51,7 +54,9 @@ An extra that cannot be resolved throws, because it is almost always a typo.
 
 Each app asks for `^<the version it installed>`. If the shell's version does not satisfy the range, Module Federation warns and may load a second copy. This is version drift.
 
-pnpm workspaces make it easy to cause drift by accident. Dependencies written as `catalog:` or `workspace:*` give Module Federation no version to read. The preset reads the installed version instead, and `doctor` checks that every workspace package has a `version` field (E111).
+pnpm workspaces make it easy to cause drift by accident. Dependencies written as `catalog:` or `workspace:*` give Module Federation no version to read.
+
+The preset reads the installed version instead. The doctor checks that every workspace package has a version (E111).
 
 ## How is it checked?
 

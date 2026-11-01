@@ -19,12 +19,20 @@ pnpm mfeflow add event-bus
 
 What changed:
 
-- `packages/contracts/`, with `package.json` (`@<scope>/contracts`), `src/events/index.ts` and a README
-- `src/events.ts` in the shell and in every remote
-- `src/Announce.tsx` in every remote, wrapped around its exposed `App`
-- `@mfeflow/event-bus` and `@<scope>/contracts` (`workspace:*`) added to every app
-- a boot step in the shell's `bootstrap.tsx` that calls `configureShellEvents`
-- a unit test next to each `events.ts`, if you have the `testing` feature
+```text
+packages/contracts/
+├── package.json         # the @<scope>/contracts package
+├── README.md
+└── src/events/index.ts  # where event types live
+apps/shell/src/
+├── events.ts            # event setup for the shell
+└── bootstrap.tsx        # gains a boot step that configures shell events
+apps/<remote>/src/
+├── events.ts            # event setup for each remote
+└── Announce.tsx         # wrapped around the remote's exposed App
+```
+
+Every app gets the event bus package and your contracts package as dependencies. A unit test sits next to each `events.ts` if you have the `testing` feature.
 
 Adding it to an existing project works the same way. A remote you add later gets its own `events.ts` and the dependency.
 
@@ -109,9 +117,9 @@ A subscriber can opt out of a replayed payload with `subscribe(name, handler, { 
 
 ## How it works
 
-Every app merges the contracts' `Events` into the bus's `EventMap` with one `declare module '@mfeflow/event-bus'` block, which is what makes `publish` and `useEvent` typed end to end. The shell's `events.ts` imports the bus, which makes the shell the one that provides the shared copy.
+Every app merges the contracts' `Events` into the bus's map with one `declare module` block. That makes publishing and subscribing typed end to end.
 
-`@mfeflow/event-bus` and `@mfeflow/event-bus/react` are shared singletons (`@mfeflow/rsbuild` adds them), so every remote uses the shell's copy. The registry of subscribers also lives on `globalThis`, so a second copy of the same version still reaches the same subscribers. A copy that finds a registry from an incompatible version keeps its own and exchanges events with other copies through `window` events.
+The shell's `events.ts` imports the bus, which makes the shell the one that provides the shared copy. The bus and its React entry are shared singletons, so every remote uses the shell's copy. The registry of subscribers also lives on `globalThis`, so a second copy of the same version still reaches the same subscribers. A copy that finds a registry from an incompatible version keeps its own and exchanges events with other copies through `window` events.
 
 A handler that throws is logged and does not stop the other handlers.
 
@@ -122,7 +130,9 @@ Change an event's payload in a way old listeners cannot read by adding a new ver
 :::
 
 - **Two copies of the bus.** In development you get a warning that a remote is bundling its own copy. Events still arrive, but share the package as a singleton and make sure the shell imports it.
-- **Events in `mfe.json`.** The `publishes` and `consumes` lists in `mfe.json` take the same versioned names, checked by the same pattern. The `@major` form is not accepted.
+
+- **Events in `mfe.json`.** The two lists in `mfe.json` take the same versioned names, checked by the same pattern. The `@major` form is not accepted.
+
 - **Replay keeps only the last payload.** Do not turn it on for events like `cart.item-added.v1`, where every occurrence matters.
 
 ## Reference

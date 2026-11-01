@@ -19,12 +19,17 @@ Every app gets an `api` client built on `@mfeflow/http`. You call endpoints by t
 pnpm mfeflow add http
 ```
 
-What changed:
+What changed, in the shell and in every remote:
 
-- `src/api/client.ts` in the shell and in every remote
-- `src/api/client.test.ts` in each of them, if you use [testing](/features/testing)
-- `@mfeflow/http` added to each app
-- `apiUrl` added to the runtime config, set to `/api`. With [env-t3](/features/env-t3) it is a key in `src/config/schema.ts` and in the dev, staging and prod config files.
+```text
+src/api/
+├── client.ts       # the typed client
+└── client.test.ts  # only if you use testing
+```
+
+The `@mfeflow/http` package is added to each app. The test file needs the [testing](/features/testing) feature.
+
+The runtime config also gains `apiUrl`, set to `/api`. With [env-t3](/features/env-t3) it is a key in the config schema and in the dev, staging and prod config files.
 
 ## Use it
 
@@ -68,7 +73,13 @@ await api.get('getOrder', { params: { orderId: 42 }, query: { expand: 'items' } 
 
 ## Configure it
 
-The feature has no install options. The client takes these when you create it, and `timeoutMs`, `retry`, `headers` and `credentials` can also be set on a single call.
+The feature has no install options. The client takes these when you create it.
+
+Four of them can also be set on a single call:
+
+```text
+timeoutMs  retry  headers  credentials
+```
 
 | Option        | Default        | What it does                                                         |
 | ------------- | -------------- | -------------------------------------------------------------------- |
@@ -88,13 +99,37 @@ Only requests that are safe to send twice are retried: GET, HEAD, OPTIONS, PUT a
 
 The timeout covers the wait for the response headers. A body that streams slowly afterwards is not cut off, so cancel it with `signal` if you need to. Aborting throws your own reason, not an `HttpError`, and is never retried.
 
-A failed request throws an `HttpError` with a `kind` of `status`, `network`, `timeout`, `parse` or `auth`. It also carries `status`, `body`, `headers` and `attempts`. The `auth` kind means `getToken` threw or rejected, and that is never retried.
+A failed request throws an `HttpError`. Switch on its `kind` to tell what went wrong.
+
+| `kind`    | Meaning                                      |
+| --------- | -------------------------------------------- |
+| `status`  | The server answered with an error status.    |
+| `network` | The request never got a response.            |
+| `timeout` | The response headers did not arrive in time. |
+| `parse`   | The body could not be parsed.                |
+| `auth`    | `getToken` threw or rejected. Never retried. |
+
+The error also carries these fields:
+
+```text
+status    the HTTP status, when there was one
+body      the parsed body
+headers   the response headers
+attempts  how many tries were made
+```
 
 The base URL comes from `apiUrl` in the runtime config, read on every call, so one build serves every environment. The client does not add trace headers itself. With [telemetry-otel](/features/telemetry-otel) the SDK instruments the global `fetch`, which this client calls on every request.
 
 ## Gotchas
 
-- The error message holds only the method, the endpoint key and what happened, for example `GET getOrder answered 404 Not Found`. There is no URL and no body in it, because both can carry ids and email addresses. Log `error.body` yourself once you have decided it is safe.
+- The error message holds only the method, the endpoint key and what happened. There is no URL and no body in it, because both can carry ids and email addresses.
+
+  ```text
+  GET getOrder answered 404 Not Found
+  ```
+
+  Log the error body yourself once you have decided it is safe.
+
 - `body` is parsed JSON, or text cut to 4096 characters.
 - Start a request inside the span's callback to get it into a trace, as shown in [starting a trace from a click](/features/telemetry-otel#starting-a-trace-from-a-click).
 - Add a line to `Responses` for every endpoint you call. An unlisted endpoint answers `unknown`.

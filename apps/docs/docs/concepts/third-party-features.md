@@ -35,7 +35,9 @@ pnpm mfeflow registry add @acme https://acme.github.io/mfeflow-features/{name}.j
 pnpm mfeflow add @acme/segment
 ```
 
-The URL template must use https, and `{name}` must be in it. Plain http is accepted only for `localhost`, `127.0.0.1` and `[::1]`, which helps when testing a registry. The namespace `@mfeflow` is reserved.
+The URL template must use https, and `{name}` must be in it. The namespace `@mfeflow` is reserved.
+
+Plain http is accepted only for loopback hosts, which helps when testing a registry. Those are localhost, 127.0.0.1 and [::1].
 
 You can search registries along with built-in features:
 

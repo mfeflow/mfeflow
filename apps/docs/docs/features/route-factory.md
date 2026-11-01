@@ -19,10 +19,16 @@ pnpm mfeflow add route-factory
 
 What changed:
 
-- `apps/<remote>/src/routes.ts` in every remote
-- `packages/contracts/src/routes/<remote>.ts` for each remote, only when `event-bus` is installed
-- `apps/<remote>/src/routes.test.ts`, only when `testing` is installed
-- `@mfeflow/route-factory` added to every remote
+```text
+apps/<remote>/src/
+├── routes.ts       # in every remote
+└── routes.test.ts  # only when testing is installed
+
+packages/contracts/src/routes/
+└── <remote>.ts     # one per remote, only when event-bus is installed
+```
+
+The `@mfeflow/route-factory` package is added to every remote.
 
 ## Use it
 
@@ -103,14 +109,20 @@ const MfeLink = createMfeLink(links, { useNavigate });
 
 ## How it works
 
-`defineRoutes` pairs a mount path with a table of templates. `createLinks` looks up `<remote>.<route>` in those tables, fills the parameters, checks the search names and joins the pieces. `href` includes `base`; `path` leaves it out, which is what a router with its own `basename` wants.
+`defineRoutes` pairs a mount path with a table of templates. `createLinks` looks up `<remote>.<route>` in those tables, fills the parameters, checks the search names and joins the pieces.
+
+The `href` method includes `base`. The `path` method leaves it out.
+
+That is what a router with its own `basename` wants.
 
 Without a router, a plain left click on a same-origin link pushes the URL and fires `popstate`, which the generated shell and any history-listening router pick up. Middle clicks, modifier keys and `target="_blank"` keep the browser's behaviour. The package has no router dependency; React is an optional peer.
 
 ## Gotchas
 
 - A missing parameter, a missing required search parameter, an extra search name and an unknown route all fail typecheck. If you bypass the types, they throw an error naming the route.
+
 - A mount must start with `/` and cannot end with one, so `/catalog/` is rejected.
+
 - Which layout a remote gets is decided by whether `event-bus` is installed when the feature is added, so install `event-bus` first, or in the same command.
 
 ## Reference

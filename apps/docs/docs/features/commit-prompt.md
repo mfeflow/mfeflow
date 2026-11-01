@@ -19,9 +19,11 @@ pnpm mfeflow add commit-prompt
 
 What changed:
 
-- `cz.config.js` at the project root
-- a `commit` script in the root `package.json` that runs `czg`
-- `czg` 1.14.0 as a root dev dependency
+```text
+cz.config.js   # prompt settings, at the project root
+package.json   # gains a commit script that runs czg
+               # and czg 1.14.0 as a dev dependency
+```
 
 ## Use it
 
@@ -66,7 +68,9 @@ export default {
 
 ## How it works
 
-`czg` reads `cz.config.js`, builds the message from your answers and passes it to `git commit`. The types are the eleven that `@commitlint/config-conventional` accepts, and the header limit and lowercase subject match its rules, so a message from the prompt passes the check in [git-hooks](/features/git-hooks) when that is installed.
+The prompt tool reads `cz.config.js`, builds the message from your answers and passes it to `git commit`. The types are the eleven that commitlint's conventional config accepts.
+
+The header limit and lowercase subject match its rules. A message from the prompt passes the check in [git-hooks](/features/git-hooks) when that is installed.
 
 The prompt does not install a hook of its own. Plain `git commit` still opens your editor as before, and a hand-written message goes through the same commitlint check.
 

@@ -17,13 +17,38 @@ Every app gets Vitest with jsdom, Testing Library, and an MSW mock server, plus 
 pnpm mfeflow add testing
 ```
 
-What changed:
+What changed in the project:
 
-- `vitest.config.ts` and `src/test/setup.ts` in every app
-- `src/mocks/handlers.ts`, `server.ts` and `handlers.test.ts` in every app
-- a sample test per app: `src/pages/Home.test.tsx` in the shell and `src/exposed/App.test.tsx` in each remote
-- at the root: `vitest.config.ts`, `playwright.config.ts` and `e2e/smoke.spec.ts`
-- `test`, `test:e2e` and `typecheck:tooling` scripts
+```text
+vitest.config.ts          # root, runs every app's config as a project
+playwright.config.ts      # root, the smoke test setup
+e2e/
+└── smoke.spec.ts         # the browser smoke test
+apps/<app>/
+├── vitest.config.ts      # per-app Vitest config
+└── src/
+    ├── test/
+    │   └── setup.ts      # starts the mock server
+    └── mocks/
+        ├── handlers.ts   # your mocked endpoints
+        ├── server.ts     # the MSW server
+        └── handlers.test.ts
+```
+
+Each app also gets a sample test. The shell has one in its Home page, and each remote has one next to its App:
+
+```text
+apps/shell/src/pages/Home.test.tsx
+apps/<remote>/src/exposed/App.test.tsx
+```
+
+The root package.json gets three scripts:
+
+```text
+test
+test:e2e
+typecheck:tooling
+```
 
 ## Use it
 
@@ -78,11 +103,22 @@ BASE_URL=https://staging.example.com pnpm test:e2e
 
 The setup file starts the MSW server before the tests, and after each test it cleans up rendered components, calls `resetPlatform()` and resets handlers. `resetPlatform()` clears web storage, the i18n instance, the theme on the root element and remote error reports, so one test cannot leak into the next.
 
-The server runs with unhandled requests set to error, which means a request nothing answers fails the test. The root `vitest.config.ts` runs every app's own config as a project, and `playwright.config.ts` starts `pnpm dev` unless `BASE_URL` is set. Playwright's reports and traces go to `node_modules/.cache/playwright`, not your working tree.
+The server treats unhandled requests as errors, so a request nothing answers fails the test. The root Vitest config runs every app's own config as a project.
+
+Playwright starts `pnpm dev` unless `BASE_URL` is set. Its reports and traces go to `node_modules/.cache/playwright`, not your working tree.
 
 ## Gotchas
 
-- The Vitest config lists `react`, `react-dom`, `react-i18next`, `i18next` and Testing Library under `resolve.dedupe`, so a linked package never brings a second copy of React into a test.
+- The Vitest config dedupes React, i18n and Testing Library, so a linked package never brings a second copy of React into a test. The packages it lists under `resolve.dedupe` are:
+
+```text
+react
+react-dom
+react-i18next
+i18next
+@testing-library/react
+```
+
 - The smoke test reads remote names from `registry/envs/dev`, so a remote that is not registered there is not checked.
 - If your project has runtime config, the smoke test also waits for `__MFE_RUNTIME_CONFIG__` to be loaded before it finishes.
 

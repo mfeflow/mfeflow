@@ -17,12 +17,22 @@ Two Git hooks managed by lefthook: commitlint on every commit message, and a typ
 pnpm mfeflow add git-hooks
 ```
 
-What changed:
+What changed at the project root:
 
-- `lefthook.yml` at the project root
-- `commitlint.config.js` at the project root
-- a `prepare` script, `lefthook install`, so hooks are set up after every `pnpm install`
-- `lefthook` 2.2.2, `@commitlint/cli` and `@commitlint/config-conventional` 21.2.4 as root dev dependencies
+```text
+./
+├── lefthook.yml          # which commands run on which hook
+├── commitlint.config.js  # the commit message rules
+└── package.json          # a prepare script that installs the hooks
+```
+
+The prepare script runs `lefthook install`, so hooks are set up after every `pnpm install`. Root dev dependencies added:
+
+```text
+lefthook                         2.2.2
+@commitlint/cli                  21.2.4
+@commitlint/config-conventional  21.2.4
+```
 
 ## Use it
 
@@ -68,12 +78,16 @@ export default { extends: ['@commitlint/config-conventional'] };
 
 ## How it works
 
-lefthook writes small scripts into your repository's hooks folder, and those call back into lefthook, which reads `lefthook.yml`. The `prepare` script re-runs the install, so a fresh clone gets the hooks after `pnpm install`. commitlint receives the path to the message file as `{1}` and checks it against the conventional config.
+lefthook writes small scripts into your repository's hooks folder. Those scripts call back into lefthook, which reads `lefthook.yml`.
+
+The `prepare` script re-runs the install, so a fresh clone gets the hooks after `pnpm install`. commitlint receives the path to the message file as `{1}` and checks it against the conventional config.
 
 ## Gotchas
 
-- A hook can be skipped with `git commit --no-verify`, so treat hooks as a convenience and keep [CI](/features/ci-github) as the check that cannot be skipped.
+- A commit can skip hooks with the `--no-verify` flag. Treat hooks as a convenience and keep [CI](/features/ci-github) as the check that cannot be skipped.
+
 - lefthook is allowed to run its install script in the generated `pnpm-workspace.yaml`. If you edit that file, keep the entry or `prepare` has nothing to run.
+
 - Typecheck on push can take a while in a large project. Move it out of `lefthook.yml` if it slows you down and rely on CI.
 
 ## Reference

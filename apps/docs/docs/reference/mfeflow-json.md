@@ -71,7 +71,9 @@ Each key is a relative path with forward slashes. Each value is `sha256-` follow
 
 ## registries
 
-Keys are namespaces like `@acme`. Values are URL templates. The template must be https, with `{name}` in the path and optionally `{version}`. Plain http is accepted for `127.0.0.1`, `localhost` and `[::1]`. `@mfeflow` is reserved. See [Third-party features](/concepts/third-party-features).
+Keys are namespaces like `@acme`. Values are URL templates. The template must be https, with `{name}` in the path and optionally `{version}`.
+
+Plain http is accepted for loopback hosts only. The namespace `@mfeflow` is reserved. See [Third-party features](/concepts/third-party-features).
 
 ## budget
 

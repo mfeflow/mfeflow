@@ -77,4 +77,6 @@ An object from package name to a semver range, such as `{ "react": "^19", "@mfef
 
 ## Checks
 
-`validate` and `doctor` check every `mfe.json` against this format and against `mfeflow.json`. A bad file is E113. A name that disagrees with `mfeflow.json`, or overlapping routes, is E116. See [Error codes](/reference/errors).
+The validate and doctor commands check every app file against this format and against the project file. A bad file is E113.
+
+A name that disagrees with the project file, or overlapping routes, is E116. See [Error codes](/reference/errors).

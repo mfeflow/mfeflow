@@ -7,7 +7,9 @@ description: Every mfeflow command and flag for version 0.4.0, with the global o
 
 This page lists every command, flag and exit code of the `mfeflow` command line. It matches `mfeflow --help` for version 0.4.0. For task-based help, use the [guides](/guide/introduction).
 
-In a generated project, run commands as `pnpm mfeflow <command>`. To create a project, use `pnpm create mfeflow`, which runs `init`. Run `mfeflow <command> --help` for the options and examples of one command.
+In a generated project, run commands as `pnpm mfeflow <command>`. To create a project, use `pnpm create mfeflow`, which runs `init`.
+
+Run the command with `--help` for the options and examples of one command.
 
 ## Commands
 
@@ -26,7 +28,9 @@ In a generated project, run commands as `pnpm mfeflow <command>`. To create a pr
 | `budget`                                  | Measure built JavaScript against the cost model                 |
 | `dev`                                     | Run the shell and every remote with a dev registry              |
 
-There is no command to remove a feature, and no `upgrade`, `deploy`, `promote`, `rollback` or `status` command, in this release. An unknown command exits with code 2 (E107).
+This release has no command to remove a feature. It also has no upgrade, deploy, promote, rollback or status command.
+
+An unknown command exits with code 2 (E107).
 
 ## Global options
 
@@ -124,7 +128,9 @@ mfeflow registry build <dir> [--out dir]
 | `remove` | Removes it. Refused while a feature from that namespace is installed                                          |
 | `build`  | Checks every feature folder in `<dir>` and writes the files to host. Default output `<dir>/dist`              |
 
-The URL must be https. Plain http is accepted for `127.0.0.1`, `localhost` and `[::1]`. The namespace `@mfeflow` is reserved. `build` lists every problem and writes nothing if there is one (E404).
+The URL must be https. Plain http is accepted for loopback hosts only: localhost, 127.0.0.1 and [::1]. The namespace `@mfeflow` is reserved.
+
+The build action lists every problem and writes nothing if there is one (E404).
 
 ## doctor, validate and check-compat
 
@@ -172,7 +178,7 @@ Ctrl+C stops everything and exits with code 130. See [Develop locally](/guide/de
 | 7    | Upgrade problem (E5xx)                    |
 | 130  | Cancelled at a prompt, or Ctrl+C in `dev` |
 
-For `doctor`, `validate`, `check-compat` and `budget`, the exit code is the lowest code among the errors found. Warnings do not change it. Every error has a code and a page. See [Error codes](/reference/errors).
+For the four check commands, the exit code is the lowest code among the errors found. Warnings do not change it. Every error has a code and a page. See [Error codes](/reference/errors).
 
 ## Output and exit codes
 
@@ -203,4 +209,4 @@ The success documents have these shapes. Each has `ok` and `command`.
 | `budget`                             | `root`, `model`, `shells[]`, `remotes[]`, `findings[]`                                                                |
 | `dev`                                | `root`, `registry`, `apps[]`, `overrides`, `dryRun`, `interrupted`                                                    |
 
-The `plan` in `init` and `add` lists `features`, `changes` (path and action), `dependencies`, `scripts` and `warnings`. Output shapes are part of the public API. See [Versions and upgrades](/guide/upgrading).
+The plan in the `init` and `add` output lists features, changes (path and action), dependencies, scripts and warnings. Output shapes are part of the public API. See [Versions and upgrades](/guide/upgrading).

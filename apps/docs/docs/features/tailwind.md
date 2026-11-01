@@ -19,13 +19,23 @@ pnpm mfeflow add tailwind
 
 If two apps would end up with the same prefix, `add` stops and names both ([E208](/errors/E208)).
 
-What changed:
+What changed in each app:
 
-- `postcss.config.mjs` in the shell and every remote
-- `src/styles.css` in the shell (theme, reset and utilities) and in every remote (theme and utilities)
-- `src/tailwind/Scope.tsx` in each remote, wrapping its `App` and loading its stylesheet, plus a test if you use [testing](/features/testing)
-- `tailwindcss` and `@tailwindcss/postcss` at 4.3.3, as dev dependencies of every app
-- an import of `./styles.css` in the shell's `src/bootstrap.tsx`
+```text
+postcss.config.mjs      # shell and every remote
+src/
+├── styles.css          # shell: theme, reset, utilities. Remote: theme, utilities
+├── bootstrap.tsx       # shell only, imports styles.css
+└── tailwind/
+    └── Scope.tsx       # remote only, wraps App and loads its stylesheet
+```
+
+Every remote also gets a Scope test if you use [testing](/features/testing). Both Tailwind packages are added at 4.3.3 as dev dependencies of every app:
+
+```text
+tailwindcss
+@tailwindcss/postcss
+```
 
 ## Use it
 
@@ -72,7 +82,15 @@ The feature has no install options. The prefix and the tokens live in `src/style
 | Reset (preflight) | the shell's `styles.css` only                      | on in the shell, absent from remotes                                                                                           |
 | Layers            | `@layer theme, base, components, utilities`        | all Tailwind output is layered                                                                                                 |
 
-A name made only of lowercase letters is its own prefix. Tailwind accepts nothing else, so a name like `cart_b` or `cart1` keeps its letters and gets four more from a hash of the whole name (`cart_b` becomes something like `cartqzvk`). That keeps `cart_b`, `cartb` and `cart1` apart. You can pick a prefix yourself by editing it in `styles.css` and in the classes.
+A name made only of lowercase letters is its own prefix. Tailwind accepts nothing else, so other names get four extra letters from a hash of the whole name.
+
+| App name | Prefix                    |
+| -------- | ------------------------- |
+| `cart`   | `cart`                    |
+| `cart_b` | something like `cartqzvk` |
+| `cart1`  | another hashed prefix     |
+
+That keeps all three apart. You can pick a prefix yourself by editing it in `styles.css` and in the classes.
 
 ## How it works
 
@@ -82,7 +100,12 @@ Preflight is the only part that cannot be scoped, so the shell loads it once and
 
 ## Gotchas
 
-- A remote opened on its own with `pnpm dev` has no reset. Add `@import 'tailwindcss/preflight.css' layer(base);` to that remote's `styles.css` while you work, and take it out before you deploy.
+- A remote opened on its own with `pnpm dev` has no reset. While you work, add this line to that remote's styles, and take it out before you deploy:
+
+```css
+@import 'tailwindcss/preflight.css' layer(base);
+```
+
 - Every utility needs the prefix. An unprefixed `flex` in a remote does nothing.
 - The integration is the PostCSS plugin, which Rsbuild picks up from `postcss.config.mjs` without extra setup.
 

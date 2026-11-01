@@ -22,7 +22,13 @@ pnpm mfeflow registry add @acme https://acme.github.io/mfeflow-features/{name}.j
 pnpm mfeflow add @acme/segment
 ```
 
-`pnpm mfeflow features` lists the registry's features next to the first-party ones. What changes in your project is whatever the feature's `feature.json` declares, plus a `registries` entry in `mfeflow.json`.
+This command lists the registry's features next to the first-party ones:
+
+```sh
+pnpm mfeflow features
+```
+
+What changes in your project is whatever the feature's `feature.json` declares. Your `mfeflow.json` also gets a `registries` entry.
 
 ## Use it
 
@@ -34,9 +40,22 @@ pnpm mfeflow registry list
 pnpm mfeflow registry remove @acme
 ```
 
-`registry add` takes `--dry-run` and `--json`. To find a feature, run `pnpm mfeflow features [search]`. It reads each registry's `index.json`, all at the same time so one slow registry does not delay the rest, and lists source, name, version and description. The search matches name, description and keywords.
+`registry add` takes `--dry-run` and `--json`. To find a feature, search by name, description or keyword:
 
-A registry that cannot be read is reported with `MFEFLOW_E401`, or `E403` for a bad index, and the rest are still listed. The command exits 0. With `--json`, the result has `features[].source` and one status per registry under `registries`.
+```sh
+pnpm mfeflow features [search]
+```
+
+It reads every registry's index at the same time, so one slow registry does not delay the rest. It lists source, name, version and description.
+
+A registry that cannot be read is reported with `MFEFLOW_E401`, or `E403` for a bad index. The rest are still listed and the command exits 0.
+
+With `--json`, each feature has a source, and every registry gets one status:
+
+```text
+features[].source   # which registry a feature came from
+registries          # one status per registry
+```
 
 ### Write a feature
 
@@ -79,7 +98,20 @@ my-registry/
 }
 ```
 
-The allowed fields are `name`, `version`, `description`, `keywords`, `prompts`, `requires`, `conflicts`, `files`, `dependencies`, `scripts` and `transforms`. Anything else, such as `migrations`, hooks or unknown keys, is refused with `MFEFLOW_E203`. The `target` is `shell`, `remotes` or one app's name.
+A third-party feature may use only these top-level fields:
+
+```text
+name  version  description  keywords  prompts  requires
+conflicts  files  dependencies  scripts  transforms
+```
+
+Anything else, such as migrations, hooks or unknown keys, is refused with `MFEFLOW_E203`.
+
+A `target` is the shell, all remotes, or one app's name:
+
+```text
+shell  remotes  <app-name>
+```
 
 ### Publish a registry
 
@@ -103,7 +135,15 @@ Wrote 4 files to /home/you/my-registry/site
 | `<name>/<version>.json` | The same feature at this version, for `https://host/{name}/{version}.json`. |
 | `<name>/latest.json`    | What `{version}` becomes when the user did not ask for one.                 |
 
-`--out` defaults to `<dir>/dist`. `--dry-run` lists what would be written, and `--json` prints the result. The build writes nothing when any feature fails, and it reports every failure in one go:
+These flags change the build:
+
+| Flag        | What it does                           |
+| ----------- | -------------------------------------- |
+| `--out`     | Output folder, `<dir>/dist` by default |
+| `--dry-run` | Lists what would be written            |
+| `--json`    | Prints the result as JSON              |
+
+The build writes nothing when any feature fails, and it reports every failure in one go:
 
 ```
 MFEFLOW_E404 A feature in the registry folder cannot be published: 2 problem(s)
@@ -115,10 +155,17 @@ It also needs one namespace per registry, one folder per feature name, a semver 
 
 ### Host it on GitHub Pages
 
-1. Put the features in a repository, for example `acme/mfeflow-features`, one folder each.
-2. Build into a folder Pages serves, here `docs/`: `pnpm mfeflow registry build ./features --out ./docs`.
-3. Commit it, and in the repository settings publish Pages from the `main` branch, `/docs` folder.
-4. Users run `pnpm mfeflow registry add @acme https://acme.github.io/mfeflow-features/{name}.json`.
+1. Put the features in a repository, one folder each.
+2. Build into a folder Pages serves, here `docs/`.
+3. Commit it, then publish Pages from the `main` branch and the `/docs` folder in the repository settings.
+4. Users add your registry with its URL.
+
+The commands for steps 2 and 4:
+
+```sh
+pnpm mfeflow registry build ./features --out ./docs
+pnpm mfeflow registry add @acme https://acme.github.io/mfeflow-features/{name}.json
+```
 
 Any static host works the same way: S3, R2, Netlify or your own nginx. A GitHub Action that runs `registry build` and deploys the output keeps it fresh on every push.
 
@@ -190,9 +237,21 @@ A feature that breaks a rule fails with `MFEFLOW_E203` and a message naming the 
 
 ### Versions
 
-Versions are semver. Your `mfeflow.json` records the version that was installed. `<name>.json` and `latest.json` are the current version, while `<name>/<version>.json` stays where it is. Build into the same folder, or keep it in git, and each release adds one file.
+Versions are semver, and your `mfeflow.json` records the version that was installed. Build into the same folder, or keep it under version control, and each release adds one file.
 
-Adding a remote or shell later applies the installed registry features to the new app again, at the recorded version. If the registry now serves another version and your template has no `{version}`, `pnpm mfeflow add` stops with `MFEFLOW_E401` before writing anything. A template with `{version}` (`https://host/{name}/{version}.json`) keeps working across releases, which is why the build writes both forms.
+| File                    | Behaviour                         |
+| ----------------------- | --------------------------------- |
+| `<name>.json`           | Always the current version        |
+| `<name>/latest.json`    | Always the current version        |
+| `<name>/<version>.json` | Stays as published, never changes |
+
+Adding a remote or shell later applies the installed registry features to the new app again, at the recorded version. If the registry now serves another version and your template has no `{version}`, `add` stops with `MFEFLOW_E401` before writing anything.
+
+A template with a version placeholder keeps working across releases, which is why the build writes both forms:
+
+```text
+https://host/{name}/{version}.json
+```
 
 ## Gotchas
 
@@ -200,7 +259,7 @@ Adding a remote or shell later applies the installed registry features to the ne
 Do not delete old output from the folder you publish. A published `<name>/<version>.json` should never change, and users on that version need it. Publish a new version instead.
 :::
 
-- **Plain `http` is for this machine only.** `http://192.168.1.5/...` and `http://localhost.example.com/...` are refused.
+- **Plain http is for this machine only.** Any other http address, such as a LAN IP or a lookalike host name, is refused.
 - **A registry in use cannot be removed.** Features installed from it are fetched again when you add a remote or shell.
 - **Review before you apply.** Read the plan and the diff `add` shows. Without a terminal, `--yes` skips that, so use it only for a registry you trust.
 
