@@ -52,6 +52,15 @@ export {
   type InstallContext,
   type InstallStep,
 } from './apply';
+export {
+  detectBaseline,
+  planUpgrade,
+  type DivergedUpgrade,
+  type DivergeReason,
+  type Migration,
+  type UpgradeInput,
+  type UpgradePlan,
+} from './upgrade';
 export { renderTemplate, substitute, type TemplateData } from './templates';
 export { RUNTIME_CONFIG_FILE, runtimeConfigFiles } from './runtime-config';
 export { applyTransform, dotenvKeys, schemaKeys, type SchemaKey } from './transforms';

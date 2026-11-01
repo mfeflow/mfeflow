@@ -309,6 +309,17 @@ describe('PlanBuilder setRange', () => {
     expect(plan.changes[0]?.after).toBe(deps('^19.0.0'));
   });
 
+  it('moves every section that lists the name, and skips a section already at the target', async () => {
+    const both = (prod: string, dev: string) =>
+      pkg({ dependencies: { react: prod }, devDependencies: { react: dev } });
+    const first = new PlanBuilder(reader({ 'package.json': both('^18.0.0', '^18.0.0') }));
+    await first.setRange('package.json', 'react', '^19.0.0');
+    expect(first.build().changes[0]?.after).toBe(both('^19.0.0', '^19.0.0'));
+    const second = new PlanBuilder(reader({ 'package.json': both('^19.0.0', '^18.0.0') }));
+    await second.setRange('package.json', 'react', '^19.0.0');
+    expect(second.build().changes[0]?.after).toBe(both('^19.0.0', '^19.0.0'));
+  });
+
   it('finds a dev dependency', async () => {
     const b = new PlanBuilder(
       reader({ 'package.json': pkg({ devDependencies: { vitest: '^4.0.0' } }) }),
