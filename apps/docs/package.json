@@ -15,6 +15,10 @@
     "@mfeflow/contracts": "workspace:*",
     "@mfeflow/core": "workspace:*",
     "@rspress/core": "catalog:",
-    "@rspress/plugin-sitemap": "catalog:"
+    "@rspress/plugin-sitemap": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
   }
 }
