@@ -16,4 +16,4 @@ pnpm create mfeflow my-platform --scope @acme --remotes catalog,cart,account --f
 
 `--dry-run` shows the files it would write without writing anything. pnpm is the only package manager in this release.
 
-See the [features](/features/) for what each one adds, and follow progress on [GitHub](https://github.com/mfeflow/mfeflow).
+Each feature has its own page in the sidebar, starting with [env-t3](/features/env-t3). Follow progress on [GitHub](https://github.com/mfeflow/mfeflow).
