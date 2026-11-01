@@ -251,7 +251,11 @@ export async function runDeploy(
 ): Promise<DeployResult> {
   assertKnownFlags(raw, DEPLOY_ARGS);
   const server = openServer(rt, args);
-  if (server !== undefined) return deployViaServer(rt, args, raw, DEPLOY_ARGS, server);
+  if (server !== undefined) {
+    const result = await deployViaServer(rt, args, raw, DEPLOY_ARGS, server);
+    if (args.json !== true) rt.io.stdout(formatDeploy(result));
+    return result;
+  }
   refuseRolloutFlags(args);
   const globals = readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive);
   const [name] = positionals(args, 1, 'mfeflow deploy <remote> --env <env>');
@@ -406,7 +410,11 @@ export async function runPromote(
 ): Promise<DeployResult> {
   assertKnownFlags(raw, PROMOTE_ARGS);
   const server = openServer(rt, args);
-  if (server !== undefined) return promoteViaServer(rt, args, raw, PROMOTE_ARGS, server);
+  if (server !== undefined) {
+    const result = await promoteViaServer(rt, args, raw, PROMOTE_ARGS, server);
+    if (args.json !== true) rt.io.stdout(formatDeploy(result));
+    return result;
+  }
   refuseRolloutFlags(args);
   const globals = readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive);
   const [name] = positionals(args, 1, 'mfeflow promote <remote> --from <env> --to <env>');
@@ -460,7 +468,11 @@ export async function runRollback(
 ): Promise<DeployResult> {
   assertKnownFlags(raw, ROLLBACK_ARGS);
   const server = openServer(rt, args);
-  if (server !== undefined) return rollbackViaServer(rt, args, raw, ROLLBACK_ARGS, server);
+  if (server !== undefined) {
+    const result = await rollbackViaServer(rt, args, raw, ROLLBACK_ARGS, server);
+    if (args.json !== true) rt.io.stdout(formatDeploy(result));
+    return result;
+  }
   const globals = readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive);
   const [name] = positionals(args, 1, 'mfeflow rollback <remote> --env <env>');
   const env = envOf(args);
