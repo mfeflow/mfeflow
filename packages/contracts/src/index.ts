@@ -50,11 +50,13 @@ export {
 export {
   FILE_HASH,
   PROJECT_REPOS,
+  REGISTRY_HOST,
   REGISTRY_NAMESPACE,
   isMfeflowProject,
   validateMfeflowProject,
   type MfeflowProject,
   type ProjectBudget,
+  type ProjectRegistry,
 } from './project';
 export {
   COST_MODEL,

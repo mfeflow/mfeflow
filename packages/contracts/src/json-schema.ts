@@ -16,6 +16,7 @@ import {
   CHECKOUT_PATH,
   FILE_HASH,
   PROJECT_REPOS,
+  REGISTRY_HOST,
   REGISTRY_NAMESPACE,
   SCOPE,
   SEMVER,
@@ -254,6 +255,16 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
             { type: 'number', minimum: 1 },
           ]),
         ),
+      },
+      registry: {
+        type: 'object',
+        properties: {
+          host: str(REGISTRY_HOST),
+          baseUrl: {
+            type: 'string',
+            pattern: String.raw`^(?:https://[^@\s?#]*[^/@\s?#]|http://(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?(?:/[^@\s?#]*[^/@\s?#])?)$`,
+          },
+        },
       },
     },
     required: ['version', 'topology', 'packageManager', 'scope', 'apps', 'features'],

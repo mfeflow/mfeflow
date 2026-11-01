@@ -12,6 +12,7 @@
   { "type": "section-header", "label": "Ship" },
   { "type": "file", "name": "ci-and-budgets", "label": "CI and budgets" },
   { "type": "file", "name": "deploying", "label": "Deploy" },
+  { "type": "file", "name": "deploy-and-rollback", "label": "Deploy and roll back" },
   { "type": "file", "name": "upgrading", "label": "Versions and upgrades" },
   { "type": "section-header", "label": "Help" },
   { "type": "file", "name": "troubleshooting", "label": "Troubleshooting" },

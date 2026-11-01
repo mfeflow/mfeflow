@@ -1,4 +1,4 @@
-import type { Issue } from '@mfeflow/contracts';
+import type { Issue, RegistryIndex } from '@mfeflow/contracts';
 import { type Plan } from '@mfeflow/core';
 import { EXIT, type ErrorReport } from './exit';
 import type { Finding } from './findings';
@@ -185,6 +185,77 @@ export interface DevResult {
   interrupted: boolean;
 }
 
+export interface PlannedUpload {
+  key: string;
+  bytes: number;
+  contentType: string;
+  cacheControl: string;
+  /** `create-only`: refuses to overwrite. `if-match`: only if the index is the one that was read. */
+  guard: 'create-only' | 'if-match' | 'none';
+}
+
+/** What `deploy`, `promote` and `rollback` print with `--json`. `ok` is false when a gate failed. */
+export interface DeployResult {
+  ok: boolean;
+  command: 'deploy' | 'promote' | 'rollback';
+  dryRun: boolean;
+  root: string;
+  env: string;
+  /** The env a promote copied from; null otherwise. */
+  fromEnv: string | null;
+  /** The host as a person wrote it, never an endpoint or a credential. */
+  host: string;
+  remote: string;
+  version: string;
+  /** The version the env served before; null when the remote was not deployed there. */
+  servedBefore: string | null;
+  /** The index now points at `version` (false for a dry run, `--no-publish`, a failed gate, or when it already did). */
+  published: boolean;
+  previous: string | null;
+  rolledBackFrom: string | null;
+  /** Everything the run uploads, in order, the index last. */
+  uploads: PlannedUpload[];
+  uploaded: string[];
+  skipped: string[];
+  /** The registry/envs file written to match the host; null when none was. */
+  localEntry: string | null;
+  /** The index the run would write. Only for a dry run. */
+  index?: RegistryIndex;
+  warnings: string[];
+  findings: Finding[];
+}
+
+export interface StatusRemote {
+  name: string;
+  version: string;
+  previous: string | null;
+  history: string[];
+  rolledBackFrom: string | null;
+  /** The version in `registry/envs/<env>/<name>.json`; null when there is no such file. */
+  local: string | null;
+  /** Versions on the host newer than `version` that no environment points at; null when the host cannot list. */
+  unreferenced: string[] | null;
+  drift: string[];
+}
+
+export interface StatusEnv {
+  env: string;
+  /** The host has an index for this env. */
+  published: boolean;
+  /** When that index was written. The index records no per-remote time. */
+  generatedAt: string | null;
+  remotes: StatusRemote[];
+}
+
+export interface StatusResult {
+  ok: boolean;
+  command: 'status';
+  root: string;
+  host: string;
+  envs: StatusEnv[];
+  findings: Finding[];
+}
+
 export interface FailureResult {
   ok: false;
   error: ErrorReport;
@@ -199,6 +270,8 @@ export type CliResult =
   | ReportResult
   | BudgetResult
   | DevResult
+  | DeployResult
+  | StatusResult
   | FailureResult;
 
 /** The plan as plain data for `--json`, without file contents. Features are listed once. */
@@ -361,6 +434,52 @@ function checkBudget(c: Check, value: Obj): void {
   });
 }
 
+function checkFindings(c: Check, value: Obj): void {
+  c.objects(value, 'findings', '', (f, p) => {
+    for (const key of ['code', 'message', 'fix', 'docs']) c.string(f, key, p);
+  });
+}
+
+function checkDeploy(c: Check, value: Obj): void {
+  for (const key of ['root', 'env', 'host', 'remote', 'version']) c.string(value, key, '');
+  for (const key of ['dryRun', 'published']) c.boolean(value, key, '');
+  for (const key of ['fromEnv', 'servedBefore', 'previous', 'rolledBackFrom', 'localEntry']) {
+    if (value[key] !== null && typeof value[key] !== 'string') c.add(key, 'must be text or null');
+  }
+  c.texts(value, 'uploaded', '');
+  c.texts(value, 'skipped', '');
+  c.texts(value, 'warnings', '');
+  c.objects(value, 'uploads', '', (u, p) => {
+    for (const key of ['key', 'contentType', 'cacheControl']) c.string(u, key, p);
+    if (typeof u.bytes !== 'number') c.add(`${p}bytes`, 'must be a number');
+    if (!['create-only', 'if-match', 'none'].includes(String(u.guard)))
+      c.add(`${p}guard`, 'must be create-only, if-match or none');
+  });
+  if (value.dryRun === true && Array.isArray(value.uploaded) && value.uploaded.length > 0)
+    c.add('uploaded', 'must be empty for a dry run');
+  if (value.index !== undefined && !isObj(value.index)) c.add('index', 'must be an object');
+  checkFindings(c, value);
+}
+
+function checkStatus(c: Check, value: Obj): void {
+  c.string(value, 'root', '');
+  c.string(value, 'host', '');
+  c.objects(value, 'envs', '', (e, p) => {
+    c.string(e, 'env', p);
+    c.boolean(e, 'published', p);
+    if (e.generatedAt !== null && typeof e.generatedAt !== 'string')
+      c.add(`${p}generatedAt`, 'must be text or null');
+    c.objects(e, 'remotes', p, (r, q) => {
+      c.string(r, 'name', q);
+      c.string(r, 'version', q);
+      c.texts(r, 'history', q);
+      c.texts(r, 'drift', q);
+      if (r.unreferenced !== null) c.texts(r, 'unreferenced', q);
+    });
+  });
+  checkFindings(c, value);
+}
+
 /** Checks a document the CLI printed with `--json`. Returns the problems; empty means valid. */
 export function validateResult(value: unknown): Issue[] {
   const c = new Check();
@@ -461,10 +580,18 @@ export function validateResult(value: unknown): Issue[] {
       });
       if (!isObj(value.overrides)) c.add('overrides', 'must be an object');
       break;
+    case 'deploy':
+    case 'promote':
+    case 'rollback':
+      checkDeploy(c, value);
+      break;
+    case 'status':
+      checkStatus(c, value);
+      break;
     default:
       c.add(
         'command',
-        'must be init, add, features, registry, doctor, validate, check-compat, budget or dev',
+        'must be init, add, features, registry, doctor, validate, check-compat, budget, dev, deploy, promote, rollback or status',
       );
   }
   return c.issues;
