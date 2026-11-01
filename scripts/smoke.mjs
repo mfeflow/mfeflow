@@ -1,6 +1,7 @@
 // Generates a project with this checkout (`mfeflow init --local`), installs and builds it, boots
 // `mfeflow dev`, fetches the shell, its runtime config and both remotes, adds a third remote while it runs and waits for the
 // shell to list it (no restart), then sends Ctrl+C and checks every dev server is gone.
+// Also runs `pnpm doctor`, which fails if the generated project does not install the CLI.
 // Needs `pnpm build` to have run in this repo.
 // Usage: node scripts/smoke.mjs   (SMOKE_DIR=/some/folder keeps the project there)
 import { spawn, spawnSync } from 'node:child_process';
@@ -88,6 +89,7 @@ try {
   );
   step('install', 'pnpm', ['install'], project);
   step('build', 'pnpm', ['build'], project);
+  step('doctor (the CLI the docs tell users to run)', 'pnpm', ['doctor'], project);
 
   console.log('\n==> dev');
   dev = spawn(process.execPath, [cli, 'dev'], { cwd: project, stdio: 'inherit' });
