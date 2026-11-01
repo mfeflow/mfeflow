@@ -116,40 +116,42 @@ pnpm exec mfeflow-registry serve
 
 Settings are environment variables, checked at start (all problems are listed together):
 
-| Variable                             | Default                 | Meaning                                                                             |
-| ------------------------------------ | ----------------------- | ----------------------------------------------------------------------------------- |
-| `MFEFLOW_REGISTRY_PORT`              | `8787`                  | Port.                                                                               |
-| `MFEFLOW_REGISTRY_BIND`              | `127.0.0.1`             | Address to bind. Put TLS in front of it.                                            |
-| `MFEFLOW_REGISTRY_DB`                | `./mfeflow-registry.db` | SQLite file.                                                                        |
-| `MFEFLOW_REGISTRY_ARTIFACT_BASE_URL` | unset                   | Where artifacts are served from. `deploy` is off without it.                        |
-| `MFEFLOW_REGISTRY_FALLBACK_HOST`     | unset                   | `file:<dir>` or `s3://<bucket>[/prefix]` for the static fallback index.             |
-| `MFEFLOW_REGISTRY_CORS_ORIGINS`      | none                    | Comma-separated origins that may read the index from a browser.                     |
-| `MFEFLOW_REGISTRY_MAX_BODY_BYTES`    | `262144`                | Largest request body.                                                               |
-| `MFEFLOW_REGISTRY_GATE_MIN_LOADS`    | `200`                   | Candidate loads before the gate judges a rollout.                                   |
-| `MFEFLOW_REGISTRY_GATE_MIN_CLIENTS`  | `50`                    | Distinct browsers needed on each side before the gate judges.                       |
-| `MFEFLOW_REGISTRY_GATE_FACTOR`       | `2`                     | Halt when the candidate's error rate is over stable's times this.                   |
-| `MFEFLOW_REGISTRY_GATE_FLOOR`        | `0.02`                  | ...and over stable's by at least this much (0.02 is two points).                    |
-| `MFEFLOW_REGISTRY_BEACON_BURST`      | `60`                    | Beacons one client address can send at once.                                        |
-| `MFEFLOW_REGISTRY_BEACON_PER_MINUTE` | `60`                    | How fast that allowance refills.                                                    |
-| `MFEFLOW_REGISTRY_TRUST_PROXY`       | unset                   | `true` reads the client address from `X-Forwarded-For`. Only behind your own proxy. |
+| Variable                                 | Default                 | Meaning                                                                             |
+| ---------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------- |
+| `MFEFLOW_REGISTRY_PORT`                  | `8787`                  | Port.                                                                               |
+| `MFEFLOW_REGISTRY_BIND`                  | `127.0.0.1`             | Address to bind. Put TLS in front of it.                                            |
+| `MFEFLOW_REGISTRY_DB`                    | `./mfeflow-registry.db` | SQLite file.                                                                        |
+| `MFEFLOW_REGISTRY_ARTIFACT_BASE_URL`     | unset                   | Where artifacts are served from. `deploy` is off without it.                        |
+| `MFEFLOW_REGISTRY_FALLBACK_HOST`         | unset                   | `file:<dir>` or `s3://<bucket>[/prefix]` for the static fallback index.             |
+| `MFEFLOW_REGISTRY_CORS_ORIGINS`          | none                    | Comma-separated origins that may read the index from a browser.                     |
+| `MFEFLOW_REGISTRY_MAX_BODY_BYTES`        | `262144`                | Largest request body.                                                               |
+| `MFEFLOW_REGISTRY_GATE_MIN_LOADS`        | `200`                   | Candidate loads before the gate judges a rollout.                                   |
+| `MFEFLOW_REGISTRY_GATE_MIN_CLIENTS`      | `50`                    | Distinct browsers needed on each side before the gate judges.                       |
+| `MFEFLOW_REGISTRY_ROLLOUT_MAX_REPORTERS` | `20000`                 | Browsers counted per rollout. Past it new ones are dropped.                         |
+| `MFEFLOW_REGISTRY_GATE_FACTOR`           | `2`                     | Halt when the candidate's error rate is over stable's times this.                   |
+| `MFEFLOW_REGISTRY_GATE_FLOOR`            | `0.02`                  | ...and over stable's by at least this much (0.02 is two points).                    |
+| `MFEFLOW_REGISTRY_BEACON_BURST`          | `60`                    | Beacons one client address can send at once.                                        |
+| `MFEFLOW_REGISTRY_BEACON_PER_MINUTE`     | `60`                    | How fast that allowance refills.                                                    |
+| `MFEFLOW_REGISTRY_TRUST_PROXY`           | unset                   | `true` reads the client address from `X-Forwarded-For`. Only behind your own proxy. |
 
 S3 credentials for the fallback host come from `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `MFEFLOW_S3_REGION` (or `AWS_REGION`) and optionally `MFEFLOW_S3_ENDPOINT`, as in the CLI.
 
 **Endpoints.** JSON in, JSON out. Upload the build to the artifact host first; the server never stores files.
 
-| Endpoint                    | Needs                                         | What it does                                                                                                                                               |
-| --------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /v1/index/:env?u=id`   | nothing                                       | The index for the env, the same shape as the static one. With `u`, the version that client should load.                                                    |
-| `POST /v1/deploy`           | `deploy`                                      | Registers an uploaded version and serves it, after the schema, overlap, compat and budget gates.                                                           |
-| `POST /v1/promote`          | `promote` on the target, `read` on the source | Points `to` at the version `from` serves.                                                                                                                  |
-| `POST /v1/rollback`         | `rollback`                                    | Back to `previous`, or to `to` from the history. `force` skips the gates, not the history check.                                                           |
-| `POST /v1/rollout/step`     | `rollout`                                     | Moves a running rollout to its next percent.                                                                                                               |
-| `POST /v1/rollout/complete` | `rollout`                                     | Makes the candidate the stable version for everyone.                                                                                                       |
-| `POST /v1/rollout/abort`    | `rollout`                                     | Ends the rollout; everyone gets stable again.                                                                                                              |
-| `POST /v1/beacon`           | nothing                                       | Browsers report load and error counts. Validated and rate limited.                                                                                         |
-| `POST /v1/kill`             | `kill`                                        | Removes the remote from the served index now. `restore: true` puts it back.                                                                                |
-| `GET /v1/audit?env=`        | `read`                                        | Who did what, when, and the versions before and after. Entries carry token ids and kill reasons (free text from the caller), so treat the log as internal. |
-| `GET /healthz`              | nothing                                       | Checks the database.                                                                                                                                       |
+| Endpoint                       | Needs                                         | What it does                                                                                                                                               |
+| ------------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/index/:env?u=id`      | nothing                                       | The index for the env, the same shape as the static one. With `u`, the version that client should load.                                                    |
+| `POST /v1/deploy`              | `deploy`                                      | Registers an uploaded version and serves it, after the schema, overlap, compat and budget gates.                                                           |
+| `POST /v1/promote`             | `promote` on the target, `read` on the source | Points `to` at the version `from` serves.                                                                                                                  |
+| `POST /v1/rollback`            | `rollback`                                    | Back to `previous`, or to `to` from the history. `force` skips the gates, not the history check.                                                           |
+| `POST /v1/rollout/step`        | `rollout`                                     | Moves a running rollout to its next percent.                                                                                                               |
+| `POST /v1/rollout/complete`    | `rollout`                                     | Makes the candidate the stable version for everyone.                                                                                                       |
+| `POST /v1/rollout/abort`       | `rollout`                                     | Ends the rollout; everyone gets stable again.                                                                                                              |
+| `GET /v1/rollout?env=&remote=` | `read`                                        | A running rollout's percent, the clients, loads and errors on each side, and why the gate is waiting.                                                      |
+| `POST /v1/beacon`              | nothing                                       | Browsers report load and error counts. Validated and rate limited.                                                                                         |
+| `POST /v1/kill`                | `kill`                                        | Removes the remote from the served index now. `restore: true` puts it back.                                                                                |
+| `GET /v1/audit?env=`           | `read`                                        | Who did what, when, and the versions before and after. Entries carry token ids and kill reasons (free text from the caller), so treat the log as internal. |
+| `GET /healthz`                 | nothing                                       | Checks the database.                                                                                                                                       |
 
 A deploy sends `env`, `remote`, `version`, `owner`, `routes` and `manifestUrl`, which must be `<base>/<name>/<version>/mf-manifest.json` under the artifact base URL (`+` in a version is `_`). Optional: `platform` and `budgets.initialJsKb`, as in `mfe.json`. The server reads the manifest and the first-load files from the artifact host to measure and check them. A version is immutable: registering the same version with a different manifest is refused. A killed remote cannot be deployed, promoted or rolled back until it is restored.
 
@@ -185,11 +187,15 @@ Each call is in the audit log as `rollout.step`, `rollout.complete` or `rollout.
 
 **Gating.** Shells report how their remotes did. The server judges a candidate only when it has at least `MFEFLOW_REGISTRY_GATE_MIN_LOADS` loads and both the candidate and stable have at least `MFEFLOW_REGISTRY_GATE_MIN_CLIENTS` distinct browsers. Then it compares error rates. It halts the rollout when the candidate is more than `MFEFLOW_REGISTRY_GATE_FACTOR` times worse and at least `MFEFLOW_REGISTRY_GATE_FLOOR` worse in absolute terms. Halting is an abort, and the audit entry `rollout.halt` has the reason and both sets of counts. The floor keeps a stable with almost no errors from making ordinary noise look like a regression.
 
+**Watch the gate.** The gate also waits for `MFEFLOW_REGISTRY_GATE_MIN_CLIENTS` on the stable side. At a high percent, or with little traffic, stable may never reach that many, and then the gate never fires. `GET /v1/rollout?env=prod&remote=cart` shows what it sees. You should see `gate.verdict` as `wait`, with a reason such as `2 of 50 stable clients so far`, next to `candidateCounts` and `stableCounts`. If you roll out slowly on a quiet remote, lower the minimums or watch your own error tracking.
+
 Counts are kept per rollout, so they start at zero and stop when it ends. Reports for anything that is not the candidate or stable of a running rollout are dropped.
 
 **The beacon.** `POST /v1/beacon` needs no token, because it comes from browsers. One request is one page: `{ "env", "u", "entries": [{ "remote", "version", "loads", "errors" }] }`, with 1 to 20 entries. It is sent as `application/json` or `text/plain` (what `navigator.sendBeacon` sends). `u` is the same id the page sent on the index request. Each entry has `loads` 0 or 1 and `errors` no more than `loads`. Unknown fields are refused and the body is capped at 4 KiB.
 
-A browser counts once per side of a rollout: one load and at most one error per `u` and version, however often it reports. The dedupe is a table in SQLite (`rollout_reporters`), removed when the rollout ends. Reports for anything that is not the candidate or stable of a running rollout are dropped.
+A browser counts once per side of a rollout: one load and at most one error per `u` and version, however often it reports. The server works out which side `u` belongs to (the candidate when `u` falls inside the percent, else stable) and drops a report for the other side, without an error. A remote named twice in one body is refused. When a step moves a browser from stable to candidate, it may report both, since each is its own version. Running counts are kept beside the rows and updated in the same transaction, so the gate reads them without scanning. The rows are in SQLite (`rollout_reporters`), removed when the rollout ends.
+
+Each rollout counts at most `MFEFLOW_REGISTRY_ROLLOUT_MAX_REPORTERS` browsers (20000 by default). Past that, new ids are dropped and still answered `202`. A full cap means the gate has stopped learning, so it fails open: a bad candidate can then go unnoticed. The status endpoint shows `reporterCap.full`. Raise the cap if you see it, or end the rollout.
 
 Each client address gets a token bucket in memory (60 at once, then 60 a minute by default). Past that the answer is `429` with `Retry-After`. By default the address is the socket's, so behind a proxy every browser shares one bucket. Set `MFEFLOW_REGISTRY_TRUST_PROXY=true` there, and the server uses the last `X-Forwarded-For` entry. It warns at start when it is bound beyond loopback without that setting.
 
