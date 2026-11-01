@@ -6,6 +6,7 @@ const SINGLETONS = [
   'i18next',
   'react-i18next',
   '@mfeflow/runtime',
+  '@mfeflow/event-bus',
   '@mfeflow/storage',
   '@mfeflow/theme',
   '@mfeflow/i18n',

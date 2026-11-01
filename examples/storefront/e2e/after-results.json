@@ -1,0 +1,242 @@
+{
+  "label": "after",
+  "page": "/catalog",
+  "runs": 5,
+  "target": {
+    "lcpDeltaMs": 300,
+    "shellKb": 32,
+    "remoteKb": 10
+  },
+  "monolith": {
+    "lcpMs": 2128,
+    "jsBytes": 127836,
+    "jsKb": 124.8,
+    "jsFiles": 11,
+    "requests": [
+      {
+        "path": "/catalog",
+        "type": "Document",
+        "bytes": 925,
+        "startMs": 0
+      },
+      {
+        "path": "/static/js/lib-react.e93086550c.js",
+        "type": "Script",
+        "bytes": 69005,
+        "startMs": 7
+      },
+      {
+        "path": "/static/js/ap.0090dde398.js",
+        "type": "Script",
+        "bytes": 17072,
+        "startMs": 7
+      },
+      {
+        "path": "/static/css/index.068faf688d.css",
+        "type": "Stylesheet",
+        "bytes": 450,
+        "startMs": 7
+      },
+      {
+        "path": "/static/js/index.a98feb9bc5.js",
+        "type": "Script",
+        "bytes": 8408,
+        "startMs": 8
+      },
+      {
+        "path": "/config/runtime-config.json",
+        "type": "Fetch",
+        "bytes": 387,
+        "startMs": 23
+      },
+      {
+        "path": "/static/js/async/tw.b87d97d5aa.js",
+        "type": "Script",
+        "bytes": 4102,
+        "startMs": 27
+      },
+      {
+        "path": "/static/js/async/a.38067a2d3e.js",
+        "type": "Script",
+        "bytes": 1082,
+        "startMs": 27
+      },
+      {
+        "path": "/static/js/async/n.6130c26bfc.js",
+        "type": "Script",
+        "bytes": 2184,
+        "startMs": 27
+      },
+      {
+        "path": "/favicon.ico",
+        "type": "Other",
+        "bytes": 925,
+        "startMs": 38
+      },
+      {
+        "path": "/static/js/async/t.6f0bdfa759.js",
+        "type": "Script",
+        "bytes": 19679,
+        "startMs": 43
+      },
+      {
+        "path": "/static/js/async/s.2a0276ca93.js",
+        "type": "Script",
+        "bytes": 1882,
+        "startMs": 43
+      },
+      {
+        "path": "/static/js/async/s3.8103fcb446.js",
+        "type": "Script",
+        "bytes": 3479,
+        "startMs": 49
+      },
+      {
+        "path": "/static/js/async/aw.5acd6407ff.js",
+        "type": "Script",
+        "bytes": 460,
+        "startMs": 331
+      },
+      {
+        "path": "/static/js/async/1.e190984ef6.js",
+        "type": "Script",
+        "bytes": 483,
+        "startMs": 332
+      }
+    ]
+  },
+  "shell": {
+    "lcpMs": 2140,
+    "jsBytes": 181542,
+    "jsKb": 177.3,
+    "jsFiles": 12,
+    "requests": [
+      {
+        "path": "/catalog",
+        "type": "Document",
+        "bytes": 1141,
+        "startMs": 0
+      },
+      {
+        "path": "/mfe/catalog/static/js/catalog.485e6341a4.js",
+        "type": "Script",
+        "bytes": 8447,
+        "startMs": 11
+      },
+      {
+        "path": "/mfe/catalog/static/js/async/__federation_expose_App.9d3ea47f94.js",
+        "type": "Script",
+        "bytes": 2332,
+        "startMs": 12
+      },
+      {
+        "path": "/mfe/cart/static/js/cart.95ee444b23.js",
+        "type": "Script",
+        "bytes": 8393,
+        "startMs": 12
+      },
+      {
+        "path": "/mfe/cart/static/js/async/__federation_expose_MiniCart.06442c248b.js",
+        "type": "Script",
+        "bytes": 999,
+        "startMs": 12
+      },
+      {
+        "path": "/static/css/index.068faf688d.css",
+        "type": "Stylesheet",
+        "bytes": 450,
+        "startMs": 12
+      },
+      {
+        "path": "/static/js/4.390cf5b04f.js",
+        "type": "Script",
+        "bytes": 94458,
+        "startMs": 14
+      },
+      {
+        "path": "/static/js/index.fd6918bb9e.js",
+        "type": "Script",
+        "bytes": 39443,
+        "startMs": 14
+      },
+      {
+        "path": "/config/runtime-config.json",
+        "type": "Fetch",
+        "bytes": 387,
+        "startMs": 42
+      },
+      {
+        "path": "/mfe/catalog/static/js/async/sr.1f469021a8.js",
+        "type": "Script",
+        "bytes": 1545,
+        "startMs": 69
+      },
+      {
+        "path": "/favicon.ico",
+        "type": "Other",
+        "bytes": 1141,
+        "startMs": 73
+      },
+      {
+        "path": "/static/js/async/t.cbfcb79ced.js",
+        "type": "Script",
+        "bytes": 19676,
+        "startMs": 77
+      },
+      {
+        "path": "/static/js/async/s.e186b0af66.js",
+        "type": "Script",
+        "bytes": 1873,
+        "startMs": 77
+      },
+      {
+        "path": "/static/js/async/s3.98677bb8f6.js",
+        "type": "Script",
+        "bytes": 3467,
+        "startMs": 83
+      },
+      {
+        "path": "/mfe/cart/static/js/async/n.5f39709e2f.js",
+        "type": "Script",
+        "bytes": 442,
+        "startMs": 352
+      },
+      {
+        "path": "/mfe/catalog/static/js/async/nw.060db57bf1.js",
+        "type": "Script",
+        "bytes": 467,
+        "startMs": 353
+      }
+    ]
+  },
+  "lcpDeltaMs": 12,
+  "jsDeltaKb": 52.4,
+  "verdict": {
+    "pass": false,
+    "lcp": {
+      "budget": 300,
+      "actual": 12,
+      "pass": true
+    },
+    "shell": {
+      "budget": 32,
+      "actual": 30.4,
+      "pass": true
+    },
+    "remotes": [
+      {
+        "budget": 10,
+        "actual": 9.6,
+        "pass": true,
+        "name": "cart"
+      },
+      {
+        "budget": 10,
+        "actual": 12.5,
+        "pass": false,
+        "name": "catalog"
+      }
+    ]
+  },
+  "pass": false
+}

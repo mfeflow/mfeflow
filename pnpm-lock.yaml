@@ -406,6 +406,9 @@ importers:
       '@mfeflow/analytics':
         specifier: workspace:*
         version: link:../../../packages/analytics
+      '@mfeflow/event-bus':
+        specifier: workspace:*
+        version: link:../../../packages/event-bus
       '@mfeflow/i18n':
         specifier: workspace:*
         version: link:../../../packages/i18n
@@ -421,6 +424,9 @@ importers:
       '@module-federation/enhanced':
         specifier: 'catalog:'
         version: 2.9.2(@rspack/core@2.3.0(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(typescript@7.0.2)
+      '@storefront/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       i18next:
         specifier: 'catalog:'
         version: 26.5.12(typescript@7.0.2)
@@ -461,6 +467,12 @@ importers:
       '@mfeflow/analytics':
         specifier: workspace:*
         version: link:../../../packages/analytics
+      '@mfeflow/event-bus':
+        specifier: workspace:*
+        version: link:../../../packages/event-bus
+      '@mfeflow/http':
+        specifier: workspace:*
+        version: link:../../../packages/http
       '@mfeflow/i18n':
         specifier: workspace:*
         version: link:../../../packages/i18n
@@ -476,9 +488,15 @@ importers:
       '@mfeflow/theme':
         specifier: workspace:*
         version: link:../../../packages/theme
+      '@mfeflow/url-factory':
+        specifier: workspace:*
+        version: link:../../../packages/url-factory
       '@module-federation/enhanced':
         specifier: 'catalog:'
         version: 2.9.2(@rspack/core@2.3.0(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(typescript@7.0.2)
+      '@storefront/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       i18next:
         specifier: 'catalog:'
         version: 26.5.12(typescript@7.0.2)
@@ -514,6 +532,8 @@ importers:
         specifier: 'catalog:'
         version: 7.0.2
 
+  examples/storefront/contracts: {}
+
   examples/storefront/e2e:
     devDependencies:
       '@mfeflow/contracts':
@@ -537,6 +557,9 @@ importers:
       '@mfeflow/analytics':
         specifier: workspace:*
         version: link:../../../packages/analytics
+      '@mfeflow/event-bus':
+        specifier: workspace:*
+        version: link:../../../packages/event-bus
       '@mfeflow/i18n':
         specifier: workspace:*
         version: link:../../../packages/i18n
@@ -552,6 +575,9 @@ importers:
       '@mfeflow/theme':
         specifier: workspace:*
         version: link:../../../packages/theme
+      '@storefront/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       i18next:
         specifier: 'catalog:'
         version: 26.5.12(typescript@7.0.2)
@@ -592,9 +618,15 @@ importers:
       '@mfeflow/analytics':
         specifier: workspace:*
         version: link:../../../packages/analytics
+      '@mfeflow/event-bus':
+        specifier: workspace:*
+        version: link:../../../packages/event-bus
       '@mfeflow/i18n':
         specifier: workspace:*
         version: link:../../../packages/i18n
+      '@mfeflow/route-factory':
+        specifier: workspace:*
+        version: link:../../../packages/route-factory
       '@mfeflow/runtime':
         specifier: workspace:*
         version: link:../../../packages/runtime
@@ -610,6 +642,9 @@ importers:
       '@module-federation/enhanced':
         specifier: 'catalog:'
         version: 2.9.2(@rspack/core@2.3.0(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(typescript@7.0.2)
+      '@storefront/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       i18next:
         specifier: 'catalog:'
         version: 26.5.12(typescript@7.0.2)

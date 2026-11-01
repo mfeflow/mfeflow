@@ -5,6 +5,8 @@ import { useLanguage, useMfeTranslation } from '@mfeflow/i18n/react';
 import { composeProviders, DevOverlay, RemoteBoundary, withProps } from '@mfeflow/runtime';
 import { getTracer } from '@mfeflow/telemetry';
 import { ThemeProvider, useTheme } from '@mfeflow/theme/react';
+import { useLastAdded } from './events';
+import { links, remoteFor } from './routes';
 import { themes } from './themes';
 
 const Providers = composeProviders([
@@ -50,7 +52,7 @@ function ConsentButtons() {
 }
 
 function StockButton() {
-  const [count, setCount] = useState<number | undefined>();
+  const [count, setCount] = useState<number | 'failed' | undefined>();
   const onClick = async () => {
     const checkStock = await loadStock();
     if (!checkStock) return;
@@ -58,6 +60,8 @@ function StockButton() {
     await tracer.startActiveSpan('shell.check_stock_click', async (span) => {
       try {
         setCount(await checkStock('1'));
+      } catch {
+        setCount('failed');
       } finally {
         span.end();
       }
@@ -65,7 +69,11 @@ function StockButton() {
   };
   return (
     <button type="button" data-testid="check-stock" onClick={() => void onClick()}>
-      {count === undefined ? 'Check stock' : `${String(count)} in stock`}
+      {count === undefined
+        ? 'Check stock'
+        : count === 'failed'
+          ? 'Stock unavailable'
+          : `${String(count)} in stock`}
     </button>
   );
 }
@@ -92,6 +100,11 @@ function usePath(): [string, (e: MouseEvent<HTMLAnchorElement>) => void] {
   return [path, go];
 }
 
+function LastAdded() {
+  const sku = useLastAdded();
+  return <output data-testid="last-added">{sku === undefined ? '' : `+${sku}`}</output>;
+}
+
 function Header({ go }: { go: (e: MouseEvent<HTMLAnchorElement>) => void }) {
   const { t } = useMfeTranslation('shell', noLoad);
   const { theme, themes: names, setTheme } = useTheme();
@@ -100,10 +113,10 @@ function Header({ go }: { go: (e: MouseEvent<HTMLAnchorElement>) => void }) {
     <header>
       <strong>{t('title')}</strong>
       <nav>
-        <a href="/catalog" onClick={go} data-testid="nav-catalog">
+        <a href={links.href('catalog.home')} onClick={go} data-testid="nav-catalog">
           {t('catalog')}
         </a>
-        <a href="/cart" onClick={go} data-testid="nav-cart">
+        <a href={links.href('cart.home')} onClick={go} data-testid="nav-cart">
           {t('cart')}
         </a>
       </nav>
@@ -132,6 +145,7 @@ function Header({ go }: { go: (e: MouseEvent<HTMLAnchorElement>) => void }) {
         </select>
       </label>
       <StockButton />
+      <LastAdded />
       <ConsentButtons />
       <RemoteBoundary id="cart/MiniCart" timeoutMs={4000} />
     </header>
@@ -145,7 +159,7 @@ export function App() {
       <Providers>
         <Header go={go} />
         <main>
-          {path.startsWith('/cart') ? (
+          {remoteFor(path) === 'cart' ? (
             <RemoteBoundary id="cart/App" loading={<p>…</p>} />
           ) : (
             <RemoteBoundary id="catalog/App" loading={<p>…</p>} />

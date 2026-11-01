@@ -5,6 +5,7 @@ import { createStorage } from '@mfeflow/storage';
 import { useStoredState } from '@mfeflow/storage/react';
 import { cssVar } from '@mfeflow/theme';
 import { tracker } from '../analytics';
+import { addToCart } from '../events';
 import { loadMessages } from '../i18n/load';
 
 const ids = ['1', '2', '3'];
@@ -28,7 +29,10 @@ export default function CatalogApp() {
             <p>{t(`products.${id}`)}</p>
             <button
               type="button"
-              onClick={() => setLastViewed(id)}
+              onClick={() => {
+                setLastViewed(id);
+                addToCart(id);
+              }}
               style={{ color: cssVar('color-primary') }}
             >
               {t('add')}
