@@ -61,7 +61,7 @@ export const STATS = [
     source: 'Lighthouse mobile, median of 10, budget 300 ms',
   },
   { value: '21', label: 'features, each one command away', source: 'mfeflow add <feature>' },
-  { value: '18', label: 'packages, versioned together', source: 'MIT, npm provenance' },
+  { value: '19', label: 'packages, versioned together', source: 'MIT, npm provenance' },
 ] as const;
 
 export const STEPS = [

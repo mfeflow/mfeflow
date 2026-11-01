@@ -4,6 +4,7 @@ import {
   GLOBAL_NAME,
   isRemoteName,
   pickRegistryFields,
+  registryRemoteIssues,
   REGISTRY_REMOTE_FIELDS,
 } from './entry';
 
@@ -49,12 +50,37 @@ describe('pickRegistryFields', () => {
       'entry',
       'entryGlobalName',
       'exposes',
+      'history',
       'name',
       'owner',
+      'previous',
       'remoteEntry',
+      'rolledBackFrom',
       'routes',
       'type',
       'version',
+    ]);
+  });
+});
+
+describe('registryRemoteIssues rollback fields', () => {
+  const remote = { name: 'cart', entry: 'https://x.test/m.json' };
+
+  it('accepts previous and history', () => {
+    expect(
+      registryRemoteIssues({ ...remote, previous: '1.0.0', history: ['1.0.0', '0.9.0'] }),
+    ).toEqual([]);
+  });
+
+  it('names a bad previous and a bad history', () => {
+    expect(registryRemoteIssues({ ...remote, previous: 3 })).toEqual([
+      { path: 'previous', message: 'must be a string' },
+    ]);
+    expect(registryRemoteIssues({ ...remote, history: 'x' })).toEqual([
+      { path: 'history', message: 'must be an array of strings' },
+    ]);
+    expect(registryRemoteIssues({ ...remote, history: ['1.0.0', 2] })).toEqual([
+      { path: 'history[1]', message: 'must be a string' },
     ]);
   });
 });

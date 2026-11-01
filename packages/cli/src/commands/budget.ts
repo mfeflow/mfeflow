@@ -1,5 +1,11 @@
 import path from 'node:path';
-import { COST_MODEL, judgeCost, round1, type CostModel } from '@mfeflow/contracts';
+import {
+  COST_MODEL,
+  judgeCost,
+  judgeRemoteInitial,
+  primaryExpose,
+  type CostModel,
+} from '@mfeflow/contracts';
 import { findProjectRoot } from '@mfeflow/core';
 import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals } from '../args';
@@ -110,13 +116,18 @@ async function remoteBudget(
   }
   const own = app.mfe.state === 'ok' ? app.mfe.value : undefined;
   const budgetKb = own?.budgets?.initialJsKb ?? null;
-  const exposeNames = Object.keys(size.exposes);
-  const expose = exposeNames.includes('./App') ? './App' : exposeNames[0];
+  const expose = primaryExpose(Object.keys(size.exposes));
   const routes = (own?.routes ?? []).map((route) => {
-    const total = round1(
-      (size.entryBytes + (expose === undefined ? 0 : (size.exposes[expose] ?? 0))) / KB,
+    const verdict = judgeRemoteInitial(
+      {
+        entryBytes: size.entryBytes,
+        exposeBytes: expose === undefined ? 0 : (size.exposes[expose] ?? 0),
+      },
+      budgetKb ?? undefined,
+      model,
     );
-    const routePass = budgetKb === null ? null : total <= budgetKb;
+    const total = verdict.totalKb;
+    const routePass = budgetKb === null ? null : verdict.pass;
     if (routePass === false) {
       out.push(
         finding(
