@@ -32,10 +32,11 @@ export function beaconTarget(urls: readonly string[]): BeaconTarget | undefined 
   return undefined;
 }
 
+/** 128 random bits. `getRandomValues` works on pages that are not on a secure origin, unlike `randomUUID`. */
 const randomId = (): string =>
-  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2) + Date.now().toString(36);
+  Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) =>
+    b.toString(16).padStart(2, '0'),
+  ).join('');
 
 let memoryId: string | undefined;
 
@@ -69,32 +70,51 @@ export type Send = (url: string, body: string) => boolean;
 export interface BeaconReporter {
   load(remote: string, version: string): void;
   error(remote: string, version: string): void;
-  /** Sends what has been counted, one request per remote@version, and starts over. */
+  /** Sends what has been counted since the last flush as one request. Nothing counted, nothing sent. */
   flush(): void;
   stop(): void;
 }
 
 /**
  * Counts, per remote@version, whether this page loaded it and whether it failed, and sends the
- * counts in a batch. A page is one load and at most one error for a remote, so the error rate
- * reads as "page views that hit an error".
+ * page's counts as one request: `{ env, u, entries }`. A page is one load and at most one error
+ * for a remote, so the error rate reads as "page views that hit an error". What was sent is
+ * remembered, so a flush on `visibilitychange` followed by more loads never reports the same load
+ * again. An error that comes after a clean report is sent once more.
  */
-export function createBeaconReporter(target: BeaconTarget, send: Send): BeaconReporter {
-  const seen = new Map<string, { remote: string; version: string; failed: boolean }>();
+export function createBeaconReporter(
+  target: BeaconTarget,
+  send: Send,
+  client: string = clientId(),
+): BeaconReporter {
+  const pending = new Map<string, { remote: string; version: string; failed: boolean }>();
+  const sent = new Map<string, boolean>();
   const note = (remote: string, version: string, failed: boolean): void => {
     const key = `${remote}@${version}`;
-    const known = seen.get(key);
+    const before = sent.get(key);
+    if (before !== undefined && (before || !failed)) return;
+    const known = pending.get(key);
     if (known !== undefined) known.failed ||= failed;
-    else if (seen.size < MAX_ENTRIES) seen.set(key, { remote, version, failed });
+    else if (pending.size < MAX_ENTRIES) pending.set(key, { remote, version, failed });
   };
   const flush = (): void => {
-    const batch = [...seen.values()];
-    seen.clear();
-    for (const { remote, version, failed } of batch)
-      send(
-        target.url,
-        JSON.stringify({ env: target.env, remote, version, loads: 1, errors: failed ? 1 : 0 }),
-      );
+    if (pending.size === 0) return;
+    const batch = [...pending.entries()];
+    pending.clear();
+    for (const [key, { failed }] of batch) sent.set(key, failed);
+    send(
+      target.url,
+      JSON.stringify({
+        env: target.env,
+        u: client,
+        entries: batch.map(([, { remote, version, failed }]) => ({
+          remote,
+          version,
+          loads: 1,
+          errors: failed ? 1 : 0,
+        })),
+      }),
+    );
   };
   const onError = (event: Event): void => {
     const detail: unknown = event instanceof CustomEvent ? event.detail : undefined;
@@ -118,7 +138,8 @@ export function createBeaconReporter(target: BeaconTarget, send: Send): BeaconRe
       window.removeEventListener(REMOTE_ERROR_EVENT, onError);
       window.removeEventListener('pagehide', flush);
       document.removeEventListener('visibilitychange', onHide);
-      seen.clear();
+      pending.clear();
+      sent.clear();
     },
   };
 }
@@ -128,9 +149,18 @@ const sendWithBeacon: Send = (url, body) =>
     ? navigator.sendBeacon(url, body)
     : false;
 
+let active: BeaconReporter | undefined;
+
+/** Stops the running reporter so the next start is a fresh one. For tests. */
+export function resetRegistryBeaconForTests(): void {
+  active?.stop();
+  active = undefined;
+}
+
 /**
  * Starts the reporter when the runtime config has `registryBeacon: true` and one of the index URLs
- * is a registry server's. Otherwise does nothing.
+ * is a registry server's. Otherwise does nothing. Calling it again returns the reporter already
+ * running, so the Module Federation plugin is registered once.
  */
 export function startRegistryBeacon(
   config: RuntimeConfigValues,
@@ -138,9 +168,11 @@ export function startRegistryBeacon(
   send: Send = sendWithBeacon,
 ): BeaconReporter | undefined {
   if (config.registryBeacon !== true) return undefined;
+  if (active !== undefined) return active;
   const target = beaconTarget(urls);
   if (target === undefined) return undefined;
   const reporter = createBeaconReporter(target, send);
+  active = reporter;
   registerPlugins([
     {
       name: 'mfeflow-beacon',
@@ -167,7 +199,11 @@ export async function registrySourcesWithBeacon(waitMs?: number): Promise<Regist
   const sources = await registrySources(waitMs);
   const config: unknown = Reflect.get(globalThis, RUNTIME_CONFIG_KEY);
   if (!isConfig(config) || config.registryBeacon !== true) return sources;
-  const urls = sources.urls.map((url) => withClientId(url));
-  startRegistryBeacon(config, urls);
-  return { ...sources, urls };
+  try {
+    const urls = sources.urls.map((url) => withClientId(url));
+    startRegistryBeacon(config, urls);
+    return { ...sources, urls };
+  } catch {
+    return sources;
+  }
 }
