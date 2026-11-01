@@ -92,6 +92,9 @@ const ENV_KEY_FILES =
   /(^|\/)(env\.ts|src\/config\/schema\.ts|runtime-config(\.[^/]+)?\.json|\.env[^/]*)$/;
 const KEEP_RANGE = /^(workspace|link|file|portal):/;
 
+/** Path order that is the same on every machine. */
+const byCodePoint = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
 const isOwn = (name: string) => name === OWN_CLI || name.startsWith(OWN_PREFIX);
 const isPackageFile = (file: string) => file === 'package.json' || file.endsWith('/package.json');
 const isStructured = (file: string) =>
@@ -523,7 +526,7 @@ async function findRemoved(
   read: ReadFile,
 ): Promise<string[]> {
   const removed: string[] = [];
-  for (const file of Object.keys(project.files ?? {}).toSorted()) {
+  for (const file of Object.keys(project.files ?? {}).toSorted(byCodePoint)) {
     if (fresh.files.has(file) || USER_DATA.test(file) || ENV_KEY_FILES.test(file)) continue;
     // oxlint-disable-next-line no-await-in-loop -- reading in order keeps the report deterministic
     if ((await read(file)) !== undefined) removed.push(file);
@@ -575,7 +578,7 @@ export async function planUpgrade(
       'package.json',
     ].filter(isPackageFile),
   );
-  for (const file of [...packageFiles].toSorted()) {
+  for (const file of [...packageFiles].toSorted(byCodePoint)) {
     // oxlint-disable-next-line no-await-in-loop -- reading in order keeps the plan deterministic
     if (!(await input.read(file))) continue;
     // oxlint-disable-next-line no-await-in-loop -- ordered edits keep the plan deterministic
