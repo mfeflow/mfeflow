@@ -6,6 +6,7 @@ import {
   assertRequested,
   loadRegistryIndex,
   registerRemotesFromIndex,
+  registrySources,
   reportRemoteError,
 } from '@mfeflow/runtime';
 import { App } from './App';
@@ -26,11 +27,18 @@ export async function main(): Promise<void> {
   try {
     // Overrides need the manifest loader, which production builds leave out:
     // ?mfe-override=cart@http://localhost:4312/mf-manifest.json
-    const index = applyDevOverrides(await loadRegistryIndex(), { enabled: DEV });
+    // runtime-config.json can set registryUrls (primary, then fallback) and registryOrigins for a CDN-hosted registry;
+    // it never holds up boot for more than 1.5 s, and is not fetched at all when the index is inlined.
+    const { urls, allowedOrigins: cdnOrigins } = await registrySources();
+    const index = applyDevOverrides(await loadRegistryIndex(urls, { allowedOrigins: cdnOrigins }), {
+      enabled: DEV,
+    });
     const overrides = index.remotes
       .filter((r) => r.version === 'override')
       .map((r) => new URL(r.entry).origin);
-    registerRemotesFromIndex(index, { allowedOrigins: [location.origin, ...overrides] });
+    registerRemotesFromIndex(index, {
+      allowedOrigins: [location.origin, ...cdnOrigins, ...overrides],
+    });
   } catch (error) {
     reportRemoteError('storefront', 'registry', error);
   }
