@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { rejection } from '../testing';
-import { fetchRemoteText, type FetchLike, type FetchResponse } from './remote';
+import {
+  fetchFeatureIndex,
+  fetchRemoteText,
+  getHttps,
+  registryUrl,
+  type FetchLike,
+  type FetchResponse,
+} from './remote';
 
 const registries = { '@acme': 'https://acme.example/{name}.json' };
 const encoder = new TextEncoder();
@@ -146,5 +153,161 @@ describe('fetchRemoteText redirects', () => {
     expect((await rejection(fetchRemoteText('@acme/s', registries, loop.fetch))).message).toContain(
       'too many',
     );
+  });
+});
+
+describe('plain http on the machine you are on', () => {
+  const local = { '@test': 'http://127.0.0.1:4010/{name}.json' };
+  const redirect = (location: string): FetchResponse => ({
+    ok: false,
+    status: 302,
+    headers: { get: (name) => (name.toLowerCase() === 'location' ? location : null) },
+    text: () => Promise.resolve(''),
+  });
+  const ok = (body: string): FetchResponse => ({
+    ok: true,
+    status: 200,
+    text: () => Promise.resolve(body),
+  });
+  const script = (...replies: FetchResponse[]) => {
+    const asked: string[] = [];
+    const fetch: FetchLike = (url) => {
+      asked.push(url);
+      const reply = replies[asked.length - 1];
+      return reply ? Promise.resolve(reply) : Promise.reject(new Error('unexpected request'));
+    };
+    return { fetch, asked };
+  };
+
+  it.each(['http://127.0.0.1:4010', 'http://localhost:4010', 'http://[::1]:4010'])(
+    'fetches from %s',
+    async (origin) => {
+      const { fetch, asked } = script(ok('{"a":1}'));
+      const registry = { '@test': `${origin}/{name}.json` };
+      expect(await fetchRemoteText('@test/hello', registry, fetch)).toBe('{"a":1}');
+      expect(asked).toEqual([`${origin}/hello.json`]);
+    },
+  );
+
+  it.each([
+    'http://example.com/{name}.json',
+    'http://127.0.0.1.nip.io/{name}.json',
+    'http://localhost@evil.com/{name}.json',
+    'http://localhost.evil.com/{name}.json',
+    'http://192.168.1.5/{name}.json',
+  ])('still refuses %s without asking the network', async (template) => {
+    const { fetch, asked } = script(ok('{}'));
+    const error = await rejection(fetchRemoteText('@test/hello', { '@test': template }, fetch));
+    expect(error.code).toBe('MFEFLOW_E401');
+    expect(error.message).toContain('not https');
+    expect(asked).toEqual([]);
+  });
+
+  it('lets a loopback registry redirect within loopback and to https', async () => {
+    const within = script(redirect('http://localhost:4010/moved.json'), ok('{}'));
+    await fetchRemoteText('@test/hello', local, within.fetch);
+    expect(within.asked[1]).toBe('http://localhost:4010/moved.json');
+    const up = script(redirect('https://cdn.example/hello.json'), ok('{}'));
+    await fetchRemoteText('@test/hello', local, up.fetch);
+    expect(up.asked[1]).toBe('https://cdn.example/hello.json');
+  });
+
+  it('refuses a loopback registry that redirects to another plain http host', async () => {
+    const { fetch, asked } = script(redirect('http://example.com/hello.json'), ok('{}'));
+    const error = await rejection(fetchRemoteText('@test/hello', local, fetch));
+    expect(error.message).toContain('not https');
+    expect(asked).toHaveLength(1);
+  });
+
+  it('refuses an https registry that redirects to the machine it runs on', async () => {
+    const { fetch, asked } = script(redirect('http://127.0.0.1:6379/'), ok('{}'));
+    const error = await rejection(fetchRemoteText('@acme/segment', registries, fetch));
+    expect(error.message).toContain('not https');
+    expect(asked).toHaveLength(1);
+  });
+
+  it('refuses an answer that ended up off the allowed hosts', async () => {
+    const { fetch } = script({ ...ok('{}'), url: 'http://example.com/x' });
+    expect((await rejection(fetchRemoteText('@test/hello', local, fetch))).message).toContain(
+      'ended up at',
+    );
+    const garbled = script({ ...ok('{}'), url: 'not a url' });
+    expect((await rejection(fetchRemoteText('@test/hello', local, garbled.fetch))).code).toBe(
+      'MFEFLOW_E401',
+    );
+  });
+
+  it('keeps other callers on https: loopback http is off unless asked for', async () => {
+    const { fetch, asked } = script(ok('{}'), ok('{}'));
+    const url = 'http://127.0.0.1:4010/preset.json';
+    const refused = await rejection(
+      getHttps('https://example.com/p.json', script(redirect(url)).fetch, 'E109'),
+    );
+    expect(refused.code).toBe('MFEFLOW_E109');
+    await getHttps(url, fetch, 'E109', { loopback: true });
+    expect(asked).toEqual([url]);
+  });
+
+  it('puts the version into the URL', () => {
+    expect(
+      registryUrl('@test/hello', { '@test': 'http://localhost/{name}/{version}.json' }, '1.2.0'),
+    ).toBe('http://localhost/hello/1.2.0.json');
+  });
+});
+
+describe('fetchFeatureIndex', () => {
+  const index = { items: [{ name: 'hello', version: '1.0.0', description: 'Says hello' }] };
+  const reply = (status: number, body: string): FetchLike => {
+    return () => Promise.resolve({ ok: status < 400, status, text: () => Promise.resolve(body) });
+  };
+  const where: string[] = [];
+  const asking: FetchLike = (url) => {
+    where.push(url);
+    return reply(200, JSON.stringify(index))(url);
+  };
+
+  it('asks for index.json in the folder the template starts in', async () => {
+    expect(await fetchFeatureIndex('@acme', registries, asking)).toEqual(index.items);
+    expect(where).toEqual(['https://acme.example/index.json']);
+  });
+
+  it('is E210 for a namespace that is not configured, E401 for a template that cannot be used', async () => {
+    expect((await rejection(fetchFeatureIndex('@nope', registries, asking))).code).toBe(
+      'MFEFLOW_E210',
+    );
+    const bad = await rejection(
+      fetchFeatureIndex('@acme', { '@acme': 'http://acme.example/{name}.json' }, asking),
+    );
+    expect(bad.code).toBe('MFEFLOW_E401');
+    expect(bad.message).toContain('must be https');
+  });
+
+  it('is E401 for a missing index and a network failure, with a hint for a 404', async () => {
+    const missing = await rejection(fetchFeatureIndex('@acme', registries, reply(404, '')));
+    expect(missing.code).toBe('MFEFLOW_E401');
+    expect(missing.message).toContain('no index.json');
+    const down = await rejection(
+      fetchFeatureIndex('@acme', registries, () => Promise.reject(new Error('ECONNREFUSED'))),
+    );
+    expect(down.message).toContain('ECONNREFUSED');
+  });
+
+  it('is E403 for text that is not JSON, not an index, or too big', async () => {
+    const html = await rejection(fetchFeatureIndex('@acme', registries, reply(200, '<html>')));
+    expect(html.code).toBe('MFEFLOW_E403');
+    const shape = await rejection(
+      fetchFeatureIndex(
+        '@acme',
+        registries,
+        reply(200, JSON.stringify({ items: [{ name: 'X' }, { name: 'Y' }] })),
+      ),
+    );
+    expect(shape.code).toBe('MFEFLOW_E403');
+    expect(shape.message).toContain('items[0].name');
+    expect(shape.message).toContain('more');
+    const big = await rejection(
+      fetchFeatureIndex('@acme', registries, reply(200, 'x'.repeat(1_000_001))),
+    );
+    expect(big.message).toContain('larger than 1 MB');
   });
 });

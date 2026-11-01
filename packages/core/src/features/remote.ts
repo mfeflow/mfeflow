@@ -1,3 +1,11 @@
+import {
+  isLoopbackHttp,
+  isRegistryProtocol,
+  registryIndexUrl,
+  registryTemplateProblem,
+  validateFeatureRegistryIndex,
+  type FeatureRegistryItem,
+} from '@mfeflow/contracts';
 import { MfeflowError, messageOf } from '../errors';
 
 /** The part of `Response` the loader uses, so tests can pass a plain object. */
@@ -16,7 +24,8 @@ export type FetchLike = (
   init?: { signal?: AbortSignal; redirect?: 'follow' | 'manual' },
 ) => Promise<FetchResponse>;
 
-const MAX_BYTES = 1_000_000;
+/** Largest feature.json or index.json a registry may serve; `registry build` refuses to write more. */
+export const MAX_BYTES = 1_000_000;
 const TIMEOUT_MS = 10_000;
 const MAX_REDIRECTS = 5;
 
@@ -45,21 +54,39 @@ export function registryUrl(
   } catch (error) {
     throw new MfeflowError('E401', `${namespace} has an invalid URL (${url})`, { cause: error });
   }
-  if (parsed.protocol !== 'https:') throw new MfeflowError('E401', `${url} is not https`);
+  if (!isRegistryProtocol(parsed)) {
+    throw new MfeflowError(
+      'E401',
+      `${url} is not https (plain http is for 127.0.0.1, localhost and [::1] only)`,
+    );
+  }
   return parsed.href;
 }
 
 /**
  * GETs `url`, following redirects by hand so one that leaves https is refused before it is
- * requested. `code` is the error every failure here throws.
+ * requested. `code` is the error every failure here throws. With `loopback`, a URL that starts
+ * on plain http at 127.0.0.1, localhost or [::1] may stay on such a host; nothing else may
+ * step down to http, and an https URL never ends up on one.
  */
 export async function getHttps(
   url: string,
   fetchImpl: FetchLike,
   code: 'E109' | 'E401',
+  options: { loopback?: boolean } = {},
 ): Promise<FetchResponse> {
   const fail = (at: string, why: string, cause?: unknown): never => {
     throw new MfeflowError(code, `${at}: ${why}`, cause === undefined ? {} : { cause });
+  };
+  const startsLoopback = options.loopback === true && isLoopbackHttp(new URL(url));
+  const permitted = (target: URL): boolean =>
+    target.protocol === 'https:' || (startsLoopback && isLoopbackHttp(target));
+  const addressOk = (address: string): boolean => {
+    try {
+      return permitted(new URL(address));
+    } catch {
+      return false;
+    }
   };
   let current = url;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
@@ -73,7 +100,7 @@ export async function getHttps(
     } catch (error) {
       return fail(current, messageOf(error), error);
     }
-    if (response.url !== undefined && response.url !== '' && !response.url.startsWith('https://')) {
+    if (response.url !== undefined && response.url !== '' && !addressOk(response.url)) {
       fail(url, `ended up at ${response.url}, which is not https`);
     }
     if (response.status < 300 || response.status >= 400) return response;
@@ -89,7 +116,7 @@ export async function getHttps(
     } catch (error) {
       return fail(current, 'redirected to a bad address', error);
     }
-    if (next.protocol !== 'https:') fail(url, `redirected to ${next.href}, which is not https`);
+    if (!permitted(next)) fail(url, `redirected to ${next.href}, which is not https`);
     current = next.href;
   }
   return fail(url, 'redirected too many times');
@@ -103,7 +130,7 @@ export async function fetchRemoteText(
   version?: string,
 ): Promise<string> {
   const url = registryUrl(name, registries, version);
-  const response = await getHttps(url, fetchImpl, 'E401');
+  const response = await getHttps(url, fetchImpl, 'E401', { loopback: true });
   if (!response.ok) {
     const hint = response.status === 404 ? `${name} is not in that registry` : undefined;
     throw new MfeflowError(
@@ -147,4 +174,51 @@ export async function readCappedText(
     chunks.push(chunk);
   }
   return new TextDecoder().decode(Buffer.concat(chunks));
+}
+
+/**
+ * The items `<namespace>`'s `index.json` lists. The index sits in the folder the registry's URL
+ * template starts in (see `registryIndexUrl`). Fails with E401 when it cannot be fetched and E403
+ * when it is not an index, so a caller can show one registry's problem and carry on with the rest.
+ */
+export async function fetchFeatureIndex(
+  namespace: string,
+  registries: Record<string, string>,
+  fetchImpl: FetchLike = realFetch,
+): Promise<FeatureRegistryItem[]> {
+  const template = registries[namespace];
+  if (template === undefined) throw new MfeflowError('E210', namespace);
+  const problem = registryTemplateProblem(template);
+  if (problem !== undefined) throw new MfeflowError('E401', `${namespace}: ${problem}`);
+  const url = registryIndexUrl(template);
+  const response = await getHttps(url, fetchImpl, 'E401', { loopback: true });
+  if (!response.ok) {
+    const hint = response.status === 404 ? ': this registry has no index.json' : '';
+    throw new MfeflowError('E401', `${url} answered ${String(response.status)}${hint}`);
+  }
+  const text = await readCappedText(
+    response,
+    MAX_BYTES,
+    () => new MfeflowError('E403', `${url} is larger than 1 MB`),
+  );
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (error) {
+    throw new MfeflowError('E403', `${url} is not JSON (${messageOf(error)})`, { cause: error });
+  }
+  const issues = validateFeatureRegistryIndex(value);
+  if (issues.length > 0) {
+    const shown = issues.slice(0, 3).map((i) => `${i.path || '(root)'} ${i.message}`);
+    const more = issues.length > 3 ? `; and ${String(issues.length - 3)} more` : '';
+    throw new MfeflowError('E403', `${url}: ${shown.join('; ')}${more}`);
+  }
+  return itemsOf(value);
+}
+
+function itemsOf(value: unknown): FeatureRegistryItem[] {
+  // validateFeatureRegistryIndex has accepted the shape.
+  const holder: { items: FeatureRegistryItem[] } = { items: [] };
+  Object.assign(holder, value);
+  return holder.items;
 }

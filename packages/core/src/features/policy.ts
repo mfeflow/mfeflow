@@ -15,6 +15,7 @@ export const THIRD_PARTY_KEYS: ReadonlySet<string> = new Set([
   'name',
   'version',
   'description',
+  'keywords',
   'prompts',
   'requires',
   'conflicts',

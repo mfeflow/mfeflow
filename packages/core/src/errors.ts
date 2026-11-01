@@ -132,7 +132,7 @@ export const ERROR_CATALOGUE = {
   },
   E210: {
     title: 'Registry namespace is not configured',
-    fix: 'Add it to "registries" in mfeflow.json, for example { "@someone": "https://example.com/{name}.json" }.',
+    fix: 'Add it with `mfeflow registry add @someone https://example.com/{name}.json` (or under "registries" in mfeflow.json).',
   },
   E211: {
     title: 'Files changed since the plan was made',
@@ -185,6 +185,14 @@ export const ERROR_CATALOGUE = {
   E402: {
     title: 'The registry returned something that is not a feature',
     fix: 'Ask the registry owner to check the entry. It must be a feature.json document.',
+  },
+  E403: {
+    title: "The registry's index.json is not valid",
+    fix: 'Ask the registry owner to rebuild it with `mfeflow registry build`. It lists items with a name, version and description.',
+  },
+  E404: {
+    title: 'A feature in the registry folder cannot be published',
+    fix: 'Fix the features listed above. They are checked with the same rules `mfeflow add @namespace/name` applies, so a feature that passes here installs for users.',
   },
 } as const satisfies Record<string, ErrorInfo>;
 
