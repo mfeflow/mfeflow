@@ -82,16 +82,21 @@ describe('createOtelProvider', () => {
 
   it('turns an error report into a span with the exception and an error status', async () => {
     const provider = await start();
-    provider.reportError(new Error('boom'), { mfe: 'cart', where: 'render' });
+    provider.reportError(new Error('boom'), { mfe: 'cart', where: 'render', version: '1.2.3' });
     provider.reportError('plain text', { mfe: 'catalog' });
     await provider.flush?.();
     const [first, second] = finished();
     expect(first?.name).toBe('mfe.error');
-    expect(first?.attributes).toMatchObject({ 'mfe.name': 'cart', 'mfe.error.where': 'render' });
+    expect(first?.attributes).toMatchObject({
+      'mfe.name': 'cart',
+      'mfe.version': '1.2.3',
+      'mfe.error.where': 'render',
+    });
     expect(first?.status).toMatchObject({ code: 2, message: 'boom' });
     expect(first?.events[0]?.name).toBe('exception');
     expect(second?.attributes['mfe.name']).toBe('catalog');
     expect(second?.attributes['mfe.error.where']).toBeUndefined();
+    expect(second?.attributes['mfe.version']).toBeUndefined();
   });
 
   it('caps the message and stack of a reported error', async () => {

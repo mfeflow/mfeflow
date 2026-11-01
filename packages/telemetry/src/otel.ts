@@ -234,6 +234,7 @@ export function createOtelProvider(options: OtelOptions): TelemetryProvider {
       const span = provider.getTracer(errorContext.mfe).startSpan('mfe.error', {
         attributes: {
           'mfe.name': errorContext.mfe,
+          ...(errorContext.version === undefined ? {} : { 'mfe.version': errorContext.version }),
           ...(errorContext.where === undefined ? {} : { 'mfe.error.where': errorContext.where }),
         },
       });

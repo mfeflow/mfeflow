@@ -141,6 +141,33 @@ describe('entry retry plugin', () => {
     expect(h.urls).toEqual(['http://x/e.js?v=1&retry=1']);
   });
 
+  it('does not replace a load a caller started in the gap after MF cleaned up a failed attempt', async () => {
+    vi.useFakeTimers();
+    const h = harness([]);
+    const stranger = Promise.resolve();
+    const exports = { get: () => undefined };
+    let call = 0;
+    // Like MF: the attempt registers itself, fails, is cleaned up, and a caller starts a load before the plugin sees the failure.
+    h.args.getRemoteEntry = vi.fn(() => {
+      call++;
+      if (call > 1) return Promise.resolve(exports);
+      const attempt = Promise.reject(new Error('404'));
+      h.globalLoading.cart = attempt;
+      return attempt.catch((error: unknown) => {
+        delete h.globalLoading.cart;
+        h.globalLoading.cart = stranger;
+        throw error;
+      });
+    }) as unknown as Args['getRemoteEntry'];
+    const pending = run(createEntryRetryPlugin({ delayMs: 100 }), h.args);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(h.globalLoading.cart).toBe(stranger);
+    await vi.advanceTimersByTimeAsync(200);
+    await expect(pending).resolves.toBe(exports);
+    expect(h.globalLoading.cart).toBe(stranger);
+    vi.useRealTimers();
+  });
+
   it('has a default export with the plugin name', () => {
     expect(mfeflowEntryRetryPlugin().name).toBe('mfeflow-entry-retry');
   });
