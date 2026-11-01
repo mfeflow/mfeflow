@@ -30,7 +30,14 @@ describe('error catalogue', () => {
 
   it('keeps feature errors in E2xx, registry errors in E4xx', () => {
     expect(codes.filter((c) => c.startsWith('E2')).length).toBeGreaterThan(5);
-    expect(codes.filter((c) => c.startsWith('E4'))).toEqual(['E401', 'E402', 'E403', 'E404']);
+    expect(codes.filter((c) => c.startsWith('E4'))).toEqual([
+      'E401',
+      'E402',
+      'E403',
+      'E404',
+      'E405',
+      'E406',
+    ]);
   });
 });
 

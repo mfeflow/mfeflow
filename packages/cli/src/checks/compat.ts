@@ -1,16 +1,8 @@
-import semver from 'semver';
+import { satisfiesRange } from '@mfeflow/registry/static';
 import { finding, type Check, type Finding } from '../findings';
 import { versionIn, type AppView, type ProjectView } from '../inspect';
 import { SINGLETON_PACKAGES } from '../singletons';
 import { comparable, unresolved } from './singletons';
-
-/** Does `shellVersion` satisfy what the remote asks for? Unknown or unresolved versions pass: nothing to compare. */
-function fits(range: string, shellVersion: string | undefined): boolean {
-  if (shellVersion === undefined) return true;
-  const have = comparable(shellVersion);
-  const valid = semver.validRange(range);
-  return have === undefined || valid === null || semver.satisfies(have, valid);
-}
 
 async function compatFor(shell: AppView, remote: AppView, root: string): Promise<Finding[]> {
   const out: Finding[] = [];
@@ -21,7 +13,7 @@ async function compatFor(shell: AppView, remote: AppView, root: string): Promise
     const have = await versionIn(shell, name, root);
     if (have !== undefined && comparable(have) === undefined) {
       out.push(unresolved('compat', 'E302', name, [`${shell.name} ${have}`]));
-    } else if (!fits(range, have)) {
+    } else if (!satisfiesRange(range, have)) {
       out.push(
         finding(
           'compat',
@@ -46,7 +38,7 @@ async function compatFor(shell: AppView, remote: AppView, root: string): Promise
     if (open.length > 0) out.push(unresolved('compat', 'E302', name, open));
     if (want === undefined || mine === undefined) continue;
     // Module Federation asks for ^<the remote's installed version> and the shell provides its own.
-    if (!fits(`^${want}`, mine) && !(name in platform)) {
+    if (!satisfiesRange(`^${want}`, mine) && !(name in platform)) {
       out.push(
         finding(
           'compat',

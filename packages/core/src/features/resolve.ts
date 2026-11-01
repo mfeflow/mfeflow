@@ -260,6 +260,7 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     name: manifest.name,
     version: manifest.version,
     ...(Object.keys(options).length > 0 ? { options } : {}),
+    ...(feature.integrity === undefined ? {} : { integrity: feature.integrity }),
   });
 }
 

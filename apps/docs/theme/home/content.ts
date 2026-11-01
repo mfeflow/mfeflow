@@ -17,15 +17,19 @@ export const DOCUMENTED_FEATURES: readonly string[] = [
   'env-t3',
   'event-bus',
   'forms',
+  'git-hooks',
   'http',
   'i18n',
+  'lint-oxlint',
   'route-factory',
   'storybook',
   'tailwind',
   'telemetry-otel',
   'testing',
   'theming',
+  'tsconfig',
   'ui-shadcn',
+  'url-factory',
 ];
 
 export const FEATURE_GROUPS = [
@@ -61,7 +65,7 @@ export const STATS = [
     source: 'Lighthouse mobile, median of 10, budget 300 ms',
   },
   { value: '21', label: 'features, each one command away', source: 'mfeflow add <feature>' },
-  { value: '18', label: 'packages, versioned together', source: 'MIT, npm provenance' },
+  { value: '19', label: 'packages, versioned together', source: 'MIT, npm provenance' },
 ] as const;
 
 export const STEPS = [

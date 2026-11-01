@@ -1,6 +1,6 @@
 {
   "name": "create-mfeflow",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Create a React micro-frontend project with mfeflow: npm create mfeflow@latest.",
   "keywords": [
     "micro-frontend",

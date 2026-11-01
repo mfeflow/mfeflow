@@ -1,6 +1,6 @@
 {
   "name": "@mfeflow/oxlint-config",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Type-aware oxlint config for mfeflow micro-frontends: TypeScript 7 rules via oxlint-tsgolint, React, hooks and accessibility.",
   "keywords": [
     "micro-frontend",

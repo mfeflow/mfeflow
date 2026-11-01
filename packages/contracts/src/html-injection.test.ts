@@ -142,6 +142,27 @@ describe('registryInjection', () => {
     expect(JSON.parse(script)).toEqual({ remotes: withoutExposes });
   });
 
+  it('leaves the rollback fields out of the page', () => {
+    const html = registryInjection(
+      {
+        remotes: [
+          {
+            name: 'a',
+            entry: 'https://x.test/a.json',
+            version: '2.0.0',
+            previous: '1.0.0',
+            history: ['1.0.0'],
+            rolledBackFrom: '3.0.0',
+          },
+        ],
+      },
+      [],
+    );
+    expect(html).toContain('"version":"2.0.0"');
+    for (const field of ['previous', 'history', 'rolledBackFrom'])
+      expect(html).not.toContain(field);
+  });
+
   it('inlines the entry type and global name only when the registry has them', () => {
     const html = registryInjection(
       {

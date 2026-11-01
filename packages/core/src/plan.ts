@@ -26,6 +26,8 @@ export interface PlanFeature {
   name: string;
   version: string;
   options?: Record<string, unknown>;
+  /** `sha256-<hex>` of the feature.json a registry served; recorded in mfeflow.json. */
+  integrity?: string;
 }
 
 export interface DependencyAdd {
@@ -33,6 +35,8 @@ export interface DependencyAdd {
   name: string;
   range: string;
   dev: boolean;
+  /** Added by a third-party feature, so `summarize` lists it in its own block. */
+  thirdParty?: boolean;
 }
 
 /** Added to package.json and shown. The engine never runs it. */
@@ -235,7 +239,15 @@ export class PlanBuilder {
         return true;
       }),
     );
-    if (added) this.plan.dependencies.push({ file, name, range: wanted, dev });
+    if (added) {
+      this.plan.dependencies.push({
+        file,
+        name,
+        range: wanted,
+        dev,
+        ...(this.trust === 'third-party' ? { thirdParty: true } : {}),
+      });
+    }
   }
 
   /**
@@ -426,6 +438,9 @@ export function renderDiff(plan: Plan, context = 3): string {
 
 const VERB: Record<ChangeAction, string> = { create: 'create', patch: 'patch ', delete: 'delete' };
 
+const dependencyLine = (d: DependencyAdd) =>
+  `  ${d.file}  ${d.name}@${d.range}${d.dev ? ' (dev)' : ''}`;
+
 /** A short human summary: counts, then each file, dependency, script and env key. */
 export function summarize(plan: Plan): string {
   const count = (action: ChangeAction) => plan.changes.filter((c) => c.action === action).length;
@@ -433,11 +448,21 @@ export function summarize(plan: Plan): string {
     `${String(count('create'))} to create, ${String(count('patch'))} to patch, ${String(count('delete'))} to delete`,
   ];
   for (const c of plan.changes) lines.push(`  ${VERB[c.action]}  ${c.path}`);
-  if (plan.dependencies.length > 0) {
-    lines.push(`Dependencies (${String(plan.dependencies.length)}):`);
-    for (const d of plan.dependencies) {
-      lines.push(`  ${d.file}  ${d.name}@${d.range}${d.dev ? ' (dev)' : ''}`);
-    }
+  const dependencies = plan.dependencies.filter((d) => d.thirdParty !== true);
+  const newPackages = plan.dependencies.filter((d) => d.thirdParty === true);
+  if (dependencies.length > 0) {
+    lines.push(`Dependencies (${String(dependencies.length)}):`);
+    for (const d of dependencies) lines.push(dependencyLine(d));
+  }
+  if (newPackages.length > 0) {
+    lines.push(
+      '',
+      `NEW PACKAGES from a third-party feature (${String(newPackages.length)}):`,
+      ...newPackages.map(dependencyLine),
+      "  Check each one before you install. npm and yarn run a package's install scripts;",
+      '  pnpm 10 and later blocks them until you allow them.',
+      '',
+    );
   }
   if (plan.scripts.length > 0) {
     lines.push(`Scripts added to package.json, not run (${String(plan.scripts.length)}):`);

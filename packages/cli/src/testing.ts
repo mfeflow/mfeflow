@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -161,16 +162,21 @@ export type TestRuntime = Runtime & {
 };
 
 export function testRuntime(
-  overrides: Partial<Pick<Runtime, 'prompter' | 'fetch' | 'roots'>> = {},
+  overrides: Partial<Pick<Runtime, 'prompter' | 'fetch' | 'roots' | 'configDir'>> & {
+    /** Namespaces trusted for this run, through MFEFLOW_TRUST_REGISTRIES. */
+    trust?: string[];
+  } = {},
 ): TestRuntime {
+  const { trust, ...rest } = overrides;
   return {
-    io: fakeIo(),
+    io: fakeIo(trust === undefined ? {} : { env: { MFEFLOW_TRUST_REGISTRIES: trust.join(',') } }),
     system: fakeSystem(),
     prompter: scriptedPrompter(),
     fetch: () => Promise.reject(new Error('no network in tests')),
     roots: assetRoots(),
+    configDir: path.join(os.tmpdir(), `mfeflow-config-${randomUUID()}`),
     dev: fakeDev(),
-    ...overrides,
+    ...rest,
   };
 }
 

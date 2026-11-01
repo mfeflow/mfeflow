@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The shell, the remotes, the registry and the workspace around them.",
   "files": [
     {
@@ -94,6 +94,12 @@
       "to": "src/bootstrap.tsx",
       "target": "shell",
       "from": "files/shell/src/bootstrap.tsx.eta",
+      "template": true
+    },
+    {
+      "to": "src/assert.ts",
+      "target": "shell",
+      "from": "files/shell/src/assert.ts.eta",
       "template": true
     },
     {

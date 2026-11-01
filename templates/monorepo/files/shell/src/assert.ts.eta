@@ -1,0 +1,37 @@
+/* oxlint-disable eslint/no-underscore-dangle -- __MFEFLOW_SINGLETONS__ is the name the rsbuild preset defines */
+import { checkSingletons, reportRemoteError } from '@mfeflow/runtime';
+
+// The shell's rsbuild preset defines the packages it shares; an older preset does not, so fall back.
+declare const __MFEFLOW_SINGLETONS__: readonly string[] | undefined;
+const SINGLETONS =
+  typeof __MFEFLOW_SINGLETONS__ === 'undefined' ? ['react', 'react-dom'] : __MFEFLOW_SINGLETONS__;
+
+// Remotes register their shared packages as they load, so the check repeats for a while.
+const CHECK_EVERY_MS = 3000;
+const STOP_AFTER_MS = 60_000;
+
+declare global {
+  var mfeflowCheckSingletons: (() => ReturnType<typeof checkSingletons>) | undefined;
+}
+
+const reported = new Set<string>();
+
+function check(): ReturnType<typeof checkSingletons> {
+  const result = checkSingletons(SINGLETONS);
+  // `missing` is not a problem: a shared package nothing has loaded yet is not in the share scope.
+  for (const name of result.duplicated) {
+    const problem = `${name} is loaded in more than one version`;
+    if (reported.has(problem)) continue;
+    reported.add(problem);
+    reportRemoteError('<%= it.app.name %>', 'singletons', new Error(problem));
+  }
+  return result;
+}
+
+// Loaded only in development: it reads every loaded remote's share scope.
+globalThis.mfeflowCheckSingletons = check;
+check();
+const timer = setInterval(check, CHECK_EVERY_MS);
+setTimeout(() => {
+  clearInterval(timer);
+}, STOP_AFTER_MS);

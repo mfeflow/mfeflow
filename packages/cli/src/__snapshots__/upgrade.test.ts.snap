@@ -21,6 +21,7 @@ exports[`planProjectUpgrade on the 0.1.0 fixture > plans the real deltas between
     "patch apps/shell/package.json",
     "patch apps/shell/src/analytics/init.ts",
     "patch apps/shell/src/api/endpoints.ts",
+    "create apps/shell/src/assert.ts",
     "patch apps/shell/src/bootstrap.tsx",
     "patch apps/shell/src/config/schema.ts",
     "patch apps/shell/vitest.config.ts",
@@ -39,7 +40,7 @@ exports[`planProjectUpgrade on the 0.1.0 fixture > plans the real deltas between
   "features": {
     "analytics-gtm": "0.2.0",
     "ci-github": "0.2.0",
-    "core": "0.2.0",
+    "core": "0.3.0",
     "env-t3": "0.2.0",
     "lint-oxlint": "0.2.0",
     "testing": "0.2.0",

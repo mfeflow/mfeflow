@@ -1,6 +1,6 @@
 {
   "name": "mfeflow",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Create and grow a React micro-frontend platform: mfeflow init, add remote, add <feature>.",
   "keywords": [
     "micro-frontend",
@@ -55,6 +55,7 @@
     "@clack/prompts": "catalog:",
     "@mfeflow/contracts": "workspace:*",
     "@mfeflow/core": "workspace:*",
+    "@mfeflow/registry": "workspace:*",
     "citty": "catalog:",
     "semver": "catalog:",
     "yaml": "catalog:"

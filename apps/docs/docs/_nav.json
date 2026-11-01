@@ -1,0 +1,7 @@
+[
+  { "text": "Guide", "link": "/guide/introduction", "activeMatch": "^/guide/" },
+  { "text": "Concepts", "link": "/concepts/module-federation", "activeMatch": "^/concepts/" },
+  { "text": "Features", "link": "/features/", "activeMatch": "^/features/" },
+  { "text": "Reference", "link": "/reference/cli", "activeMatch": "^/(reference|errors)/" },
+  { "text": "GitHub", "link": "https://github.com/mfeflow/mfeflow" }
+]

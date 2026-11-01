@@ -90,9 +90,11 @@ export function recordPlan(project: MfeflowProject, plan: Plan): MfeflowProject 
   }
   const features = { ...project.features };
   for (const f of plan.features) {
-    features[f.name] = f.options
-      ? { version: f.version, options: f.options }
-      : { version: f.version };
+    features[f.name] = {
+      version: f.version,
+      ...(f.options ? { options: f.options } : {}),
+      ...(f.integrity === undefined ? {} : { integrity: f.integrity }),
+    };
   }
   const next: MfeflowProject = { ...project, features };
   if (Object.keys(files).length > 0) next.files = files;

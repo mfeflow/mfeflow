@@ -1,4 +1,4 @@
-export { isSafeRelativePath, type Issue } from './validate';
+export { isPortableRelativePath, isSafeRelativePath, type Issue } from './validate';
 export {
   ANALYTICS_EVENT,
   EVENT_NAME,
@@ -11,6 +11,8 @@ export {
 } from './mfe-manifest';
 export { routesOverlap } from './routes';
 export { assetsFromManifest, type RemoteAssets } from './manifest-assets';
+export { remoteDistFiles, type RemoteDistFiles } from './remote-dist';
+export { judgeRemoteInitial, primaryExpose, type RemoteInitialVerdict } from './remote-budget';
 export {
   injectIntoHead,
   registryInjection,
@@ -22,6 +24,7 @@ export {
   isRegistryIndex,
   isRegistryIndexRemote,
   registryRemoteIssues,
+  ROUTE_OVERLAP,
   validateRegistryEntry,
   validateRegistryIndex,
   type RegistryEntry,
@@ -31,7 +34,10 @@ export {
 export {
   isFeatureRegistryIndex,
   isLoopbackHttp,
+  isPrivateHost,
   isRegistryProtocol,
+  redactUrl,
+  redactUrlsIn,
   registryIndexUrl,
   registryTemplateProblem,
   validateFeatureRegistryIndex,
@@ -44,11 +50,13 @@ export {
 export {
   FILE_HASH,
   PROJECT_REPOS,
+  REGISTRY_HOST,
   REGISTRY_NAMESPACE,
   isMfeflowProject,
   validateMfeflowProject,
   type MfeflowProject,
   type ProjectBudget,
+  type ProjectRegistry,
 } from './project';
 export {
   COST_MODEL,

@@ -1,6 +1,6 @@
-import { Checker, isObj, isSafeRelativePath, type Issue } from './validate';
+import { Checker, isObj, isSafeRelativePath, isUrl, type Issue } from './validate';
 import { MFE_NAME } from './mfe-manifest';
-import { registryTemplateProblem } from './feature-registry';
+import { isRegistryProtocol, registryTemplateProblem } from './feature-registry';
 
 /** `mfeflow.json`: the CLI's record of a project. */
 export interface MfeflowProject {
@@ -15,7 +15,15 @@ export interface MfeflowProject {
   /** npm scope for the project's own packages, e.g. `@shopco`. */
   scope: string;
   apps: Record<string, { kind: 'shell' | 'remote'; path: string; port?: number }>;
-  features: Record<string, { version: string; options?: Record<string, unknown> }>;
+  features: Record<
+    string,
+    {
+      version: string;
+      options?: Record<string, unknown>;
+      /** `sha256-<hex>` of the `feature.json` a registry served when the feature was added. Third-party features only. */
+      integrity?: string;
+    }
+  >;
   /** Hashes of copied files, so `upgrade` can tell when a file was edited. */
   files?: Record<string, string>;
   /**
@@ -29,6 +37,15 @@ export interface MfeflowProject {
   local?: string;
   /** Overrides of the cost-model budget `mfeflow budget` and the perf job check. */
   budget?: ProjectBudget;
+  /** Where `mfeflow deploy`, `promote`, `rollback` and `status` publish by default. */
+  registry?: ProjectRegistry;
+}
+
+export interface ProjectRegistry {
+  /** `file:<dir>` for a folder, or `s3://<bucket>[/prefix]`. Credentials never go here; they come from the environment. */
+  host?: string;
+  /** Where the host's files are served from (`https://cdn.example.com`), without a trailing slash. */
+  baseUrl?: string;
 }
 
 export interface ProjectBudget {
@@ -68,6 +85,9 @@ export function isCheckoutPath(value: string): boolean {
 }
 
 export const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+/** `file:<dir>` or `s3://<bucket>[/prefix]`. No credentials: `@` and `:` cannot appear in a bucket name. */
+export const REGISTRY_HOST = /^(?:file:\S.*|s3:\/\/[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](?:\/\S*)?)$/;
+
 export const SCOPE = /^@[a-z0-9][a-z0-9-._]*$/;
 export const PROJECT_REPOS = ['platform', 'shell', 'remote'] as const;
 const FEATURE = /^(@[a-z0-9-]+\/)?[a-z][a-z0-9-]*$/;
@@ -132,6 +152,11 @@ export function validateMfeflowProject(value: unknown): Issue[] {
       else {
         c.string(feature, 'version', at);
         c.object(feature, 'options', at, false);
+        if ('integrity' in feature) {
+          const integrity = c.string(feature, 'integrity', at);
+          if (integrity !== undefined && !FILE_HASH.test(integrity))
+            c.add(`${at}.integrity`, 'must be a hash like "sha256-<64 hex characters>"');
+        }
       }
     }
   }
@@ -182,7 +207,33 @@ export function validateMfeflowProject(value: unknown): Issue[] {
       c.number(budget, key, 'budget', { required: false, min: 1 });
     }
   }
+  const registry = c.object(value, 'registry', '', false);
+  if (registry) {
+    c.string(registry, 'host', 'registry', {
+      required: false,
+      pattern: REGISTRY_HOST,
+      hint: 'must be file:<dir> or s3://<bucket>[/prefix], with no credentials',
+    });
+    const baseUrl = c.string(registry, 'baseUrl', 'registry', { required: false });
+    if (baseUrl !== undefined && !(isUrl(baseUrl) && validBaseUrl(baseUrl))) {
+      c.add(
+        'registry.baseUrl',
+        'must be an https URL (http only on localhost) without credentials, a query, a fragment or a trailing slash',
+      );
+    }
+  }
   return c.issues;
+}
+
+function validBaseUrl(value: string): boolean {
+  const url = new URL(value);
+  return (
+    isRegistryProtocol(url) &&
+    url.username === '' &&
+    url.password === '' &&
+    !/[?#]/.test(value) &&
+    !value.endsWith('/')
+  );
 }
 
 export function isMfeflowProject(value: unknown): value is MfeflowProject {

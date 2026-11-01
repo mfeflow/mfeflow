@@ -141,3 +141,122 @@ export function validateFeatureRegistryIndex(value: unknown): Issue[] {
 export function isFeatureRegistryIndex(value: unknown): value is FeatureRegistryIndex {
   return validateFeatureRegistryIndex(value).length === 0;
 }
+
+function ipv4Octets(host: string): number[] | undefined {
+  const parts = host.split('.');
+  if (parts.length !== 4) return undefined;
+  const octets = parts.map((part) => (/^\d{1,3}$/.test(part) ? Number(part) : Number.NaN));
+  return octets.every((n) => n <= 255) ? octets : undefined;
+}
+
+function isPrivateIpv4([a = 0, b = 0, c = 0]: number[]): boolean {
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 192 && b === 0 && c === 0)
+  );
+}
+
+const side = (part: string) => (part === '' ? [] : part.split(':'));
+
+function ipv6Groups(host: string): number[] | undefined {
+  const [head = '', tail, ...rest] = host.split('::');
+  if (rest.length > 0) return undefined;
+  const headGroups = side(head);
+  const groups = [...headGroups, ...(tail === undefined ? [] : side(tail))];
+  if (groups.some((g) => !/^[0-9a-f]{1,4}$/.test(g))) return undefined;
+  const numbers = groups.map((g) => Number.parseInt(g, 16));
+  if (tail === undefined) return numbers.length === 8 ? numbers : undefined;
+  const missing = 8 - numbers.length;
+  if (missing < 1) return undefined;
+  return [
+    ...numbers.slice(0, headGroups.length),
+    ...Array.from({ length: missing }, () => 0),
+    ...numbers.slice(headGroups.length),
+  ];
+}
+
+/** The IPv4 address held in two 16-bit groups. */
+const embedded = (hi = 0, lo = 0): number[] => [hi >> 8, hi & 0xff, lo >> 8, lo & 0xff];
+
+function isPrivateIpv6(host: string): boolean {
+  const groups = ipv6Groups(host);
+  if (groups === undefined) return false;
+  const [g0 = 0, g1 = 0] = groups;
+  const zeros = (from: number, to: number) => groups.slice(from, to).every((g) => g === 0);
+  // ::, ::1 and IPv4-compatible ::a.b.c.d
+  if (zeros(0, 6)) return isPrivateIpv4(embedded(groups[6], groups[7]));
+  if ((g0 & 0xfe00) === 0xfc00 || (g0 & 0xffc0) === 0xfe80 || (g0 & 0xffc0) === 0xfec0) return true;
+  // IPv4-mapped ::ffff:a.b.c.d and NAT64 64:ff9b::a.b.c.d
+  const mapped = zeros(0, 5) && groups[5] === 0xffff;
+  const nat64 = g0 === 0x64 && g1 === 0xff9b && zeros(2, 6);
+  if (mapped || nat64) return isPrivateIpv4(embedded(groups[6], groups[7]));
+  // 6to4 2002:a.b.c.d::
+  return g0 === 0x2002 && isPrivateIpv4(embedded(groups[1], groups[2]));
+}
+
+/**
+ * True when `hostname` (as `URL.hostname` spells it) is the machine itself or a private network:
+ * localhost, 127/8, ::1, 10/8, 172.16/12, 192.168/16, 169.254/16, 100.64/10, 192.0.0/24, 0/8, fc00::/7,
+ * fe80::/10, fec0::/10, IPv4-compatible, IPv4-mapped, NAT64 and 6to4 IPv6 forms that hold one of
+ * those, and names ending .localhost, .internal or .local.
+ * Only the literal host is looked at; a public name that resolves to a private address is not caught.
+ */
+export function isPrivateHost(hostname: string): boolean {
+  const host = hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '');
+  if (host === 'localhost' || /\.(?:localhost|internal|local)$/.test(host)) return true;
+  if (host.includes(':')) return isPrivateIpv6(host);
+  const octets = ipv4Octets(host);
+  return octets !== undefined && isPrivateIpv4(octets);
+}
+
+const SECRET_PARAM =
+  /token|key|sig|auth|passw|secret|credential|x-amz-|(?:^|[_-])(?:jwt|bearer|session|pat|access|code)(?:$|[_-])/i;
+const URL_PARTS = /^([a-z][a-z0-9+.-]*:\/\/)([^/?#@]*@)?([^?#]*)(\?[^#]*)?(#.*)?$/i;
+
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * `url` with the values of token-like query parameters (token, key, sig, auth, password, secret,
+ * X-Amz-*) and any user name or password replaced by `***`. Works on templates too, so `{name}` stays.
+ */
+export function redactUrl(url: string): string {
+  const parts = URL_PARTS.exec(url);
+  if (parts === null) return url;
+  const [, scheme = '', userinfo, rest = '', query, hash] = parts;
+  const search = query === undefined ? '' : `?${hideSecrets(query.slice(1))}`;
+  const fragment = hash === undefined ? '' : `#${hideSecrets(hash.slice(1))}`;
+  return `${scheme}${userinfo === undefined ? '' : '***@'}${rest}${search}${fragment}`;
+}
+
+/** Replaces the value of each secret-looking `name=value` pair, split on `&` or `;`. */
+function hideSecrets(params: string): string {
+  return params
+    .split(/([&;])/)
+    .map((part) => {
+      const eq = part.indexOf('=');
+      if (eq <= 0) return part;
+      const key = part.slice(0, eq);
+      return SECRET_PARAM.test(safeDecode(key)) ? `${key}=***` : part;
+    })
+    .join('');
+}
+
+/** `text` with every http(s) URL in it passed through `redactUrl`, for messages that quote one. */
+export function redactUrlsIn(text: string): string {
+  return text.replaceAll(/https?:\/\/[^\s"'<>]+/gi, (found) => redactUrl(found));
+}

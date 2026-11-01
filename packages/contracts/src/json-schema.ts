@@ -16,6 +16,7 @@ import {
   CHECKOUT_PATH,
   FILE_HASH,
   PROJECT_REPOS,
+  REGISTRY_HOST,
   REGISTRY_NAMESPACE,
   SCOPE,
   SEMVER,
@@ -226,7 +227,10 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
       features: {
         type: 'object',
         propertyNames: str(FEATURE_NAME),
-        additionalProperties: item({ version: str(), options: { type: 'object' } }, ['version']),
+        additionalProperties: item(
+          { version: str(), options: { type: 'object' }, integrity: str(FILE_HASH) },
+          ['version'],
+        ),
       },
       files: {
         type: 'object',
@@ -256,6 +260,16 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
             { type: 'number', minimum: 1 },
           ]),
         ),
+      },
+      registry: {
+        type: 'object',
+        properties: {
+          host: str(REGISTRY_HOST),
+          baseUrl: {
+            type: 'string',
+            pattern: String.raw`^(?:https://[^@\s?#]*[^/@\s?#]|http://(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?(?:/[^@\s?#]*[^/@\s?#])?)$`,
+          },
+        },
       },
     },
     required: ['version', 'topology', 'packageManager', 'scope', 'apps', 'features'],
@@ -354,6 +368,9 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
             version: str(),
             routes: strings(ROUTE),
             owner: str(),
+            previous: str(),
+            history: strings(),
+            rolledBackFrom: str(),
           },
           ['name', 'entry'],
         ),

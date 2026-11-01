@@ -96,6 +96,18 @@ const plan = (changes: Plan['changes']): Plan => ({
 });
 
 describe('recordPlan', () => {
+  it('records the hash of a registry feature next to its version', () => {
+    const integrity = `sha256-${'cd'.repeat(32)}`;
+    const next = recordPlan(project, {
+      ...emptyPlan(),
+      features: [{ name: '@acme/segment', version: '1.2.0', integrity }],
+    });
+    expect(next.features['@acme/segment']).toEqual({ version: '1.2.0', integrity });
+    expect(JSON.parse(serializeProject(next))).toMatchObject({
+      features: { '@acme/segment': { version: '1.2.0', integrity } },
+    });
+  });
+
   it('records the feature and hashes of tracked creates', () => {
     const next = recordPlan(
       project,

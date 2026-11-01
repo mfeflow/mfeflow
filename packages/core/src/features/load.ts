@@ -7,7 +7,7 @@ import {
 import { FEATURE_NAME } from '@mfeflow/contracts';
 import { MfeflowError, messageOf } from '../errors';
 import { readIfExists, realFs, type FsOps } from '../fs';
-import { fetchRemoteText, type FetchLike } from './remote';
+import { fetchRemoteText, indexedVersion, integrityOf, type FetchLike } from './remote';
 import { assertAllowedKeys, assertKnownOps, assertThirdPartyContent, type Trust } from './policy';
 
 export interface LoadedFeature {
@@ -17,6 +17,8 @@ export interface LoadedFeature {
   readAsset?: (relative: string) => Promise<string>;
   /** Folder of a local feature; migration modules are loaded from here. Absent for remote features. */
   dir?: string;
+  /** `sha256-<hex>` of the feature.json a registry served. Absent for local features. */
+  integrity?: string;
 }
 
 /** Parses and checks the text of a `feature.json`. Third-party manifests also pass the declarative-only policy. */
@@ -60,6 +62,10 @@ export interface LoadOptions {
   /** The version to ask a registry for, when its URL template has `{version}`. */
   version?: string;
   fs?: FsOps;
+  /** The user trusts this feature's registry, so it may be on a loopback or private address. */
+  trusted?: boolean;
+  /** Also compare the version the registry's index lists with the one in the feature.json (E402 on a difference). */
+  checkIndex?: boolean;
 }
 
 /**
@@ -103,17 +109,50 @@ async function loadLocal(name: string, options: LoadOptions): Promise<LoadedFeat
 }
 
 async function loadRemote(name: string, options: LoadOptions): Promise<LoadedFeature> {
+  const registries = options.registries ?? {};
   const text = await fetchRemoteText(
     name,
-    options.registries ?? {},
+    registries,
     options.fetch,
     options.version,
+    options.trusted === true,
   );
   const manifest = parseFeature(text, 'third-party', name);
   if (manifest.name !== name) {
     throw new MfeflowError('E402', `asked for ${name}, got ${manifest.name}`);
   }
-  return { manifest, trust: 'third-party' };
+  if (options.checkIndex === true)
+    await assertIndexAgrees(name, manifest.version, registries, options);
+  return { manifest, trust: 'third-party', integrity: integrityOf(text) };
+}
+
+async function assertIndexAgrees(
+  name: string,
+  version: string,
+  registries: Record<string, string>,
+  options: LoadOptions,
+): Promise<void> {
+  const slash = name.indexOf('/');
+  let listed: string | undefined;
+  try {
+    listed = await indexedVersion(
+      name.slice(0, slash),
+      name.slice(slash + 1),
+      registries,
+      options.fetch,
+      options.trusted === true,
+    );
+  } catch (error) {
+    // A registry whose index cannot be reached can still serve features; a bad index is reported.
+    if (error instanceof MfeflowError && error.code === 'MFEFLOW_E401') return;
+    throw error;
+  }
+  if (listed !== undefined && listed !== version) {
+    throw new MfeflowError(
+      'E402',
+      `the index lists ${name} at ${listed} but its feature.json is ${version}`,
+    );
+  }
 }
 
 /** Names of the features in the local `features/` folder that have a feature.json. */
