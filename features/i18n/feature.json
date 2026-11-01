@@ -1,0 +1,139 @@
+{
+  "name": "i18n",
+  "version": "0.1.0",
+  "description": "Translations with @mfeflow/i18n: the shell starts one i18next instance and sets lang and dir; each remote loads its own messages from its own deploy, so a translation ships with the remote that uses it. Sample messages in English and Arabic (right to left) and a language switcher you own.",
+  "requires": ["core", "tsconfig"],
+  "files": [
+    {
+      "to": "src/i18n/config.ts",
+      "target": "shell",
+      "from": "files/shell-config.ts"
+    },
+    {
+      "to": "src/i18n/init.ts",
+      "target": "shell",
+      "from": "files/shell-init.ts"
+    },
+    {
+      "to": "src/i18n/Languages.tsx",
+      "target": "shell",
+      "from": "files/Languages.tsx"
+    },
+    {
+      "to": "src/i18n/LanguageSwitcher.tsx",
+      "target": "shell",
+      "from": "files/LanguageSwitcher.tsx"
+    },
+    {
+      "to": "src/i18n/init.test.ts",
+      "target": "shell",
+      "from": "files/shell-init-test.ts",
+      "when": {
+        "feature:testing": true
+      }
+    },
+    {
+      "to": "src/i18n/LanguageSwitcher.test.tsx",
+      "target": "shell",
+      "from": "files/language-switcher-test.tsx",
+      "when": {
+        "feature:testing": true
+      }
+    },
+    {
+      "to": "src/i18n/config.ts",
+      "target": "remotes",
+      "from": "files/remote-config.ts"
+    },
+    {
+      "to": "src/i18n/load.ts",
+      "target": "remotes",
+      "from": "files/remote-load.ts"
+    },
+    {
+      "to": "src/i18n/I18n.tsx",
+      "target": "remotes",
+      "from": "files/remote-I18n.tsx.eta",
+      "template": true
+    },
+    {
+      "to": "src/i18n/messages/en.json",
+      "target": "remotes",
+      "from": "files/remote-en.json.eta",
+      "template": true
+    },
+    {
+      "to": "src/i18n/messages/ar.json",
+      "target": "remotes",
+      "from": "files/remote-ar.json.eta",
+      "template": true
+    },
+    {
+      "to": "src/i18n/I18n.test.tsx",
+      "target": "remotes",
+      "from": "files/remote-I18n-test.tsx.eta",
+      "template": true,
+      "when": {
+        "feature:testing": true
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@mfeflow/i18n",
+      "range": "latest",
+      "target": "shell"
+    },
+    {
+      "name": "i18next",
+      "range": "26.5.12",
+      "target": "shell"
+    },
+    {
+      "name": "react-i18next",
+      "range": "17.1.9",
+      "target": "shell"
+    },
+    {
+      "name": "@mfeflow/i18n",
+      "range": "latest",
+      "target": "remotes"
+    },
+    {
+      "name": "i18next",
+      "range": "26.5.12",
+      "target": "remotes"
+    },
+    {
+      "name": "react-i18next",
+      "range": "17.1.9",
+      "target": "remotes"
+    }
+  ],
+  "transforms": [
+    {
+      "op": "add-boot-step",
+      "file": "src/bootstrap.tsx",
+      "target": "shell",
+      "call": "initShellI18n",
+      "from": "./i18n/init",
+      "await": true
+    },
+    {
+      "op": "wrap-provider",
+      "file": "src/App.tsx",
+      "target": "shell",
+      "component": "Languages",
+      "from": "./i18n/Languages",
+      "function": "App"
+    },
+    {
+      "op": "wrap-provider",
+      "file": "src/exposed/App.tsx",
+      "target": "remotes",
+      "component": "I18n",
+      "from": "../i18n/I18n",
+      "function": "App"
+    }
+  ]
+}

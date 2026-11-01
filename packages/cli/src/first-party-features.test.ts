@@ -45,6 +45,8 @@ describe.each([
   'event-bus',
   'route-factory',
   'http',
+  'theming',
+  'i18n',
 ])('mfeflow add %s', (feature) => {
   it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
     expect(await add(feature)).toBe(0);
@@ -78,6 +80,8 @@ describe.each([
       'event-bus': ['src/events.ts'],
       'route-factory': ['src/routes.ts'],
       http: ['src/api/client.ts'],
+      theming: ['src/theme/tokens.ts'],
+      i18n: ['src/i18n/I18n.tsx', 'src/i18n/messages/en.json'],
     }[feature];
     for (const file of perApp ?? []) expect(tree, file).toHaveProperty([`apps/checkout/${file}`]);
   });

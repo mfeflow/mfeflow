@@ -1,0 +1,30 @@
+import { screen } from '@testing-library/react';
+import { getI18n } from '@mfeflow/i18n';
+import { renderWithPlatform, resetPlatform } from '@mfeflow/testing';
+import { afterEach, describe, expect, it } from 'vitest';
+import { I18n } from './I18n';
+
+afterEach(resetPlatform);
+
+describe('the <%= it.app.name %> messages', () => {
+  it('start their own i18n when the remote runs without the shell', async () => {
+    renderWithPlatform(
+      <I18n>
+        <p>content</p>
+      </I18n>,
+    );
+    expect(screen.getByText('content')).toBeDefined();
+    expect(await screen.findByText('Hello from <%= it.app.name %>')).toBeDefined();
+  });
+
+  it('follow a language change', async () => {
+    renderWithPlatform(
+      <I18n>
+        <p>content</p>
+      </I18n>,
+    );
+    await screen.findByText('Hello from <%= it.app.name %>');
+    await getI18n().changeLanguage('ar');
+    expect(await screen.findByText('مرحبا من <%= it.app.name %>')).toBeDefined();
+  });
+});

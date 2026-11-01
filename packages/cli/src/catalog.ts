@@ -31,6 +31,8 @@ export const FIRST_PARTY: readonly FirstPartyFeature[] = [
   { name: 'event-bus', always: false, default: false },
   { name: 'route-factory', always: false, default: false },
   { name: 'http', always: false, default: false },
+  { name: 'theming', always: false, default: false },
+  { name: 'i18n', always: false, default: false },
   { name: 'ci-github', always: false, default: false },
   { name: 'git-hooks', always: false, default: false },
 ];

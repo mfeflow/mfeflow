@@ -68,6 +68,8 @@ describe('mfeflow features', () => {
       'event-bus': false,
       'route-factory': false,
       http: false,
+      theming: false,
+      i18n: false,
       'ci-github': false,
       'git-hooks': false,
     });

@@ -1,0 +1,92 @@
+{
+  "name": "theming",
+  "version": "0.1.0",
+  "description": "Light and dark themes as CSS variables (@mfeflow/theme): the shell owns the provider and the persisted choice, every remote reads the same --mf-* tokens with no theme code of its own. The stored theme is applied before the first render.",
+  "requires": ["core", "tsconfig"],
+  "files": [
+    {
+      "to": "src/theme/themes.ts",
+      "target": "shell",
+      "from": "files/themes.ts"
+    },
+    {
+      "to": "src/theme/Theme.tsx",
+      "target": "shell",
+      "from": "files/Theme.tsx"
+    },
+    {
+      "to": "src/theme/ThemeToggle.tsx",
+      "target": "shell",
+      "from": "files/ThemeToggle.tsx"
+    },
+    {
+      "to": "src/theme/theme.css",
+      "target": "shell",
+      "from": "files/theme.css"
+    },
+    {
+      "to": "src/theme/apply-stored.ts",
+      "target": "shell",
+      "from": "files/apply-stored.ts"
+    },
+    {
+      "to": "src/theme/apply-stored.test.ts",
+      "target": "shell",
+      "from": "files/apply-stored-test.ts",
+      "when": {
+        "feature:testing": true
+      }
+    },
+    {
+      "to": "src/theme/ThemeToggle.test.tsx",
+      "target": "shell",
+      "from": "files/theme-toggle-test.tsx",
+      "when": {
+        "feature:testing": true
+      }
+    },
+    {
+      "to": "src/theme/tokens.ts",
+      "target": "remotes",
+      "from": "files/tokens.ts"
+    },
+    {
+      "to": "src/theme/tokens.test.ts",
+      "target": "remotes",
+      "from": "files/tokens-test.ts",
+      "when": {
+        "feature:testing": true
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@mfeflow/theme",
+      "range": "latest",
+      "target": "shell"
+    },
+    {
+      "name": "@mfeflow/theme",
+      "range": "latest",
+      "target": "remotes"
+    }
+  ],
+  "transforms": [
+    {
+      "op": "add-boot-step",
+      "file": "src/bootstrap.tsx",
+      "target": "shell",
+      "call": "applyStoredTheme",
+      "from": "./theme/apply-stored",
+      "await": false
+    },
+    {
+      "op": "wrap-provider",
+      "file": "src/App.tsx",
+      "target": "shell",
+      "component": "Theme",
+      "from": "./theme/Theme",
+      "function": "App"
+    }
+  ]
+}

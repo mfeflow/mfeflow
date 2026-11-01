@@ -19,6 +19,8 @@ describe('first-party catalogue', () => {
       'event-bus',
       'route-factory',
       'http',
+      'theming',
+      'i18n',
       'ci-github',
       'git-hooks',
     ]);
