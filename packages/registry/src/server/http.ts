@@ -202,7 +202,7 @@ export function createHandler(
   }
 
   return (req, res) => {
-    const url = new URL(req.url ?? '/', 'http://registry.invalid');
+    const url = new URL(req.url ?? '/', 'https://registry.invalid');
     route(req, res, url)
       .then((status) => {
         if (req.method !== 'GET')

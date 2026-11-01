@@ -60,6 +60,22 @@ describe('configFromEnv', () => {
     expect(message).toContain('"http://example.com" must be https');
   });
 
+  it('trims trailing slashes in linear time, even for hostile input', () => {
+    const hostile = `https://cdn.example.com/${'/'.repeat(200_000)}x${'/'.repeat(200_000)}`;
+    const started = performance.now();
+    const base = configFromEnv({ MFEFLOW_REGISTRY_ARTIFACT_BASE_URL: hostile }).artifactBaseUrl;
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(base?.endsWith('/x')).toBe(true);
+    expect(
+      configFromEnv({ MFEFLOW_REGISTRY_ARTIFACT_BASE_URL: 'https://cdn.example.com/a///' })
+        .artifactBaseUrl,
+    ).toBe('https://cdn.example.com/a');
+    expect(
+      configFromEnv({ MFEFLOW_REGISTRY_ARTIFACT_BASE_URL: 'https://cdn.example.com///' })
+        .artifactBaseUrl,
+    ).toBe('https://cdn.example.com');
+  });
+
   it('allows http on localhost, and refuses a base with a query or login', () => {
     expect(
       configFromEnv({ MFEFLOW_REGISTRY_ARTIFACT_BASE_URL: 'http://localhost:9000' })

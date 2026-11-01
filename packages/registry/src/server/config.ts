@@ -62,6 +62,13 @@ function parseUrl(raw: string, name: string, problems: string[]): URL | undefine
   return url;
 }
 
+/** Linear in the length, unlike a regex on a long run of slashes. */
+function trimTrailingSlashes(path: string): string {
+  let end = path.length;
+  while (end > 0 && path.charCodeAt(end - 1) === 47) end -= 1;
+  return path.slice(0, end);
+}
+
 function artifactBase(env: Env, problems: string[]): string | undefined {
   const name = 'MFEFLOW_REGISTRY_ARTIFACT_BASE_URL';
   const raw = present(env, name);
@@ -72,7 +79,7 @@ function artifactBase(env: Env, problems: string[]): string | undefined {
     problems.push(`${name} must not carry a query, fragment or login`);
     return undefined;
   }
-  return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
+  return `${url.origin}${trimTrailingSlashes(url.pathname)}`;
 }
 
 /** Reads and checks the server's settings. Every problem is reported at once. */
