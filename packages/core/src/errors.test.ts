@@ -17,7 +17,7 @@ const codes = Object.keys(ERROR_CATALOGUE).filter(isCode);
 describe('error catalogue', () => {
   it('has well-formed codes in the documented ranges', () => {
     expect(codes.length).toBeGreaterThan(10);
-    for (const code of codes) expect(code).toMatch(/^E[1-5]\d\d$/);
+    for (const code of codes) expect(code).toMatch(/^E[1-6]\d\d$/);
     expect(new Set(codes).size).toBe(codes.length);
   });
 
