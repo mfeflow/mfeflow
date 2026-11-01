@@ -1,6 +1,7 @@
 // What the react-scale features promise, checked on a generated project:
 //  - two remotes using the same Tailwind utility with different tokens do not collide, only the shell has the reset,
 //    the theme and the language reach every remote and survive a reload (specs/ui.spec.txt, a browser test);
+//  - Clarity is requested only after analytics consent (specs/clarity.spec.txt, a browser test);
 //  - the shell's Storybook lists every remote and renders their stories (specs/storybook.spec.txt, a browser test,
 //    and the output files for combinations that run no browser).
 import fs from 'node:fs';
@@ -30,6 +31,17 @@ export function prepareE2e(project: string, combo: Combo): string | undefined {
     copySpec(project, 'ui.spec.txt', 'ui.spec.ts');
   }
   if (combo.storybook) copySpec(project, 'storybook.spec.txt', 'storybook.spec.ts');
+  if (combo.clarity) {
+    const config = path.join(
+      project,
+      'apps/shell/public/config',
+      combo.env ? 'runtime-config.dev.json' : 'runtime-config.json',
+    );
+    const text = fs.readFileSync(config, 'utf8');
+    if (!text.includes('"clarityId": ""')) return `${config} has no empty clarityId to fill`;
+    fs.writeFileSync(config, text.replace('"clarityId": ""', '"clarityId": "k3x9m2abcd"'));
+    copySpec(project, 'clarity.spec.txt', 'clarity.spec.ts');
+  }
   return undefined;
 }
 

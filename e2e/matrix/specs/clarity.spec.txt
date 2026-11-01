@@ -1,0 +1,37 @@
+import { expect, test } from '@playwright/test';
+
+// Written into the project by the matrix, with clarityId "k3x9m2abcd" in the shell's runtime config.
+// Requests to clarity.ms are answered here with an empty script, so nothing leaves the machine.
+async function watch(page) {
+  const requested = [];
+  await page.route(/clarity\.ms/, (route) => {
+    requested.push(route.request().url());
+    return route.fulfill({ status: 200, contentType: 'text/javascript', body: '' });
+  });
+  return requested;
+}
+
+test('Clarity is requested only after analytics consent, and again on the next visit', async ({ page }) => {
+  const requested = await watch(page);
+  await page.goto('/');
+  await expect(page.getByTestId('consent-banner')).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  expect(requested).toEqual([]);
+  expect(await page.evaluate(() => typeof Reflect.get(window, 'clarity'))).toBe('undefined');
+  await page.getByTestId('consent-accept-analytics').click();
+  await expect.poll(() => requested.length).toBe(1);
+  expect(requested[0]).toContain('/tag/k3x9m2abcd');
+  requested.length = 0;
+  await page.reload();
+  await expect.poll(() => requested.length).toBe(1);
+});
+
+test('rejecting analytics keeps Clarity off, now and on the next visit', async ({ page }) => {
+  const requested = await watch(page);
+  await page.goto('/');
+  await page.getByTestId('consent-reject').click();
+  await page.waitForLoadState('networkidle');
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  expect(requested).toEqual([]);
+});
