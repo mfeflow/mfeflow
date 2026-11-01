@@ -11,6 +11,8 @@ export {
 } from './mfe-manifest';
 export { routesOverlap } from './routes';
 export { assetsFromManifest, type RemoteAssets } from './manifest-assets';
+export { remoteDistFiles, type RemoteDistFiles } from './remote-dist';
+export { judgeRemoteInitial, primaryExpose, type RemoteInitialVerdict } from './remote-budget';
 export {
   injectIntoHead,
   registryInjection,

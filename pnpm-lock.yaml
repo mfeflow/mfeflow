@@ -754,12 +754,12 @@ importers:
       '@mfeflow/core':
         specifier: workspace:*
         version: link:../core
+      '@mfeflow/registry':
+        specifier: workspace:*
+        version: link:../registry
       citty:
         specifier: 'catalog:'
         version: 0.2.2
-      semver:
-        specifier: 'catalog:'
-        version: 7.8.5
       yaml:
         specifier: 'catalog:'
         version: 2.9.1
@@ -773,9 +773,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.8.0
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -961,6 +958,28 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+
+  packages/registry:
+    dependencies:
+      '@mfeflow/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.5
+    devDependencies:
+      '@rslib/core':
+        specifier: 'catalog:'
+        version: 1.0.5(@module-federation/runtime-tools@2.9.2)(typescript@7.0.2)
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.8.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
 
   packages/route-factory:
     dependencies:

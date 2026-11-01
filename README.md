@@ -34,6 +34,7 @@ keep many teams on one React, one tag manager and one tracer.
 What works today, from the repo:
 
 - `@mfeflow/contracts`: types and validators for `mfe.json`, `mfeflow.json`, `feature.json` and the registry, and the cost model.
+- `@mfeflow/registry`: the core of a static remote registry. It builds and gates the next `index.json` from a remote's build output (schema, route overlap, shared-range compatibility, size budget), keeps the last 10 versions for rollback, and uploads to a folder or any S3-compatible bucket with no SDK. The CLI commands for it come next.
 - `@mfeflow/runtime`, `@mfeflow/rsbuild`, `@mfeflow/storage`, `@mfeflow/theme`, `@mfeflow/i18n`, `@mfeflow/url-factory`: the runtime and build packages, exercised by the storefront example.
 - `@mfeflow/tsconfig`, `@mfeflow/oxlint-config`, `@mfeflow/testing`: shared config and test helpers.
 - `@mfeflow/analytics` and `@mfeflow/telemetry`: singleton packages behind provider interfaces, started by the shell only. Google Tag Manager with Consent Mode v2, and OpenTelemetry for the browser loaded after first render. The `analytics-gtm` and `telemetry-otel` features wire them into a project.

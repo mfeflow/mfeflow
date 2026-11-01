@@ -340,6 +340,8 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
             version: str(),
             routes: strings(ROUTE),
             owner: str(),
+            previous: str(),
+            history: strings(),
           },
           ['name', 'entry'],
         ),
