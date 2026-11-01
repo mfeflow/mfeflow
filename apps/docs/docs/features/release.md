@@ -1,3 +1,8 @@
+---
+title: release - one version per remote, and deploy uses it
+description: Set up Changesets so each remote has its own version, and mfeflow deploy publishes that same version.
+---
+
 # release
 
 Version each remote with Changesets, and deploy that same version. Opt-in: `pnpm mfeflow add release`.

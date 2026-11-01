@@ -1,3 +1,8 @@
+---
+title: registry-static - deploy and roll back remotes on a folder or bucket
+description: Add scripts and a deploy workflow that publish your remotes to a static host and roll back by moving a pointer.
+---
+
 # registry-static
 
 Publish your remotes to a static host and roll back by moving a pointer. Opt-in: `pnpm mfeflow add registry-static`.
