@@ -4,7 +4,8 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { rejection, thrown } from '../testing';
 import { listLocalFeatures, loadFeature, parseFeature } from './load';
-import type { FetchLike } from './remote';
+import { THIRD_PARTY_KEYS } from './policy';
+import { integrityOf, type FetchLike } from './remote';
 
 const good = {
   name: '@acme/segment',
@@ -55,6 +56,14 @@ describe('malicious third-party features are rejected', () => {
       expect(error.code).toBe('MFEFLOW_E203');
       expect(error.message).toContain(key);
     }
+  });
+
+  it('a well-formed migrations list, which only first-party features may declare', () => {
+    const migrations = [{ from: '1.0.0', to: '1.1.0', module: 'migrations/1.1.0.js' }];
+    const error = third({ migrations });
+    expect(error.code).toBe('MFEFLOW_E203');
+    expect(error.message).toContain('migrations');
+    expect(THIRD_PARTY_KEYS.has('migrations')).toBe(false);
   });
 
   it('atRoot and a dependency in the project scope, which are for features that ship with mfeflow', () => {
@@ -525,5 +534,63 @@ describe('loadFeature (remote)', () => {
       'MFEFLOW_E402',
     );
     expect((await remote(respond('<html>'))).code).toBe('MFEFLOW_E202');
+  });
+});
+
+describe('loadFeature (remote) integrity and index', () => {
+  const served = text();
+  const hash = integrityOf(served);
+  const index = (version: string) =>
+    JSON.stringify({ items: [{ name: 'segment', version, description: 'Segment' }] });
+  /** Serves the feature at its URL and `indexBody` (or a 404) at index.json. */
+  const site =
+    (indexBody?: string): FetchLike =>
+    (url) =>
+      url.endsWith('/index.json')
+        ? respond(indexBody ?? '', { status: indexBody === undefined ? 404 : 200 })(url)
+        : respond(served)(url);
+
+  it('hands back the hash of the exact text it fetched', async () => {
+    const loaded = await loadFeature('@acme/segment', { registries, fetch: respond(served) });
+    expect(loaded.integrity).toBe(hash);
+  });
+
+  it('is E402 when the index lists another version than the feature.json has', async () => {
+    const error = await rejection(
+      loadFeature('@acme/segment', { registries, fetch: site(index('2.0.0')), checkIndex: true }),
+    );
+    expect(error.code).toBe('MFEFLOW_E402');
+    expect(error.message).toContain('2.0.0');
+    expect(error.message).toContain('1.0.0');
+  });
+
+  it('passes when the index agrees, lacks the feature, or does not exist', async () => {
+    for (const body of [index('1.0.0'), JSON.stringify({ items: [] }), undefined]) {
+      const loaded = await loadFeature('@acme/segment', {
+        registries,
+        fetch: site(body),
+        checkIndex: true,
+      });
+      expect(loaded.manifest.version).toBe('1.0.0');
+    }
+  });
+
+  it('does not look at the index unless asked', async () => {
+    const loaded = await loadFeature('@acme/segment', { registries, fetch: site(index('9.9.9')) });
+    expect(loaded.manifest.version).toBe('1.0.0');
+  });
+
+  it('keeps a loopback registry for trusted users only', async () => {
+    const local = { '@acme': 'http://127.0.0.1:4010/{name}.json' };
+    const refused = await rejection(
+      loadFeature('@acme/segment', { registries: local, fetch: respond(served) }),
+    );
+    expect(refused.code).toBe('MFEFLOW_E405');
+    const loaded = await loadFeature('@acme/segment', {
+      registries: local,
+      fetch: respond(served),
+      trusted: true,
+    });
+    expect(loaded.manifest.name).toBe('@acme/segment');
   });
 });

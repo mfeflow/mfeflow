@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   isMfeflowProject,
   isMfeManifest,
+  isPrivateHost,
+  JSON_SCHEMAS,
+  redactUrl,
+  redactUrlsIn,
   isRegistryEntry,
   isRegistryIndex,
   MFE_NAME,
@@ -319,6 +323,29 @@ describe('mfeflow.json', () => {
     expect(validateMfeflowProject('x')).toHaveLength(1);
   });
 
+  it('accepts the writer version and the repo kind, both optional', () => {
+    expect(validateMfeflowProject({ ...project, cli: '0.5.0', repo: 'platform' })).toEqual([]);
+    expect(validateMfeflowProject({ ...project, cli: '1.2.3-beta.1' })).toEqual([]);
+    for (const repo of ['platform', 'shell', 'remote']) {
+      expect(validateMfeflowProject({ ...project, repo }), repo).toEqual([]);
+    }
+  });
+
+  it('rejects a bad writer version or repo kind', () => {
+    expect(paths(validateMfeflowProject({ ...project, cli: 'latest' }))).toEqual(['cli']);
+    expect(paths(validateMfeflowProject({ ...project, cli: 5 }))).toEqual(['cli']);
+    expect(paths(validateMfeflowProject({ ...project, repo: 'mono' }))).toEqual(['repo']);
+    expect(paths(validateMfeflowProject({ ...project, repo: 3 }))).toEqual(['repo']);
+  });
+
+  it('allows zero shells only in a remote repo', () => {
+    const remoteOnly = { ...project, apps: { cart: project.apps.cart } };
+    expect(paths(validateMfeflowProject(remoteOnly))).toEqual(['apps']);
+    expect(paths(validateMfeflowProject({ ...remoteOnly, repo: 'platform' }))).toEqual(['apps']);
+    expect(paths(validateMfeflowProject({ ...remoteOnly, repo: 'shell' }))).toEqual(['apps']);
+    expect(validateMfeflowProject({ ...remoteOnly, repo: 'remote' })).toEqual([]);
+  });
+
   it('checks the dev server port of an app', () => {
     expect(validateMfeflowProject(withPort(4311))).toEqual([]);
     expect(paths(validateMfeflowProject(withPort(0)))).toEqual(['apps.cart.port']);
@@ -406,7 +433,234 @@ describe('mfeflow.json', () => {
     expect(paths(validateMfeflowProject(withBudget([])))).toEqual(['budget']);
   });
 
+  it('checks the registry host and base URL', () => {
+    const withRegistry = (registry: unknown) => ({ ...project, registry });
+    for (const host of [
+      'file:./site',
+      'file:/srv/registry',
+      'file:C:/site',
+      's3://my-bucket',
+      's3://my-bucket/a/b',
+    ])
+      expect(
+        validateMfeflowProject(withRegistry({ host, baseUrl: 'http://localhost:4300' })),
+      ).toEqual([]);
+    for (const host of [
+      './site',
+      'file:',
+      's3://',
+      's3://key:secret@bucket',
+      'https://x.test',
+      's3://Bad_Bucket',
+    ])
+      expect(paths(validateMfeflowProject(withRegistry({ host })))).toEqual(['registry.host']);
+    for (const baseUrl of [
+      'cdn.example.com',
+      'https://cdn.example.com/',
+      'https://u:p@cdn.test',
+      'https://cdn.test?x=1',
+      'ftp://x.test',
+      'https://cdn.test#',
+      'https://cdn.test/a#frag',
+      'http://cdn.test',
+    ])
+      expect(paths(validateMfeflowProject(withRegistry({ baseUrl })))).toEqual([
+        'registry.baseUrl',
+      ]);
+    expect(paths(validateMfeflowProject(withRegistry([])))).toEqual(['registry']);
+  });
+
+  it('keeps the JSON schema in step with the registry check', () => {
+    interface Pattern {
+      pattern: string;
+    }
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the schema's shape is fixed in json-schema.ts
+    const schema = JSON_SCHEMAS.project as unknown as {
+      properties: { registry: { properties: { host: Pattern; baseUrl: Pattern } } };
+    };
+    const { host, baseUrl } = schema.properties.registry.properties;
+    expect(new RegExp(host.pattern).test('s3://my-bucket/prefix')).toBe(true);
+    expect(new RegExp(host.pattern).test('s3://k:s@bucket')).toBe(false);
+    expect(new RegExp(baseUrl.pattern).test('https://cdn.example.com')).toBe(true);
+    expect(new RegExp(baseUrl.pattern).test('https://cdn.example.com/')).toBe(false);
+    expect(new RegExp(baseUrl.pattern).test('https://u:p@cdn.test')).toBe(false);
+    for (const ok of [
+      'http://localhost',
+      'http://localhost:4300',
+      'http://127.0.0.1/x',
+      'http://[::1]:80',
+    ])
+      expect(new RegExp(baseUrl.pattern).test(ok), ok).toBe(true);
+    for (const bad of [
+      'http://cdn.test',
+      'https://cdn.test#',
+      'https://cdn.test?a=1',
+      'http://localhost.evil.test',
+    ])
+      expect(new RegExp(baseUrl.pattern).test(bad), bad).toBe(false);
+  });
+
   it('publishes schema URLs', () => {
     expect(SCHEMA_URLS.mfe).toBe('https://mfeflow.github.io/mfeflow/schema/mfe.json');
+  });
+});
+
+describe('feature integrity in mfeflow.json', () => {
+  const entry = (extra: object) => ({
+    version: 1,
+    topology: 'monorepo',
+    packageManager: 'pnpm',
+    scope: '@shopco',
+    apps: { storefront: { kind: 'shell', path: 'apps/storefront' } },
+    features: { '@someone/extra': { version: '1.0.0', ...extra } },
+  });
+
+  it('accepts a sha256 hash next to the feature', () => {
+    const integrity = `sha256-${'ab'.repeat(32)}`;
+    expect(validateMfeflowProject(entry({ integrity }))).toEqual([]);
+  });
+
+  it('rejects anything that is not a sha256 hash', () => {
+    for (const bad of ['abc', 'sha1-abc', `sha256-${'AB'.repeat(32)}`, 7]) {
+      expect(paths(validateMfeflowProject(entry({ integrity: bad }))), String(bad)).toEqual([
+        'features.@someone/extra.integrity',
+      ]);
+    }
+  });
+
+  it('puts integrity in the published JSON schema', () => {
+    const features = JSON_SCHEMAS.project.properties as Record<string, unknown>;
+    expect(JSON.stringify(features.features)).toContain('integrity');
+  });
+});
+
+describe('isPrivateHost', () => {
+  it.each([
+    'localhost',
+    'LOCALHOST',
+    'app.localhost',
+    '127.0.0.1',
+    '127.1.2.3',
+    '10.0.0.1',
+    '172.16.0.1',
+    '172.31.255.255',
+    '192.168.0.10',
+    '169.254.169.254',
+    '0.0.0.0',
+    '[::1]',
+    '[::]',
+    '[fc00::1]',
+    '[fd12:3456::1]',
+    '[fe80::1]',
+    '[::ffff:7f00:1]',
+    '[::ffff:c0a8:101]',
+    '100.64.0.1',
+    '100.100.100.200',
+    '100.127.255.254',
+    '192.0.0.1',
+    '[::a9fe:a9fe]',
+    '[::7f00:1]',
+    '[64:ff9b::a9fe:a9fe]',
+    '[64:ff9b::a00:1]',
+    '[2002:a9fe:a9fe::1]',
+    '[2002:c0a8:101::]',
+    '[fec0::1]',
+    '[febf::1]',
+    'metadata.google.internal',
+    'printer.local',
+    'host.internal.',
+  ])('is true for %s', (host) => {
+    expect(isPrivateHost(host)).toBe(true);
+  });
+
+  it.each([
+    'example.com',
+    'acme.github.io',
+    '8.8.8.8',
+    '172.15.0.1',
+    '172.32.0.1',
+    '192.169.0.1',
+    '11.0.0.1',
+    '[2606:4700::1111]',
+    '[::ffff:808:808]',
+    'localhost.example.com',
+    '100.63.255.255',
+    '100.128.0.1',
+    '192.0.1.1',
+    '[::808:808]',
+    '[64:ff9b::808:808]',
+    '[2002:808:808::1]',
+    'internal.example.com',
+    'local.dev',
+  ])('is false for %s', (host) => {
+    expect(isPrivateHost(host)).toBe(false);
+  });
+
+  it('agrees with what URL.hostname reports', () => {
+    expect(isPrivateHost(new URL('http://[::1]:4010/x').hostname)).toBe(true);
+    expect(isPrivateHost(new URL('http://0x7f.1/x').hostname)).toBe(true);
+    expect(isPrivateHost(new URL('https://acme.dev/x').hostname)).toBe(false);
+  });
+});
+
+describe('redactUrl', () => {
+  it('stays fast on long query strings with no = in them', () => {
+    const long = `https://r.test/{name}.json?${'%'.repeat(50_000)}`;
+    const started = performance.now();
+    expect(redactUrl(long)).toBe(long);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
+  it('keeps separators and values with = in them as they were', () => {
+    expect(redactUrl('https://r.test/x?a=b=c;token=s&&d=')).toBe(
+      'https://r.test/x?a=b=c;token=***&&d=',
+    );
+  });
+
+  it('hides the value of token-like parameters and keeps the rest', () => {
+    expect(redactUrl('https://r.dev/{name}.json?token=abc&v=2')).toBe(
+      'https://r.dev/{name}.json?token=***&v=2',
+    );
+    for (const key of ['api_key', 'apikey', 'sig', 'Signature', 'auth', 'password', 'secret']) {
+      expect(redactUrl(`https://r.dev/x?${key}=s3cret`), key).toBe(`https://r.dev/x?${key}=***`);
+    }
+    expect(redactUrl('https://r.dev/x?X-Amz-Signature=aa&X-Amz-Credential=bb&a=1')).toBe(
+      'https://r.dev/x?X-Amz-Signature=***&X-Amz-Credential=***&a=1',
+    );
+  });
+
+  it('also hides jwt, bearer, session, pat, access and code, but not look-alikes', () => {
+    for (const key of ['jwt', 'bearer', 'session', 'pat', 'access', 'code', 'session_id']) {
+      expect(redactUrl(`https://r.dev/x?${key}=s3cret`), key).toBe(`https://r.dev/x?${key}=***`);
+    }
+    expect(redactUrl('https://r.dev/x?path=/a&patch=1&codec=2&accessory=3')).toBe(
+      'https://r.dev/x?path=/a&patch=1&codec=2&accessory=3',
+    );
+  });
+
+  it('hides secrets in the fragment and after a semicolon', () => {
+    expect(redactUrl('https://r.dev/x#access_token=abc&state=1')).toBe(
+      'https://r.dev/x#access_token=***&state=1',
+    );
+    expect(redactUrl('https://r.dev/x?a=1;token=abc;b=2')).toBe(
+      'https://r.dev/x?a=1;token=***;b=2',
+    );
+    expect(redactUrl('https://r.dev/x?a=1&sig=z#top')).toBe('https://r.dev/x?a=1&sig=***#top');
+  });
+
+  it('hides a user name and password', () => {
+    expect(redactUrl('https://me:pw@r.dev/x')).toBe('https://***@r.dev/x');
+  });
+
+  it('leaves a URL without a secret as it is', () => {
+    for (const url of ['https://r.dev/{name}.json', 'https://r.dev/x?page=2#top', 'not a url']) {
+      expect(redactUrl(url)).toBe(url);
+    }
+  });
+
+  it('cleans every URL in a sentence', () => {
+    expect(redactUrlsIn('https://r.dev/a?token=1 answered 404, then http://x.dev/b?key=2')).toBe(
+      'https://r.dev/a?token=*** answered 404, then http://x.dev/b?key=***',
+    );
   });
 });

@@ -29,6 +29,10 @@ pnpm dev                                    # shell on :4300, remotes on :4311, 
 | `mfeflow validate`                    | `mfeflow.json`, every `mfe.json` and every registry entry against their schemas       |
 | `mfeflow check-compat`                | Each remote's shared ranges against the shells it runs in                             |
 | `mfeflow budget`                      | Built first-load JS of the shell and each remote against the cost-model budget        |
+| `mfeflow deploy <remote> --env <env>` | Upload a remote's build to a static registry host and point the env's index at it     |
+| `mfeflow promote <remote>`            | Copy the version one env serves to another env: `--from staging --to prod`            |
+| `mfeflow rollback <remote>`           | Point an env back at the previous version, or `--to <version>`, without a rebuild     |
+| `mfeflow status`                      | What each env serves, the version before it, and drift from `registry/envs`           |
 | `mfeflow --version`, `mfeflow --help` | Version, and help with examples (`mfeflow <command> --help` for one command)          |
 
 Features that ship with it: `core` and `tsconfig` (always), `lint-oxlint`, `url-factory`, `env-t3` and `testing`
@@ -105,8 +109,8 @@ MFEFLOW_E108 The target folder is not empty: /work/app already has notes.txt
 | 3    | project or config problem: `MFEFLOW_E1xx`                               |
 | 4    | feature problem: `MFEFLOW_E2xx`                                         |
 | 5    | build or runtime problem: `MFEFLOW_E3xx`                                |
-| 6    | registry problem: `MFEFLOW_E4xx`                                        |
-| 7    | upgrade problem: `MFEFLOW_E5xx`                                         |
+| 6    | feature registry problem: `MFEFLOW_E4xx`                                |
+| 7    | deploy problem: `MFEFLOW_E5xx`                                          |
 | 130  | cancelled at a prompt (nothing was written), or Ctrl+C in `mfeflow dev` |
 
 ## Try it from a checkout

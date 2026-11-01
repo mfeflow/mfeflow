@@ -1,9 +1,16 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { loadProject, serializeProject, type MfeflowProject } from '@mfeflow/core';
+import {
+  addTrusted,
+  loadProject,
+  readTrusted,
+  serializeProject,
+  type MfeflowProject,
+} from '@mfeflow/core';
 import { main, validateResult, type RegistryResult } from '..';
-import { removeDir, tempDir, testRuntime } from '../testing';
+import { removeDir, scriptedPrompter, tempDir, testRuntime } from '../testing';
+import { readPackageJson } from '../version';
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -26,8 +33,7 @@ async function projectWith(extra: Partial<MfeflowProject> = {}): Promise<string>
   return dir;
 }
 
-async function run(args: string[], cwd: string) {
-  const rt = testRuntime();
+async function run(args: string[], cwd: string, rt = testRuntime()) {
   const code = await main(['registry', ...args, '--cwd', cwd], rt);
   return { code, rt, out: rt.io.out.join('\n'), err: rt.io.err.join('\n') };
 }
@@ -48,8 +54,19 @@ describe('mfeflow registry add', () => {
     expect(out).toContain('Added @acme');
     expect(out).toContain('mfeflow features');
     expect((await loadProject(cwd)).registries).toEqual({ '@acme': URL_A });
+    expect((await loadProject(cwd)).cli).toBe(readPackageJson().version);
     const text = await fs.readFile(path.join(cwd, 'mfeflow.json'), 'utf8');
     expect(text).toContain('"$schema"');
+  });
+
+  it('never lowers cli, and does not stamp when nothing changes', async () => {
+    const newer = await projectWith({ cli: '99.0.0' });
+    await run(['add', '@acme', URL_A], newer);
+    expect((await loadProject(newer)).cli).toBe('99.0.0');
+    const same = await projectWith({ registries: { '@acme': URL_A } });
+    const before = await fs.readFile(path.join(same, 'mfeflow.json'), 'utf8');
+    await run(['add', '@acme', URL_A], same);
+    expect(await fs.readFile(path.join(same, 'mfeflow.json'), 'utf8')).toBe(before);
   });
 
   it('keeps the registries it already has', async () => {
@@ -65,7 +82,12 @@ describe('mfeflow registry add', () => {
     const result = jsonOf(rt.io.out);
     expect(result).toMatchObject({ action: 'add', changed: true, dryRun: false, root: cwd });
     expect(result.registries).toEqual([
-      { namespace: '@acme', url: URL_A, index: 'https://acme.example/index.json' },
+      {
+        namespace: '@acme',
+        url: URL_A,
+        index: 'https://acme.example/index.json',
+        trusted: true,
+      },
     ]);
   });
 
@@ -190,14 +212,150 @@ describe('mfeflow registry list', () => {
     });
     const { out } = await run(['list'], cwd);
     expect(out.split('\n')).toEqual([
-      `  @acme  ${URL_A}`,
-      '  @zed   https://zed.example/{name}.json',
+      `  @acme  ${URL_A}  [not trusted yet]`,
+      '  @zed   https://zed.example/{name}.json  [not trusted yet]',
+      '',
+      'Trust one with: mfeflow registry trust @namespace',
     ]);
     const rt = testRuntime();
     await main(['registry', 'list', '--json', '--cwd', cwd], rt);
     const result = jsonOf(rt.io.out);
     expect(result.registries.map((r) => r.namespace)).toEqual(['@acme', '@zed']);
     expect(result.changed).toBe(false);
+  });
+});
+
+describe('mfeflow registry add trusts what it adds', () => {
+  it('records the namespace and URL in the user trust file, not in the project', async () => {
+    const cwd = await projectWith();
+    const rt = testRuntime();
+    expect((await run(['add', '@acme', URL_A], cwd, rt)).code).toBe(0);
+    expect(await readTrusted(rt.configDir)).toEqual([{ namespace: '@acme', template: URL_A }]);
+    expect(await fs.readFile(path.join(cwd, 'mfeflow.json'), 'utf8')).not.toContain('trusted');
+  });
+
+  it('does not trust anything with --dry-run', async () => {
+    const cwd = await projectWith();
+    const rt = testRuntime();
+    const { out } = await run(['add', '@acme', URL_A, '--dry-run'], cwd, rt);
+    expect(out).toContain('would add and trust @acme');
+    expect(await readTrusted(rt.configDir)).toEqual([]);
+  });
+
+  it('trusts a URL that is already in the project when it is added again', async () => {
+    const cwd = await projectWith({ registries: { '@acme': URL_A } });
+    const rt = testRuntime();
+    const { out } = await run(['add', '@acme', URL_A], cwd, rt);
+    expect(out).toContain('except trust it');
+    expect(await readTrusted(rt.configDir)).toEqual([{ namespace: '@acme', template: URL_A }]);
+  });
+
+  it('hides a token in the URL it prints, in text and in --json', async () => {
+    const cwd = await projectWith();
+    const url = 'https://acme.example/{name}.json?token=hunter2';
+    const rt = testRuntime();
+    const { out } = await run(['add', '@acme', url], cwd, rt);
+    expect(out).toContain('token=***');
+    expect(out).not.toContain('hunter2');
+    const json = testRuntime({ configDir: rt.configDir });
+    await main(['registry', 'list', '--json', '--cwd', cwd], json);
+    expect(json.io.out.join('')).not.toContain('hunter2');
+    expect(jsonOf(json.io.out).registries[0]?.url).toBe(
+      'https://acme.example/{name}.json?token=***',
+    );
+    const listed = await run(['list'], cwd, testRuntime({ configDir: rt.configDir }));
+    expect(listed.out).toContain('token=***');
+    expect(listed.out).not.toContain('hunter2');
+    expect(listed.out).toContain('[trusted]');
+    expect((await loadProject(cwd)).registries).toEqual({ '@acme': url });
+  });
+});
+
+describe('mfeflow registry trust and untrust', () => {
+  const configured = () => projectWith({ registries: { '@acme': URL_A } });
+
+  it('trusts a registry from the project with --yes, and lists it as trusted', async () => {
+    const cwd = await configured();
+    const rt = testRuntime();
+    const { code, out } = await run(['trust', '@acme', '--yes'], cwd, rt);
+    expect(code).toBe(0);
+    expect(out).toContain('Trusted @acme');
+    expect(await readTrusted(rt.configDir)).toEqual([{ namespace: '@acme', template: URL_A }]);
+    const listed = await run(['list'], cwd, testRuntime({ configDir: rt.configDir }));
+    expect(listed.out).toContain('[trusted]');
+  });
+
+  it('asks a person first, and trusts nothing when they say no', async () => {
+    const cwd = await configured();
+    const no = testRuntime({ prompter: scriptedPrompter([false]) });
+    no.io.interactive = true;
+    expect((await run(['trust', '@acme'], cwd, no)).code).toBe(130);
+    expect(await readTrusted(no.configDir)).toEqual([]);
+    const prompter = scriptedPrompter([true]);
+    const yes = testRuntime({ prompter });
+    yes.io.interactive = true;
+    expect((await run(['trust', '@acme'], cwd, yes)).code).toBe(0);
+    expect(prompter.asked.join()).toContain('Trust @acme');
+    expect(await readTrusted(yes.configDir)).toHaveLength(1);
+  });
+
+  it('never trusts silently: without a terminal it needs --yes', async () => {
+    const cwd = await configured();
+    const rt = testRuntime();
+    const { code, err } = await run(['trust', '@acme'], cwd, rt);
+    expect(code).toBe(2);
+    expect(err).toContain('--yes');
+    expect(err).toContain('MFEFLOW_TRUST_REGISTRIES');
+    expect(await readTrusted(rt.configDir)).toEqual([]);
+  });
+
+  it('writes nothing with --dry-run', async () => {
+    const cwd = await configured();
+    const rt = testRuntime();
+    expect((await run(['trust', '@acme', '--dry-run'], cwd, rt)).out).toContain('would trust');
+    expect(await readTrusted(rt.configDir)).toEqual([]);
+  });
+
+  it('is a no-op for a registry that is already trusted', async () => {
+    const cwd = await configured();
+    const rt = testRuntime();
+    await run(['trust', '@acme', '--yes'], cwd, rt);
+    const again = await run(['trust', '@acme', '--yes'], cwd, rt);
+    expect(again.out).toContain('already trusted');
+  });
+
+  it('refuses a namespace the project does not have', async () => {
+    const { code, err } = await run(['trust', '@nope', '--yes'], await configured());
+    expect(code).toBe(2);
+    expect(err).toContain('not in this project');
+  });
+
+  it('untrust forgets it, and says so when there was nothing to forget', async () => {
+    const cwd = await configured();
+    const rt = testRuntime();
+    await run(['trust', '@acme', '--yes'], cwd, rt);
+    const gone = await run(['untrust', '@acme'], cwd, rt);
+    expect(gone.code).toBe(0);
+    expect(gone.out).toContain('No longer trusting @acme');
+    expect(await readTrusted(rt.configDir)).toEqual([]);
+    expect((await run(['untrust', '@acme'], cwd, rt)).out).toContain('was not trusted');
+  });
+
+  it('untrust works outside a project and reports the trust state in --json', async () => {
+    const dir = await tempDir();
+    dirs.push(dir);
+    const rt = testRuntime();
+    await addTrusted(rt.configDir, { namespace: '@acme', template: URL_A });
+    await main(['registry', 'untrust', '@acme', '--json', '--cwd', dir], rt);
+    expect(jsonOf(rt.io.out)).toMatchObject({ action: 'untrust', changed: true, root: null });
+    expect(await readTrusted(rt.configDir)).toEqual([]);
+  });
+
+  it('shows a trust that is only given by MFEFLOW_TRUST_REGISTRIES as trusted, without writing it', async () => {
+    const cwd = await configured();
+    const rt = testRuntime({ trust: ['@acme'] });
+    expect((await run(['list'], cwd, rt)).out).toContain('[trusted]');
+    expect(await readTrusted(rt.configDir)).toEqual([]);
   });
 });
 

@@ -13,6 +13,7 @@ import {
   packageNameOf,
   remoteFederationOptions,
   resolvableFrom,
+  sharedPackages,
   sharedSingletons,
   shellFederationOptions,
   snapshotEnabled,
@@ -275,6 +276,28 @@ describe('the app version define', () => {
     expect(appVersion(cwd)).toBe('0.0.0');
     fs.writeFileSync(path.join(cwd, 'package.json'), 'not json');
     expect(appVersion(cwd)).toBe('0.0.0');
+  });
+});
+
+describe('the singleton list define', () => {
+  it('names each shared package once, subpaths folded in', () => {
+    const resolves = (s: string) =>
+      ['react', 'react-dom', 'react-dom/client', '@mfeflow/runtime'].includes(s);
+    expect(sharedPackages(resolves)).toEqual(['react', 'react-dom', '@mfeflow/runtime']);
+    expect(sharedPackages(resolves, ['react-dom/client'])).toEqual([
+      'react',
+      'react-dom',
+      '@mfeflow/runtime',
+    ]);
+  });
+
+  it('is defined in the shell config', () => {
+    const cwd = path.resolve(import.meta.dirname, '..');
+    const define = createShellConfig({ name: 'shell', cwd }).source?.define;
+    const value = define?.['__MFEFLOW_SINGLETONS__'];
+    const list: unknown = JSON.parse(typeof value === 'string' ? value : '[]');
+    expect(list).toContain('react');
+    expect(list).toContain('@mfeflow/runtime');
   });
 });
 

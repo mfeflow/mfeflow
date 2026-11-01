@@ -1,4 +1,5 @@
 import { stripVTControlCharacters } from 'node:util';
+import { redactUrlsIn } from '@mfeflow/contracts';
 import { isMfeflowError, MfeflowError } from '@mfeflow/core';
 import { defineCommand, runCommand, type CommandDef } from 'citty';
 import { ADD_ARGS, runAdd } from './commands/add';
@@ -11,10 +12,19 @@ import {
   VALIDATE_ARGS,
 } from './commands/doctor';
 import { BUDGET_ARGS, runBudget } from './commands/budget';
+import {
+  DEPLOY_ARGS,
+  PROMOTE_ARGS,
+  ROLLBACK_ARGS,
+  runDeploy,
+  runPromote,
+  runRollback,
+} from './commands/deploy';
 import { DEV_ARGS, runDev } from './commands/dev';
 import { FEATURES_ARGS, runFeatures } from './commands/features';
 import { INIT_ARGS, runInit } from './commands/init';
 import { REGISTRY_ARGS, runRegistry } from './commands/registry';
+import { runStatus, STATUS_ARGS } from './commands/status';
 import { Cancelled, EXIT, exitCodeFor, reportOf, unexpectedReport, unexpectedText } from './exit';
 import { commandHelp, rootHelp, type CommandHelp } from './help';
 import { exitOf, type CliResult, type FailureResult } from './output';
@@ -77,13 +87,14 @@ export const COMMANDS: readonly Command[] = [
     name: 'registry',
     summary: 'configure third-party feature registries, or build one to host',
     usage:
-      'mfeflow registry add @namespace <url-template> | mfeflow registry list | mfeflow registry remove @namespace | mfeflow registry build <dir> [--out dir]',
+      'mfeflow registry add @namespace <url-template> | mfeflow registry list | mfeflow registry remove @namespace | mfeflow registry trust @namespace | mfeflow registry untrust @namespace | mfeflow registry build <dir> [--out dir]',
     args: REGISTRY_ARGS,
     examples: [
       'mfeflow registry add @acme https://acme.github.io/features/{name}.json',
       'mfeflow registry add @test http://127.0.0.1:4010/{name}.json   # plain http: loopback hosts only',
       'mfeflow registry list --json',
       'mfeflow registry remove @acme --dry-run',
+      'mfeflow registry trust @acme   # a registry from a cloned repo is not asked until you trust it',
       'mfeflow registry build ./my-registry --out ./site',
     ],
     run: runRegistry,
@@ -124,6 +135,51 @@ export const COMMANDS: readonly Command[] = [
     args: BUDGET_ARGS,
     examples: ['mfeflow budget', 'mfeflow budget --json', 'mfeflow budget --dist build'],
     run: runBudget,
+  },
+  {
+    name: 'deploy',
+    summary: "upload a remote's build to the registry host and point an environment at it",
+    usage: 'mfeflow deploy <remote> --env <env> [--version <v>] [--host <spec>] [--no-publish]',
+    args: DEPLOY_ARGS,
+    examples: [
+      'mfeflow deploy catalog --env staging --host file:./site --base-url https://cdn.example.com',
+      'mfeflow deploy catalog --env prod',
+      'mfeflow deploy catalog --env prod --version 1.4.2 --dry-run',
+      'mfeflow deploy catalog --env prod --no-publish   # upload, leave the index alone',
+      'mfeflow deploy catalog --env prod --host s3://my-registry/mfe --json',
+    ],
+    run: runDeploy,
+  },
+  {
+    name: 'promote',
+    summary: 'point one environment at the version another environment serves; no upload',
+    usage: 'mfeflow promote <remote> --from <env> --to <env> [--host <spec>]',
+    args: PROMOTE_ARGS,
+    examples: [
+      'mfeflow promote catalog --from staging --to prod',
+      'mfeflow promote catalog --from staging --to prod --dry-run',
+    ],
+    run: runPromote,
+  },
+  {
+    name: 'rollback',
+    summary: 'point an environment back at an earlier version; no rebuild, no upload',
+    usage: 'mfeflow rollback <remote> --env <env> [--to <version>] [--host <spec>]',
+    args: ROLLBACK_ARGS,
+    examples: [
+      'mfeflow rollback catalog --env prod',
+      'mfeflow rollback catalog --env prod --to 1.3.0',
+      'mfeflow rollback catalog --env prod --dry-run --json',
+    ],
+    run: runRollback,
+  },
+  {
+    name: 'status',
+    summary: 'show what each environment serves, the version before it, and drift',
+    usage: 'mfeflow status [--env <env>] [--host <spec>]',
+    args: STATUS_ARGS,
+    examples: ['mfeflow status', 'mfeflow status --env prod --json'],
+    run: runStatus,
   },
   {
     name: 'dev',
@@ -174,7 +230,8 @@ function fail(error: unknown, rt: Runtime, json: boolean, verbose: boolean): num
   if (isMfeflowError(mfe)) {
     if (json) rt.io.stdout(JSON.stringify(failure(mfe), null, 2));
     else rt.io.stderr(mfe.format());
-    if (verbose && mfe.cause !== undefined) rt.io.stderr(unexpectedText(mfe.cause, true));
+    if (verbose && mfe.cause !== undefined)
+      rt.io.stderr(redactUrlsIn(unexpectedText(mfe.cause, true)));
     return exitCodeFor(mfe);
   }
   if (json) {

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { parseProject } from '@mfeflow/core';
+import { addTrusted, integrityOf, parseProject } from '@mfeflow/core';
 import type { FetchLike } from '@mfeflow/core';
 import { inCatalogueOrder } from './add';
 import { main, validateResult, type AddResult } from '..';
@@ -68,6 +68,7 @@ describe('mfeflow add remote', () => {
     );
     const saved = await load();
     expect(saved.apps.checkout).toEqual({ kind: 'remote', path: 'apps/checkout', port: 4313 });
+    expect(saved.cli).toBe(readPackageJson().version);
     expect(Object.keys(saved.features)).toEqual([
       'core',
       'tsconfig',
@@ -329,10 +330,11 @@ describe('mfeflow add @namespace/feature', () => {
       },
     ],
   };
-  const fetchManifest: FetchLike = () =>
+  /** The feature at every URL except the index, which this registry does not have. */
+  const fetchManifest: FetchLike = (url) =>
     Promise.resolve({
-      ok: true,
-      status: 200,
+      ok: !url.endsWith('/index.json'),
+      status: url.endsWith('/index.json') ? 404 : 200,
       text: () => Promise.resolve(JSON.stringify(manifest)),
     });
 
@@ -345,7 +347,7 @@ describe('mfeflow add @namespace/feature', () => {
 
   it('will not apply a registry feature without --yes when nobody can confirm', async () => {
     const before = await readTree(project);
-    const rt = testRuntime({ fetch: fetchManifest });
+    const rt = testRuntime({ trust: ['@acme'], fetch: fetchManifest });
     const { code } = await add(['@acme/hello', '--no-install'], rt);
     expect(code).toBe(2);
     expect(rt.io.err.join('\n')).toContain('--yes');
@@ -354,7 +356,7 @@ describe('mfeflow add @namespace/feature', () => {
 
   it('previews it with --dry-run without --yes, since nothing is written', async () => {
     const before = await readTree(project);
-    const rt = testRuntime({ fetch: fetchManifest });
+    const rt = testRuntime({ trust: ['@acme'], fetch: fetchManifest });
     const { code } = await add(['@acme/hello', '--dry-run'], rt);
     expect(rt.io.err.join('\n')).toBe('');
     expect(code).toBe(0);
@@ -363,7 +365,7 @@ describe('mfeflow add @namespace/feature', () => {
   });
 
   it('applies it with --yes, using the option given by --option', async () => {
-    const rt = testRuntime({ fetch: fetchManifest });
+    const rt = testRuntime({ trust: ['@acme'], fetch: fetchManifest });
     const { code } = await add(
       ['@acme/hello', '--yes', '--no-install', '--option', '@acme/hello.loud=true'],
       rt,
@@ -374,7 +376,11 @@ describe('mfeflow add @namespace/feature', () => {
   });
 
   it('asks the feature prompts and then for confirmation when a person is there', async () => {
-    const rt = testRuntime({ fetch: fetchManifest, prompter: scriptedPrompter([true, true]) });
+    const rt = testRuntime({
+      trust: ['@acme'],
+      fetch: fetchManifest,
+      prompter: scriptedPrompter([true, true]),
+    });
     rt.io.interactive = true;
     expect((await add(['@acme/hello', '--no-install'], rt)).code).toBe(0);
     expect(rt.prompter).toMatchObject({ asked: ['Shout?', 'Write these changes?'] });
@@ -384,7 +390,7 @@ describe('mfeflow add @namespace/feature', () => {
   it('reports a registry that is not configured (E210)', async () => {
     const { code, rt } = await add(
       ['@other/thing', '--yes'],
-      testRuntime({ fetch: fetchManifest }),
+      testRuntime({ trust: ['@acme'], fetch: fetchManifest }),
     );
     expect(code).toBe(4);
     expect(rt.io.err.join('\n')).toContain('MFEFLOW_E210');
@@ -405,14 +411,14 @@ describe('mfeflow add @namespace/feature', () => {
     beforeEach(async () => {
       const { code } = await add(
         ['@acme/hello', '--yes', '--no-install'],
-        testRuntime({ fetch: fetchManifest }),
+        testRuntime({ trust: ['@acme'], fetch: fetchManifest }),
       );
       expect(code).toBe(0);
     });
 
     it('asks for the same confirmation before applying it, and writes nothing without it', async () => {
       const before = await readTree(project);
-      const rt = testRuntime({ fetch: fetchManifest });
+      const rt = testRuntime({ trust: ['@acme'], fetch: fetchManifest });
       const { code } = await add(['shell', 'admin', '--no-install'], rt);
       expect(code).toBe(2);
       expect(rt.io.err.join('\n')).toContain('@acme/hello');
@@ -420,14 +426,14 @@ describe('mfeflow add @namespace/feature', () => {
     });
 
     it('applies it to the new app with --yes when the registry still serves the recorded version', async () => {
-      const rt = testRuntime({ fetch: fetchManifest });
+      const rt = testRuntime({ trust: ['@acme'], fetch: fetchManifest });
       expect((await add(['shell', 'admin', '--yes', '--no-install'], rt)).code).toBe(0);
       expect(await read('apps/admin/src/hello.ts')).toContain('hello');
     });
 
     it('refuses, even with --yes, when the registry now serves another version (E401)', async () => {
       const before = await readTree(project);
-      const rt = testRuntime({ fetch: serving('2.0.0') });
+      const rt = testRuntime({ trust: ['@acme'], fetch: serving('2.0.0') });
       const { code } = await add(['shell', 'admin', '--yes', '--no-install'], rt);
       expect(code).toBe(6);
       const err = rt.io.err.join('\n');
@@ -441,6 +447,7 @@ describe('mfeflow add @namespace/feature', () => {
       const file = path.join(project, 'mfeflow.json');
       const saved = parseProject(await fs.readFile(file, 'utf8'));
       saved.features['@acme/other'] = { version: '1.0.0' };
+      delete saved.features['@acme/hello']?.integrity;
       await fs.writeFile(file, `${JSON.stringify(saved, null, 2)}\n`);
       let inFlight = 0;
       let peak = 0;
@@ -457,7 +464,7 @@ describe('mfeflow add @namespace/feature', () => {
           text: () => Promise.resolve(JSON.stringify({ ...manifest, name, files })),
         };
       };
-      const rt = testRuntime({ fetch });
+      const rt = testRuntime({ trust: ['@acme'], fetch });
       expect((await add(['shell', 'admin', '--yes', '--no-install'], rt)).code).toBe(0);
       expect(peak).toBe(2);
       expect(await read('apps/admin/src/other.ts')).toBe('x');
@@ -469,7 +476,7 @@ describe('mfeflow add @namespace/feature', () => {
       saved.registries = { '@acme': 'https://acme.dev/{name}/{version}.json' };
       await fs.writeFile(file, `${JSON.stringify(saved, null, 2)}\n`);
       const urls: string[] = [];
-      const rt = testRuntime({ fetch: serving('1.0.0', urls) });
+      const rt = testRuntime({ trust: ['@acme'], fetch: serving('1.0.0', urls) });
       expect((await add(['shell', 'admin', '--yes', '--no-install'], rt)).code).toBe(0);
       expect(urls).toEqual(['https://acme.dev/hello/1.0.0.json']);
     });
@@ -547,5 +554,190 @@ describe('inCatalogueOrder', () => {
       'zeta',
       'alpha',
     ]);
+  });
+});
+
+describe('mfeflow add @namespace/feature: trust and integrity', () => {
+  const hello = (extra: object = {}) => ({
+    name: '@acme/hello',
+    version: '1.0.0',
+    files: [{ to: 'src/hello.ts', target: 'shell', content: 'export const hello = 1;\n' }],
+    ...extra,
+  });
+  const REMOTE = 'https://acme.dev/{name}.json';
+
+  /** Serves `body` for the feature and `indexBody` (404 when absent) for the index. */
+  const registry = (body: object, indexBody?: object, asked: string[] = []): FetchLike => {
+    return (url) => {
+      asked.push(url);
+      const isIndex = url.endsWith('/index.json');
+      const missing = isIndex && indexBody === undefined;
+      return Promise.resolve({
+        ok: !missing,
+        status: missing ? 404 : 200,
+        text: () => Promise.resolve(JSON.stringify(isIndex ? indexBody : body)),
+      });
+    };
+  };
+
+  async function setRegistries(registries: Record<string, string>): Promise<void> {
+    const file = path.join(project, 'mfeflow.json');
+    const saved = parseProject(await fs.readFile(file, 'utf8'));
+    saved.registries = registries;
+    await fs.writeFile(file, `${JSON.stringify(saved, null, 2)}\n`);
+  }
+
+  beforeEach(() => setRegistries({ '@acme': REMOTE }));
+
+  it('records the sha256 of the feature.json next to the feature', async () => {
+    const body = JSON.stringify(hello());
+    const fetch: FetchLike = (url) =>
+      Promise.resolve({
+        ok: !url.endsWith('/index.json'),
+        status: url.endsWith('/index.json') ? 404 : 200,
+        text: () => Promise.resolve(body),
+      });
+    const { code } = await add(['@acme/hello', '--yes', '--no-install'], testRuntime({ fetch }));
+    expect(code).toBe(0);
+    const recorded = (await load()).features['@acme/hello'];
+    expect(recorded).toEqual({ version: '1.0.0', integrity: integrityOf(body) });
+    expect(recorded?.integrity).toMatch(/^sha256-[0-9a-f]{64}$/);
+  });
+
+  it('counts the explicit add of a public registry as consent to fetch the one feature', async () => {
+    const asked: string[] = [];
+    const rt = testRuntime({ fetch: registry(hello(), undefined, asked) });
+    expect((await add(['@acme/hello', '--yes', '--no-install'], rt)).code).toBe(0);
+    expect(asked).toEqual(['https://acme.dev/hello.json', 'https://acme.dev/index.json']);
+  });
+
+  it('refuses a loopback or private registry that is not trusted, without asking it', async () => {
+    for (const template of ['http://127.0.0.1:4010/{name}.json', 'https://10.1.2.3/{name}.json']) {
+      await setRegistries({ '@acme': template });
+      const asked: string[] = [];
+      const rt = testRuntime({ fetch: registry(hello(), undefined, asked) });
+      const { code } = await add(['@acme/hello', '--yes', '--no-install'], rt);
+      expect(code, template).toBe(6);
+      expect(rt.io.err.join('\n')).toContain('MFEFLOW_E405');
+      expect(asked).toEqual([]);
+    }
+  });
+
+  it('fetches a loopback registry once it is trusted', async () => {
+    const template = 'http://127.0.0.1:4010/{name}.json';
+    await setRegistries({ '@acme': template });
+    const rt = testRuntime({ fetch: registry(hello()) });
+    await addTrusted(rt.configDir, { namespace: '@acme', template });
+    expect((await add(['@acme/hello', '--yes', '--no-install'], rt)).code).toBe(0);
+    const pinned = testRuntime({ fetch: registry(hello()), trust: [`@acme=${template}`] });
+    expect((await add(['@acme/hello', '--yes', '--no-install'], pinned)).code).toBe(0);
+  });
+
+  it('does not let MFEFLOW_TRUST_REGISTRIES with only a namespace reach a private address', async () => {
+    for (const template of [
+      'https://169.254.169.254/{name}.json',
+      'http://127.0.0.1:4010/{name}.json',
+    ]) {
+      await setRegistries({ '@acme': template });
+      const asked: string[] = [];
+      const rt = testRuntime({ fetch: registry(hello(), undefined, asked), trust: ['@acme'] });
+      const { code } = await add(['@acme/hello', '--yes', '--no-install'], rt);
+      expect(code, template).toBe(6);
+      expect(rt.io.err.join('\n')).toContain('MFEFLOW_E405');
+      expect(asked).toEqual([]);
+    }
+  });
+
+  it('keeps a token from the cause out of --verbose output', async () => {
+    const fetch: FetchLike = () =>
+      Promise.reject(new Error('connect failed https://acme.dev/hello.json?token=hunter2'));
+    const rt = testRuntime({ fetch });
+    await add(['@acme/hello', '--yes', '--no-install', '--verbose'], rt);
+    expect(rt.io.err.join('\n')).toContain('connect failed');
+    expect(rt.io.err.join('\n')).not.toContain('hunter2');
+  });
+
+  it('is an error when the index lists another version than the feature.json, and writes nothing', async () => {
+    const before = await readTree(project);
+    const index = { items: [{ name: 'hello', version: '2.0.0', description: 'Hello' }] };
+    const rt = testRuntime({ fetch: registry(hello(), index) });
+    const { code } = await add(['@acme/hello', '--yes', '--no-install'], rt);
+    expect(code).toBe(6);
+    const err = rt.io.err.join('\n');
+    expect(err).toContain('MFEFLOW_E402');
+    expect(err).toContain('2.0.0');
+    expect(await readTree(project)).toEqual(before);
+  });
+
+  it('shows what a feature adds to package.json as NEW PACKAGES', async () => {
+    const withDependency = hello({
+      dependencies: [{ name: 'left-pad', range: '^1.3.0', target: 'shell' }],
+    });
+    const rt = testRuntime({ fetch: registry(withDependency) });
+    expect((await add(['@acme/hello', '--dry-run'], rt)).code).toBe(0);
+    const out = rt.io.out.join('\n');
+    expect(out).toContain('NEW PACKAGES from a third-party feature (1):');
+    expect(out).toContain('left-pad@');
+    expect(out).toContain('pnpm 10 and later blocks them');
+  });
+
+  describe('when the feature is installed and a new app is added', () => {
+    const served = hello();
+    beforeEach(async () => {
+      const rt = testRuntime({ fetch: registry(served) });
+      expect((await add(['@acme/hello', '--yes', '--no-install'], rt)).code).toBe(0);
+    });
+
+    it('goes ahead when the registry still serves the same bytes', async () => {
+      const rt = testRuntime({ fetch: registry(served), trust: ['@acme'] });
+      expect((await add(['shell', 'admin', '--yes', '--no-install'], rt)).code).toBe(0);
+    });
+
+    const changed = hello({ description: 'quietly changed' });
+
+    it('says so and pins the hash when an installed feature has none recorded', async () => {
+      const file = path.join(project, 'mfeflow.json');
+      const saved = parseProject(await fs.readFile(file, 'utf8'));
+      delete saved.features['@acme/hello']?.integrity;
+      await fs.writeFile(file, `${JSON.stringify(saved, null, 2)}\n`);
+      const rt = testRuntime({ fetch: registry(served), trust: ['@acme'] });
+      expect((await add(['shell', 'admin', '--yes', '--no-install'], rt)).code).toBe(0);
+      expect(rt.io.out.join('\n')).toContain('@acme/hello has no integrity hash');
+      expect((await load()).features['@acme/hello']?.integrity).toBe(
+        integrityOf(JSON.stringify(served)),
+      );
+    });
+
+    it('stops with E406 when the registry now serves other content, and writes nothing', async () => {
+      const before = await readTree(project);
+      const rt = testRuntime({ fetch: registry(changed), trust: ['@acme'] });
+      const { code } = await add(['shell', 'admin', '--yes', '--no-install'], rt);
+      expect(code).toBe(6);
+      const err = rt.io.err.join('\n');
+      expect(err).toContain('MFEFLOW_E406');
+      expect(err).toContain('--accept-changed-content');
+      expect(await readTree(project)).toEqual(before);
+    });
+
+    it('takes the new content with --accept-changed-content and records its hash', async () => {
+      const rt = testRuntime({ fetch: registry(changed), trust: ['@acme'] });
+      const args = ['shell', 'admin', '--yes', '--no-install', '--accept-changed-content'];
+      expect((await add(args, rt)).code).toBe(0);
+      expect((await load()).features['@acme/hello']?.integrity).toBe(
+        integrityOf(JSON.stringify(changed)),
+      );
+    });
+
+    it('does not fetch a registry the user has not trusted, even a public one', async () => {
+      const before = await readTree(project);
+      const asked: string[] = [];
+      const rt = testRuntime({ fetch: registry(served, undefined, asked) });
+      const { code } = await add(['shell', 'admin', '--yes', '--no-install'], rt);
+      expect(code).toBe(6);
+      expect(rt.io.err.join('\n')).toContain('MFEFLOW_E405');
+      expect(rt.io.err.join('\n')).toContain('mfeflow registry trust');
+      expect(asked).toEqual([]);
+      expect(await readTree(project)).toEqual(before);
+    });
   });
 });

@@ -92,10 +92,17 @@ describe('validateResult', () => {
           },
         ],
         registries: [
-          { namespace: '@test', index: 'https://x/index.json', items: 1, error: null },
+          {
+            namespace: '@test',
+            index: 'https://x/index.json',
+            trusted: true,
+            items: 1,
+            error: null,
+          },
           {
             namespace: '@down',
             index: 'https://y/index.json',
+            trusted: false,
             items: 0,
             error: { code: 'MFEFLOW_E401', message: 'm', fix: 'f', docs: 'd' },
           },
@@ -114,7 +121,7 @@ describe('validateResult', () => {
   it('names what is wrong, by path', () => {
     const paths = (value: unknown) => validateResult(value).map((i) => i.path);
     expect(paths(null)).toEqual(['']);
-    expect(paths({ ok: true, command: 'deploy' })).toEqual(['command']);
+    expect(paths({ ok: true, command: 'upgrade' })).toEqual(['command']);
     expect(paths({ ...init, ok: 'yes' })).toEqual(['ok']);
     expect(
       paths({ ...init, root: 1, apps: [{ name: 'a', kind: 'other', path: 'p', port: 'x' }] }),
@@ -134,14 +141,15 @@ describe('validateResult', () => {
         search: null,
         features: [],
         registries: [
-          { namespace: 1, index: 'i', items: 'x', error: 1 },
-          { namespace: '@a', index: 'i', items: 0, error: { code: 1 } },
+          { namespace: 1, index: 'i', trusted: true, items: 'x', error: 1 },
+          { namespace: '@a', index: 'i', trusted: 'no', items: 0, error: { code: 1 } },
         ],
       }),
     ).toEqual([
       'registries[0].namespace',
       'registries[0].items',
       'registries[0].error',
+      'registries[1].trusted',
       'registries[1].error.code',
       'registries[1].error.message',
       'registries[1].error.fix',
@@ -154,7 +162,7 @@ describe('validateResult', () => {
       dryRun: false,
       root: null,
       changed: false,
-      registries: [{ namespace: '@a', url: 'u', index: 'i' }],
+      registries: [{ namespace: '@a', url: 'u', index: 'i', trusted: true }],
       build: {
         namespace: '@a',
         out: 'o',
@@ -174,6 +182,7 @@ describe('validateResult', () => {
       'registries[0].namespace',
       'registries[0].url',
       'registries[0].index',
+      'registries[0].trusted',
       'build.namespace',
       'build.out',
       'build.files',

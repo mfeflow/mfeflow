@@ -12,7 +12,15 @@ import {
   TRANSFORM_OPS,
 } from './feature';
 import { ANALYTICS_EVENT, EVENT_NAME, EXPOSE, MFE_NAME, ROUTE } from './mfe-manifest';
-import { CHECKOUT_PATH, FILE_HASH, REGISTRY_NAMESPACE, SCOPE } from './project';
+import {
+  CHECKOUT_PATH,
+  FILE_HASH,
+  PROJECT_REPOS,
+  REGISTRY_HOST,
+  REGISTRY_NAMESPACE,
+  SCOPE,
+  SEMVER,
+} from './project';
 import { SAFE_RELATIVE_PATH } from './validate';
 import { VERSION } from './registry';
 import {
@@ -198,6 +206,8 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
   project: root('project', 'mfeflow.json', {
     properties: {
       version: { const: 1 },
+      cli: str(SEMVER),
+      repo: { enum: [...PROJECT_REPOS] },
       topology: { enum: ['monorepo', 'polyrepo', 'hybrid'] },
       packageManager: { enum: ['pnpm', 'npm'] },
       scope: str(SCOPE),
@@ -217,7 +227,10 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
       features: {
         type: 'object',
         propertyNames: str(FEATURE_NAME),
-        additionalProperties: item({ version: str(), options: { type: 'object' } }, ['version']),
+        additionalProperties: item(
+          { version: str(), options: { type: 'object' }, integrity: str(FILE_HASH) },
+          ['version'],
+        ),
       },
       files: {
         type: 'object',
@@ -242,6 +255,16 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
             { type: 'number', minimum: 1 },
           ]),
         ),
+      },
+      registry: {
+        type: 'object',
+        properties: {
+          host: str(REGISTRY_HOST),
+          baseUrl: {
+            type: 'string',
+            pattern: String.raw`^(?:https://[^@\s?#]*[^/@\s?#]|http://(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?(?:/[^@\s?#]*[^/@\s?#])?)$`,
+          },
+        },
       },
     },
     required: ['version', 'topology', 'packageManager', 'scope', 'apps', 'features'],
