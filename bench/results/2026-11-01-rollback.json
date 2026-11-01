@@ -1,11 +1,11 @@
 {
-  "measured": "2026-11-01T15:53:29.000Z",
+  "measured": "2026-11-01T17:32:43.942Z",
   "what": "time from `mfeflow rollback` exiting to a fresh page load (new browser context, no cache) showing the old version",
   "host": "local file host",
   "method": "browser: chromium 156.0.8078.74, new context per load",
   "indexCacheControl": "public, max-age=60",
   "notMeasured": "CDN edge caches, real S3 or R2 latency, and a returning visitor holding the index in their HTTP cache (that wait is up to the 60 s max-age)",
-  "commit": "510940d",
+  "commit": "14c504e9dd1b0d10956564154386e6e4b373b621",
   "machine": {
     "os": "Darwin 25.5.0",
     "arch": "arm64",
@@ -14,37 +14,36 @@
   },
   "runs": [
     {
-      "commandMs": 324.00720900000033,
-      "visibleMs": 497.17691600000035,
+      "commandMs": 147.95158399999946,
+      "visibleMs": 993.8325410000007,
       "attempts": 1
     },
     {
-      "commandMs": 305.81616699999904,
-      "visibleMs": 541.526167,
+      "commandMs": 147.5281670000004,
+      "visibleMs": 980.1585000000005,
       "attempts": 1
     },
     {
-      "commandMs": 449.67520800000057,
-      "visibleMs": 1079.8619579999995,
+      "commandMs": 149.42249999999876,
+      "visibleMs": 994.0849589999998,
       "attempts": 1
     },
     {
-      "commandMs": 776.6486250000016,
-      "visibleMs": 718.3474580000002,
+      "commandMs": 151.14408299999923,
+      "visibleMs": 988.2406250000004,
       "attempts": 1
     },
     {
-      "commandMs": 715.5651249999974,
-      "visibleMs": 950.2221250000002,
+      "commandMs": 155.2783330000002,
+      "visibleMs": 985.3482920000006,
       "attempts": 1
     }
   ],
   "medianMs": {
-    "commandMs": 450,
-    "visibleMs": 718,
+    "commandMs": 149,
+    "visibleMs": 988,
     "attempts": 1
   },
-  "medianVisibleOfRuns": 718,
-  "targetMs": 90000,
-  "pass": true
+  "medianVisibleOfRuns": 988,
+  "staticExitCriterion": "Phase 05 exit criterion: rollback visible in under 90 s (60 s index cache). Context only: the value above is a local file host and is not compared against it."
 }
