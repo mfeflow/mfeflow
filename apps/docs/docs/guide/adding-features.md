@@ -93,7 +93,7 @@ The CLI shows the plan and asks for a yes before it writes anything. Without a t
 
 ## What happens to a feature after you add it?
 
-The files are yours. mfeflow records the feature and a hash of each file it wrote in `mfeflow.json`. There is no `remove` command. To drop a feature, delete its files and dependencies by hand, then clean up `mfeflow.json`. An upgrade command is planned for a later phase. See [Versions and upgrades](/guide/upgrading).
+The files are yours. mfeflow records the feature and a hash of each file it wrote in `mfeflow.json`. There is no `remove` command. To drop a feature, delete its files and dependencies by hand, then clean up `mfeflow.json`. `mfeflow upgrade` moves a project to a new version. See [Versions and upgrades](/guide/upgrading).
 
 ## Next steps
 

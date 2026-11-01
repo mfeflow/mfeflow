@@ -149,6 +149,8 @@ export interface SchemaKey {
   name: string;
   /** The key may be missing: an arktype `'key?'`, or a Zod or Valibot schema whose outermost call is optional, nullish, default, catch, fallback or exactOptional. */
   optional: boolean;
+  /** The validator as written in the file, for example `z.string().min(1)`. */
+  schema: string;
 }
 
 /** Zod and Valibot calls that accept a missing value: `.optional()` and `v.optional(…)` alike. */
@@ -198,7 +200,13 @@ export function schemaKeys(
   return target.properties.flatMap((p) => {
     const name = isObjectProperty(p) ? keyName(p) : undefined;
     if (!isObjectProperty(p) || name === undefined) return [];
-    return [{ name, optional: rawKey(p) !== name || acceptsMissing(p.value) }];
+    return [
+      {
+        name,
+        optional: rawKey(p) !== name || acceptsMissing(p.value),
+        schema: source.slice(p.value.start ?? 0, p.value.end ?? 0),
+      },
+    ];
   });
 }
 

@@ -23,7 +23,7 @@ You should see a summary, a list of files and the diff for each:
 
 ```text
 21 to create, 2 to patch, 0 to delete
-  create  apps/checkout/mfe.json
+  create  apps/checkout/mfeflow.app.json
   create  apps/checkout/package.json
   create  apps/checkout/rsbuild.config.ts
   create  apps/checkout/src/exposed/App.tsx
@@ -56,9 +56,9 @@ If you already added features, the new remote gets them too. With event-bus inst
 
 ## 3. Check what it chose
 
-The CLI picks the next free port, starting from 4311 for remotes. Open the new `mfe.json`:
+The CLI picks the next free port, starting from 4311 for remotes. Open the new `mfeflow.app.json`:
 
-```json title="apps/checkout/mfe.json"
+```json title="apps/checkout/mfeflow.app.json"
 {
   "name": "checkout",
   "owner": "team-checkout",
@@ -97,7 +97,7 @@ pnpm mfeflow validate
 You should see `ok` lines and no errors:
 
 ```text
-ok    every app has a valid mfe.json that matches mfeflow.json
+ok    every app has a valid mfeflow.app.json that matches mfeflow.json
 ok    no two remotes claim overlapping routes
 ok    every remote has a valid registry entry in dev, staging and prod
 0 error(s), 0 warning(s), 0 skipped
@@ -111,6 +111,6 @@ ok    every remote has a valid registry entry in dev, staging and prod
 
 ## What you did
 
-You added an app, three registry files and a route. Before you deploy, replace the example hosts in the staging and prod registry files. See [Deploy](/guide/deploying).
+You added an app, three registry files and a route. Before you deploy, replace the example hosts in the staging and prod registry files. See [Deploy](/guide/deploy/).
 
 For all options of the command, see the [CLI reference](/reference/cli#add).

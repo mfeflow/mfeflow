@@ -84,29 +84,29 @@ describe('mfeflow doctor', () => {
 
   it('prints one line per check, then findings with fix and docs link', async () => {
     const root = await project();
-    await fs.rm(path.join(root, 'apps/cart/mfe.json'));
+    await fs.rm(path.join(root, 'apps/cart/mfeflow.app.json'));
     const rt = testRuntime();
     expect(await main(['doctor', '--cwd', root], rt)).toBe(3);
     const text = rt.io.out.join('\n');
-    expect(text).toContain('FAIL  every app has a valid mfe.json');
+    expect(text).toContain('FAIL  every app has a valid mfeflow.app.json');
     expect(text).toContain('error MFEFLOW_E113');
     expect(text).toContain('https://mfeflow.github.io/mfeflow/errors/E113');
   });
 
-  it('reports an app that is gone, a missing or broken mfe.json, and names that disagree', async () => {
+  it('reports an app that is gone, a missing or broken mfeflow.app.json, and names that disagree', async () => {
     const root = await project();
     await fs.rm(path.join(root, 'apps/cart'), { recursive: true });
-    await fs.rm(path.join(root, 'apps/catalog/mfe.json'));
-    await fs.writeFile(path.join(root, 'apps/shell/mfe.json'), '{ nope');
+    await fs.rm(path.join(root, 'apps/catalog/mfeflow.app.json'));
+    await fs.writeFile(path.join(root, 'apps/shell/mfeflow.app.json'), '{ nope');
     const { code, result } = await run(root, 'doctor');
     expect(code).toBe(3);
     expect(codes(result)).toEqual(expect.arrayContaining(['MFEFLOW_E112', 'MFEFLOW_E113']));
     expect(result.findings.filter((f) => f.code === 'MFEFLOW_E113')).toHaveLength(2);
-    await editJson(path.join(root, 'apps/catalog/mfe.json'), () => undefined).catch(
+    await editJson(path.join(root, 'apps/catalog/mfeflow.app.json'), () => undefined).catch(
       () => undefined,
     );
     await fs.writeFile(
-      path.join(root, 'apps/catalog/mfe.json'),
+      path.join(root, 'apps/catalog/mfeflow.app.json'),
       JSON.stringify({ name: 'other', owner: 'x', shells: [], routes: [], exposes: [] }),
     );
     expect(codes((await run(root, 'doctor')).result)).toContain('MFEFLOW_E116');
@@ -117,7 +117,7 @@ describe('mfeflow doctor', () => {
     await editJson(path.join(root, 'mfeflow.json'), (doc) => {
       (doc.apps as Record<string, { port: number }>).cart!.port = 4311;
     });
-    await editJson(path.join(root, 'apps/cart/mfe.json'), (doc) => {
+    await editJson(path.join(root, 'apps/cart/mfeflow.app.json'), (doc) => {
       doc.routes = ['/catalog'];
     });
     const { result } = await run(root, 'doctor');
@@ -130,10 +130,10 @@ describe('mfeflow doctor', () => {
 
   it('finds a wildcard route that covers another remote route and names both', async () => {
     const root = await project();
-    await editJson(path.join(root, 'apps/catalog/mfe.json'), (doc) => {
+    await editJson(path.join(root, 'apps/catalog/mfeflow.app.json'), (doc) => {
       doc.routes = ['/shop/*'];
     });
-    await editJson(path.join(root, 'apps/cart/mfe.json'), (doc) => {
+    await editJson(path.join(root, 'apps/cart/mfeflow.app.json'), (doc) => {
       doc.routes = ['/Shop/cart'];
     });
     const { result } = await run(root, 'doctor');
@@ -284,7 +284,7 @@ describe('mfeflow doctor', () => {
     const root = await project();
     await install(path.join(root, 'apps/shell'), 'react', '19.3.1');
     await install(path.join(root, 'apps/cart'), 'react', '18.3.1');
-    await fs.rm(path.join(root, 'apps/catalog/mfe.json'));
+    await fs.rm(path.join(root, 'apps/catalog/mfeflow.app.json'));
     const { code, result } = await run(root, 'doctor');
     expect(codes(result)).toEqual(expect.arrayContaining(['MFEFLOW_E113', 'MFEFLOW_E301']));
     expect(code).toBe(3);
@@ -398,17 +398,17 @@ describe('mfeflow check-compat', () => {
     expect(result.findings[0]?.message).toContain('cart uses react 18.3.1, shell provides 19.3.1');
   });
 
-  it("checks the remote's mfe.json platform ranges", async () => {
+  it("checks the remote's mfeflow.app.json platform ranges", async () => {
     const root = await project();
     await install(path.join(root, 'apps/shell'), '@mfeflow/runtime', '0.3.0');
-    await editJson(path.join(root, 'apps/cart/mfe.json'), (doc) => {
+    await editJson(path.join(root, 'apps/cart/mfeflow.app.json'), (doc) => {
       doc.platform = { '@mfeflow/runtime': '^0.2' };
     });
     const { result } = await run(root, 'check-compat');
     expect(result.findings[0]?.message).toContain(
-      'cart needs @mfeflow/runtime ^0.2 (mfe.json platform) but shell has 0.3.0',
+      'cart needs @mfeflow/runtime ^0.2 (mfeflow.app.json platform) but shell has 0.3.0',
     );
-    await editJson(path.join(root, 'apps/cart/mfe.json'), (doc) => {
+    await editJson(path.join(root, 'apps/cart/mfeflow.app.json'), (doc) => {
       doc.platform = { '@mfeflow/runtime': '^0.3', react: '^19' };
     });
     expect((await run(root, 'check-compat')).result.findings).toEqual([]);
@@ -416,7 +416,7 @@ describe('mfeflow check-compat', () => {
 
   it('compares declared versions when nothing is installed', async () => {
     const root = await project();
-    await editJson(path.join(root, 'apps/cart/mfe.json'), (doc) => {
+    await editJson(path.join(root, 'apps/cart/mfeflow.app.json'), (doc) => {
       doc.platform = { react: '^18' };
     });
     expect(codes((await run(root, 'check-compat')).result)).toEqual(['MFEFLOW_E302']);
@@ -427,7 +427,7 @@ describe('mfeflow check-compat', () => {
     await editJson(path.join(root, 'apps/shell/package.json'), (doc) => {
       (doc.dependencies as Record<string, string>).react = 'workspace:*';
     });
-    await editJson(path.join(root, 'apps/cart/mfe.json'), (doc) => {
+    await editJson(path.join(root, 'apps/cart/mfeflow.app.json'), (doc) => {
       doc.platform = { react: '^18' };
     });
     const { code, result } = await run(root, 'check-compat');
@@ -692,5 +692,61 @@ ${keys}
     await fs.writeFile(path.join(root, 'turbo.json'), '{ nope');
     check = (await run(root, 'doctor')).result.checks.find((c) => c.id === 'env.turbo');
     expect(check?.skipped).toContain('not valid JSON');
+  });
+});
+
+describe('the app file name', () => {
+  const notices = (err: readonly string[]) => err.filter((line) => line.startsWith('Notice:'));
+
+  it('reads mfeflow.app.json, with no notice', async () => {
+    const root = await project();
+    await expect(fs.access(path.join(root, 'apps/cart/mfe.json'))).rejects.toThrow();
+    const rt = testRuntime();
+    expect(await main(['validate', '--cwd', root], rt)).toBe(0);
+    expect(notices(rt.io.err)).toEqual([]);
+  });
+
+  it('still reads the old mfe.json, with one notice per command even when doctor --fix inspects twice', async () => {
+    const root = await project();
+    for (const app of ['cart', 'shell'])
+      await fs.rename(
+        path.join(root, `apps/${app}/mfeflow.app.json`),
+        path.join(root, `apps/${app}/mfe.json`),
+      );
+    await fs.rm(path.join(root, 'registry/envs/dev/cart.json'));
+    const rt = testRuntime();
+    expect(await main(['doctor', '--fix', '--yes', '--json', '--cwd', root], rt)).toBe(0);
+    const result = JSON.parse(rt.io.out.join('')) as ReportResult;
+    expect(result.summary.fixed).toBe(1);
+    expect(codes(result)).not.toContain('MFEFLOW_E113');
+    expect(notices(rt.io.err)).toEqual([
+      'Notice: mfe.json is now mfeflow.app.json. Rename apps/cart/mfe.json, apps/shell/mfe.json; the old name still works for now.',
+    ]);
+  });
+
+  it('points findings at the old file when that is the one in use', async () => {
+    const root = await project();
+    await fs.rename(
+      path.join(root, 'apps/cart/mfeflow.app.json'),
+      path.join(root, 'apps/cart/mfe.json'),
+    );
+    await editJson(path.join(root, 'apps/cart/mfe.json'), (doc) => {
+      doc.name = 'other';
+    });
+    const { result } = await run(root, 'validate');
+    expect(result.findings.find((f) => f.code === 'MFEFLOW_E116')?.path).toBe('apps/cart/mfe.json');
+  });
+
+  it('fails with E122 when an app has both files', async () => {
+    const root = await project();
+    await fs.copyFile(
+      path.join(root, 'apps/cart/mfeflow.app.json'),
+      path.join(root, 'apps/cart/mfe.json'),
+    );
+    const rt = testRuntime();
+    expect(await main(['validate', '--cwd', root], rt)).toBe(3);
+    const text = rt.io.err.join('\n');
+    expect(text).toContain('MFEFLOW_E122 An app has both mfeflow.app.json and the old mfe.json');
+    expect(text).toContain('https://mfeflow.github.io/mfeflow/errors/E122');
   });
 });

@@ -150,4 +150,4 @@ The CLI and the server are versioned together. Upgrade both in the same change w
 | `artifact_missing` (E509)                      | The build files are not at the artifact base URL yet. Upload them, then deploy again. |
 | The server stops at start and names Node 22.13 | Upgrade Node. Before 22.13, `node:sqlite` sits behind a flag.                         |
 
-For the other E5xx codes, see [Error codes](/reference/errors). For the numbers behind the timings above, see [Registry server SLOs](/guide/registry-server-slo).
+For the other E5xx codes, see [Error codes](/reference/errors). For the numbers behind the timings above, see [Registry server SLOs](/guide/deploy/registry-server-slo).

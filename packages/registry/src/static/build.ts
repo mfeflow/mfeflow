@@ -32,7 +32,7 @@ export interface GateFailure {
 export const HISTORY_LIMIT = 10;
 
 export interface DeployInput {
-  /** The remote's `mfe.json`: name, owner, routes, budgets, platform. */
+  /** The remote's `mfeflow.app.json`: name, owner, routes, budgets, platform. */
   remote: MfeManifest;
   version: string;
   /** The remote's built `mf-manifest.json`. */
@@ -170,7 +170,9 @@ function schemaGate(input: DeployInput, remote: RegistryIndexRemote, index: Regi
   ]);
   const named = manifestName(input.manifest);
   if (named !== undefined && named !== input.remote.name)
-    messages.add(`mf-manifest.json is for "${named}" but mfe.json names "${input.remote.name}"`);
+    messages.add(
+      `mf-manifest.json is for "${named}" but mfeflow.app.json names "${input.remote.name}"`,
+    );
   return [...messages].map((message) => gate('schema', message));
 }
 
@@ -210,7 +212,9 @@ function budgetGate(input: DeployInput): Gate[] {
   );
   if (verdict.pass) return [];
   const limit =
-    verdict.source === 'mfe.json' ? 'mfe.json budgets.initialJsKb' : 'the cost model remoteKb';
+    verdict.source === 'mfeflow.app.json'
+      ? 'mfeflow.app.json budgets.initialJsKb'
+      : 'the cost model remoteKb';
   return [
     gate(
       'budget',

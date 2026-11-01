@@ -27,7 +27,7 @@ It starts you from the second row. The generated project has the preset, the sha
 - **A working layout.** One shell and several remotes, a dev server that runs them together, and a registry that tells the shell where each remote lives.
 - **Shared packages that stay single.** React and the mfeflow packages load once. `doctor` fails when versions drift.
 - **Features you add one at a time.** Analytics, telemetry, theming and more arrive as reviewed file changes. See [Add features](/guide/adding-features).
-- **Ownership and budgets.** Each app has an owner in `mfe.json`. A budget check measures JavaScript size.
+- **Ownership and budgets.** Each app has an owner in `mfeflow.app.json`. A budget check measures JavaScript size.
 
 ## Do I need micro-frontends at all?
 
@@ -47,7 +47,7 @@ It does not make a bad split good. If your teams cut the product along the wrong
 
 Some things are not built yet or are out of scope for this release:
 
-- Deploy, promote and rollback commands. They are planned for Phase 05. See [Deploy](/guide/deploying).
+- A registry server with percentage rollouts. It is planned for Phase 05. Deploy, promote and rollback commands for a static host are built. See [Deploy](/guide/deploy/).
 - Frameworks other than React, and server-side rendering.
 - CSS isolation between remotes beyond what the `tailwind` feature gives you.
 - A package manager other than pnpm.
@@ -65,7 +65,7 @@ This table lists what each option gives you out of the box. It does not rate qua
 | Singletons for React and shared packages | You list them             | You list them                       | Preconfigured, checked by `doctor`      |
 | Registry the shell reads at boot         | You design it             | Not part of the tool                | A registry index with a validated shape |
 | Local dev with every app running         | You write scripts         | Per-app scripts                     | `mfeflow dev`                           |
-| Ownership and route checks               | You write them            | Not part of the tool                | `mfe.json`, `validate`                  |
+| Ownership and route checks               | You write them            | Not part of the tool                | `mfeflow.app.json`, `validate`          |
 | Budget check                             | You write it              | Not part of the tool                | `mfeflow budget`                        |
 | Optional features as file changes        | None                      | None                                | 20 features and registries for more     |
 

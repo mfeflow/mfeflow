@@ -105,7 +105,7 @@ An unknown operation is E204. A file that is missing or shaped differently than 
 
 ## migrations
 
-First-party only. Each has `from`, `to` and a `module` path. They are declared so a future upgrade command can read them. They never run for third-party features.
+First-party only. Each has `from`, `to` and a `module` path. `mfeflow upgrade` runs them when an upgrade crosses their version. They never run for third-party features.
 
 ## Example
 

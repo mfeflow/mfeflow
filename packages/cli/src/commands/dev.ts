@@ -224,7 +224,7 @@ export async function runDev(
   const globals = readGlobals(args, rt.io.env, rt.io.cwd);
   const host = rt.dev ?? realDevHost();
   const root = await findProjectRoot(globals.cwd);
-  let view = await inspectProject(root);
+  let view = await inspectProject(root, rt.io);
   const { packageManager } = view.project;
   const known = view.apps.map((a) => a.name);
   const only = splitList(typeof args.only === 'string' ? args.only : undefined);
@@ -327,7 +327,7 @@ export async function runDev(
       if (fromPoll && poll === undefined) return;
       let next: ProjectView;
       try {
-        next = await inspectProject(root);
+        next = await inspectProject(root, rt.io);
       } catch (error) {
         out(`mfeflow: ${messageOf(error)} (keeping what is running)`);
         return;

@@ -83,4 +83,4 @@ The shell asks the server for the index with `?u=<browser id>`. The server hashe
 
 ## Reference
 
-See [Run the registry server](/guide/registry-server-runbook), [Registry server SLOs](/guide/registry-server-slo) and [the server README](https://github.com/mfeflow/mfeflow/tree/main/packages/registry#the-server).
+See [Run the registry server](/guide/deploy/registry-server-runbook), [Registry server SLOs](/guide/deploy/registry-server-slo) and [the server README](https://github.com/mfeflow/mfeflow/tree/main/packages/registry#the-server).

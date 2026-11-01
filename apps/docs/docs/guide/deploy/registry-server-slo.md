@@ -56,4 +56,4 @@ The gate learns from browsers that report. With little traffic it may never reac
 
 ## Related
 
-The steps for kills and recoveries are in [Run the registry server](/guide/registry-server-runbook). To choose between the static registry and the server, see [Deploy](/guide/deploying).
+The steps for kills and recoveries are in [Run the registry server](/guide/deploy/registry-server-runbook). To choose between the static registry and the server, see [Deploy](/guide/deploy/).

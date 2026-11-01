@@ -55,7 +55,7 @@ The same older file records six steps that took one route from +1089 ms to +161 
 
 ## How do I change the limits?
 
-Override any of them in `mfeflow.json`. A remote can also set its own number in `mfe.json`.
+Override any of them in `mfeflow.json`. A remote can also set its own number in `mfeflow.app.json`.
 
 ```json title="mfeflow.json"
 {

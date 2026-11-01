@@ -33,6 +33,7 @@ import {
   runRolloutCommand,
 } from './commands/server-mode';
 import { runStatus, STATUS_ARGS } from './commands/status';
+import { runUpgrade, UPGRADE_ARGS } from './commands/upgrade';
 import { Cancelled, EXIT, exitCodeFor, reportOf, unexpectedReport, unexpectedText } from './exit';
 import { commandHelp, rootHelp, type CommandHelp } from './help';
 import { exitOf, type CliResult, type FailureResult } from './output';
@@ -85,6 +86,20 @@ export const COMMANDS: readonly Command[] = [
     run: runAdd,
   },
   {
+    name: 'upgrade',
+    summary: 'move this project to the version of mfeflow you are running, keeping your edits',
+    usage: 'mfeflow upgrade [options]',
+    args: UPGRADE_ARGS,
+    examples: [
+      'pnpm dlx mfeflow@latest upgrade --dry-run   # print the summary and every diff, write nothing',
+      'pnpm dlx mfeflow@latest upgrade',
+      'mfeflow upgrade --yes --accept all          # take the new version of every file you changed',
+      'mfeflow upgrade --yes --accept env.ts --keep apps/shell/src/pages/Home.tsx',
+      'mfeflow upgrade --json --dry-run',
+    ],
+    run: runUpgrade,
+  },
+  {
     name: 'features',
     summary: 'list and search the features you can add, from mfeflow and your registries',
     usage: 'mfeflow features [search] [options]',
@@ -123,7 +138,8 @@ export const COMMANDS: readonly Command[] = [
   },
   {
     name: 'validate',
-    summary: 'check mfeflow.json, every mfe.json and every registry entry against their schemas',
+    summary:
+      'check mfeflow.json, every mfeflow.app.json and every registry entry against their schemas',
     usage: 'mfeflow validate [options]',
     args: VALIDATE_ARGS,
     examples: ['mfeflow validate', 'mfeflow validate --json'],

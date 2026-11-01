@@ -108,9 +108,11 @@ interface Stored {
 }
 
 /** A bucket in memory behind a fetch: path-style keys, create-only and If-Match writes, listing. */
-function fakeBucket(options: { deny?: boolean } = {}) {
+function fakeBucket(options: { deny?: boolean; pageSize?: number } = {}) {
   const store = new Map<string, Stored>();
   const seen: string[] = [];
+  /** Where each listing request started, so a test can tell how many pages were read. */
+  const pages: number[] = [];
   let counter = 0;
   const impl = (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = new URL(
@@ -132,10 +134,19 @@ function fakeBucket(options: { deny?: boolean } = {}) {
     const key = decodeURIComponent(rest.join('/'));
     if (method === 'GET' && url.searchParams.get('list-type') === '2') {
       const prefix = url.searchParams.get('prefix') ?? '';
-      const keys = [...store.keys()].filter((k) => k.startsWith(prefix));
+      const all = [...store.keys()].filter((k) => k.startsWith(prefix)).toSorted();
+      // S3 answers `pageSize` keys at a time; the token it hands out is where the next page starts.
+      const size = options.pageSize ?? all.length;
+      const start = Number(url.searchParams.get('continuation-token') ?? '0');
+      pages.push(start);
+      const keys = all.slice(start, start + size);
+      const next =
+        start + size < all.length
+          ? `<NextContinuationToken>${String(start + size)}</NextContinuationToken>`
+          : '';
       return Promise.resolve(
         new Response(
-          `<ListBucketResult>${keys.map((k) => `<Key>${k}</Key>`).join('')}</ListBucketResult>`,
+          `<ListBucketResult>${keys.map((k) => `<Key>${k}</Key>`).join('')}${next}</ListBucketResult>`,
         ),
       );
     }
@@ -173,7 +184,7 @@ function fakeBucket(options: { deny?: boolean } = {}) {
         : new Response(hit.body, { headers: meta }),
     );
   };
-  return { store, seen, fetch: impl };
+  return { store, seen, pages, fetch: impl };
 }
 
 const open: Fixture[] = [];
@@ -224,6 +235,27 @@ describe('an S3 host', () => {
     const [prod] = statusOf(status.out).envs;
     expect(prod?.remotes[0]).toMatchObject({ version: '1.0.0', unreferenced: [], drift: [] });
     expect(new Set(bucket.seen)).toEqual(new Set([ENDPOINT]));
+  });
+
+  it('status reads every page of a long listing, so a version on the last page is still found', async () => {
+    const f = await fixture({ configure: true });
+    open.push(f);
+    const bucket = fakeBucket({ pageSize: 2 });
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    await s3Run(f, bucket, ENV, 'deploy', 'catalog', '--env', 'prod');
+    // Three more versions uploaded and never pointed at: their keys fill pages 2 to 5 of the listing.
+    for (const version of ['2.0.0', '3.0.0', '4.0.0']) {
+      await buildRemote(f.root, 'catalog', version);
+      const up = await s3Run(f, bucket, ENV, 'deploy', 'catalog', '--env', 'prod', '--no-publish');
+      expect(up.code).toBe(0);
+    }
+    bucket.pages.length = 0;
+    const status = await s3Run(f, bucket, ENV, 'status', '--env', 'prod');
+    const [prod] = statusOf(status.out).envs;
+    expect(prod?.remotes[0]?.unreferenced).toEqual(['2.0.0', '3.0.0', '4.0.0']);
+    expect(bucket.pages.length).toBeGreaterThan(3);
+    expect(bucket.pages).toEqual(bucket.pages.toSorted((a, b) => a - b));
+    expect(bucket.pages[0]).toBe(0);
   });
 
   it('prints no credential, endpoint or token anywhere, even when the host refuses', async () => {

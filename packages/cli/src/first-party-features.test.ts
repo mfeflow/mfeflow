@@ -60,6 +60,8 @@ describe.each([
   'analytics-clarity',
   'commit-prompt',
   'storybook',
+  'registry-static',
+  'release',
   'registry-server',
 ])('mfeflow add %s', (feature) => {
   it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
@@ -92,6 +94,8 @@ describe.each([
       'env-t3': ['env.ts', '.env.example'],
       testing: ['vitest.config.ts', 'src/test/setup.ts', 'src/exposed/App.test.tsx'],
       'ci-github': [],
+      'registry-static': [],
+      release: [],
       'analytics-gtm': ['src/analytics.ts'],
       'telemetry-otel': ['src/telemetry.ts'],
       'event-bus': ['src/events.ts'],

@@ -47,6 +47,7 @@
         "e2e/matrix/registry.ts",
         "e2e/matrix/ui-checks.ts",
         "bench/time-to-running.ts",
+        "bench/rollback-visible.ts",
         "bench/registry-server.ts"
       ],
       "rules": {

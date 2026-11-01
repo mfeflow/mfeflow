@@ -43,7 +43,7 @@ shellRoutes({ catalog: catalogRoutes, cart: cartRoutes });
 // [{ remote: 'catalog', mount: '/catalog', pattern: '/catalog/*' }, ...]
 ```
 
-Use `pattern` in a router or in `mfe.json` `routes`, `mount` in a hand-written route table.
+Use `pattern` in a router or in `mfeflow.app.json` `routes`, `mount` in a hand-written route table.
 
 ### React
 

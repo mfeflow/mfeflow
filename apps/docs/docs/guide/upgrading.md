@@ -1,11 +1,11 @@
 ---
 title: Versions and upgrades
-description: How mfeflow versions its packages together before 1.0, what counts as a breaking change, how changesets record them, and how to update a project today without an upgrade command.
+description: How mfeflow versions its packages together before 1.0, what counts as a breaking change, how changesets record them, and a tutorial for moving a project to a new version with mfeflow upgrade.
 ---
 
 # Versions and upgrades
 
-This page explains how mfeflow numbers its releases and how to move a project to a new one. There is no `upgrade` command in this release. You update by hand, and this page shows how.
+This page explains how mfeflow numbers its releases and how to move a project to a new one with the `upgrade` command.
 
 ## How are versions numbered?
 
@@ -37,38 +37,100 @@ A change to any of these is a breaking change:
 
 Generated file contents that mfeflow does not migrate are not public API. They can change in a patch.
 
-## How do I update a project?
+## How do I upgrade a project?
 
-Do these steps for each release. Read the changelog first, because a minor release before 1.0 can break things.
+This tutorial moves a project made with an older mfeflow to the version you run. The command never overwrites a file you changed unless you say so. It does not ask npm for a newer version. It upgrades to the version that runs, so `pnpm dlx mfeflow@latest upgrade` is the whole command.
 
-1. Read the changelog for every version between yours and the new one.
-2. Change the `mfeflow` and `@mfeflow/*` ranges in each `package.json` to the new version.
-3. Install and rebuild.
+You need a project with an `mfeflow.json` and a clean working tree, so you can review the result.
 
-The ranges are carets on a 0.x version, so `^0.4.0` accepts 0.4.x only. Move all of them to the same new version:
+1. Read the changelog for every version between yours and the new one. A minor release before 1.0 can break things.
+
+2. See what would change. A dry run prints a summary and every diff, and writes nothing:
+
+   ```bash
+   pnpm dlx mfeflow@latest upgrade --dry-run
+   ```
+
+   You should see the summary first:
+
+   ```text
+   Upgrading 0.1.0 to 0.5.0 (0.1.0 read from package.json)
+
+   Replaced, you had not changed them (20):
+     .github/workflows/ci.yml
+     .gitignore
+     ...
+   Created (1):
+     apps/shell/src/assert.ts
+   Edited in place:
+     package.json: 3 @mfeflow ranges moved to ^0.5.0; scripts added: doctor, validate, check-compat, budget
+     pnpm-workspace.yaml: catalog entries and build rules added
+   Files you changed (1):
+     apps/shell/src/pages/Home.tsx  you edited it; needs a decision
+   ```
+
+   The diffs follow. The last group is the one to read.
+
+3. Decide about each file you changed. Take the new version with `--accept`, or keep yours with `--keep`. Both take a path, a comma list, or `all`:
+
+   ```bash
+   pnpm dlx mfeflow@latest upgrade --keep apps/shell/src/pages/Home.tsx
+   ```
+
+   In a terminal it asks once before it writes. You should see:
+
+   ```text
+   Upgraded to 0.5.0.
+   ```
+
+4. Run it again to check. A kept file stays quiet until the new version of that file changes:
+
+   ```bash
+   pnpm dlx mfeflow@latest upgrade
+   ```
+
+   You should see:
+
+   ```text
+   /work/shopco is already at 0.5.0; nothing to write.
+   ```
+
+5. Run the checks to find drift between the apps:
+
+   ```bash
+   pnpm mfeflow doctor
+   ```
+
+   You should see `0 error(s)` at the end.
+
+## What happens when I skip step 3?
+
+In CI or a script there is nobody to ask. A file you changed and did not decide on stops the run before anything is written:
 
 ```bash
-pnpm install
-pnpm build
+pnpm dlx mfeflow@latest upgrade --yes
 ```
 
-Then run the checks to find drift between the apps:
+You should see an error, and the exit code is 8:
 
-```bash
-pnpm mfeflow doctor
+```text
+MFEFLOW_E604 Files you changed need a decision: 1 not decided: apps/shell/src/pages/Home.tsx
 ```
 
-You should see `0 error(s)` at the end. Fix what the doctor reports before you merge.
+Add `--accept` or `--keep` and run it again. `--yes` does not skip this: it only stops the questions. A `--dry-run` never fails this way, and exits 0 even when files wait for a decision. The [error page](/errors/E604) has the details.
 
-## What about files the generator wrote?
+## What does the upgrade touch?
 
-New releases can change what `create-mfeflow` writes. Your project does not change on its own. Compare a fresh project from the new version with yours when the changelog says a generated file changed.
+- A generated file you did not edit is replaced. A new file is created.
+- `package.json`, `pnpm-workspace.yaml` and `turbo.json` only get small edits. The `@mfeflow/*` ranges move, and new scripts, dependencies and tasks are added.
+- Files the new version no longer makes, and files you deleted, are listed. They are never deleted and never brought back.
+- A file that `add env-key` added keys to is replaced only if every key in it is still in the new version. Otherwise it is listed with your keys. Accepting it drops them, so add them back with `mfeflow add env-key`.
+- A symlink is reported and never written over, even with `--accept all`. It needs no decision and never blocks a run.
+- A file you edited is offered only when the new version generates something different from the old one.
+- A feature from a registry is applied only after you confirm, or with `--yes` when there is no terminal. If the registry now serves other bytes for the same version, the run stops with E406 until you pass `--accept-changed-content`.
+- Files are written all or nothing, and the install runs in the same step. If it fails, every file is put back.
 
-`mfeflow.json` records a hash for each file that was copied. When you edit one, `doctor` shows a warning (E117). Nothing is wrong. The hash is there so a later upgrade command can tell your edits from untouched files.
-
-## Is there an upgrade command?
-
-Not yet. A `mfeflow upgrade` command, with a diff before it touches anything, is planned for a later phase. The documentation will describe it when it exists.
+`mfeflow.json` records a hash for each copied file, and a `kept` entry for each file you kept. The flags are in the [CLI reference](/reference/cli#upgrade).
 
 ## How are releases made?
 

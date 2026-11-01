@@ -78,15 +78,32 @@ export function positionals(args: Record<string, unknown>, max: number, usage: s
   return given;
 }
 
+/**
+ * `registry.host` or `registry.baseUrl` from mfeflow.json; failing that, the option of the same name
+ * the `registry-static` feature was added with. A flag still wins over both. `source` names where the
+ * value came from, for error messages.
+ */
+function configured(
+  view: ProjectView,
+  key: 'host' | 'baseUrl',
+): { value: string; source: string } | undefined {
+  const own = view.project.registry?.[key];
+  if (own !== undefined) return { value: own, source: `registry.${key}` };
+  const option = view.project.features['registry-static']?.options?.[key];
+  return typeof option === 'string' && option !== ''
+    ? { value: option, source: `registry-static option ${key}` }
+    : undefined;
+}
+
 export async function openSession(
   rt: Runtime,
   args: Record<string, unknown>,
   raw: Globals = readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive),
   options: { hostOptional?: boolean } = {},
 ): Promise<Session> {
-  const view = await inspectProject(await findProjectRoot(raw.cwd));
+  const view = await inspectProject(await findProjectRoot(raw.cwd), rt.io);
   const flag = text(args, 'host');
-  const spec = flag ?? view.project.registry?.host;
+  const spec = flag ?? configured(view, 'host')?.value;
   if (spec === undefined && options.hostOptional !== true)
     throw new MfeflowError('E506', 'no host: pass --host or set registry.host in mfeflow.json');
   const parsed =
@@ -105,12 +122,10 @@ export async function openSession(
     throw hostFailure(error, secrets);
   }
   const flagUrl = text(args, 'base-url');
-  const baseUrl =
-    flagUrl === undefined
-      ? view.project.registry?.baseUrl === undefined
-        ? undefined
-        : normalizeBaseUrl(view.project.registry.baseUrl, 'registry.baseUrl')
-      : normalizeBaseUrl(flagUrl, '--base-url');
+  const fileUrl = configured(view, 'baseUrl');
+  let baseUrl: string | undefined;
+  if (flagUrl !== undefined) baseUrl = normalizeBaseUrl(flagUrl, '--base-url');
+  else if (fileUrl !== undefined) baseUrl = normalizeBaseUrl(fileUrl.value, fileUrl.source);
   return {
     rt,
     globals: raw,
@@ -178,8 +193,7 @@ export function remoteApp(view: ProjectView, name: string | undefined): AppView 
       'E107',
       `"${name}" is not a remote of this project (remotes: ${remotes.map((a) => a.name).join(', ')})`,
     );
-  if (app.mfe.state !== 'ok')
-    throw new MfeflowError('E113', `${app.rel}/mfe.json is ${app.mfe.state}`);
+  if (app.mfe.state !== 'ok') throw new MfeflowError('E113', `${app.appFile} is ${app.mfe.state}`);
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed on the line above
   return app as AppView & { mfe: MfeOk };
 }
