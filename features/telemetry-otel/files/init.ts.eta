@@ -2,7 +2,10 @@ import { initTelemetry } from '@mfeflow/telemetry';
 import { fetchRuntimeConfig } from '@mfeflow/runtime';
 
 // The shell's rsbuild preset replaces this with the version in package.json at build time.
+// oxlint-disable-next-line no-underscore-dangle -- the name the preset defines
 declare const __MFEFLOW_APP_VERSION__: string | undefined;
+// oxlint-disable-next-line no-underscore-dangle -- as above
+const APP_VERSION = typeof __MFEFLOW_APP_VERSION__ === 'string' ? __MFEFLOW_APP_VERSION__ : 'unknown';
 
 const strings = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
@@ -26,7 +29,7 @@ export async function startTelemetry(): Promise<void> {
         const { createOtelProvider } = await import('@mfeflow/telemetry/otel');
         return createOtelProvider({
           serviceName: '<%= it.app.name %>',
-          version: typeof __MFEFLOW_APP_VERSION__ === 'string' ? __MFEFLOW_APP_VERSION__ : 'unknown',
+          version: APP_VERSION,
           environment: typeof environment === 'string' ? environment : 'unknown',
           otlpEndpoint,
           sampleRatio: typeof traceSampleRatio === 'number' ? traceSampleRatio : undefined,
