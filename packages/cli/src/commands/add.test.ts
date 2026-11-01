@@ -6,6 +6,9 @@ import type { FetchLike } from '@mfeflow/core';
 import { inCatalogueOrder } from './add';
 import { main, validateResult, type AddResult } from '..';
 import { REPO, readTree, removeDir, scriptedPrompter, tempDir, testRuntime } from '../testing';
+import { readPackageJson } from '../version';
+
+const CLI_VERSION = readPackageJson().version;
 
 let cwd = '';
 let project = '';
@@ -502,7 +505,7 @@ describe('a project linked with --local', () => {
     );
     expect(code).toBe(0);
     expect(await dependenciesOf('checkout')).toContain('"@mfeflow/rsbuild": "link:');
-    expect(await dependenciesOf('checkout')).not.toContain('^0.0.0');
+    expect(await dependenciesOf('checkout')).not.toContain(`^${CLI_VERSION}`);
   });
 
   it('keeps linking for a feature added without the flag', async () => {
@@ -511,7 +514,7 @@ describe('a project linked with --local', () => {
       testRuntime(),
     );
     expect(code).toBe(0);
-    expect(await dependenciesOf('shell')).not.toContain('^0.0.0');
+    expect(await dependenciesOf('shell')).not.toContain(`^${CLI_VERSION}`);
   });
 
   it('goes back to the published packages with --local none', async () => {
@@ -520,7 +523,7 @@ describe('a project linked with --local', () => {
       testRuntime(),
     );
     expect(code).toBe(0);
-    expect(await dependenciesOf('checkout')).toContain('"@mfeflow/rsbuild": "^0.0.0"');
+    expect(await dependenciesOf('checkout')).toContain(`"@mfeflow/rsbuild": "^${CLI_VERSION}"`);
     const recorded = parseProject(
       await fs.readFile(path.join(linkedDir(), 'mfeflow.json'), 'utf8'),
     );
@@ -529,7 +532,9 @@ describe('a project linked with --local', () => {
 
   it('does not link a project that was not created with --local, unless asked', async () => {
     expect(await add(['remote', 'checkout', '--no-install']).then((r) => r.code)).toBe(0);
-    expect(await read('apps/checkout/package.json')).toContain('"@mfeflow/rsbuild": "^0.0.0"');
+    expect(await read('apps/checkout/package.json')).toContain(
+      `"@mfeflow/rsbuild": "^${CLI_VERSION}"`,
+    );
     expect(await load()).not.toHaveProperty('local');
   });
 });

@@ -8,6 +8,9 @@ import { main, validateResult, type InitResult } from '..';
 import { REPO, readTree, removeDir, scriptedPrompter, tempDir, testRuntime } from '../testing';
 import { isolatedEnv } from '../system';
 import { assertEmpty, scopeFor } from './init';
+import { readPackageJson } from '../version';
+
+const CLI_VERSION = readPackageJson().version;
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -454,7 +457,7 @@ describe('mfeflow init', () => {
     const cwd = await workspace();
     await main(['init', 'app', '--yes', '--no-install', '--cwd', cwd], testRuntime());
     const shell = await fs.readFile(path.join(cwd, 'app', 'apps/shell/package.json'), 'utf8');
-    expect(shell).toContain('"@mfeflow/runtime": "^0.0.0"');
+    expect(shell).toContain(`"@mfeflow/runtime": "^${CLI_VERSION}"`);
   });
 
   it('reads MFEFLOW_LOCAL as --local', async () => {
