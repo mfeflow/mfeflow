@@ -13,7 +13,7 @@ The JSON Schema is published at `https://mfeflow.github.io/mfeflow/schema/mfeflo
 
 ## Example
 
-```json title="apps/checkout/mfe.json"
+```json title="apps/checkout/mfeflow.app.json"
 {
   "name": "checkout",
   "owner": "team-payments",
