@@ -97,7 +97,7 @@ export async function buildRegistry(dir: string, ops: FsOps = realFs): Promise<R
   const namespaces = new Set(found.map((f) => f.namespace));
   if (namespaces.size > 1) {
     problems.push(
-      `one registry serves one namespace, but this folder has ${[...namespaces].toSorted().join(', ')}`,
+      `one registry serves one namespace, but this folder has ${[...namespaces].toSorted((a, b) => a.localeCompare(b)).join(', ')}`,
     );
   }
   const names = new Map<string, string>();

@@ -54,7 +54,9 @@ async function newProject(name: string): Promise<string> {
 
 describe('a third-party registry, end to end', () => {
   it('builds a folder any static host can serve', async () => {
-    const files = (await fs.readdir(site, { recursive: true })).toSorted();
+    const files = (await fs.readdir(site, { recursive: true }))
+      .map((f) => f.replaceAll(path.sep, '/'))
+      .toSorted();
     expect(files).toEqual([
       'hello',
       'hello.json',

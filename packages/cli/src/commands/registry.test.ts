@@ -235,7 +235,9 @@ describe('mfeflow registry build', () => {
     expect(code).toBe(0);
     expect(out).toContain('Built 1 feature(s) for @test');
     expect(out).toContain('mfeflow registry add @test https://<your-host>/{name}.json');
-    const written = (await fs.readdir(path.join(dir, 'dist'), { recursive: true })).toSorted();
+    const written = (await fs.readdir(path.join(dir, 'dist'), { recursive: true }))
+      .map((f) => f.replaceAll(path.sep, '/'))
+      .toSorted();
     expect(written).toEqual([
       'hello',
       'hello.json',
