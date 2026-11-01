@@ -3,8 +3,8 @@ import { DEFAULT_GATE, evaluateGate } from './gate';
 
 const gate = (candidate: [number, number], stable: [number, number]) =>
   evaluateGate(
-    { loads: candidate[0], errors: candidate[1] },
-    { loads: stable[0], errors: stable[1] },
+    { loads: candidate[0], errors: candidate[1], clients: candidate[0] },
+    { loads: stable[0], errors: stable[1], clients: stable[0] },
     DEFAULT_GATE,
   );
 
@@ -20,7 +20,7 @@ describe('evaluateGate', () => {
 
   it('passes a candidate with no errors', () => {
     expect(gate([500, 0], [5000, 50]).verdict).toBe('ok');
-    expect(gate([500, 0], [0, 0]).verdict).toBe('ok');
+    expect(gate([500, 0], [50, 0]).verdict).toBe('ok');
   });
 
   it('passes equal rates and a candidate better than stable', () => {
@@ -52,11 +52,23 @@ describe('evaluateGate', () => {
     expect(gate([400, 24], [4000, 120]).verdict).toBe('ok');
   });
 
+  it('waits for enough distinct clients on each side, however many loads and errors', () => {
+    const few = { loads: 1000, errors: 1000, clients: 49 };
+    const many = { loads: 1000, errors: 10, clients: 1000 };
+    expect(evaluateGate(few, many, DEFAULT_GATE).verdict).toBe('wait');
+    expect(evaluateGate(many, { ...few, errors: 0 }, DEFAULT_GATE).verdict).toBe('wait');
+    expect(evaluateGate({ ...few, clients: 50 }, many, DEFAULT_GATE).verdict).toBe('halt');
+  });
+
+  it('waits when stable has no reports at all', () => {
+    expect(gate([500, 500], [0, 0]).verdict).toBe('wait');
+  });
+
   it('honours custom settings', () => {
     const verdict = evaluateGate(
-      { loads: 50, errors: 5 },
-      { loads: 1000, errors: 10 },
-      { minLoads: 50, factor: 3, floor: 0.01 },
+      { loads: 50, errors: 5, clients: 50 },
+      { loads: 1000, errors: 10, clients: 1000 },
+      { minLoads: 50, minClients: 50, factor: 3, floor: 0.01 },
     );
     expect(verdict.verdict).toBe('halt');
   });

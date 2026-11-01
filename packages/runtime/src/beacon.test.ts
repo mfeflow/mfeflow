@@ -14,6 +14,7 @@ const {
   CLIENT_ID_KEY,
   createBeaconReporter,
   registrySourcesWithBeacon,
+  resetRegistryBeaconForTests,
   startRegistryBeacon,
   withClientId,
 } = await import('./beacon');
@@ -50,9 +51,11 @@ const fail = (mfe: string, version?: string): void => {
 beforeEach(() => {
   localStorage.clear();
   registerPlugins.mockClear();
+  resetRegistryBeaconForTests();
 });
 
 afterEach(() => {
+  resetRegistryBeaconForTests();
   resetRuntimeConfigForTests();
   vi.restoreAllMocks();
 });
@@ -97,12 +100,28 @@ describe('client id', () => {
     });
     expect(clientId()).toBe(clientId());
   });
+
+  it('makes ids with getRandomValues, which needs no secure origin', () => {
+    const random = vi.spyOn(crypto, 'getRandomValues');
+    const secure = vi.spyOn(crypto, 'randomUUID');
+    const id = clientId();
+    expect(id).toMatch(/^[0-9a-f]{32}$/);
+    expect(random).toHaveBeenCalled();
+    expect(secure).not.toHaveBeenCalled();
+  });
+});
+
+const entry = (remote: string, version: string, errors = 0) => ({
+  remote,
+  version,
+  loads: 1,
+  errors,
 });
 
 describe('createBeaconReporter', () => {
-  it('batches a page into one request per remote@version, sent on pagehide', () => {
+  it('sends a whole page as one request, on pagehide', () => {
     const { sent, send } = collector();
-    const reporter = createBeaconReporter(TARGET, send);
+    const reporter = createBeaconReporter(TARGET, send, 'client-a');
     reporter.load('cart', '2.0.0');
     reporter.load('cart', '2.0.0');
     reporter.load('catalog', '1.0.0');
@@ -111,34 +130,43 @@ describe('createBeaconReporter', () => {
     expect(sent).toEqual([
       {
         url: TARGET.url,
-        body: { env: 'prod', remote: 'cart', version: '2.0.0', loads: 1, errors: 0 },
-      },
-      {
-        url: TARGET.url,
-        body: { env: 'prod', remote: 'catalog', version: '1.0.0', loads: 1, errors: 0 },
+        body: {
+          env: 'prod',
+          u: 'client-a',
+          entries: [entry('cart', '2.0.0'), entry('catalog', '1.0.0')],
+        },
       },
     ]);
+    reporter.stop();
+  });
+
+  it('uses the stored client id by default, the one sent as u on the index', () => {
+    const { sent, send } = collector();
+    const reporter = createBeaconReporter(TARGET, send);
+    reporter.load('cart', '1.0.0');
+    reporter.flush();
+    expect(sent[0]?.body).toMatchObject({ u: clientId() });
     reporter.stop();
   });
 
   it('counts a remote error once, as a load that failed', () => {
     const { sent, send } = collector();
-    const reporter = createBeaconReporter(TARGET, send);
+    const reporter = createBeaconReporter(TARGET, send, 'c');
     reporter.load('cart', '2.0.0');
     fail('cart', '2.0.0');
     fail('cart', '2.0.0');
     fail('shop', '3.0.0');
     reporter.flush();
-    expect(sent.map((s) => s.body)).toEqual([
-      { env: 'prod', remote: 'cart', version: '2.0.0', loads: 1, errors: 1 },
-      { env: 'prod', remote: 'shop', version: '3.0.0', loads: 1, errors: 1 },
-    ]);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.body).toMatchObject({
+      entries: [entry('cart', '2.0.0', 1), entry('shop', '3.0.0', 1)],
+    });
     reporter.stop();
   });
 
   it('ignores errors that name no version, since the server cannot place them', () => {
     const { sent, send } = collector();
-    const reporter = createBeaconReporter(TARGET, send);
+    const reporter = createBeaconReporter(TARGET, send, 'c');
     fail('cart');
     reporter.flush();
     expect(sent).toEqual([]);
@@ -147,7 +175,7 @@ describe('createBeaconReporter', () => {
 
   it('sends when the page is hidden, not when it is shown, and only once', () => {
     const { sent, send } = collector();
-    const reporter = createBeaconReporter(TARGET, send);
+    const reporter = createBeaconReporter(TARGET, send, 'c');
     reporter.load('cart', '1.0.0');
     const state = vi.spyOn(document, 'visibilityState', 'get');
     state.mockReturnValue('visible');
@@ -160,18 +188,41 @@ describe('createBeaconReporter', () => {
     reporter.stop();
   });
 
-  it('caps what one page sends', () => {
+  it('does not report a load again after a flush, but sends a later error', () => {
     const { sent, send } = collector();
-    const reporter = createBeaconReporter(TARGET, send);
+    const reporter = createBeaconReporter(TARGET, send, 'c');
+    reporter.load('cart', '1.0.0');
+    reporter.flush();
+    reporter.load('cart', '1.0.0');
+    reporter.load('shop', '1.0.0');
+    reporter.flush();
+    expect(sent.map((s) => s.body)).toMatchObject([
+      { entries: [entry('cart', '1.0.0')] },
+      { entries: [entry('shop', '1.0.0')] },
+    ]);
+    fail('cart', '1.0.0');
+    reporter.flush();
+    fail('cart', '1.0.0');
+    reporter.load('cart', '1.0.0');
+    reporter.flush();
+    expect(sent).toHaveLength(3);
+    expect(sent[2]?.body).toMatchObject({ entries: [entry('cart', '1.0.0', 1)] });
+    reporter.stop();
+  });
+
+  it('caps what one page sends at 20 entries in one request', () => {
+    const { sent, send } = collector();
+    const reporter = createBeaconReporter(TARGET, send, 'c');
     for (let i = 0; i < 50; i += 1) reporter.load(`remote${String(i)}`, '1.0.0');
     reporter.flush();
-    expect(sent).toHaveLength(20);
+    expect(sent).toHaveLength(1);
+    expect(JSON.stringify(sent[0]?.body).match(/"remote"/g)).toHaveLength(20);
     reporter.stop();
   });
 
   it('stops listening after stop()', () => {
     const { sent, send } = collector();
-    const reporter = createBeaconReporter(TARGET, send);
+    const reporter = createBeaconReporter(TARGET, send, 'c');
     reporter.stop();
     fail('cart', '1.0.0');
     window.dispatchEvent(new Event('pagehide'));
@@ -203,10 +254,17 @@ describe('startRegistryBeacon', () => {
     plugins[0]?.onLoad({ id: 'cart/App' });
     plugins[0]?.onLoad({ id: 'unknown/App' });
     reporter?.flush();
-    expect(sent.map((s) => s.body)).toEqual([
-      { env: 'prod', remote: 'cart', version: '2.0.0', loads: 1, errors: 0 },
+    expect(sent.map((s) => s.body)).toMatchObject([
+      { env: 'prod', u: clientId(), entries: [entry('cart', '2.0.0')] },
     ]);
-    reporter?.stop();
+  });
+
+  it('registers the plugin once, however often it is started', () => {
+    const config = { registryBeacon: true };
+    const first = startRegistryBeacon(config, [SERVER]);
+    const second = startRegistryBeacon(config, [SERVER]);
+    expect(second).toBe(first);
+    expect(registerPlugins).toHaveBeenCalledTimes(1);
   });
 });
 

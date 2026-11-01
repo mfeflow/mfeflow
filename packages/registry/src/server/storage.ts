@@ -55,9 +55,11 @@ export interface RolloutRecord {
   updatedAt: string;
 }
 
+/** What one side of a rollout reported. Each browser counts once, so `loads` and `clients` match. */
 export interface VersionCounts {
   loads: number;
   errors: number;
+  clients: number;
 }
 
 export interface EnvState {
@@ -135,8 +137,17 @@ export interface RegistryStorage {
   getVersion(env: string, remote: string, version: string): Promise<VersionRecord | undefined>;
   /** Active rollouts in one env. */
   listRollouts(env: string): Promise<RolloutRecord[]>;
-  /** Adds browser counts to a rollout's version; ignored when that rollout has ended. */
-  addRolloutCounts(rolloutId: string, version: string, counts: VersionCounts): Promise<void>;
+  /**
+   * Records that one browser loaded this version in this rollout, and whether it hit an error.
+   * A browser counts one load and at most one error per version, however often it reports.
+   * Ignored when the rollout has ended.
+   */
+  addRolloutReport(
+    rolloutId: string,
+    version: string,
+    client: string,
+    errored: boolean,
+  ): Promise<void>;
   rolloutCounts(rolloutId: string): Promise<Record<string, VersionCounts>>;
   /** Applies the change, its versions and its audit entry in one transaction, or throws `RevisionConflictError`. */
   commit(change: EnvChange): Promise<void>;

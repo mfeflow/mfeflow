@@ -902,6 +902,35 @@ describe('static fallback', () => {
     await second.close();
   });
 
+  it('warns when bound beyond loopback without trusting a proxy', async () => {
+    const start = async (bind: string, trustProxy: boolean): Promise<string[]> => {
+      const logs: string[] = [];
+      const server = await startRegistryServer({
+        config: {
+          port: 0,
+          bind,
+          dbPath: ':memory:',
+          fallbackHost: undefined,
+          artifactBaseUrl: undefined,
+          corsOrigins: [],
+          maxBodyBytes: 1024,
+          gate: DEFAULT_GATE,
+          beaconLimit: { burst: 10, perMinute: 10 },
+          trustProxy,
+        },
+        storage: await openSqliteStorage(':memory:'),
+        log: (level, message) => logs.push(`${level} ${message}`),
+      });
+      await server.close();
+      return logs.filter((l) => l.includes('MFEFLOW_REGISTRY_TRUST_PROXY'));
+    };
+    expect(await start('127.0.0.1', false)).toEqual([]);
+    expect(await start('0.0.0.0', true)).toEqual([]);
+    const warned = await start('0.0.0.0', false);
+    expect(warned).toHaveLength(1);
+    expect(warned[0]).toContain('warn');
+  });
+
   it('warns once at start when no fallback host is set', async () => {
     const logs: string[] = [];
     const bare = await startRegistryServer({

@@ -37,8 +37,31 @@ const servedFor = async (u?: string): Promise<string | undefined> => {
   return res.body.remotes[0]?.version;
 };
 
-const beacon = (version: string, loads: number, errors: number, remote = 'cart') =>
-  h.call('POST', '/v1/beacon', { body: { env: 'prod', remote, version, loads, errors } });
+const report = (version: string, loads = 1, errors = 0, remote = 'cart') => ({
+  remote,
+  version,
+  loads,
+  errors,
+});
+
+const beaconBody = (u: string, entries: unknown[]) => ({ env: 'prod', u, entries });
+
+const beacon = (version: string, loads: number, errors: number, remote = 'cart', u = 'client-1') =>
+  h.call('POST', '/v1/beacon', { body: beaconBody(u, [report(version, loads, errors, remote)]) });
+
+/** Distinct browsers reporting one version, the first `errors` of them with an error. */
+async function feed(version: string, clients: number, errors: number, prefix: string) {
+  for (let i = 0; i < clients; i += 1)
+    // oxlint-disable-next-line no-await-in-loop -- sequential on purpose
+    await h.server.service.beacon(
+      beaconBody(`${prefix}-${String(i)}`, [report(version, 1, i < errors ? 1 : 0)]),
+    );
+}
+
+const countsOf = async () => {
+  const [rollout] = await h.server.storage.listRollouts('prod');
+  return h.server.storage.rolloutCounts(rollout?.id ?? '');
+};
 
 const actions = async (): Promise<string[]> =>
   (await h.call('GET', '/v1/audit?env=prod', { token: admin })).body.entries.map((e) => e.action);
@@ -194,6 +217,38 @@ describe('rollout step, complete and abort', () => {
     expect((await call('complete')).body.error.code).toBe('no_rollout');
   });
 
+  it('refuses to complete into a route another remote took meanwhile, and keeps the rollout', async () => {
+    await h.deploy(admin, 'cart', '1.0.0');
+    seedVersion(h.artifacts, 'cart', '2.0.0');
+    const started = await h.call('POST', '/v1/deploy', {
+      token: admin,
+      body: { ...deployBody('2.0.0', { percent: 10 }), routes: ['/cart', '/extra'] },
+    });
+    expect(started.status).toBe(200);
+    seedVersion(h.artifacts, 'shop', '1.0.0');
+    const shop = await h.call('POST', '/v1/deploy', {
+      token: admin,
+      body: {
+        env: 'prod',
+        remote: 'shop',
+        version: '1.0.0',
+        owner: 'team-shop',
+        routes: ['/extra'],
+        manifestUrl: `${BASE_URL}/${artifactPrefix('shop', '1.0.0')}/mf-manifest.json`,
+        budgets: { initialJsKb: 8 },
+      },
+    });
+    expect(shop.status).toBe(200);
+    const res = await call('complete');
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('route_overlap');
+    expect(res.body.error.message).toContain('/extra');
+    expect(await h.server.storage.listRollouts('prod')).toHaveLength(1);
+    expect(await servedFor()).toBe('1.0.0');
+    expect(await actions()).not.toContain('rollout.complete');
+    expect((await call('abort')).status).toBe(200);
+  });
+
   it('abort puts everyone back on stable and records why', async () => {
     await startRollout({ percent: 99 });
     const res = await h.call('POST', '/v1/rollout/abort', {
@@ -265,11 +320,10 @@ describe('rollout step, complete and abort', () => {
 describe('the gate', () => {
   it('halts a candidate that errors at 10% against stable at 1%, end to end', async () => {
     await startRollout({ percent: 10, steps: [50, 100] });
-    expect((await beacon('1.0.0', 1000, 10)).status).toBe(202);
-    expect((await beacon('1.0.0', 1000, 10)).status).toBe(202);
-    expect((await beacon('2.0.0', 100, 10)).status).toBe(202);
+    await feed('1.0.0', 1000, 10, 's');
+    await feed('2.0.0', 199, 20, 'c');
     expect(await h.server.storage.listRollouts('prod')).toHaveLength(1);
-    expect((await beacon('2.0.0', 100, 10)).status).toBe(202);
+    expect((await beacon('2.0.0', 1, 0, 'cart', 'c-last')).status).toBe(202);
 
     expect(await h.server.storage.listRollouts('prod')).toEqual([]);
     for (let i = 0; i < 50; i += 1)
@@ -287,8 +341,8 @@ describe('the gate', () => {
     expect(entry?.detail).toMatchObject({
       gate: 'error-rate',
       candidate: '2.0.0',
-      candidateCounts: { loads: 200, errors: 20 },
-      stableCounts: { loads: 2000, errors: 20 },
+      candidateCounts: { loads: 200, errors: 20, clients: 200 },
+      stableCounts: { loads: 1000, errors: 10, clients: 1000 },
     });
     expect(String(entry?.detail.reason)).toContain('10.0%');
     expect(String(entry?.detail.reason)).toContain('1.0%');
@@ -296,33 +350,63 @@ describe('the gate', () => {
 
   it('leaves a healthy candidate alone', async () => {
     await startRollout();
-    await beacon('1.0.0', 1000, 10);
-    await beacon('2.0.0', 500, 5);
-    await beacon('2.0.0', 500, 8);
+    await feed('1.0.0', 500, 5, 's');
+    await feed('2.0.0', 300, 3, 'c');
     expect(await h.server.storage.listRollouts('prod')).toHaveLength(1);
     expect(await actions()).not.toContain('rollout.halt');
   });
 
   it('waits for the minimum sample, however bad the first reports are', async () => {
     await startRollout();
-    await beacon('1.0.0', 1000, 0);
-    await beacon('2.0.0', 150, 150);
+    await feed('1.0.0', 500, 0, 's');
+    await feed('2.0.0', 150, 150, 'c');
     expect(await h.server.storage.listRollouts('prod')).toHaveLength(1);
+  });
+
+  it('waits for enough distinct clients on each side', async () => {
+    await h.stop();
+    h = await startHarness({ gate: { minLoads: 10, minClients: 50, factor: 2, floor: 0.02 } });
+    admin = await h.admin();
+    seedShell(h.artifacts, 'prod');
+    await startRollout();
+    await feed('1.0.0', 100, 0, 's');
+    await feed('2.0.0', 49, 49, 'c');
+    expect(await h.server.storage.listRollouts('prod')).toHaveLength(1);
+    await feed('2.0.0', 1, 1, 'd');
+    expect(await h.server.storage.listRollouts('prod')).toEqual([]);
+  });
+
+  it('waits when stable has too few clients', async () => {
+    await startRollout();
+    await feed('1.0.0', 49, 0, 's');
+    await feed('2.0.0', 300, 300, 'c');
+    expect(await h.server.storage.listRollouts('prod')).toHaveLength(1);
+  });
+
+  it('cannot be steered by one browser sending the same report over and over', async () => {
+    await startRollout();
+    await feed('1.0.0', 500, 0, 's');
+    for (let i = 0; i < 300; i += 1)
+      // oxlint-disable-next-line no-await-in-loop -- sequential on purpose
+      await h.server.service.beacon(beaconBody('forger', [report('2.0.0', 1, 1)]));
+    expect(await h.server.storage.listRollouts('prod')).toHaveLength(1);
+    expect((await countsOf())['2.0.0']).toEqual({ loads: 1, errors: 1, clients: 1 });
   });
 
   it('uses the settings it was given', async () => {
     await h.stop();
-    h = await startHarness({ gate: { minLoads: 10, factor: 1.5, floor: 0.1 } });
+    h = await startHarness({ gate: { minLoads: 10, minClients: 5, factor: 1.5, floor: 0.1 } });
     admin = await h.admin();
     seedShell(h.artifacts, 'prod');
     await startRollout();
-    await beacon('2.0.0', 10, 4);
+    await feed('1.0.0', 10, 0, 's');
+    await feed('2.0.0', 10, 4, 'c');
     expect(await h.server.storage.listRollouts('prod')).toEqual([]);
   });
 
-  it('counts a stable that started the rollout, not older traffic', async () => {
+  it('counts only reports made during this rollout', async () => {
     await startRollout();
-    await beacon('1.0.0', 1000, 0);
+    await beacon('1.0.0', 1, 0);
     await h.call('POST', '/v1/rollout/abort', {
       token: admin,
       body: { env: 'prod', remote: 'cart' },
@@ -331,63 +415,110 @@ describe('the gate', () => {
       token: admin,
       body: deployBody('2.0.0', { percent: 10 }),
     });
-    const [rollout] = await h.server.storage.listRollouts('prod');
-    expect(await h.server.storage.rolloutCounts(rollout?.id ?? '')).toEqual({});
+    expect(await countsOf()).toEqual({});
   });
 });
 
 describe('POST /v1/beacon', () => {
   it('needs no token and ignores reports for nothing that is rolling out', async () => {
-    expect((await beacon('1.0.0', 5, 0)).status).toBe(202);
+    expect((await beacon('1.0.0', 1, 0)).status).toBe(202);
     await startRollout();
-    expect((await beacon('9.9.9', 5, 5)).status).toBe(202);
-    expect((await beacon('2.0.0', 5, 5, 'shop')).status).toBe(202);
+    expect((await beacon('9.9.9', 1, 1)).status).toBe(202);
+    expect((await beacon('2.0.0', 1, 1, 'shop')).status).toBe(202);
     expect((await beacon('2.0.0', 0, 0)).status).toBe(202);
-    const [rollout] = await h.server.storage.listRollouts('prod');
-    expect(await h.server.storage.rolloutCounts(rollout?.id ?? '')).toEqual({});
-    expect((await beacon('2.0.0', 5, 1)).status).toBe(202);
-    expect(await h.server.storage.rolloutCounts(rollout?.id ?? '')).toEqual({
-      '2.0.0': { loads: 5, errors: 1 },
+    expect(await countsOf()).toEqual({});
+    expect((await beacon('2.0.0', 1, 1)).status).toBe(202);
+    expect(await countsOf()).toEqual({ '2.0.0': { loads: 1, errors: 1, clients: 1 } });
+  });
+
+  it('takes a whole page in one request and counts each browser once per side', async () => {
+    await startRollout();
+    const page = (u: string, errors: number) =>
+      h.call('POST', '/v1/beacon', {
+        body: beaconBody(u, [
+          report('2.0.0', 1, errors),
+          report('1.0.0', 1, 0, 'cart'),
+          report('1.0.0', 1, 0, 'shop'),
+        ]),
+      });
+    expect((await page('a', 0)).status).toBe(202);
+    expect((await page('a', 0)).status).toBe(202);
+    expect((await page('a', 1)).status).toBe(202);
+    expect((await page('b', 0)).status).toBe(202);
+    expect(await countsOf()).toEqual({
+      '2.0.0': { loads: 2, errors: 1, clients: 2 },
+      '1.0.0': { loads: 2, errors: 0, clients: 2 },
     });
   });
 
   it('accepts a text/plain body, which is what sendBeacon sends', async () => {
     await startRollout();
     const res = await h.call('POST', '/v1/beacon', {
-      raw: JSON.stringify({ env: 'prod', remote: 'cart', version: '2.0.0', loads: 3, errors: 0 }),
+      raw: JSON.stringify(beaconBody('a', [report('2.0.0')])),
       headers: { 'content-type': 'text/plain;charset=UTF-8' },
     });
     expect(res.status).toBe(202);
+    expect(await countsOf()).toEqual({ '2.0.0': { loads: 1, errors: 0, clients: 1 } });
   });
 
-  it('rejects bad input', async () => {
-    const good = { env: 'prod', remote: 'cart', version: '2.0.0', loads: 5, errors: 1 };
-    const send = async (patch: Record<string, unknown>): Promise<number> =>
-      (await h.call('POST', '/v1/beacon', { body: { ...good, ...patch } })).status;
-    expect(await send({})).toBe(202);
-    for (const patch of [
-      { env: 'Prod' },
-      { env: 7 },
-      { remote: '../x' },
-      { remote: '' },
-      { version: '1.0' },
-      { version: '../../etc' },
-      { loads: -1 },
-      { loads: 1001 },
-      { loads: 1.5 },
-      { loads: '5' },
-      { loads: null },
-      { errors: -1 },
-      { errors: 6 },
-      { errors: Number.NaN },
-      { extra: true },
+  it('refuses counts that one page could not have', async () => {
+    await startRollout();
+    for (const entry of [
+      report('2.0.0', 1000, 1000),
+      report('2.0.0', 2, 0),
+      report('2.0.0', 1, 2),
+      report('2.0.0', 0, 1),
+      report('2.0.0', -1, 0),
+      report('2.0.0', 1.5, 0),
+      { ...report('2.0.0'), loads: '1' },
+      { ...report('2.0.0'), loads: null },
+      { ...report('2.0.0'), errors: Number.NaN },
     ])
       // oxlint-disable-next-line no-await-in-loop -- sequential on purpose
-      expect(await send(patch)).toBe(400);
-    const { loads: _loads, ...missing } = good;
-    expect((await h.call('POST', '/v1/beacon', { body: missing })).status).toBe(400);
-    expect((await h.call('POST', '/v1/beacon', { body: [] })).status).toBe(400);
+      expect((await h.call('POST', '/v1/beacon', { body: beaconBody('a', [entry]) })).status).toBe(
+        400,
+      );
+    expect(await countsOf()).toEqual({});
+  });
+
+  it('rejects other bad input', async () => {
+    const send = async (body: unknown): Promise<number> =>
+      (await h.call('POST', '/v1/beacon', { body })).status;
+    const good = beaconBody('a', [report('2.0.0')]);
+    expect(await send(good)).toBe(202);
+    for (const bad of [
+      { ...good, env: 'Prod' },
+      { ...good, env: 7 },
+      { ...good, u: undefined },
+      { ...good, u: '' },
+      { ...good, u: 'a b' },
+      { ...good, u: 'x'.repeat(129) },
+      { ...good, extra: true },
+      { ...good, entries: [] },
+      { ...good, entries: 'all' },
+      { ...good, entries: [report('2.0.0', 1, 0, '../x')] },
+      { ...good, entries: [report('1.0')] },
+      { ...good, entries: [report('../../etc')] },
+      { ...good, entries: [{ ...report('2.0.0'), extra: 1 }] },
+      { ...good, entries: ['x'] },
+      {
+        ...good,
+        entries: Array.from({ length: 21 }, (_, i) => report('2.0.0', 1, 0, `r${String(i)}`)),
+      },
+      [],
+    ])
+      // oxlint-disable-next-line no-await-in-loop -- sequential on purpose
+      expect(await send(bad)).toBe(400);
+    const old = { env: 'prod', remote: 'cart', version: '2.0.0', loads: 1, errors: 0 };
+    expect(await send(old)).toBe(400);
     expect((await h.call('POST', '/v1/beacon', { raw: '{nope' })).status).toBe(400);
+  });
+
+  it('takes 20 entries', async () => {
+    const entries = Array.from({ length: 20 }, (_, i) => report('2.0.0', 1, 0, `r${String(i)}`));
+    expect((await h.call('POST', '/v1/beacon', { body: beaconBody('a', entries) })).status).toBe(
+      202,
+    );
   });
 
   it('refuses other methods, other content types and big bodies', async () => {
@@ -397,7 +528,7 @@ describe('POST /v1/beacon', () => {
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
     });
     expect(form.status).toBe(415);
-    const big = await h.call('POST', '/v1/beacon', { raw: `{"pad":"${'x'.repeat(2000)}"}` });
+    const big = await h.call('POST', '/v1/beacon', { raw: `{"pad":"${'x'.repeat(5000)}"}` });
     expect(big.status).toBe(413);
   });
 
@@ -438,7 +569,7 @@ describe('beacon rate limit', () => {
     h = await startHarness({ beaconLimit: { burst: 1, perMinute: 1 }, trustProxy: true });
     const from = (ip: string) =>
       h.call('POST', '/v1/beacon', {
-        body: { env: 'prod', remote: 'cart', version: '1.0.0', loads: 1, errors: 0 },
+        body: beaconBody('a', [report('1.0.0')]),
         headers: { 'x-forwarded-for': `6.6.6.6, ${ip}` },
       });
     expect((await from('10.0.0.1')).status).toBe(202);

@@ -1,18 +1,22 @@
 export interface Counts {
   loads: number;
   errors: number;
+  /** Distinct browsers behind `loads`. */
+  clients: number;
 }
 
 export interface GateSettings {
   /** Candidate loads needed before the gate judges anything. */
   minLoads: number;
+  /** Distinct browsers needed on each side, so a few reporters cannot decide a rollout. */
+  minClients: number;
   /** The candidate halts only when its error rate is over the stable rate times this. */
   factor: number;
   /** ...and over the stable rate by at least this much (0.02 is two points), so a quiet stable does not make noise a regression. */
   floor: number;
 }
 
-export const DEFAULT_GATE: GateSettings = { minLoads: 200, factor: 2, floor: 0.02 };
+export const DEFAULT_GATE: GateSettings = { minLoads: 200, minClients: 50, factor: 2, floor: 0.02 };
 
 export type GateVerdict =
   | { verdict: 'wait'; reason: string }
@@ -33,6 +37,15 @@ export function evaluateGate(
       verdict: 'wait',
       reason: `${String(candidate.loads)} of ${String(settings.minLoads)} candidate loads so far`,
     };
+  for (const [side, counts] of [
+    ['candidate', candidate],
+    ['stable', stable],
+  ] as const)
+    if (counts.clients < settings.minClients)
+      return {
+        verdict: 'wait',
+        reason: `${String(counts.clients)} of ${String(settings.minClients)} ${side} clients so far`,
+      };
   const candidateRate = rateOf(candidate);
   const stableRate = rateOf(stable);
   const regressed =

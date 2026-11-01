@@ -20,8 +20,8 @@ export interface HandlerOptions {
   limiter?: RateLimiter;
 }
 
-/** A beacon is a handful of small counts; anything bigger is not one. */
-export const BEACON_MAX_BYTES = 1024;
+/** A beacon is one page's report, at most 20 short entries; anything bigger is not one. */
+export const BEACON_MAX_BYTES = 4096;
 export const DEFAULT_BEACON_LIMIT = { burst: 60, perMinute: 60 };
 
 const JSON_TYPE = 'application/json; charset=utf-8';

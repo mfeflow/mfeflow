@@ -86,7 +86,11 @@ describe('sqlite storage', () => {
     expect((await again.readEnv('prod'))?.remotes[0]?.version).toBe('1.0.0');
     const { DatabaseSync } = await import('node:sqlite');
     const db = new DatabaseSync(file, { readOnly: true });
-    expect(db.prepare('SELECT id FROM schema_migrations').all()).toEqual([{ id: 1 }, { id: 2 }]);
+    expect(db.prepare('SELECT id FROM schema_migrations').all()).toEqual([
+      { id: 1 },
+      { id: 2 },
+      { id: 3 },
+    ]);
     db.close();
   });
 
@@ -142,11 +146,23 @@ describe('sqlite storage', () => {
     expect(await storage.listRollouts('prod')).toEqual([rollout]);
     expect(await storage.listRollouts('dev')).toEqual([]);
 
-    await storage.addRolloutCounts('abc123', '2.0.0', { loads: 5, errors: 1 });
-    await storage.addRolloutCounts('abc123', '2.0.0', { loads: 5, errors: 0 });
-    await storage.addRolloutCounts('nope', '2.0.0', { loads: 5, errors: 5 });
-    expect(await storage.rolloutCounts('abc123')).toEqual({ '2.0.0': { loads: 10, errors: 1 } });
+    await storage.addRolloutReport('abc123', '2.0.0', 'u1', false);
+    await storage.addRolloutReport('abc123', '2.0.0', 'u1', false);
+    await storage.addRolloutReport('abc123', '2.0.0', 'u2', true);
+    await storage.addRolloutReport('abc123', '2.0.0', 'u2', false);
+    await storage.addRolloutReport('abc123', '1.0.0', 'u1', false);
+    await storage.addRolloutReport('nope', '2.0.0', 'u1', true);
+    expect(await storage.rolloutCounts('abc123')).toEqual({
+      '2.0.0': { loads: 2, errors: 1, clients: 2 },
+      '1.0.0': { loads: 1, errors: 0, clients: 1 },
+    });
     expect(await storage.rolloutCounts('nope')).toEqual({});
+    await storage.addRolloutReport('abc123', '2.0.0', 'u1', true);
+    expect((await storage.rolloutCounts('abc123'))['2.0.0']).toEqual({
+      loads: 2,
+      errors: 2,
+      clients: 2,
+    });
 
     await storage.commit(
       change('1.0.0', 2, { versions: [], rollout: { set: { ...rollout, percent: 50 } } }),
@@ -156,7 +172,7 @@ describe('sqlite storage', () => {
     await storage.commit(change('1.0.0', 3, { versions: [], rollout: { clear: 'abc123' } }));
     expect(await storage.listRollouts('prod')).toEqual([]);
     expect(await storage.rolloutCounts('abc123')).toEqual({});
-    await storage.addRolloutCounts('abc123', '2.0.0', { loads: 1, errors: 0 });
+    await storage.addRolloutReport('abc123', '2.0.0', 'u9', false);
     expect(await storage.rolloutCounts('abc123')).toEqual({});
   });
 

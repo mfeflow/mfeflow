@@ -133,6 +133,13 @@ export function configFromEnv(env: Env): ServerConfig {
       [1, 1_000_000],
       problems,
     ),
+    minClients: integer(
+      env,
+      'MFEFLOW_REGISTRY_GATE_MIN_CLIENTS',
+      DEFAULT_GATE.minClients,
+      [1, 1_000_000],
+      problems,
+    ),
     factor: decimal(env, 'MFEFLOW_REGISTRY_GATE_FACTOR', DEFAULT_GATE.factor, [1, 100], problems),
     floor: decimal(env, 'MFEFLOW_REGISTRY_GATE_FLOOR', DEFAULT_GATE.floor, [0, 1], problems),
   };
