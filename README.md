@@ -120,9 +120,11 @@ flowchart TD
     B[Browser] --> S[Shell]
     S --> Q{Registry index inlined in the HTML?}
     Q -- yes --> R[Use the inlined index]
-    Q -- no --> F[Fetch /registry/index.json from the same origin]
+    Q -- no --> F[Fetch the primary index, /registry/index.json by default]
     F -- ok --> R
-    F -- fails or times out --> E[Report the error, shell keeps running]
+    F -- fails or takes over 1.5 s --> FB2[Fetch the fallback index, if runtime config lists one]
+    FB2 -- ok --> R
+    FB2 -- fails --> E[Report the error, shell keeps running]
     R --> V[Skip invalid remotes, register the rest]
     V --> N[User opens a route, for example /cart]
     N --> L[RemoteBoundary loads that remote]
@@ -154,20 +156,20 @@ There are 21 first-party features. Each lives in `features/` and can be added on
 
 **Foundation**
 
-| Feature                                                                   | What it does                                              |
-| ------------------------------------------------------------------------- | --------------------------------------------------------- |
-| tsconfig                                                                  | Strict TypeScript 7 presets                               |
-| lint-oxlint                                                               | Type-aware oxlint and Prettier                            |
-| [testing](https://mfeflow.github.io/mfeflow/features/testing)             | Vitest, Testing Library, MSW and a Playwright smoke test  |
-| [env-t3](https://mfeflow.github.io/mfeflow/features/env-t3)               | Typed env that fails the build when a variable is missing |
-| git-hooks                                                                 | Commit message and typecheck hooks with lefthook          |
-| [commit-prompt](https://mfeflow.github.io/mfeflow/features/commit-prompt) | An interactive Conventional Commits prompt                |
-| [ci-github](https://mfeflow.github.io/mfeflow/features/ci-github)         | A pull request workflow that runs every check             |
+| Feature                                                                   | What it does                                             |
+| ------------------------------------------------------------------------- | -------------------------------------------------------- |
+| tsconfig                                                                  | Strict TypeScript 7 presets                              |
+| lint-oxlint                                                               | Type-aware oxlint and Prettier                           |
+| [testing](https://mfeflow.github.io/mfeflow/features/testing)             | Vitest, Testing Library, MSW and a Playwright smoke test |
+| git-hooks                                                                 | Commit message and typecheck hooks with lefthook         |
+| [commit-prompt](https://mfeflow.github.io/mfeflow/features/commit-prompt) | An interactive Conventional Commits prompt               |
+| [ci-github](https://mfeflow.github.io/mfeflow/features/ci-github)         | A pull request workflow that runs every check            |
 
 **Data and contracts**
 
 | Feature                                                                         | What it does                                               |
 | ------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| [env-t3](https://mfeflow.github.io/mfeflow/features/env-t3)                     | Typed env that fails the build when a variable is missing  |
 | url-factory                                                                     | Typed API endpoints and URLs                               |
 | [http](https://mfeflow.github.io/mfeflow/features/http)                         | A fetch client with timeouts and retries for safe requests |
 | [event-bus](https://mfeflow.github.io/mfeflow/features/event-bus)               | Typed events between remotes                               |
@@ -175,18 +177,23 @@ There are 21 first-party features. Each lives in `features/` and can be added on
 | [data-react-query](https://mfeflow.github.io/mfeflow/features/data-react-query) | One TanStack Query cache owned by the shell                |
 | [forms](https://mfeflow.github.io/mfeflow/features/forms)                       | react-hook-form with schema validation                     |
 
-**Observability and UI**
+**Observability**
 
-| Feature                                                                           | What it does                                             |
-| --------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| [analytics-gtm](https://mfeflow.github.io/mfeflow/features/analytics-gtm)         | Google Tag Manager with Consent Mode v2                  |
-| [analytics-clarity](https://mfeflow.github.io/mfeflow/features/analytics-clarity) | Microsoft Clarity, loaded only after consent             |
-| [telemetry-otel](https://mfeflow.github.io/mfeflow/features/telemetry-otel)       | OpenTelemetry in the browser, tagged per remote          |
-| [theming](https://mfeflow.github.io/mfeflow/features/theming)                     | Light and dark themes owned by the shell                 |
-| [i18n](https://mfeflow.github.io/mfeflow/features/i18n)                           | One i18next instance, messages shipped with each remote  |
-| [tailwind](https://mfeflow.github.io/mfeflow/features/tailwind)                   | Tailwind 4 with a class prefix per app                   |
-| [ui-shadcn](https://mfeflow.github.io/mfeflow/features/ui-shadcn)                 | shadcn/ui components copied into each remote             |
-| [storybook](https://mfeflow.github.io/mfeflow/features/storybook)                 | Storybook per remote, all shown in the shell's Storybook |
+| Feature                                                                           | What it does                                    |
+| --------------------------------------------------------------------------------- | ----------------------------------------------- |
+| [analytics-gtm](https://mfeflow.github.io/mfeflow/features/analytics-gtm)         | Google Tag Manager with Consent Mode v2         |
+| [analytics-clarity](https://mfeflow.github.io/mfeflow/features/analytics-clarity) | Microsoft Clarity, loaded only after consent    |
+| [telemetry-otel](https://mfeflow.github.io/mfeflow/features/telemetry-otel)       | OpenTelemetry in the browser, tagged per remote |
+
+**UI**
+
+| Feature                                                           | What it does                                             |
+| ----------------------------------------------------------------- | -------------------------------------------------------- |
+| [theming](https://mfeflow.github.io/mfeflow/features/theming)     | Light and dark themes owned by the shell                 |
+| [i18n](https://mfeflow.github.io/mfeflow/features/i18n)           | One i18next instance, messages shipped with each remote  |
+| [tailwind](https://mfeflow.github.io/mfeflow/features/tailwind)   | Tailwind 4 with a class prefix per app                   |
+| [ui-shadcn](https://mfeflow.github.io/mfeflow/features/ui-shadcn) | shadcn/ui components copied into each remote             |
+| [storybook](https://mfeflow.github.io/mfeflow/features/storybook) | Storybook per remote, all shown in the shell's Storybook |
 
 Third-party features are plain data, never code, and install from any static host. See the [third-party guide](https://mfeflow.github.io/mfeflow/features/third-party).
 
@@ -240,15 +247,15 @@ These are measured, and each links to its raw data.
 | Create to a shell and two remotes running | About 5 s (median of 5 runs, warm pnpm store, arm64 laptop)              | [bench/results/2026-10-31.json](bench/results/2026-10-31.json) |
 | Largest contentful paint, against one app | +160 ms on the catalog page (Lighthouse mobile, simulated, median of 10) | [perf-summary.json](examples/storefront/e2e/perf-summary.json) |
 
-The same run measured 46 KB more gzipped JavaScript on that page than the one-app build, which is over the target. The size work is not finished.
+The CI perf job checks these budgets on pull requests that touch the runtime, the build preset or the storefront. Its run on 2026-11-01 ([run 41312499587](https://github.com/mfeflow/mfeflow/actions/runs/41312499587)):
 
-The budgets that the budget command and CI enforce:
+| Budget                          | Limit   | Measured                       |
+| ------------------------------- | ------- | ------------------------------ |
+| LCP against a one-app build     | +300 ms | +154 ms                        |
+| JavaScript added by the shell   | +32 KB  | +31.1 KB                       |
+| JavaScript added by each remote | +10 KB  | catalog +10.0 KB, cart +9.5 KB |
 
-| Budget                          | Limit   |
-| ------------------------------- | ------- |
-| LCP against a one-app build     | +300 ms |
-| JavaScript added by the shell   | +32 KB  |
-| JavaScript added by each remote | +10 KB  |
+The shell and catalog sit right at their limits. An earlier target of +35 KB for the whole page was replaced by these per-app budgets; the page is still 46 KB over that old target.
 
 ## Status and roadmap
 
