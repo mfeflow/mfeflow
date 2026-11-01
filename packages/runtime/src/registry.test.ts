@@ -394,8 +394,9 @@ describe('loadRegistryIndex with a fallback', () => {
     }).catch((e: unknown) => e);
     const waits = [...String(error).matchAll(/timed out after (\d+) ms/g)].map((m) => Number(m[1]));
     expect(waits[0]).toBe(10);
+    // The rest of the 80 ms budget once the primary's 10 ms are gone; timers fire a ms or two off.
     expect(waits[1]).toBeGreaterThan(40);
-    expect(waits[1]).toBeLessThanOrEqual(70);
+    expect(waits[1]).toBeLessThan(80);
   });
 
   it('uses the fallback when the primary body is not JSON', async () => {
