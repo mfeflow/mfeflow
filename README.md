@@ -22,7 +22,49 @@
   <a href="packages/cli/CHANGELOG.md">Changelog</a>
 </p>
 
-mfeflow generates a React micro-frontend platform: one shell, any number of remotes, and the checks that keep them working together. It is built on Module Federation 2.0 and Rsbuild. You add features one at a time, and the CLI can show you the diff before it writes anything.
+A React micro-frontend platform: a shell, your remotes, and the checks that keep them working together.
+
+Install it with one command. You need Node 22.12 or newer:
+
+```bash
+npm create mfeflow@latest my-platform
+```
+
+Then start the shell and every remote together:
+
+```bash
+cd my-platform
+pnpm mfeflow dev
+```
+
+You should see something like this, and the shell is at http://localhost:4300:
+
+```text
+mfeflow: running shell, catalog, cart. Ctrl+C stops everything.
+shell   |   ➜  Local:    http://localhost:4300/
+cart    |   ➜  Local:    http://localhost:4312/
+catalog |   ➜  Local:    http://localhost:4311/
+shell   | ready   built in 0.28s
+```
+
+What you get:
+
+- A shell and remotes on Module Federation 2.0 and Rsbuild, with React shared once.
+- 21 features you add one at a time, each with a diff you can preview.
+- Checks for compatibility, ownership and bundle size that run in CI.
+- A registry design that supports rollback by pointer (the command is in progress).
+- About 5 seconds from create to a running platform, measured.
+
+Read the [docs](https://mfeflow.github.io/mfeflow/) for the full guide.
+
+To grow the project later, add a remote or a feature. Add `--dry-run` to preview the diff:
+
+```bash
+pnpm mfeflow add remote checkout
+pnpm mfeflow add theming i18n
+```
+
+A new remote starts without restarting `mfeflow dev`, and the shell gets its route.
 
 ## Why mfeflow
 
@@ -39,38 +81,9 @@ Splitting an app into micro-frontends is easy on day one. The trouble starts a f
 
 mfeflow is not for a single team with one app. A plain Rsbuild or Vite project is simpler there.
 
-## Quickstart
+## Generated project
 
-```bash
-npm create mfeflow@latest my-platform
-cd my-platform
-pnpm mfeflow dev
-```
-
-The first command asks which remotes and features you want. Add `--yes` to take the defaults. Once the third one is running, you see this:
-
-```text
-mfeflow: running shell, catalog, cart. Ctrl+C stops everything.
-shell   |   ➜  Local:    http://localhost:4300/
-cart    |   ➜  Local:    http://localhost:4312/
-catalog |   ➜  Local:    http://localhost:4311/
-shell   | ready   built in 0.28s
-```
-
-Open http://localhost:4300. The shell links to each remote, and each remote loads on its own route.
-
-To grow the project later, add a remote or a feature. Put `--dry-run` on either to see the diff first.
-
-```bash
-pnpm mfeflow add remote checkout
-pnpm mfeflow add theming i18n
-```
-
-A new remote starts without restarting `mfeflow dev`, and the shell gets its route.
-
-## What you get
-
-This is what `create-mfeflow` writes for the default project, with tests, mocks and small config files left out.
+The default project looks like this, with tests, mocks and small config files left out.
 
 ```text
 my-platform/
