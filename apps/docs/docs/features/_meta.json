@@ -1,29 +1,137 @@
 [
-  { "type": "file", "name": "index", "label": "Feature catalog" },
-  { "type": "section-header", "label": "Always on" },
-  { "type": "file", "name": "tsconfig", "label": "tsconfig" },
-  { "type": "section-header", "label": "On by default" },
-  { "type": "file", "name": "lint-oxlint", "label": "lint-oxlint" },
-  { "type": "file", "name": "url-factory", "label": "url-factory" },
-  { "type": "file", "name": "env-t3", "label": "env-t3" },
-  { "type": "file", "name": "testing", "label": "testing" },
-  { "type": "section-header", "label": "Opt in" },
-  { "type": "file", "name": "analytics-gtm", "label": "analytics-gtm" },
-  { "type": "file", "name": "analytics-clarity", "label": "analytics-clarity" },
-  { "type": "file", "name": "telemetry-otel", "label": "telemetry-otel" },
-  { "type": "file", "name": "event-bus", "label": "event-bus" },
-  { "type": "file", "name": "route-factory", "label": "route-factory" },
-  { "type": "file", "name": "http", "label": "http" },
-  { "type": "file", "name": "theming", "label": "theming" },
-  { "type": "file", "name": "i18n", "label": "i18n" },
-  { "type": "file", "name": "tailwind", "label": "tailwind" },
-  { "type": "file", "name": "ui-shadcn", "label": "ui-shadcn" },
-  { "type": "file", "name": "forms", "label": "forms" },
-  { "type": "file", "name": "data-react-query", "label": "data-react-query" },
-  { "type": "file", "name": "storybook", "label": "storybook" },
-  { "type": "file", "name": "ci-github", "label": "ci-github" },
-  { "type": "file", "name": "git-hooks", "label": "git-hooks" },
-  { "type": "file", "name": "commit-prompt", "label": "commit-prompt" },
-  { "type": "section-header", "label": "From other people" },
-  { "type": "file", "name": "third-party", "label": "Third-party features" }
+  {
+    "type": "file",
+    "name": "index",
+    "label": "Feature catalog"
+  },
+  {
+    "type": "section-header",
+    "label": "Foundation"
+  },
+  {
+    "type": "file",
+    "name": "tsconfig",
+    "label": "tsconfig"
+  },
+  {
+    "type": "file",
+    "name": "lint-oxlint",
+    "label": "lint-oxlint"
+  },
+  {
+    "type": "file",
+    "name": "testing",
+    "label": "testing"
+  },
+  {
+    "type": "file",
+    "name": "git-hooks",
+    "label": "git-hooks"
+  },
+  {
+    "type": "file",
+    "name": "commit-prompt",
+    "label": "commit-prompt"
+  },
+  {
+    "type": "file",
+    "name": "ci-github",
+    "label": "ci-github"
+  },
+  {
+    "type": "section-header",
+    "label": "Data and contracts"
+  },
+  {
+    "type": "file",
+    "name": "env-t3",
+    "label": "env-t3"
+  },
+  {
+    "type": "file",
+    "name": "url-factory",
+    "label": "url-factory"
+  },
+  {
+    "type": "file",
+    "name": "http",
+    "label": "http"
+  },
+  {
+    "type": "file",
+    "name": "route-factory",
+    "label": "route-factory"
+  },
+  {
+    "type": "file",
+    "name": "event-bus",
+    "label": "event-bus"
+  },
+  {
+    "type": "file",
+    "name": "data-react-query",
+    "label": "data-react-query"
+  },
+  {
+    "type": "file",
+    "name": "forms",
+    "label": "forms"
+  },
+  {
+    "type": "section-header",
+    "label": "Observability"
+  },
+  {
+    "type": "file",
+    "name": "analytics-gtm",
+    "label": "analytics-gtm"
+  },
+  {
+    "type": "file",
+    "name": "analytics-clarity",
+    "label": "analytics-clarity"
+  },
+  {
+    "type": "file",
+    "name": "telemetry-otel",
+    "label": "telemetry-otel"
+  },
+  {
+    "type": "section-header",
+    "label": "UI"
+  },
+  {
+    "type": "file",
+    "name": "theming",
+    "label": "theming"
+  },
+  {
+    "type": "file",
+    "name": "i18n",
+    "label": "i18n"
+  },
+  {
+    "type": "file",
+    "name": "tailwind",
+    "label": "tailwind"
+  },
+  {
+    "type": "file",
+    "name": "ui-shadcn",
+    "label": "ui-shadcn"
+  },
+  {
+    "type": "file",
+    "name": "storybook",
+    "label": "storybook"
+  },
+  {
+    "type": "section-header",
+    "label": "From other people"
+  },
+  {
+    "type": "file",
+    "name": "third-party",
+    "label": "Third-party features"
+  }
 ]
