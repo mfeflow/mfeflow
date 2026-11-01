@@ -74,6 +74,7 @@ describe('mfeflow init --local --yes --no-install', () => {
         'apps/shell/src/config/schema.ts',
         'apps/shell/src/pages/Home.test.tsx',
         'apps/shell/src/App.tsx',
+        'apps/shell/src/assert.ts',
         'apps/shell/src/pages/Home.tsx',
         'apps/shell/src/remotes/cart.tsx',
         'apps/shell/src/remotes/catalog.tsx',
@@ -125,6 +126,12 @@ describe('mfeflow init --local --yes --no-install', () => {
     expect(tree['apps/cart/rsbuild.config.ts']).toContain(
       "exposes: { './App': './src/exposed/App.tsx' }",
     );
+    // The browser singleton check loads on demand only, so production pays nothing.
+    const boot = tree['apps/shell/src/bootstrap.tsx'];
+    expect(boot).toContain("if (DEV || assertRequested()) void import('./assert');");
+    expect(boot).not.toMatch(/^import .* from '\.\/assert'/m);
+    expect(tree['apps/shell/src/assert.ts']).toContain('checkSingletons(__MFEFLOW_SINGLETONS__)');
+    expect(tree['apps/shell/src/assert.ts']).toContain("reportRemoteError('shell', 'singletons'");
   });
 
   it('links @mfeflow packages from the checkout and keeps the rest in the catalog', async () => {

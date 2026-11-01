@@ -10,6 +10,7 @@ import { headScriptTags } from './head-scripts';
 import { runtimeConfigSetup } from './runtime-config';
 import {
   installedVersionFrom,
+  packageNameOf,
   resolvableFrom,
   sharedSingletons,
   type SharedConfig,
@@ -268,6 +269,14 @@ export function appVersion(cwd: string): string {
   }
 }
 
+/** The shared packages of an app, once each: `react-dom/client` and `react-dom` count as `react-dom`. */
+export function sharedPackages(
+  canResolve: (s: string) => boolean,
+  extra: readonly string[] = [],
+): string[] {
+  return [...new Set(Object.keys(sharedSingletons(canResolve, extra)).map(packageNameOf))];
+}
+
 /** Rsbuild config for the shell (host). */
 export function createShellConfig(o: ShellOptions): RsbuildConfig {
   const cwd = o.cwd ?? process.cwd();
@@ -291,6 +300,8 @@ export function createShellConfig(o: ShellOptions): RsbuildConfig {
       define: {
         __MFEFLOW_SNAPSHOT__: JSON.stringify(snapshotEnabled(o)),
         __MFEFLOW_APP_VERSION__: JSON.stringify(appVersion(cwd)),
+        // The packages this shell shares, for the browser singleton check (`checkSingletons`).
+        __MFEFLOW_SINGLETONS__: JSON.stringify(sharedPackages(resolvableFrom(cwd), o.shared)),
       },
     },
     server: {
