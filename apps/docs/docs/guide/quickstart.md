@@ -25,7 +25,7 @@ v22.23.4
 12.16.1
 ```
 
-If pnpm is missing, run `corepack enable`. Corepack reads the pinned version from the project.
+If pnpm is missing, run `corepack enable`. Corepack reads the pinned version from the project. The CLI does not check these versions itself, so an old Node or pnpm fails later with a less clear message.
 
 ## 1. Create the project
 

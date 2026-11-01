@@ -38,16 +38,20 @@ The shell check needs a baseline. Put the initial gzip JavaScript of your pages 
 
 ## What does a real measurement look like?
 
-The storefront example in the repository was measured with Lighthouse 13.6.0 on the mobile preset, with simulated throttling, median of 10 runs. The source is `examples/storefront/e2e/perf-summary.json`.
+The storefront example in the repository is checked against the cost model by a CI job called "cost model". It runs Lighthouse on the mobile preset with simulated throttling. [Run 41312499587](https://github.com/mfeflow/mfeflow/actions/runs/41312499587), from 2026-11-01, passed.
 
-| Route    | LCP added | JS added (gzip) |
-| -------- | --------- | --------------- |
-| /catalog | +160 ms   | +46 KB          |
-| /cart    | +133 ms   | +38 KB          |
+| Limit   | Budget | Measured |
+| ------- | ------ | -------- |
+| LCP     | 300 ms | +154 ms  |
+| Shell   | 32 KB  | +31.1 KB |
+| cart    | 10 KB  | 9.5 KB   |
+| catalog | 10 KB  | 10.0 KB  |
 
-LCP is inside the 300 ms limit on both routes. The JavaScript added is above the 32 KB shell limit. The example does not meet its own JavaScript budget in gzip. The same file shows brotli results, which are smaller: +40.1 KB for /catalog and +33 KB for /cart.
+Everything passes, but the shell and the catalog remote sit right at their limits. A small change to either can tip the job over.
 
-The file also records six steps that took the first route from +1089 ms to +161 ms. The biggest were moving shared packages into the first chunk and registering remote entry URLs directly.
+An older run, kept in `examples/storefront/e2e/perf-summary.json` (2026-10-31), used a different target: a total page increase of 35 KB. That target was replaced by the per-part limits above. The whole page is still about 46 KB over the old total, which is why the per-part limits are the ones to watch.
+
+The same older file records six steps that took one route from +1089 ms to +161 ms of LCP. The biggest were moving shared packages into the first chunk and registering remote entry URLs directly.
 
 ## How do I change the limits?
 
@@ -63,7 +67,7 @@ Raising a limit is a decision. Write down why.
 
 ## Why these numbers?
 
-They are targets chosen to keep a federated page close to a single app. They are not laws of nature, and the storefront result shows a project can miss one. The point is that a miss becomes visible in CI instead of in a user's browser.
+They are targets chosen to keep a federated page close to a single app. They are not laws of nature. The point is that a miss becomes visible in CI instead of in a user's browser.
 
 ## Related
 

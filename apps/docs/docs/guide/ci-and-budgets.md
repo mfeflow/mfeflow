@@ -78,7 +78,7 @@ Initial JS, gzip (1 KB = 1024 bytes):
 LCP (+300 ms) is measured by the perf job, not here.
 ```
 
-Read [The cost model](/concepts/cost-model) for why these numbers and what a real measurement looked like.
+Read [The cost model](/concepts/cost-model) for why these numbers and for a passing measurement of the storefront example.
 
 ## Turn on the shell check
 

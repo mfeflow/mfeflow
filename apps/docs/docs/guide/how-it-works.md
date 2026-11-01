@@ -15,12 +15,15 @@ The shell's entry file calls `main()` in `bootstrap.tsx`. That function does fou
 browser opens the shell
         |
         v
+  registrySources()          runtime config may name registryUrls
+        |                    (waits at most 1.5 s, never blocks boot)
+        v
   loadRegistryIndex()
         |   window.__MFE_REGISTRY__ set?  --yes-->  use it, no request
         |   no
         v
-  GET /registry/index.json   (same origin only, 5 s timeout)
-        |
+  GET primary index          (1.5 s cap)
+        |   fails? --> GET fallback index, report MFE_REGISTRY_FALLBACK
         v
   applyDevOverrides()        (development builds only)
         |
@@ -28,7 +31,7 @@ browser opens the shell
   registerRemotesFromIndex() (skips entries with a bad field or origin)
         |
         v
-  loadRuntimeConfig()  -->  render <App />
+  render <App />
         |
         v
   route matches /catalog  -->  <RemoteBoundary id="catalog/App">
@@ -37,7 +40,9 @@ browser opens the shell
   Module Federation loads the remote entry, then the exposed module
 ```
 
-The registry index is a list of remotes with a name and an entry URL. A server or CDN edge can write it into the page as `window.__MFE_REGISTRY__`, which saves one request. Otherwise the shell fetches `/registry/index.json` from its own origin. [The registry index](/concepts/registry-index) describes the format.
+The registry index is a list of remotes with a name and an entry URL. A server or CDN edge can write it into the page as `window.__MFE_REGISTRY__`, which saves one request. Otherwise the shell fetches `/registry/index.json` from its own origin.
+
+The runtime config can name more than one index, for example one on a CDN. The shell tries the primary for up to 1.5 seconds, then the fallback, and reports the switch. Reading the config never holds up boot for more than 1.5 seconds. [The registry index](/concepts/registry-index) describes the format and the fallback.
 
 Registering does not download anything. A remote's code loads only when a route renders its boundary. That boundary waits up to five seconds, then shows a fallback and reports the failure. The rest of the page keeps working.
 
@@ -78,7 +83,7 @@ A singleton is a package that must exist once per page, such as React. The prese
 
 There are two checks. At build and review time, `mfeflow doctor` compares singleton versions across apps (E301). `mfeflow check-compat` compares each remote's ranges with its shell (E302). Both run offline from your files.
 
-At run time, the runtime package has `checkSingletons`, which reads Module Federation's share scope and reports packages that are missing or loaded in more than one version. `assertRequested` turns it on when the page URL has `?mfeflow-assert`. The generated shell does not call these yet. The storefront example in the repository does, in `examples/storefront/shell/src/assert.ts`.
+At run time, the runtime package has `checkSingletons`, which reads Module Federation's share scope and reports packages that are missing or loaded in more than one version. `assertRequested` turns it on when the page URL has `?mfeflow-assert`. The shell runs the check in development and when the page is opened with `?mfeflow-assert`. It does not run on every production page load. The storefront example wires it in `examples/storefront/shell/src/assert.ts`.
 
 ## How does development differ from production?
 

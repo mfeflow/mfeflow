@@ -11,7 +11,7 @@ This page helps you decide whether mfeflow is worth an afternoon. It is an expla
 
 Module Federation lets one web app load code from another at runtime. The first demo works in an hour. The cost shows up later, in settings that nobody owns.
 
-Here is one measured example. The storefront example in this repository is a shell with two remotes. We measured the same page as one app and as a federated app, with Lighthouse on a mobile profile, median of 10 runs. The source is `examples/storefront/e2e/perf-summary.json`.
+Here is one measured example. The storefront example in this repository is a shell with two remotes. We measured the same page as one app and as a federated app, with Lighthouse on a mobile profile, median of 10 runs. The source is `examples/storefront/e2e/perf-summary.json`, an earlier run from 2026-10-31. The current budget check is in [The cost model](/concepts/cost-model).
 
 | Setup                                                                                      | Largest contentful paint added |
 | ------------------------------------------------------------------------------------------ | ------------------------------ |
