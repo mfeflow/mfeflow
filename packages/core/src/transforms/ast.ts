@@ -58,7 +58,13 @@ export function parseSource(source: string, file: string): File {
   }
 }
 
-const SKIP_KEYS = new Set(['loc', 'leadingComments', 'trailingComments', 'innerComments', 'extra']);
+export const SKIP_KEYS = new Set([
+  'loc',
+  'leadingComments',
+  'trailingComments',
+  'innerComments',
+  'extra',
+]);
 
 /** Every node under `root` (including it) for which `match` returns true, in source order. */
 export function findAll(root: Node, match: (node: Node) => boolean): Node[] {
