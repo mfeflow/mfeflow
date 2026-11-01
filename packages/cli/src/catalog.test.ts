@@ -22,6 +22,7 @@ describe('first-party catalogue', () => {
       'theming',
       'i18n',
       'tailwind',
+      'ui-shadcn',
       'forms',
       'data-react-query',
       'ci-github',

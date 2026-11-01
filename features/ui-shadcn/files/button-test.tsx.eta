@@ -1,0 +1,32 @@
+<%_ const prefix = it.app.name.replace(/[0-9]/g, (digit) => 'abcdefghij'[Number(digit)] ?? '').replace(/[^a-z]/g, '') || 'app' _%>
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { Button } from './button';
+
+const prefix = '<%= prefix %>';
+
+describe('Button', () => {
+  it('is a button that does not submit a form unless asked', () => {
+    render(<Button>Save</Button>);
+    expect(screen.getByRole('button', { name: 'Save' }).getAttribute('type')).toBe('button');
+  });
+
+  it('carries the remote prefix on its classes, and lets a caller override one', () => {
+    render(<Button className={`${prefix}:px-8`}>Save</Button>);
+    const { className } = screen.getByRole('button');
+    expect(className).toContain(`${prefix}:bg-primary`);
+    expect(className).toContain(`${prefix}:px-8`);
+    expect(className).not.toContain(`${prefix}:px-4`);
+  });
+
+  it('does not click while disabled', () => {
+    const onClick = vi.fn();
+    render(
+      <Button disabled onClick={onClick}>
+        Save
+      </Button>,
+    );
+    fireEvent.click(screen.getByRole('button'));
+    expect(onClick).not.toHaveBeenCalled();
+  });
+});

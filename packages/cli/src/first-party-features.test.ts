@@ -50,8 +50,10 @@ describe.each([
   'tailwind',
   'forms',
   'data-react-query',
+  'ui-shadcn',
 ])('mfeflow add %s', (feature) => {
   it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
+    if (feature === 'ui-shadcn') expect(await add('tailwind')).toBe(0);
     expect(await add(feature)).toBe(0);
     const once = await readTree(project);
     expect(parseProject(once['mfeflow.json'] ?? '').features).toHaveProperty(feature);
@@ -61,6 +63,7 @@ describe.each([
   });
 
   it('with --dry-run prints the diff and writes nothing', async () => {
+    if (feature === 'ui-shadcn') expect(await add('tailwind')).toBe(0);
     const before = await readTree(project);
     const rt = testRuntime();
     expect(await main(['add', feature, '--dry-run', '--cwd', project], rt)).toBe(0);
@@ -69,6 +72,7 @@ describe.each([
   });
 
   it('gives a remote added later the same per-app files', async () => {
+    if (feature === 'ui-shadcn') expect(await add('tailwind')).toBe(0);
     expect(await add(feature)).toBe(0);
     expect(
       await main(['add', 'remote', 'checkout', '--no-install', '--cwd', project], testRuntime()),
@@ -87,6 +91,7 @@ describe.each([
       i18n: ['src/i18n/I18n.tsx', 'src/i18n/messages/en.json'],
       tailwind: ['postcss.config.mjs', 'src/styles.css', 'src/tailwind/Scope.tsx'],
       forms: ['src/forms/ContactForm.tsx', 'src/forms/schema.ts'],
+      'ui-shadcn': ['components.json', 'src/lib/utils.ts', 'src/components/ui/button.tsx'],
       'data-react-query': ['src/query/Query.tsx', 'src/query/keys.ts', 'src/query/useHealth.ts'],
     }[feature];
     for (const file of perApp ?? []) expect(tree, file).toHaveProperty([`apps/checkout/${file}`]);
@@ -152,6 +157,22 @@ describe('env-t3', () => {
     expect(await read('apps/shell/src/config/schema.ts')).toContain(
       "z.enum(['dev', 'staging', 'prod'])",
     );
+  });
+});
+
+describe('ui-shadcn', () => {
+  it('needs tailwind and says so, writing nothing', async () => {
+    const before = await readTree(project);
+    expect(await add('ui-shadcn')).not.toBe(0);
+    expect(await readTree(project)).toEqual(before);
+  });
+
+  it('gives each remote a components.json with its own prefix', async () => {
+    await add('tailwind');
+    expect(await add('ui-shadcn')).toBe(0);
+    expect(await read('apps/cart/components.json')).toContain('"prefix": "cart"');
+    expect(await read('apps/catalog/components.json')).toContain('"prefix": "catalog"');
+    expect(await read('apps/cart/src/components/ui/button.tsx')).toContain('cart:bg-primary');
   });
 });
 

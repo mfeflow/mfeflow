@@ -1,0 +1,61 @@
+{
+  "name": "ui-shadcn",
+  "version": "0.1.0",
+  "description": "shadcn/ui in every remote, on top of tailwind: components.json, the cn helper and a Button, copied into the remote so you own them. The classes carry the remote's Tailwind prefix and the colours come from the theme. Nothing is shared between remotes.",
+  "requires": ["core", "tsconfig", "tailwind"],
+  "files": [
+    {
+      "to": "components.json",
+      "target": "remotes",
+      "from": "files/components.json.eta",
+      "template": true
+    },
+    {
+      "to": "src/lib/utils.ts",
+      "target": "remotes",
+      "from": "files/utils.ts.eta",
+      "template": true
+    },
+    {
+      "to": "src/components/ui/button.tsx",
+      "target": "remotes",
+      "from": "files/button.tsx.eta",
+      "template": true
+    },
+    {
+      "to": "src/lib/utils.test.ts",
+      "target": "remotes",
+      "from": "files/utils-test.ts.eta",
+      "template": true,
+      "when": {
+        "feature:testing": true
+      }
+    },
+    {
+      "to": "src/components/ui/button.test.tsx",
+      "target": "remotes",
+      "from": "files/button-test.tsx.eta",
+      "template": true,
+      "when": {
+        "feature:testing": true
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "class-variance-authority",
+      "range": "0.7.1",
+      "target": "remotes"
+    },
+    {
+      "name": "clsx",
+      "range": "2.1.1",
+      "target": "remotes"
+    },
+    {
+      "name": "tailwind-merge",
+      "range": "3.7.0",
+      "target": "remotes"
+    }
+  ]
+}

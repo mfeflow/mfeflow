@@ -1,0 +1,17 @@
+<%_ const prefix = it.app.name.replace(/[0-9]/g, (digit) => 'abcdefghij'[Number(digit)] ?? '').replace(/[^a-z]/g, '') || 'app' _%>
+import { describe, expect, it } from 'vitest';
+import { cn } from './utils';
+
+const prefix = '<%= prefix %>';
+
+describe('cn', () => {
+  it("keeps the last of two conflicting classes with this remote's prefix", () => {
+    expect(cn(`${prefix}:p-2`, `${prefix}:p-4`)).toBe(`${prefix}:p-4`);
+  });
+
+  it('skips false values and keeps classes that do not conflict', () => {
+    expect(cn(`${prefix}:flex`, false, undefined, `${prefix}:gap-2`)).toBe(
+      `${prefix}:flex ${prefix}:gap-2`,
+    );
+  });
+});

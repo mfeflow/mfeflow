@@ -1,0 +1,36 @@
+<%_ const prefix = it.app.name.replace(/[0-9]/g, (digit) => 'abcdefghij'[Number(digit)] ?? '').replace(/[^a-z]/g, '') || 'app' _%>
+import { cva, type VariantProps } from 'class-variance-authority';
+import type { ButtonHTMLAttributes } from 'react';
+import { cn } from '../../lib/utils';
+
+// Every class starts with <%= prefix %>: (this remote's Tailwind prefix). Colours are the theme tokens from src/styles.css.
+// prettier-ignore
+const buttonVariants = cva(
+  '<%= prefix %>:inline-flex <%= prefix %>:items-center <%= prefix %>:justify-center <%= prefix %>:gap-2 <%= prefix %>:rounded-md <%= prefix %>:text-sm <%= prefix %>:font-medium <%= prefix %>:transition-colors <%= prefix %>:disabled:pointer-events-none <%= prefix %>:disabled:opacity-50 <%= prefix %>:focus-visible:outline-2 <%= prefix %>:focus-visible:outline-offset-2 <%= prefix %>:focus-visible:outline-ring',
+  {
+    variants: {
+      variant: {
+        default: '<%= prefix %>:bg-primary <%= prefix %>:text-primary-foreground <%= prefix %>:hover:opacity-90',
+        secondary: '<%= prefix %>:bg-secondary <%= prefix %>:text-secondary-foreground <%= prefix %>:hover:opacity-80',
+        outline: '<%= prefix %>:border <%= prefix %>:border-border <%= prefix %>:bg-background <%= prefix %>:hover:bg-accent <%= prefix %>:hover:text-accent-foreground',
+        destructive: '<%= prefix %>:bg-destructive <%= prefix %>:text-white <%= prefix %>:hover:opacity-90',
+        ghost: '<%= prefix %>:hover:bg-accent <%= prefix %>:hover:text-accent-foreground',
+      },
+      size: {
+        default: '<%= prefix %>:h-9 <%= prefix %>:px-4 <%= prefix %>:py-2',
+        sm: '<%= prefix %>:h-8 <%= prefix %>:px-3',
+        lg: '<%= prefix %>:h-10 <%= prefix %>:px-6',
+      },
+    },
+    defaultVariants: { variant: 'default', size: 'default' },
+  },
+);
+
+export interface ButtonProps
+  extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {}
+
+export function Button({ className, variant, size, type = 'button', ...props }: ButtonProps) {
+  return (
+    <button type={type} className={cn(buttonVariants({ variant, size }), className)} {...props} />
+  );
+}
