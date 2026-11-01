@@ -237,6 +237,8 @@ describe('sqlite storage', () => {
   it('migrates a database left at migration 2 with a rollout in flight', async () => {
     const { DatabaseSync } = await import('node:sqlite');
     const old = new DatabaseSync(file);
+    old.exec('PRAGMA synchronous = OFF');
+    old.exec('BEGIN');
     old.exec(
       'CREATE TABLE schema_migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL)',
     );
@@ -246,6 +248,7 @@ describe('sqlite storage', () => {
         .prepare('INSERT INTO schema_migrations (id, name, applied_at) VALUES (?, ?, ?)')
         .run(m.id, m.name, '2026-11-01T00:00:00.000Z');
     }
+    old.exec('COMMIT');
     old
       .prepare(
         'INSERT INTO rollouts (env, remote, rollout_id, stable_version, candidate_version, candidate_json, percent, steps_json, started_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -288,6 +291,8 @@ describe('sqlite storage', () => {
   it('backfills the counters from reporters when upgrading from migration 3', async () => {
     const { DatabaseSync } = await import('node:sqlite');
     const old = new DatabaseSync(file);
+    old.exec('PRAGMA synchronous = OFF');
+    old.exec('BEGIN');
     old.exec(
       'CREATE TABLE schema_migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL)',
     );
@@ -301,6 +306,7 @@ describe('sqlite storage', () => {
     add.run('r1', '2.0.0', 'a', 1);
     add.run('r1', '2.0.0', 'b', 0);
     add.run('r1', '1.0.0', 'c', 0);
+    old.exec('COMMIT');
     old.close();
     const storage = await connect();
     expect(await storage.rolloutCounts('r1')).toEqual({

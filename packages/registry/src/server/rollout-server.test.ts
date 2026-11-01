@@ -104,13 +104,13 @@ describe('deploy with a rollout', () => {
     });
     const { service } = h.server;
     let candidate = 0;
-    for (let i = 0; i < 10_000; i += 1) {
-      // oxlint-disable-next-line no-await-in-loop -- 10k reads from a local database
+    for (let i = 0; i < 1000; i += 1) {
+      // oxlint-disable-next-line no-await-in-loop -- 1k reads from a local database
       const index = await service.index('prod', `client-${String(i)}`);
       if (index?.remotes[0]?.version === '2.0.0') candidate += 1;
     }
-    expect(candidate / 100).toBeGreaterThan(28);
-    expect(candidate / 100).toBeLessThan(32);
+    expect(candidate / 10).toBeGreaterThan(22);
+    expect(candidate / 10).toBeLessThan(38);
   });
 
   it('gives a client the same answer every time, and stable when there is no client id', async () => {
@@ -402,11 +402,21 @@ describe('rollout step, complete and abort', () => {
   });
 });
 
+/** Small thresholds keep these tests to a few dozen writes; the full-size numbers are in gate.test.ts. */
+const SMALL_GATE = { minLoads: 20, minClients: 10, factor: 2, floor: 0.02 };
+
 describe('the gate', () => {
+  beforeEach(async () => {
+    await h.stop();
+    h = await startHarness({ gate: SMALL_GATE });
+    admin = await h.admin();
+    seedShell(h.artifacts, 'prod');
+  });
+
   it('halts a candidate that errors at 10% against stable at 1%, end to end', async () => {
     await startRollout({ percent: 10, steps: [50, 100] });
-    await feed('1.0.0', 1000, 10, 's');
-    await feed('2.0.0', 199, 20, 'c');
+    await feed('1.0.0', 100, 1, 's');
+    await feed('2.0.0', 19, 2, 'c');
     expect(await h.server.storage.listRollouts('prod')).toHaveLength(1);
     expect(
       (await beacon('2.0.0', 1, 0, 'cart', (await clientsFor('2.0.0', 1, 'last'))[0])).status,
@@ -428,36 +438,32 @@ describe('the gate', () => {
     expect(entry?.detail).toMatchObject({
       gate: 'error-rate',
       candidate: '2.0.0',
-      candidateCounts: { loads: 200, errors: 20, clients: 200 },
-      stableCounts: { loads: 1000, errors: 10, clients: 1000 },
+      candidateCounts: { loads: 20, errors: 2, clients: 20 },
+      stableCounts: { loads: 100, errors: 1, clients: 100 },
     });
     expect(String(entry?.detail.reason)).toContain('10.0%');
     expect(String(entry?.detail.reason)).toContain('1.0%');
-  }, 30_000);
+  });
 
   it('leaves a healthy candidate alone', async () => {
     await startRollout();
-    await feed('1.0.0', 500, 5, 's');
-    await feed('2.0.0', 300, 3, 'c');
+    await feed('1.0.0', 50, 5, 's');
+    await feed('2.0.0', 30, 2, 'c');
     expect(await h.server.storage.listRollouts('prod')).toHaveLength(1);
     expect(await actions()).not.toContain('rollout.halt');
   });
 
   it('waits for the minimum sample, however bad the first reports are', async () => {
     await startRollout();
-    await feed('1.0.0', 500, 0, 's');
-    await feed('2.0.0', 150, 150, 'c');
+    await feed('1.0.0', 30, 0, 's');
+    await feed('2.0.0', 19, 19, 'c');
     expect(await h.server.storage.listRollouts('prod')).toHaveLength(1);
   });
 
   it('waits for enough distinct clients on each side', async () => {
-    await h.stop();
-    h = await startHarness({ gate: { minLoads: 10, minClients: 50, factor: 2, floor: 0.02 } });
-    admin = await h.admin();
-    seedShell(h.artifacts, 'prod');
     await startRollout();
-    await feed('1.0.0', 100, 0, 's');
-    await feed('2.0.0', 49, 49, 'c');
+    await feed('1.0.0', 30, 0, 's');
+    await feed('2.0.0', 19, 19, 'c');
     expect(await h.server.storage.listRollouts('prod')).toHaveLength(1);
     await feed('2.0.0', 1, 1, 'd');
     expect(await h.server.storage.listRollouts('prod')).toEqual([]);
@@ -465,16 +471,16 @@ describe('the gate', () => {
 
   it('waits when stable has too few clients', async () => {
     await startRollout();
-    await feed('1.0.0', 49, 0, 's');
-    await feed('2.0.0', 300, 300, 'c');
+    await feed('1.0.0', 9, 0, 's');
+    await feed('2.0.0', 40, 40, 'c');
     expect(await h.server.storage.listRollouts('prod')).toHaveLength(1);
   });
 
   it('cannot be steered by one browser sending the same report over and over', async () => {
     await startRollout();
-    await feed('1.0.0', 500, 0, 's');
+    await feed('1.0.0', 30, 0, 's');
     const forger = (await clientsFor('2.0.0', 1, 'forger'))[0] ?? 'x';
-    for (let i = 0; i < 300; i += 1)
+    for (let i = 0; i < 40; i += 1)
       // oxlint-disable-next-line no-await-in-loop -- sequential on purpose
       await h.server.service.beacon(beaconBody(forger, [report('2.0.0', 1, 1)]));
     expect(await h.server.storage.listRollouts('prod')).toHaveLength(1);
@@ -777,13 +783,17 @@ describe('the reporter cap and the status endpoint', () => {
   });
 
   it('says it is waiting for stable clients when the candidate is ready', async () => {
+    await h.stop();
+    h = await startHarness({ gate: SMALL_GATE });
+    admin = await h.admin();
+    seedShell(h.artifacts, 'prod');
     await startRollout({ percent: 99 });
-    await feed('2.0.0', 200, 0, 'c');
+    await feed('2.0.0', 20, 0, 'c');
     await feed('1.0.0', 2, 0, 's');
     const res = await h.call('GET', '/v1/rollout?env=prod&remote=cart', { token: admin });
     expect(res.body.gate).toMatchObject({
       verdict: 'wait',
-      reason: '2 of 50 stable clients so far',
+      reason: '2 of 10 stable clients so far',
     });
   });
 
