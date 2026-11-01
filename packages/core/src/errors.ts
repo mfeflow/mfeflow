@@ -71,8 +71,8 @@ export const ERROR_CATALOGUE = {
     fix: 'Give one of them another port in its rsbuild config and in "apps" in mfeflow.json.',
   },
   E116: {
-    title: 'Two remotes claim the same route, or an mfe.json disagrees with mfeflow.json',
-    fix: 'Give each route to one remote, and keep the name in mfe.json equal to the app name.',
+    title: 'Two remotes claim routes that overlap, or an mfe.json disagrees with mfeflow.json',
+    fix: 'Give each route to one remote (a wildcard such as /checkout/* also covers /checkout/pay), and keep the name in mfe.json equal to the app name.',
   },
   E117: {
     title: 'A copied file changed since mfeflow wrote it',

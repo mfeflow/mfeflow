@@ -224,11 +224,46 @@ describe('registry index', () => {
     expect(issues.map((i) => `${i.path}: ${i.message}`)).toEqual([
       'remotes[2].name: duplicate remote "cart"',
       'remotes[3].entry: must be an http(s) URL',
-      'remotes[3].routes: route "/cart" is already claimed by "cart"',
+      'remotes[3].routes: route "/cart" of "promo" overlaps route "/cart" of "cart"',
       'remotes[4]: must be an object',
     ]);
     expect(validateRegistryIndex({})).toEqual([{ path: 'remotes', message: 'must be an array' }]);
     expect(validateRegistryIndex(1)).toHaveLength(1);
+  });
+});
+
+describe('registry index route overlap', () => {
+  const u = 'https://x.example.com/m.json';
+  const messages = (remotes: unknown[]) =>
+    validateRegistryIndex({ remotes }).map((i) => `${i.path}: ${i.message}`);
+
+  it('names both remotes and both routes when a wildcard covers another remote route', () => {
+    expect(
+      messages([
+        { name: 'checkout', entry: u, routes: ['/checkout/*'] },
+        { name: 'payments', entry: u, routes: ['/checkout/pay'] },
+      ]),
+    ).toEqual([
+      'remotes[1].routes: route "/checkout/pay" of "payments" overlaps route "/checkout/*" of "checkout"',
+    ]);
+  });
+
+  it('catches a param route against a literal one, and lets one remote overlap itself', () => {
+    expect(
+      messages([
+        { name: 'catalog', entry: u, routes: ['/p/:id', '/p/new'] },
+        { name: 'promo', entry: u, routes: ['/p/42'] },
+      ]),
+    ).toEqual(['remotes[1].routes: route "/p/42" of "promo" overlaps route "/p/:id" of "catalog"']);
+  });
+
+  it('accepts hyphenated and upper-case global names, and keeps disjoint routes apart', () => {
+    expect(
+      messages([
+        { name: 'my-app', entry: u, routes: ['/a/*'] },
+        { name: 'Cart_2', entry: u, routes: ['/b'] },
+      ]),
+    ).toEqual([]);
   });
 });
 

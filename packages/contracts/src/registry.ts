@@ -1,6 +1,21 @@
-import { Checker, isObj, isUrl, type Issue, type Obj } from './validate';
-import { ENTRY_TYPES, GLOBAL_NAME } from './entry';
-import { EXPOSE, MFE_NAME, ROUTE } from './mfe-manifest';
+import {
+  GLOBAL_NAME,
+  isRegistryIndexRemote,
+  remoteFileIssues,
+  registryRemoteIssues,
+  ROUTE,
+  type RegistryIndex,
+  type RegistryIndexRemote,
+} from './entry';
+import { routesOverlap } from './routes';
+import { Checker, isObj, isUrl, type Issue } from './validate';
+
+export {
+  isRegistryIndexRemote,
+  registryRemoteIssues,
+  type RegistryIndex,
+  type RegistryIndexRemote,
+};
 
 /** `registry/envs/<env>/<name>.json`: what one remote serves in one environment. */
 export interface RegistryEntry {
@@ -19,63 +34,10 @@ export interface RegistryEntry {
   rollout?: { candidate: string; stable: string; percent: number };
 }
 
-/** What the shell fetches at boot. */
-export interface RegistryIndex {
-  shell?: string;
-  env?: string;
-  generatedAt?: string;
-  remotes: RegistryIndexRemote[];
-}
-
-export interface RegistryIndexRemote {
-  name: string;
-  /** `mf-manifest.json` URL. */
-  entry: string;
-  /** Entry script URL; shells register it in place of `entry` when present. */
-  remoteEntry?: string;
-  /** How `remoteEntry` loads (`module` for ESM). */
-  type?: string;
-  /** The global `remoteEntry` defines when it differs from `name`. */
-  entryGlobalName?: string;
-  /** Per expose, the files to preload. Not inlined into the shell's HTML. */
-  exposes?: Record<string, string[]>;
-  version?: string;
-  routes?: string[];
-  owner?: string;
-}
-
-const ENTRY_TYPE = new RegExp(`^(?:${ENTRY_TYPES.join('|')})$`);
-
 export const VERSION = /^[0-9A-Za-z.+-]+$/;
 
-function checkRemoteFiles(c: Checker, obj: Obj, at: string): void {
-  const entry = c.string(obj, 'remoteEntry', at, { required: false });
-  if (entry !== undefined && !isUrl(entry))
-    c.add(at ? `${at}.remoteEntry` : 'remoteEntry', 'must be an http(s) URL');
-  c.string(obj, 'type', at, {
-    required: false,
-    pattern: ENTRY_TYPE,
-    hint: `must be a Module Federation entry type: ${ENTRY_TYPES.join(', ')}`,
-  });
-  c.string(obj, 'entryGlobalName', at, {
-    required: false,
-    pattern: GLOBAL_NAME,
-    hint: 'must be a JavaScript global name (letters, digits, _, $, -; not starting with a digit)',
-  });
-  const exposes = c.object(obj, 'exposes', at, false);
-  if (!exposes) return;
-  const base = at ? `${at}.exposes` : 'exposes';
-  for (const [expose, files] of Object.entries(exposes)) {
-    if (!EXPOSE.test(expose)) c.add(`${base}.${expose}`, 'must look like "./App"');
-    if (!Array.isArray(files)) {
-      c.add(`${base}.${expose}`, 'must be an array of URLs');
-      continue;
-    }
-    files.forEach((file: unknown, i) => {
-      if (typeof file !== 'string' || !isUrl(file))
-        c.add(`${base}.${expose}[${String(i)}]`, 'must be an http(s) URL');
-    });
-  }
+function addIssues(c: Checker, issues: Issue[], at: string): void {
+  for (const issue of issues) c.add([at, issue.path].filter(Boolean).join('.'), issue.message);
 }
 
 export function validateRegistryEntry(value: unknown): Issue[] {
@@ -90,7 +52,7 @@ export function validateRegistryEntry(value: unknown): Issue[] {
   });
   const url = c.string(value, 'manifestUrl', '');
   if (url !== undefined && !isUrl(url)) c.add('manifestUrl', 'must be an http(s) URL');
-  checkRemoteFiles(c, value, '');
+  addIssues(c, remoteFileIssues(value), '');
   c.string(value, 'previous', '', { required: false, pattern: VERSION, hint: 'must be a version' });
   c.string(value, 'owner', '', { required: false });
   const rollout = c.object(value, 'rollout', '', false);
@@ -115,37 +77,31 @@ export function validateRegistryIndex(value: unknown): Issue[] {
     return c.issues;
   }
   const names = new Set<string>();
-  const claimed = new Map<string, string>();
+  const claimed: { remote: string; route: string }[] = [];
   remotes.forEach((remote: unknown, i) => {
     const at = `remotes[${String(i)}]`;
     if (!isObj(remote)) {
       c.add(at, 'must be an object');
       return;
     }
-    const name = c.string(remote, 'name', at, {
-      pattern: MFE_NAME,
-      hint: 'must be a Module Federation name',
-    });
-    const entry = c.string(remote, 'entry', at);
-    if (entry !== undefined && !isUrl(entry)) c.add(`${at}.entry`, 'must be an http(s) URL');
-    checkRemoteFiles(c, remote, at);
-    c.string(remote, 'version', at, { required: false });
-    c.string(remote, 'owner', at, { required: false });
-    const routes = c.stringArray(remote, 'routes', at, {
-      required: false,
-      pattern: ROUTE,
-      hint: 'must start with "/"',
-    });
-    if (name !== undefined) {
-      if (names.has(name)) c.add(`${at}.name`, `duplicate remote "${name}"`);
-      names.add(name);
-      for (const route of routes) {
-        const owner = claimed.get(route);
-        if (owner !== undefined && owner !== name)
-          c.add(`${at}.routes`, `route "${route}" is already claimed by "${owner}"`);
-        claimed.set(route, name);
+    addIssues(c, registryRemoteIssues(remote), at);
+    const { name } = remote;
+    if (typeof name !== 'string' || !GLOBAL_NAME.test(name)) return;
+    if (names.has(name)) c.add(`${at}.name`, `duplicate remote "${name}"`);
+    names.add(name);
+    const routes = Array.isArray(remote.routes)
+      ? remote.routes.filter((r): r is string => typeof r === 'string' && ROUTE.test(r))
+      : [];
+    for (const route of routes) {
+      for (const other of claimed) {
+        if (other.remote !== name && routesOverlap(route, other.route))
+          c.add(
+            `${at}.routes`,
+            `route "${route}" of "${name}" overlaps route "${other.route}" of "${other.remote}"`,
+          );
       }
     }
+    for (const route of routes) claimed.push({ remote: name, route });
   });
   return c.issues;
 }

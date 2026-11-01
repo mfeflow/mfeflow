@@ -54,7 +54,11 @@ export function registryInjection(
   options: InjectionOptions = {},
 ): string {
   const inline = {
-    remotes: index.remotes.map((remote) => pickRegistryFields(remote)),
+    remotes: index.remotes.map((remote) =>
+      Object.fromEntries(
+        Object.entries(pickRegistryFields(remote)).filter(([key]) => key !== 'exposes'),
+      ),
+    ),
   };
   let html = `<script>window.__MFE_REGISTRY__=${jsonForScript(inline)}</script>`;
   const seen = new Set<string>();

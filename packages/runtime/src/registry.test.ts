@@ -15,6 +15,8 @@ const {
   registeredRemotes,
 } = await import('./registry');
 
+const U = 'https://cdn.example.com/m.json';
+
 const index = {
   shell: 'storefront',
   env: 'prod',
@@ -57,13 +59,15 @@ describe('isRegistryRemote', () => {
   it('accepts valid remotes and rejects bad shapes', () => {
     expect(isRegistryRemote(index.remotes[0])).toBe(true);
     expect(isRegistryRemote(null)).toBe(false);
-    expect(isRegistryRemote({ name: 'bad name', entry: 'x' })).toBe(false);
+    expect(isRegistryRemote({ name: 'bad name', entry: U })).toBe(false);
     expect(isRegistryRemote({ name: 'a', entry: 1 })).toBe(false);
-    expect(isRegistryRemote({ name: 'a', entry: 'x', routes: [1] })).toBe(false);
-    expect(isRegistryRemote({ name: 'a', entry: 'x', version: 2 })).toBe(false);
-    expect(isRegistryRemote({ name: 'a', entry: 'x', remoteEntry: 2 })).toBe(false);
-    expect(isRegistryRemote({ name: 'a', entry: 'x', remoteEntry: 'y' })).toBe(true);
-    expect(isRegistryRemote({ name: 'a', entry: 'x', owner: 2 })).toBe(false);
+    expect(isRegistryRemote({ name: 'a', entry: U, routes: [1] })).toBe(false);
+    expect(isRegistryRemote({ name: 'a', entry: U, version: 2 })).toBe(false);
+    expect(isRegistryRemote({ name: 'a', entry: U, remoteEntry: 2 })).toBe(false);
+    expect(
+      isRegistryRemote({ name: 'a', entry: U, remoteEntry: 'https://cdn.example.com/e.js' }),
+    ).toBe(true);
+    expect(isRegistryRemote({ name: 'a', entry: U, owner: 2 })).toBe(false);
   });
 });
 
@@ -133,7 +137,7 @@ describe('a bad remote in the index', () => {
     remotes: [
       { name: 'cart', entry: 'https://cdn.example.com/cart/mf-manifest.json', type: 'wasm' },
       { name: 'catalog', entry: 'https://cdn.example.com/catalog/mf-manifest.json' },
-      { name: 'bad name', entry: 'x' },
+      { name: 'bad name', entry: U },
     ],
   };
   const expected = { remotes: [mixed.remotes[1]] };
@@ -217,12 +221,12 @@ describe('registerRemotesFromIndex', () => {
       },
       { name: 'plain', entry: 'https://cdn.example.com/plain/m.json' },
     ]);
-    expect(isRegistryRemote({ name: 'a', entry: 'x', type: 1 })).toBe(false);
-    expect(isRegistryRemote({ name: 'a', entry: 'x', entryGlobalName: 1 })).toBe(false);
+    expect(isRegistryRemote({ name: 'a', entry: U, type: 1 })).toBe(false);
+    expect(isRegistryRemote({ name: 'a', entry: U, entryGlobalName: 1 })).toBe(false);
     for (const bad of [{ type: 'wasm' }, { entryGlobalName: 'a b' }, { entryGlobalName: 'x";' }])
-      expect(isRegistryRemote({ name: 'a', entry: 'x', ...bad })).toBe(false);
+      expect(isRegistryRemote({ name: 'a', entry: U, ...bad })).toBe(false);
     for (const type of ['var', 'esm', 'system'])
-      expect(isRegistryRemote({ name: 'a', entry: 'x', type })).toBe(true);
+      expect(isRegistryRemote({ name: 'a', entry: U, type })).toBe(true);
   });
 
   it('accepts what a manifest produces and what the contracts validator accepts', () => {
@@ -259,8 +263,8 @@ describe('registerRemotesFromIndex', () => {
     const exposes = { './App': ['https://cdn.example.com/cart/a.js'] };
     const fetched = { remotes: [{ ...remote, exposes }] };
     registerRemotesFromIndex(fetched);
-    expect(registeredRemotes()).toEqual(inlined);
     expect(inlined).toEqual([remote]);
+    expect(registeredRemotes()).toEqual([{ ...remote, exposes }]);
   });
 
   it('refuses and reports a manifest-only remote when the shell has no manifest loader', () => {

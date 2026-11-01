@@ -1,32 +1,15 @@
-import { ENTRY_TYPES, GLOBAL_NAME, pickRegistryFields } from '@mfeflow/contracts/entry';
+import {
+  isRegistryIndexRemote,
+  pickRegistryFields,
+  registryRemoteIssues,
+  type RegistryIndex,
+  type RegistryIndexRemote,
+} from '@mfeflow/contracts/entry';
 import { registerRemotes } from '@module-federation/enhanced/runtime';
 import { reportRemoteError } from './report';
 
-export interface RegistryRemote {
-  /** Module Federation name, e.g. `cart`. */
-  name: string;
-  /** `mf-manifest.json` URL of the version to load. Used when `remoteEntry` is absent. */
-  entry: string;
-  /**
-   * The remote's entry script. Registered in place of the manifest in
-   * production, so the shell fetches no manifest and ships no snapshot code.
-   */
-  remoteEntry?: string;
-  /** How `remoteEntry` loads (`module` for ESM). Passed to Module Federation with it. */
-  type?: string;
-  /** The global `remoteEntry` defines when it differs from `name`. */
-  entryGlobalName?: string;
-  version?: string;
-  routes?: string[];
-  owner?: string;
-}
-
-export interface RegistryIndex {
-  shell?: string;
-  env?: string;
-  generatedAt?: string;
-  remotes: RegistryRemote[];
-}
+export type RegistryRemote = RegistryIndexRemote;
+export type { RegistryIndex };
 
 /** Set by the shell build (`@mfeflow/rsbuild`): false when it shipped without the manifest loader. */
 // oxlint-disable-next-line no-underscore-dangle -- a bundler define, named like one
@@ -39,34 +22,15 @@ function builtWithSnapshot(): boolean {
   return typeof __MFEFLOW_SNAPSHOT__ === 'boolean' ? __MFEFLOW_SNAPSHOT__ : true;
 }
 
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((v) => typeof v === 'string');
-}
-
 /** The first field of a registry remote that is wrong, or undefined when it is valid. */
 function remoteProblem(value: unknown): string | undefined {
-  if (typeof value !== 'object' || value === null) return 'not an object';
-  if (!('name' in value) || typeof value.name !== 'string' || !GLOBAL_NAME.test(value.name))
-    return 'name';
-  if (!('entry' in value) || typeof value.entry !== 'string') return 'entry';
-  if ('remoteEntry' in value && typeof value.remoteEntry !== 'string') return 'remoteEntry';
-  if ('type' in value && (typeof value.type !== 'string' || !ENTRY_TYPES.includes(value.type)))
-    return 'type';
-  if (
-    'entryGlobalName' in value &&
-    (typeof value.entryGlobalName !== 'string' || !GLOBAL_NAME.test(value.entryGlobalName))
-  )
-    return 'entryGlobalName';
-  if ('version' in value && typeof value.version !== 'string') return 'version';
-  if ('owner' in value && typeof value.owner !== 'string') return 'owner';
-  if ('routes' in value && !isStringArray(value.routes)) return 'routes';
-  return undefined;
+  const [first] = registryRemoteIssues(value);
+  if (first === undefined) return undefined;
+  return first.path === '' ? 'not an object' : (first.path.split(/[.[]/)[0] ?? first.path);
 }
 
 /** True for a valid registry remote. */
-export function isRegistryRemote(value: unknown): value is RegistryRemote {
-  return remoteProblem(value) === undefined;
-}
+export const isRegistryRemote = isRegistryIndexRemote;
 
 /**
  * True for a registry index envelope (what the shell fetches at boot). Remotes

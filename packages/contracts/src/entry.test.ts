@@ -26,6 +26,7 @@ describe('pickRegistryFields', () => {
     expect(pickRegistryFields(remote)).toEqual({
       name: 'cart',
       entry: 'https://x.test/m.json',
+      exposes: { './App': ['https://x.test/a.js'] },
       routes: ['/cart'],
     });
     expect(Object.keys(pickRegistryFields(remote))).not.toContain('remoteEntry');
@@ -35,6 +36,7 @@ describe('pickRegistryFields', () => {
     expect([...REGISTRY_REMOTE_FIELDS].toSorted()).toEqual([
       'entry',
       'entryGlobalName',
+      'exposes',
       'name',
       'owner',
       'remoteEntry',
