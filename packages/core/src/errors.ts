@@ -7,7 +7,8 @@ interface ErrorInfo {
 
 /**
  * Every error the engine throws. Ranges: E1xx project and config, E2xx
- * features, E3xx build and runtime, E4xx feature registries, E5xx deploy and the static registry.
+ * features, E3xx build and runtime, E4xx feature registries, E5xx deploy and the static registry,
+ * E6xx upgrade.
  */
 export const ERROR_CATALOGUE = {
   E101: {
@@ -249,6 +250,18 @@ export const ERROR_CATALOGUE = {
   E406: {
     title: 'The registry changed a feature since you added it',
     fix: 'Nothing was written. Look at what changed; if you accept the new content, run the command again with --accept-changed-content.',
+  },
+  E601: {
+    title: 'Cannot tell which version of mfeflow made this project',
+    fix: 'Add "cli": "<version>" to mfeflow.json (the version you created the project with), or give the shell a plain @mfeflow/runtime range in its package.json, then run the command again.',
+  },
+  E602: {
+    title: 'The project is newer than the version you are upgrading to',
+    fix: 'Upgrade only moves forward. Install a newer mfeflow, or leave the project as it is.',
+  },
+  E603: {
+    title: 'A feature migration could not be loaded or failed',
+    fix: 'Nothing was written. Update mfeflow to a build that ships the migration, or report the feature and versions named above.',
   },
 } as const satisfies Record<string, ErrorInfo>;
 
