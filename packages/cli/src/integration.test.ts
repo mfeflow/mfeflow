@@ -128,9 +128,12 @@ describe('mfeflow init --local --yes --no-install', () => {
     );
     // The browser singleton check loads on demand only, so production pays nothing.
     const boot = tree['apps/shell/src/bootstrap.tsx'];
-    expect(boot).toContain("if (DEV || assertRequested()) void import('./assert');");
+    expect(boot).toContain("if (DEV) void import('./assert');");
     expect(boot).not.toMatch(/^import .* from '\.\/assert'/m);
-    expect(tree['apps/shell/src/assert.ts']).toContain('checkSingletons(__MFEFLOW_SINGLETONS__)');
+    expect(tree['apps/shell/src/assert.ts']).toContain('checkSingletons(SINGLETONS)');
+    expect(tree['apps/shell/src/assert.ts']).toContain(
+      "typeof __MFEFLOW_SINGLETONS__ === 'undefined'",
+    );
     expect(tree['apps/shell/src/assert.ts']).toContain("reportRemoteError('shell', 'singletons'");
   });
 

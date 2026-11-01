@@ -1,7 +1,13 @@
 import { checkSingletons, reportRemoteError } from '@mfeflow/runtime';
 
-// The shell's rsbuild preset defines the packages it shares; remotes load later, so the check repeats.
-declare const __MFEFLOW_SINGLETONS__: readonly string[];
+// The shell's rsbuild preset defines the packages it shares; an older preset does not, so fall back.
+declare const __MFEFLOW_SINGLETONS__: readonly string[] | undefined;
+const SINGLETONS =
+  typeof __MFEFLOW_SINGLETONS__ === 'undefined' ? ['react', 'react-dom'] : __MFEFLOW_SINGLETONS__;
+
+// Remotes register their shared packages as they load, so the check repeats for a while.
+const CHECK_EVERY_MS = 3000;
+const STOP_AFTER_MS = 60_000;
 
 declare global {
   var mfeflowCheckSingletons: (() => ReturnType<typeof checkSingletons>) | undefined;
@@ -10,7 +16,7 @@ declare global {
 const reported = new Set<string>();
 
 function check(): ReturnType<typeof checkSingletons> {
-  const result = checkSingletons(__MFEFLOW_SINGLETONS__);
+  const result = checkSingletons(SINGLETONS);
   const problems = [
     ...result.duplicated.map((name) => `${name} is loaded in more than one version`),
     ...result.missing.map((name) => `${name} is not in the share scope`),
@@ -23,7 +29,10 @@ function check(): ReturnType<typeof checkSingletons> {
   return result;
 }
 
-// Loaded only in development and on `?mfeflow-assert`: it reads every loaded remote's share scope.
+// Loaded only in development: it reads every loaded remote's share scope.
 globalThis.mfeflowCheckSingletons = check;
 check();
-setInterval(check, 3000);
+const timer = setInterval(check, CHECK_EVERY_MS);
+setTimeout(() => {
+  clearInterval(timer);
+}, STOP_AFTER_MS);
