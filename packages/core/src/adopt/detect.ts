@@ -272,7 +272,7 @@ async function resolveOptions(
     return fail(`are imported from a package (${n.name} from '${binding.source}')`);
   }
   if ((binding.depth ?? 0) > 1) {
-    return fail(`are read from deep inside an import ('${binding.source}')`);
+    return fail(`are read from deep inside what '${binding.source}' exports`);
   }
   if (hops >= MAX_IMPORT_HOPS)
     return fail(`are imported through more than ${String(MAX_IMPORT_HOPS)} files`);
