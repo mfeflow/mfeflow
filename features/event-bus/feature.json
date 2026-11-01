@@ -49,6 +49,12 @@
       "when": {
         "feature:testing": true
       }
+    },
+    {
+      "to": "src/Announce.tsx",
+      "target": "remotes",
+      "from": "files/announce.tsx.eta",
+      "template": true
     }
   ],
   "dependencies": [
@@ -81,6 +87,14 @@
       "call": "configureShellEvents",
       "from": "./events",
       "await": false
+    },
+    {
+      "op": "wrap-provider",
+      "file": "src/exposed/App.tsx",
+      "target": "remotes",
+      "component": "Announce",
+      "from": "../Announce",
+      "function": "App"
     }
   ]
 }

@@ -514,6 +514,14 @@ describe('event-bus', () => {
     expect(boot).not.toContain('await configureShellEvents');
   });
 
+  it('makes each remote announce itself when its exposed App mounts', async () => {
+    await add('event-bus');
+    const app = await read('apps/cart/src/exposed/App.tsx');
+    expect(app).toContain("import { Announce } from '../Announce';");
+    expect(app).toMatch(/<Announce>[\s\S]*<\/Announce>/);
+    expect(await read('apps/cart/src/Announce.tsx')).toContain('announceReady();');
+  });
+
   it('writes a unit test for the shell and each remote when testing is installed', async () => {
     await add('testing');
     await add('event-bus');

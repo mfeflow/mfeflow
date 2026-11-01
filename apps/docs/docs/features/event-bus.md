@@ -10,12 +10,12 @@ Remotes never import each other (decision 0009). They talk through events that b
 
 ## What you get
 
-| File                                     | What it is for                                                                                                                                 |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/contracts/package.json`        | The workspace package `@<scope>/contracts`. Every app depends on it with `workspace:*`.                                                        |
-| `packages/contracts/src/events/index.ts` | `interface Events`: the event names and payload types. Types only, no imports, so reading it costs a remote nothing at run time.               |
-| `apps/<app>/src/events.ts`               | One `declare module '@mfeflow/event-bus'` line that merges `Events` into the bus, plus a sample: `announceReady()` and `onOtherRemoteReady()`. |
-| `apps/shell/src/events.ts`               | The same merge, and an import of the bus so the shell is the one that provides the shared copy. Imported from `bootstrap.tsx`.                 |
+| File                                     | What it is for                                                                                                                                                                                                                                    |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/contracts/package.json`        | The workspace package `@<scope>/contracts`. Every app depends on it with `workspace:*`.                                                                                                                                                           |
+| `packages/contracts/src/events/index.ts` | `interface Events`: the event names and payload types. Types only, no imports, so reading it costs a remote nothing at run time.                                                                                                                  |
+| `apps/<app>/src/events.ts`               | One `declare module '@mfeflow/event-bus'` line that merges `Events` into the bus, plus a sample: `announceReady()` and `onOtherRemoteReady()`. `src/Announce.tsx` wraps the exposed `App` and calls `announceReady()` whenever the remote mounts. |
+| `apps/shell/src/events.ts`               | The same merge, and an import of the bus so the shell is the one that provides the shared copy. Imported from `bootstrap.tsx`.                                                                                                                    |
 
 With `testing`, each of these gets a unit test.
 
