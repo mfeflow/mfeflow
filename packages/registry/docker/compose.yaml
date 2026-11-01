@@ -1,0 +1,67 @@
+# The registry server with MinIO holding the artifacts. For trying it out on one machine: it listens on
+# 127.0.0.1 and uses the default MinIO login. Change both, and put TLS in front, before real use.
+#
+#   docker compose up -d
+#   docker compose exec registry mfeflow-registry token create --env '*' --remote '*' --actions read,deploy,promote,rollback,kill,rollout
+#
+# Upload builds to MinIO with `mfeflow deploy --host s3://artifacts`, and set
+# MFEFLOW_S3_ENDPOINT=http://127.0.0.1:9000 and MFEFLOW_S3_REGION=us-east-1 on your machine.
+services:
+  registry:
+    image: ghcr.io/mfeflow/mfeflow-registry:latest
+    # build:
+    #   context: .
+    #   args:
+    #     PACKAGE: '@mfeflow/registry@0.6.0'
+    # The registry shares MinIO's network, so http://127.0.0.1:9000 means MinIO for the server and for
+    # your browser alike. The server accepts plain http only for localhost, and this keeps one address.
+    network_mode: 'service:minio'
+    depends_on:
+      minio-setup:
+        condition: service_completed_successfully
+    environment:
+      MFEFLOW_REGISTRY_ARTIFACT_BASE_URL: http://127.0.0.1:9000/artifacts
+      # The static index shells fall back to when this server is down.
+      MFEFLOW_REGISTRY_FALLBACK_HOST: s3://artifacts/fallback
+      MFEFLOW_S3_ENDPOINT: http://127.0.0.1:9000
+      MFEFLOW_S3_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+    volumes:
+      - registry-data:/data
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ':9001'
+    # The registry's port is published here because it shares this network.
+    ports:
+      - '127.0.0.1:8787:8787'
+      - '127.0.0.1:9000:9000'
+      - '127.0.0.1:9001:9001'
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Makes the bucket and lets the browser read it, which shells need to load remotes.
+  minio-setup:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/artifacts &&
+      mc anonymous set download local/artifacts"
+
+volumes:
+  registry-data:
+  minio-data:

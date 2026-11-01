@@ -10,6 +10,8 @@ name: release
 #   publish  the only job with id-token. No checkout and no repo code: inline shell checks each
 #            tarball against the plan (file name, sha256, package.json name and version) and runs
 #            `npm publish` in the order the plan gives, in Environment `npm`.
+#   image    builds the registry server image from the just-published npm package and pushes it to
+#            ghcr.io. Only when this release publishes @mfeflow/registry; the only job with packages: write.
 #   tag      git tags `<name>@<version>` and `v<version>`, and one GitHub Release with the tarballs.
 #
 # No job here uses the pnpm cache: CI jobs that run install scripts write it. One-time setup, the
@@ -179,6 +181,50 @@ jobs:
             grep -q E404 "$RUNNER_TEMP/view.err" || { cat "$RUNNER_TEMP/view.err"; exit 1; }
             npm publish "./release/$tarball" --provenance --access public --ignore-scripts --tag "$tag"
           done < "$RUNNER_TEMP/verified.txt"
+
+  image:
+    name: registry server image
+    needs: [plan, publish]
+    # Only when this release publishes @mfeflow/registry. The image installs that package from npm,
+    # so it can only be built once the publish job has finished.
+    if: contains(needs.plan.outputs.expected, '"name":"@mfeflow/registry"')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io with the job's GITHUB_TOKEN; no other job can
+    env:
+      PLAN: ${{ needs.plan.outputs.expected }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Name the image and its tags
+        id: image
+        run: |
+          set -euo pipefail
+          version=$(jq -r '.[] | select(.name == "@mfeflow/registry") | .version' <<<"$PLAN")
+          [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "::error::bad version: $version"; exit 1; }
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/mfeflow-registry"
+          tags="$image:$version"
+          case "$version" in *-*) ;; *) tags="$tags,$image:latest" ;; esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: packages/registry/docker
+          push: true
+          tags: ${{ steps.image.outputs.tags }}
+          build-args: PACKAGE=@mfeflow/registry@${{ steps.image.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.image.outputs.version }}
+            org.opencontainers.image.licenses=MIT
 
   tag:
     name: tag and release
