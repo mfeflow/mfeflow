@@ -265,7 +265,7 @@ export class PlanBuilder {
     }
     const source = await this.content(file);
     if (source === undefined) throw new MfeflowError('E208', `${file} does not exist`);
-    const existing = this.declaredRange(file, source, name);
+    const existing = this.declaredRange(file, source, name, range);
     if (existing === range || existing.startsWith('workspace:')) return;
     if (!existing.startsWith('catalog:') && !isRegistryRange(existing)) {
       this.warn(
@@ -285,19 +285,26 @@ export class PlanBuilder {
     }
     await this.patch(file, (text) =>
       editJsonObject(file, text, (pkg) => {
-        const section = DEPENDENCY_SECTIONS.find((key) => name in asRecord(pkg[key])) ?? '';
-        pkg[section] = { ...asRecord(pkg[section]), [name]: range };
-        return true;
+        let changed = false;
+        for (const section of DEPENDENCY_SECTIONS) {
+          const listed = asRecord(pkg[section])[name];
+          if (typeof listed !== 'string' || listed === range || !isRegistryRange(listed)) continue;
+          pkg[section] = { ...asRecord(pkg[section]), [name]: range };
+          changed = true;
+        }
+        return changed;
       }),
     );
   }
 
-  private declaredRange(file: string, source: string, name: string): string {
+  /** The first range for `name` that is not already `wanted`, else the first one; a name can be listed in several sections. */
+  private declaredRange(file: string, source: string, name: string, wanted: string): string {
     const pkg = parseJsonObject(file, source);
-    for (const section of DEPENDENCY_SECTIONS) {
-      const value = asRecord(pkg[section])[name];
-      if (typeof value === 'string') return value;
-    }
+    const listed = DEPENDENCY_SECTIONS.map((section) => asRecord(pkg[section])[name]).filter(
+      (value) => typeof value === 'string',
+    );
+    const found = listed.find((value) => value !== wanted) ?? listed[0];
+    if (found !== undefined) return found;
     throw new MfeflowError('E208', `${file} does not depend on ${name}`);
   }
 

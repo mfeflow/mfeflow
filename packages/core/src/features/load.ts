@@ -15,6 +15,8 @@ export interface LoadedFeature {
   trust: Trust;
   /** Reads a `from` file of a local feature. Absent for remote features. */
   readAsset?: (relative: string) => Promise<string>;
+  /** Folder of a local feature; migration modules are loaded from here. Absent for remote features. */
+  dir?: string;
   /** `sha256-<hex>` of the feature.json a registry served. Absent for local features. */
   integrity?: string;
 }
@@ -95,6 +97,7 @@ async function loadLocal(name: string, options: LoadOptions): Promise<LoadedFeat
   return {
     manifest,
     trust: 'first-party',
+    dir,
     readAsset: async (relative) => {
       if (!isSafeRelativePath(relative)) throw new MfeflowError('E105', `"${relative}"`);
       const content = await readIfExists(ops, path.join(dir, ...relative.split('/')));
