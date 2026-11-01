@@ -38,6 +38,45 @@ keywords. A registry that cannot be read is reported (`MFEFLOW_E401`, or `E403` 
 listed; the command exits 0. With `--json` the result has `features[].source` and one status per registry under
 `registries`.
 
+## Trusting a registry
+
+`mfeflow.json` is committed, so anyone who clones a repo also gets the registries it names. mfeflow does not send a
+request to one of them until you have trusted it **on your machine**.
+
+- `mfeflow registry add` trusts what it adds. You typed the address, so that is your yes.
+- A registry that only came with a cloned `mfeflow.json` is not asked. `mfeflow features` lists it as "not trusted yet"
+  and does not fetch its index. Look at the address (`mfeflow registry list`), then run `mfeflow registry trust @acme`.
+  It asks you to confirm; without a terminal it needs `--yes`.
+- `mfeflow registry untrust @acme` takes it back.
+- In CI, set `MFEFLOW_TRUST_REGISTRIES=@acme,@other` for that run. Nothing is written, and nothing is trusted unless it
+  is named.
+
+What you trust is the namespace **and its exact URL template**, kept in `trusted-registries.json` in your own config
+folder (`~/.config/mfeflow`, `$XDG_CONFIG_HOME/mfeflow`, or `%APPDATA%\mfeflow` on Windows; `MFEFLOW_CONFIG_DIR`
+overrides it). If the URL in `mfeflow.json` changes, the registry is untrusted again.
+
+Two more rules:
+
+- **Your own machine and private networks need trust.** `localhost`, `127.0.0.0/8`, `::1`, `10.0.0.0/8`,
+  `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16` and `fc00::/7` are never requested, nor reached by a redirect,
+  unless the registry is trusted (`MFEFLOW_E405`). Only the written host is checked, not what a name resolves to.
+- **`mfeflow add @acme/segment` is your explicit action.** For a public https registry it fetches that one
+  `feature.json` without prior trust, because you named the feature and nothing is written before you confirm the plan.
+  `add remote` and `add shell` fetch every installed registry feature again, so they need the registry trusted.
+
+Each time a registry feature is added, mfeflow records the sha256 of its `feature.json` in `mfeflow.json` as
+`integrity`. When `add remote` or `add shell` fetch it again, other bytes stop the command with `MFEFLOW_E406` and
+nothing is written; read what changed, then run it again with `--accept-changed-content` to take it. On `add`, a
+`version` in the registry's `index.json` that differs from the one in the `feature.json` is an error too.
+
+The plan lists the packages a registry feature adds under **NEW PACKAGES**, separate from other dependencies. npm and
+yarn run a package's install scripts on install; pnpm 10 and later blocks them until you allow them. Look at each
+package first.
+
+Tokens in a registry URL (`token`, `key`, `sig`, `auth`, `password`, `secret`, `X-Amz-*`) are shown as `***` by
+`registry add` and `list`, `features` and in errors. They stay in `mfeflow.json` as written, so keep secrets out of
+a file you commit.
+
 ## The index
 
 A registry is a folder of static files. `index.json` sits in the folder the URL template starts in, before the first

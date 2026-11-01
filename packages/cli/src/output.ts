@@ -7,7 +7,8 @@ import { exitForFindings, type CheckReport, type Summary } from './report';
 export interface PlanReport {
   features: { name: string; version: string }[];
   changes: { path: string; action: 'create' | 'patch' | 'delete' }[];
-  dependencies: { file: string; name: string; range: string; dev: boolean }[];
+  /** `thirdParty` (only present when true): a feature from a registry asked for it. */
+  dependencies: { file: string; name: string; range: string; dev: boolean; thirdParty?: boolean }[];
   scripts: { file: string; name: string; command: string }[];
   warnings: string[];
 }
@@ -61,8 +62,10 @@ export interface FeatureInfo {
 
 export interface RegistryStatus {
   namespace: string;
-  /** The index.json asked for. */
+  /** The index.json asked for, with token-like query values hidden. */
   index: string;
+  /** False: the user has not trusted this registry yet, so nothing was requested from it. */
+  trusted: boolean;
   /** How many items it lists. */
   items: number;
   /** Why it could not be read; the other registries are listed regardless. */
@@ -79,16 +82,18 @@ export interface FeaturesResult {
 
 export interface RegistryEntryInfo {
   namespace: string;
-  /** The URL template from mfeflow.json. */
+  /** The URL template from mfeflow.json, with token-like query values hidden. */
   url: string;
   /** Where its index.json is. */
   index: string;
+  /** Whether the user has trusted this namespace at this URL. */
+  trusted: boolean;
 }
 
 export interface RegistryResult {
   ok: true;
   command: 'registry';
-  action: 'add' | 'remove' | 'list' | 'build';
+  action: 'add' | 'remove' | 'list' | 'build' | 'trust' | 'untrust';
   dryRun: boolean;
   /** The project folder; null for `build`, which needs none. */
   root: string | null;
@@ -202,7 +207,13 @@ export function planReport(plan: Plan): PlanReport {
   return {
     features: [...features].map(([name, version]) => ({ name, version })),
     changes: plan.changes.map((c) => ({ path: c.path, action: c.action })),
-    dependencies: plan.dependencies.map((d) => ({ ...d })),
+    dependencies: plan.dependencies.map((d) => ({
+      file: d.file,
+      name: d.name,
+      range: d.range,
+      dev: d.dev,
+      ...(d.thirdParty === true ? { thirdParty: true } : {}),
+    })),
     scripts: plan.scripts.map((s) => ({ file: s.file, name: s.name, command: s.command })),
     warnings: [...plan.warnings],
   };
@@ -272,6 +283,7 @@ function checkPlan(c: Check, plan: unknown): void {
   c.objects(plan, 'dependencies', at, (d, p) => {
     for (const key of ['file', 'name', 'range']) c.string(d, key, p);
     c.boolean(d, 'dev', p);
+    if (d.thirdParty !== undefined) c.boolean(d, 'thirdParty', p);
   });
   c.objects(plan, 'scripts', at, (s, p) => {
     for (const key of ['file', 'name', 'command']) c.string(s, key, p);
@@ -395,6 +407,7 @@ export function validateResult(value: unknown): Issue[] {
       });
       c.objects(value, 'registries', '', (r, p) => {
         for (const key of ['namespace', 'index']) c.string(r, key, p);
+        c.boolean(r, 'trusted', p);
         if (typeof r.items !== 'number') c.add(`${p}items`, 'must be a number');
         if (r.error !== null) {
           if (!isObj(r.error)) c.add(`${p}error`, 'must be an object or null');
@@ -405,14 +418,15 @@ export function validateResult(value: unknown): Issue[] {
       });
       break;
     case 'registry':
-      if (!['add', 'remove', 'list', 'build'].includes(String(value.action))) {
-        c.add('action', 'must be add, remove, list or build');
+      if (!['add', 'remove', 'list', 'build', 'trust', 'untrust'].includes(String(value.action))) {
+        c.add('action', 'must be add, remove, list, build, trust or untrust');
       }
       c.boolean(value, 'dryRun', '');
       c.boolean(value, 'changed', '');
       if (value.root !== null) c.string(value, 'root', '');
       c.objects(value, 'registries', '', (r, p) => {
         for (const key of ['namespace', 'url', 'index']) c.string(r, key, p);
+        c.boolean(r, 'trusted', p);
       });
       if (value.build !== null) {
         if (!isObj(value.build)) c.add('build', 'must be an object or null');

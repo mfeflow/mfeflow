@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { serializeProject } from '@mfeflow/core';
+import { addTrusted, serializeProject } from '@mfeflow/core';
 import type { FetchLike } from '@mfeflow/core';
 import { main, validateResult, type FeaturesResult } from '..';
 import { removeDir, tempDir, testRuntime } from '../testing';
@@ -95,6 +95,7 @@ describe('mfeflow features', () => {
 describe('mfeflow features across registries', () => {
   const ALPHA = 'https://alpha.example/{name}.json';
   const BETA = 'https://beta.example/r/{name}.json';
+  const ALL = ['@alpha', '@beta', '@gamma'];
   const index = (...items: object[]) => JSON.stringify({ items });
   const hello = {
     name: 'hello',
@@ -143,7 +144,7 @@ describe('mfeflow features across registries', () => {
       'https://alpha.example/index.json': index(hello),
       'https://beta.example/r/index.json': index(analytics),
     });
-    const rt = testRuntime({ fetch });
+    const rt = testRuntime({ fetch, trust: ALL });
     expect(await main(['features', '--cwd', cwd], rt)).toBe(0);
     const text = rt.io.out.join('\n');
     expect(text).toMatch(/^ {2}mfeflow core +0\.1\.0 .*\[always\]/m);
@@ -168,7 +169,7 @@ describe('mfeflow features across registries', () => {
       open -= 1;
       return { ok: true, status: 200, text: () => Promise.resolve(index()) };
     };
-    await main(['features', '--cwd', cwd], testRuntime({ fetch }));
+    await main(['features', '--cwd', cwd], testRuntime({ fetch, trust: ALL }));
     expect(peak).toBe(2);
   });
 
@@ -176,7 +177,7 @@ describe('mfeflow features across registries', () => {
     const cwd = await project({ '@alpha': ALPHA });
     const answers = { 'https://alpha.example/index.json': index(hello, analytics) };
     const find = async (search: string) => {
-      const rt = testRuntime({ fetch: serving(answers).fetch });
+      const rt = testRuntime({ fetch: serving(answers).fetch, trust: ALL });
       await main(['features', search, '--json', '--cwd', cwd], rt);
       return jsonOf(rt.io.out).features.map((f) => f.name);
     };
@@ -194,6 +195,7 @@ describe('mfeflow features across registries', () => {
     const cwd = await project({ '@alpha': ALPHA });
     const rt = testRuntime({
       fetch: serving({ 'https://alpha.example/index.json': index(hello) }).fetch,
+      trust: ALL,
     });
     await main(['features', 'hello', '--json', '--cwd', cwd], rt);
     const result = jsonOf(rt.io.out);
@@ -209,7 +211,13 @@ describe('mfeflow features across registries', () => {
       },
     ]);
     expect(result.registries).toEqual([
-      { namespace: '@alpha', index: 'https://alpha.example/index.json', items: 1, error: null },
+      {
+        namespace: '@alpha',
+        index: 'https://alpha.example/index.json',
+        trusted: true,
+        items: 1,
+        error: null,
+      },
     ]);
   });
 
@@ -224,7 +232,7 @@ describe('mfeflow features across registries', () => {
       'https://beta.example/r/index.json': index(analytics),
       'https://g.example/index.json': '<html>not an index</html>',
     });
-    const human = testRuntime({ fetch });
+    const human = testRuntime({ fetch, trust: ALL });
     expect(await main(['features', '--cwd', cwd], human)).toBe(0);
     expect(human.io.out.join('\n')).toContain('@beta/segment');
     expect(human.io.out.join('\n')).toContain('core');
@@ -234,7 +242,7 @@ describe('mfeflow features across registries', () => {
     expect(complaints).toContain('Could not read @gamma');
     expect(complaints).toContain('mfeflow registry build');
 
-    const rt = testRuntime({ fetch });
+    const rt = testRuntime({ fetch, trust: ALL });
     expect(await main(['features', '--json', '--cwd', cwd], rt)).toBe(0);
     const result = jsonOf(rt.io.out);
     expect(result.registries.map((r) => [r.namespace, r.items, r.error?.code ?? null])).toEqual([
@@ -247,15 +255,15 @@ describe('mfeflow features across registries', () => {
 
   it('says a 404 means the registry has no index.json', async () => {
     const cwd = await project({ '@alpha': ALPHA });
-    const rt = testRuntime({ fetch: serving({}).fetch });
+    const rt = testRuntime({ fetch: serving({}).fetch, trust: ALL });
     await main(['features', '--cwd', cwd], rt);
     expect(rt.io.err.join('\n')).toContain('this registry has no index.json');
   });
 
   it('does not ask the network outside a project or with no registries', async () => {
     const { fetch, asked } = serving({});
-    await main(['features', '--cwd', await emptyFolder()], testRuntime({ fetch }));
-    await main(['features', '--cwd', await project({})], testRuntime({ fetch }));
+    await main(['features', '--cwd', await emptyFolder()], testRuntime({ fetch, trust: ALL }));
+    await main(['features', '--cwd', await project({})], testRuntime({ fetch, trust: ALL }));
     expect(asked).toEqual([]);
   });
 
@@ -265,5 +273,81 @@ describe('mfeflow features across registries', () => {
     const rt = testRuntime();
     expect(await main(['features', '--cwd', cwd], rt)).toBe(3);
     expect(rt.io.err.join('\n')).toContain('MFEFLOW_E103');
+  });
+
+  it('does not ask a registry that only the project names, and says how to trust it', async () => {
+    const cwd = await project({ '@alpha': ALPHA, '@beta': BETA });
+    const { fetch, asked } = serving({ 'https://beta.example/r/index.json': index(analytics) });
+    const rt = testRuntime({ fetch, trust: ['@beta'] });
+    expect(await main(['features', '--cwd', cwd], rt)).toBe(0);
+    expect(asked).toEqual(['https://beta.example/r/index.json']);
+    const text = rt.io.out.join('\n');
+    expect(text).toContain('@beta/segment');
+    expect(text).toContain('@alpha: not trusted yet');
+    expect(text).toContain('mfeflow registry trust @alpha');
+    expect(rt.io.err).toEqual([]);
+  });
+
+  it('asks nothing at all when no registry is trusted, and reports each as untrusted in --json', async () => {
+    const cwd = await project({ '@alpha': ALPHA, '@local': 'http://127.0.0.1:4010/{name}.json' });
+    const { fetch, asked } = serving({});
+    const rt = testRuntime({ fetch });
+    expect(await main(['features', '--json', '--cwd', cwd], rt)).toBe(0);
+    expect(asked).toEqual([]);
+    expect(jsonOf(rt.io.out).registries).toEqual([
+      {
+        namespace: '@alpha',
+        index: 'https://alpha.example/index.json',
+        trusted: false,
+        items: 0,
+        error: null,
+      },
+      {
+        namespace: '@local',
+        index: 'http://127.0.0.1:4010/index.json',
+        trusted: false,
+        items: 0,
+        error: null,
+      },
+    ]);
+  });
+
+  it('trusts a registry from the trust file only for the URL that was trusted', async () => {
+    const cwd = await project({ '@alpha': ALPHA });
+    const rt = testRuntime();
+    await addTrusted(rt.configDir, {
+      namespace: '@alpha',
+      template: 'https://elsewhere.example/{name}.json',
+    });
+    const { fetch, asked } = serving({});
+    const other = testRuntime({ fetch, configDir: rt.configDir });
+    await main(['features', '--cwd', cwd], other);
+    expect(asked).toEqual([]);
+    await addTrusted(rt.configDir, { namespace: '@alpha', template: ALPHA });
+    await main(['features', '--cwd', cwd], other);
+    expect(asked).toEqual(['https://alpha.example/index.json']);
+  });
+
+  it('asks a trusted loopback registry, and never prints a token from the URL', async () => {
+    const cwd = await project({ '@local': 'http://127.0.0.1:4010/{name}.json?token=hunter2' });
+    const { fetch, asked } = serving({});
+    const rt = testRuntime({ fetch, trust: ['@local'] });
+    await main(['features', '--cwd', cwd], rt);
+    expect(asked).toEqual(['http://127.0.0.1:4010/index.json']);
+    const json = testRuntime({ fetch, trust: ['@local'] });
+    await main(['features', '--json', '--cwd', cwd], json);
+    expect(rt.io.out.join('\n') + rt.io.err.join('\n') + json.io.out.join('')).not.toContain(
+      'hunter2',
+    );
+  });
+
+  it('redacts a token in the registry URL in the index it reports', async () => {
+    const cwd = await project({ '@alpha': 'https://alpha.example/r/{name}.json?sig=abc123' });
+    const rt = testRuntime({ fetch: serving({}).fetch, trust: ['@alpha'] });
+    await main(['features', '--cwd', cwd], rt);
+    expect(rt.io.err.join('\n')).not.toContain('abc123');
+    const json = testRuntime({ fetch: serving({}).fetch, trust: ['@alpha'] });
+    await main(['features', '--json', '--cwd', cwd], json);
+    expect(jsonOf(json.io.out).registries[0]?.index).toBe('https://alpha.example/r/index.json');
   });
 });

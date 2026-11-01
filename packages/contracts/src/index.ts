@@ -31,7 +31,10 @@ export {
 export {
   isFeatureRegistryIndex,
   isLoopbackHttp,
+  isPrivateHost,
   isRegistryProtocol,
+  redactUrl,
+  redactUrlsIn,
   registryIndexUrl,
   registryTemplateProblem,
   validateFeatureRegistryIndex,

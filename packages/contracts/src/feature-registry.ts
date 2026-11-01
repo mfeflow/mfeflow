@@ -141,3 +141,105 @@ export function validateFeatureRegistryIndex(value: unknown): Issue[] {
 export function isFeatureRegistryIndex(value: unknown): value is FeatureRegistryIndex {
   return validateFeatureRegistryIndex(value).length === 0;
 }
+
+function ipv4Octets(host: string): number[] | undefined {
+  const parts = host.split('.');
+  if (parts.length !== 4) return undefined;
+  const octets = parts.map((part) => (/^\d{1,3}$/.test(part) ? Number(part) : Number.NaN));
+  return octets.every((n) => n <= 255) ? octets : undefined;
+}
+
+function isPrivateIpv4([a = 0, b = 0]: number[]): boolean {
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168)
+  );
+}
+
+const side = (part: string) => (part === '' ? [] : part.split(':'));
+
+function ipv6Groups(host: string): number[] | undefined {
+  const [head = '', tail, ...rest] = host.split('::');
+  if (rest.length > 0) return undefined;
+  const headGroups = side(head);
+  const groups = [...headGroups, ...(tail === undefined ? [] : side(tail))];
+  if (groups.some((g) => !/^[0-9a-f]{1,4}$/.test(g))) return undefined;
+  const numbers = groups.map((g) => Number.parseInt(g, 16));
+  if (tail === undefined) return numbers.length === 8 ? numbers : undefined;
+  const missing = 8 - numbers.length;
+  if (missing < 1) return undefined;
+  return [
+    ...numbers.slice(0, headGroups.length),
+    ...Array.from({ length: missing }, () => 0),
+    ...numbers.slice(headGroups.length),
+  ];
+}
+
+function isPrivateIpv6(host: string): boolean {
+  const groups = ipv6Groups(host);
+  if (groups === undefined) return false;
+  const [g0 = 0] = groups;
+  if (groups.slice(0, 7).every((g) => g === 0) && (groups[7] === 0 || groups[7] === 1)) return true;
+  if ((g0 & 0xfe00) === 0xfc00 || (g0 & 0xffc0) === 0xfe80) return true;
+  const mapped = groups.slice(0, 5).every((g) => g === 0) && groups[5] === 0xffff;
+  const [hi = 0, lo = 0] = groups.slice(6);
+  return mapped && isPrivateIpv4([hi >> 8, hi & 0xff, lo >> 8, lo & 0xff]);
+}
+
+/**
+ * True when `hostname` (as `URL.hostname` spells it) is the machine itself or a private network:
+ * localhost, 127/8, ::1, 10/8, 172.16/12, 192.168/16, 169.254/16, fc00::/7, fe80::/10 and 0/8.
+ * Only the literal host is looked at; a public name that resolves to a private address is not caught.
+ */
+export function isPrivateHost(hostname: string): boolean {
+  const host = hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '');
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  if (host.includes(':')) return isPrivateIpv6(host);
+  const octets = ipv4Octets(host);
+  return octets !== undefined && isPrivateIpv4(octets);
+}
+
+const SECRET_PARAM = /token|key|sig|auth|passw|secret|credential|x-amz-/i;
+const URL_PARTS = /^([a-z][a-z0-9+.-]*:\/\/)([^/?#@]*@)?([^?#]*)(\?[^#]*)?(#.*)?$/i;
+
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * `url` with the values of token-like query parameters (token, key, sig, auth, password, secret,
+ * X-Amz-*) and any user name or password replaced by `***`. Works on templates too, so `{name}` stays.
+ */
+export function redactUrl(url: string): string {
+  const parts = URL_PARTS.exec(url);
+  if (parts === null) return url;
+  const [, scheme = '', userinfo, rest = '', query, hash = ''] = parts;
+  const redacted = query
+    ?.slice(1)
+    .split('&')
+    .map((pair) => {
+      const eq = pair.indexOf('=');
+      if (eq === -1) return pair;
+      const key = pair.slice(0, eq);
+      return SECRET_PARAM.test(safeDecode(key)) ? `${key}=***` : pair;
+    })
+    .join('&');
+  const search = redacted === undefined ? '' : `?${redacted}`;
+  return `${scheme}${userinfo === undefined ? '' : '***@'}${rest}${search}${hash}`;
+}
+
+/** `text` with every http(s) URL in it passed through `redactUrl`, for messages that quote one. */
+export function redactUrlsIn(text: string): string {
+  return text.replaceAll(/https?:\/\/[^\s"'<>]+/gi, (found) => redactUrl(found));
+}

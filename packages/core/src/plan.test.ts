@@ -311,3 +311,28 @@ describe('summarize', () => {
     );
   });
 });
+
+describe('summarize new packages', () => {
+  it('lists what a third-party feature adds in its own block, apart from other dependencies', async () => {
+    const b = new PlanBuilder(reader({ 'package.json': pkg() }));
+    await b.addDependency('package.json', 'zod', '^4.0.0');
+    await b.scoped('third-party').addDependency('package.json', 'left-pad', '^1.3.0');
+    const plan = b.build();
+    expect(plan.dependencies.map((d) => [d.name, d.thirdParty])).toEqual([
+      ['zod', undefined],
+      ['left-pad', true],
+    ]);
+    const text = summarize(plan);
+    expect(text).toContain('Dependencies (1):');
+    expect(text).toContain('NEW PACKAGES from a third-party feature (1):');
+    expect(text.indexOf('NEW PACKAGES')).toBeLessThan(text.indexOf('left-pad@^1.3.0'));
+    expect(text.indexOf('zod@^4.0.0')).toBeLessThan(text.indexOf('NEW PACKAGES'));
+    expect(text).toContain('pnpm 10 and later blocks them');
+  });
+
+  it('does not list a package the project already has', async () => {
+    const b = new PlanBuilder(reader({ 'package.json': pkg({ dependencies: { zod: '^4.0.0' } }) }));
+    await b.scoped('third-party').addDependency('package.json', 'zod', '^4.0.0');
+    expect(summarize(b.build())).not.toContain('NEW PACKAGES');
+  });
+});
