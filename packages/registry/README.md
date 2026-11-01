@@ -126,6 +126,7 @@ Settings are environment variables, checked at start (all problems are listed to
 | `MFEFLOW_REGISTRY_CORS_ORIGINS`      | none                    | Comma-separated origins that may read the index from a browser.                     |
 | `MFEFLOW_REGISTRY_MAX_BODY_BYTES`    | `262144`                | Largest request body.                                                               |
 | `MFEFLOW_REGISTRY_GATE_MIN_LOADS`    | `200`                   | Candidate loads before the gate judges a rollout.                                   |
+| `MFEFLOW_REGISTRY_GATE_MIN_CLIENTS`  | `50`                    | Distinct browsers needed on each side before the gate judges.                       |
 | `MFEFLOW_REGISTRY_GATE_FACTOR`       | `2`                     | Halt when the candidate's error rate is over stable's times this.                   |
 | `MFEFLOW_REGISTRY_GATE_FLOOR`        | `0.02`                  | ...and over stable's by at least this much (0.02 is two points).                    |
 | `MFEFLOW_REGISTRY_BEACON_BURST`      | `60`                    | Beacons one client address can send at once.                                        |
@@ -177,18 +178,26 @@ A client lands in the candidate group when `hash(u, remote, rolloutId) % 100` is
 While a rollout runs, deploy, promote and rollback for that remote answer `409 rollout_active`. A kill still works. Then move it along, each call with `env` and `remote`:
 
 - `POST /v1/rollout/step` goes to the next percent. With none left it answers `409 no_next_step`.
-- `POST /v1/rollout/complete` makes the candidate the stable version, with the old one as `previous`.
+- `POST /v1/rollout/complete` makes the candidate the stable version, with the old one as `previous`. If another remote has since taken one of its routes, it answers `409 route_overlap` and the rollout keeps running.
 - `POST /v1/rollout/abort` goes back to stable. An optional `reason` is audited.
 
 Each call is in the audit log as `rollout.step`, `rollout.complete` or `rollout.abort`. The static fallback index never holds the candidate. A static host still refuses a rollout (E505).
 
-**Gating.** Shells report how their remotes did. When the candidate has at least `MFEFLOW_REGISTRY_GATE_MIN_LOADS` loads, the server compares its error rate to stable's. It halts the rollout when the candidate is more than `MFEFLOW_REGISTRY_GATE_FACTOR` times worse and at least `MFEFLOW_REGISTRY_GATE_FLOOR` worse in absolute terms. Halting is an abort, and the audit entry `rollout.halt` has the reason and both sets of counts. The floor keeps a stable with almost no errors from making ordinary noise look like a regression.
+**Gating.** Shells report how their remotes did. The server judges a candidate only when it has at least `MFEFLOW_REGISTRY_GATE_MIN_LOADS` loads and both the candidate and stable have at least `MFEFLOW_REGISTRY_GATE_MIN_CLIENTS` distinct browsers. Then it compares error rates. It halts the rollout when the candidate is more than `MFEFLOW_REGISTRY_GATE_FACTOR` times worse and at least `MFEFLOW_REGISTRY_GATE_FLOOR` worse in absolute terms. Halting is an abort, and the audit entry `rollout.halt` has the reason and both sets of counts. The floor keeps a stable with almost no errors from making ordinary noise look like a regression.
 
 Counts are kept per rollout, so they start at zero and stop when it ends. Reports for anything that is not the candidate or stable of a running rollout are dropped.
 
-**The beacon.** `POST /v1/beacon` needs no token, because it comes from browsers. The body is `{ "env", "remote", "version", "loads", "errors" }`, sent as `application/json` or `text/plain` (what `navigator.sendBeacon` sends). Unknown fields are refused, `loads` and `errors` are whole numbers up to 1000, and `errors` cannot be over `loads`. The body is capped at 1 KiB, and each client address gets a token bucket in memory (60 at once, then 60 a minute by default). Past that the answer is `429` with `Retry-After`. The endpoint cannot prove a report is honest, so treat the gate as a safety net and not as security. Limits bound how much one address can sway it.
+**The beacon.** `POST /v1/beacon` needs no token, because it comes from browsers. One request is one page: `{ "env", "u", "entries": [{ "remote", "version", "loads", "errors" }] }`, with 1 to 20 entries. It is sent as `application/json` or `text/plain` (what `navigator.sendBeacon` sends). `u` is the same id the page sent on the index request. Each entry has `loads` 0 or 1 and `errors` no more than `loads`. Unknown fields are refused and the body is capped at 4 KiB.
 
-**The shell side.** In `@mfeflow/runtime`, set `"registryBeacon": true` in `runtime-config.json` and read the sources with `registrySourcesWithBeacon()` from `@mfeflow/runtime/beacon` instead of `registrySources()`. It adds a random id kept in `localStorage` to the server index URL as `u`, and counts one load per remote per page, plus one error if that remote failed. It sends one request per remote and version when the page is hidden. It is off unless the config asks, and a shell that imports it on demand downloads nothing otherwise.
+A browser counts once per side of a rollout: one load and at most one error per `u` and version, however often it reports. The dedupe is a table in SQLite (`rollout_reporters`), removed when the rollout ends. Reports for anything that is not the candidate or stable of a running rollout are dropped.
+
+Each client address gets a token bucket in memory (60 at once, then 60 a minute by default). Past that the answer is `429` with `Retry-After`. By default the address is the socket's, so behind a proxy every browser shares one bucket. Set `MFEFLOW_REGISTRY_TRUST_PROXY=true` there, and the server uses the last `X-Forwarded-For` entry. It warns at start when it is bound beyond loopback without that setting.
+
+The endpoint cannot prove a report is honest. Anyone can make up many ids, and that can still sway the gate. The caps, the one-count-per-id rule and the minimum number of clients make it costly, not impossible. Treat the gate as a safety net, not a security control.
+
+**The shell side.** In `@mfeflow/runtime`, set `"registryBeacon": true` in `runtime-config.json` and read the sources with `registrySourcesWithBeacon()` from `@mfeflow/runtime/beacon` instead of `registrySources()`. It adds a random id kept in `localStorage` to the server index URL as `u`, and counts one load per remote per page, plus one error if that remote failed. It sends one request for the whole page when the page is hidden. It is off unless the config asks, and a shell that imports it on demand downloads nothing otherwise.
+
+The id is a random value kept in `localStorage`. It is a persistent identifier for that browser, so check your consent and privacy rules before turning the option on.
 
 **Caching.** The index is `Cache-Control: private, max-age=5`. A CDN or shared proxy must not cache it: the response depends on the client (`u`) during a rollout, and a shared cache would hand one client's answer to another. Browsers keep it for 5 seconds. The static fallback index is separate, and public for 60 seconds.
 
