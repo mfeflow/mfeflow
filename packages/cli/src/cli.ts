@@ -141,7 +141,12 @@ export const COMMANDS: readonly Command[] = [
     summary: "check each remote's shared ranges against the shells it runs in",
     usage: 'mfeflow check-compat [options]',
     args: COMPAT_ARGS,
-    examples: ['mfeflow check-compat', 'mfeflow check-compat --json'],
+    examples: [
+      'mfeflow check-compat',
+      'mfeflow check-compat --json',
+      'mfeflow check-compat --against https://cdn.example.com/envs/prod/index.json',
+      'mfeflow check-compat --against ./shell/mf-manifest.json',
+    ],
     run: runCheckCompat,
   },
   {

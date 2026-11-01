@@ -150,6 +150,8 @@ export interface ReportResult {
   summary: Summary;
   checks: CheckReport[];
   findings: Finding[];
+  /** `check-compat --against`: where the shell's versions came from. */
+  against?: string;
 }
 
 export interface ShellBudget {
@@ -616,6 +618,7 @@ export function validateResult(value: unknown): Issue[] {
     case 'validate':
     case 'check-compat':
       checkReport(c, value);
+      if (value.against !== undefined) c.string(value, 'against', '');
       break;
     case 'budget':
       checkBudget(c, value);

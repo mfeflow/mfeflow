@@ -20,6 +20,14 @@ Four commands check a project. They read your files. Only `budget` needs a build
 
 Run them in this order in CI: validate, check-compat, doctor, then build, then budget. Each prints one line per check, then a summary.
 
+If your shell lives in another repository, `check-compat` has nothing local to compare with and warns. Point it at the deployed shell instead, as in the [reference](/reference/cli#check-compat):
+
+```bash
+pnpm mfeflow check-compat --against https://cdn.example.com/envs/prod/index.json
+```
+
+You should see one `compat` line that passes, or a skewed React named as an error.
+
 ## Add the GitHub workflow
 
 If your repository is on GitHub, one feature adds a pull request workflow. Add it:
