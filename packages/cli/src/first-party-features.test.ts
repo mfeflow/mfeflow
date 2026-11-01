@@ -48,6 +48,7 @@ describe.each([
   'theming',
   'i18n',
   'tailwind',
+  'forms',
 ])('mfeflow add %s', (feature) => {
   it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
     expect(await add(feature)).toBe(0);
@@ -84,6 +85,7 @@ describe.each([
       theming: ['src/theme/tokens.ts'],
       i18n: ['src/i18n/I18n.tsx', 'src/i18n/messages/en.json'],
       tailwind: ['postcss.config.mjs', 'src/styles.css', 'src/tailwind/Scope.tsx'],
+      forms: ['src/forms/ContactForm.tsx', 'src/forms/schema.ts'],
     }[feature];
     for (const file of perApp ?? []) expect(tree, file).toHaveProperty([`apps/checkout/${file}`]);
   });
@@ -148,6 +150,35 @@ describe('env-t3', () => {
     expect(await read('apps/shell/src/config/schema.ts')).toContain(
       "z.enum(['dev', 'staging', 'prod'])",
     );
+  });
+});
+
+describe('forms', () => {
+  it.each([
+    ['zod', "from 'zod'"],
+    ['valibot', "from 'valibot'"],
+    ['arktype', "from 'arktype'"],
+  ])(
+    '--option forms.validator=%s writes that schema and installs only that library',
+    async (name, importLine) => {
+      expect(await add('forms', '--option', `forms.validator=${name}`)).toBe(0);
+      expect(await read('apps/cart/src/forms/schema.ts')).toContain(importLine);
+      const pkg = await json('apps/cart/package.json');
+      const installed = Object.keys(pkg.dependencies ?? {});
+      expect(installed).toContain('react-hook-form');
+      for (const validator of ['zod', 'valibot', 'arktype']) {
+        expect(installed.includes(validator), validator).toBe(validator === name);
+      }
+      expect(Object.keys((await json('apps/shell/package.json')).dependencies ?? {})).not.toContain(
+        'react-hook-form',
+      );
+    },
+  );
+
+  it('rejects a library it does not know and writes nothing', async () => {
+    const before = await readTree(project);
+    expect(await add('forms', '--option', 'forms.validator=yup')).toBe(4);
+    expect(await readTree(project)).toEqual(before);
   });
 });
 

@@ -1,0 +1,90 @@
+{
+  "name": "forms",
+  "version": "0.1.0",
+  "description": "Forms with react-hook-form, validated by a schema (zod, valibot or arktype, through the Standard Schema resolver). Each remote gets an example form with its own schema; nothing is shared between remotes and nothing is added to the shell.",
+  "requires": ["core", "tsconfig"],
+  "prompts": [
+    {
+      "name": "validator",
+      "type": "select",
+      "message": "Which schema library?",
+      "choices": ["zod", "valibot", "arktype"],
+      "default": "zod"
+    }
+  ],
+  "files": [
+    {
+      "to": "src/forms/schema.ts",
+      "target": "remotes",
+      "from": "files/schema.zod.ts",
+      "when": {
+        "validator": "zod"
+      }
+    },
+    {
+      "to": "src/forms/schema.ts",
+      "target": "remotes",
+      "from": "files/schema.valibot.ts",
+      "when": {
+        "validator": "valibot"
+      }
+    },
+    {
+      "to": "src/forms/schema.ts",
+      "target": "remotes",
+      "from": "files/schema.arktype.ts",
+      "when": {
+        "validator": "arktype"
+      }
+    },
+    {
+      "to": "src/forms/ContactForm.tsx",
+      "target": "remotes",
+      "from": "files/ContactForm.tsx"
+    },
+    {
+      "to": "src/forms/ContactForm.test.tsx",
+      "target": "remotes",
+      "from": "files/ContactForm-test.tsx",
+      "when": {
+        "feature:testing": true
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "react-hook-form",
+      "range": "7.91.0",
+      "target": "remotes"
+    },
+    {
+      "name": "@hookform/resolvers",
+      "range": "7.0.1",
+      "target": "remotes"
+    },
+    {
+      "name": "zod",
+      "range": "4.6.7",
+      "target": "remotes",
+      "when": {
+        "validator": "zod"
+      }
+    },
+    {
+      "name": "valibot",
+      "range": "1.5.0",
+      "target": "remotes",
+      "when": {
+        "validator": "valibot"
+      }
+    },
+    {
+      "name": "arktype",
+      "range": "2.2.9",
+      "target": "remotes",
+      "when": {
+        "validator": "arktype"
+      }
+    }
+  ]
+}

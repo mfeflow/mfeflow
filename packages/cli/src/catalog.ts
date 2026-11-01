@@ -34,6 +34,7 @@ export const FIRST_PARTY: readonly FirstPartyFeature[] = [
   { name: 'theming', always: false, default: false },
   { name: 'i18n', always: false, default: false },
   { name: 'tailwind', always: false, default: false },
+  { name: 'forms', always: false, default: false },
   { name: 'ci-github', always: false, default: false },
   { name: 'git-hooks', always: false, default: false },
 ];
