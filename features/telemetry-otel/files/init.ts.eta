@@ -1,10 +1,9 @@
+/* oxlint-disable eslint/no-underscore-dangle -- __MFEFLOW_APP_VERSION__ is the name the rsbuild preset defines */
 import { initTelemetry } from '@mfeflow/telemetry';
 import { fetchRuntimeConfig } from '@mfeflow/runtime';
 
 // The shell's rsbuild preset replaces this with the version in package.json at build time.
-// oxlint-disable-next-line eslint/no-underscore-dangle -- the name the preset defines
 declare const __MFEFLOW_APP_VERSION__: string | undefined;
-// oxlint-disable-next-line eslint/no-underscore-dangle -- as above
 const APP_VERSION = typeof __MFEFLOW_APP_VERSION__ === 'string' ? __MFEFLOW_APP_VERSION__ : 'unknown';
 
 const strings = (value: unknown): string[] =>
