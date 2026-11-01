@@ -78,6 +78,7 @@ export async function startRegistryServer(options: StartOptions): Promise<Regist
     artifactBaseUrl: config.artifactBaseUrl,
     ...(options.now === undefined ? {} : { now: options.now }),
     onChange: (changed) => fallback?.request(changed),
+    log,
   });
 
   const server = http.createServer(

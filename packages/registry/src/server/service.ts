@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import {
+  isPortableRelativePath,
   remoteDistFiles,
   ROUTE_OVERLAP,
   validateRegistryIndex,
@@ -8,10 +9,12 @@ import {
   type RegistryIndexRemote,
 } from '@mfeflow/contracts';
 import { artifactPrefix, buildIndex, type GateFailure } from '../static';
+import type { Log } from './fallback';
 import {
   RevisionConflictError,
   type AuditEntry,
   type EnvState,
+  type PointerRecord,
   type RegistryStorage,
   type TokenRecord,
   type VersionRecord,
@@ -34,8 +37,33 @@ const conflict = (code: string, message: string): ApiError => new ApiError(409, 
 
 /** Reads files the artifact host serves. The server never writes to it. */
 export interface ArtifactSource {
-  /** The bytes, or undefined for a 404. Throws on anything else, or on a body over the cap. */
-  get(url: string): Promise<Uint8Array | undefined>;
+  /** The bytes, or undefined for a 404. Throws on anything else; throws `ArtifactTooLargeError` past `maxBytes`. */
+  get(url: string, options?: { maxBytes?: number }): Promise<Uint8Array | undefined>;
+}
+
+export class ArtifactTooLargeError extends Error {
+  constructor(maxBytes: number) {
+    super(`larger than ${String(maxBytes)} bytes`);
+    this.name = 'ArtifactTooLargeError';
+  }
+}
+
+/** Raised inside an operation when another remote's change moved the env; the operation runs again. */
+class RetryOperation extends Error {}
+
+/** The most a single deploy reads from the artifact host, all files together. */
+export const DEPLOY_READ_BUDGET = 32 * 1024 * 1024;
+
+/** 1.4.2, 1.4.2-rc.1, 1.4.2+a1b2c3d: no path or URL characters, no `..`. */
+export const SAFE_VERSION =
+  /^\d{1,9}\.\d{1,9}\.\d{1,9}(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+
+/** `base/path`, refused unless the normalised URL stays under `base`. */
+export function artifactUrl(base: string, path: string): string {
+  const url = new URL(`${base}/${path}`).href;
+  if (!url.startsWith(`${base}/`) || /[?#]/.test(path))
+    throw new ApiError(400, 'bad_request', 'the artifact path leaves the artifact base URL');
+  return url;
 }
 
 const REMOTE_NAME = /^[A-Za-z_$][\w$-]{0,127}$/;
@@ -50,6 +78,7 @@ export interface ServiceOptions {
   now?: () => Date;
   /** Called after every committed change, with the env. The fallback republish hangs off it. */
   onChange?: (env: string) => void;
+  log?: Log;
 }
 
 export interface MoveResult {
@@ -211,7 +240,35 @@ export class RegistryService {
     });
   }
 
-  async deploy(actor: string | null, raw: unknown): Promise<MoveResult> {
+  deploy(actor: string | null, raw: unknown): Promise<MoveResult> {
+    return this.retrying(() => this.deployOnce(actor, raw));
+  }
+
+  promote(actor: string | null, raw: unknown): Promise<MoveResult> {
+    return this.retrying(() => this.promoteOnce(actor, raw));
+  }
+
+  rollback(actor: string | null, raw: unknown): Promise<MoveResult> {
+    return this.retrying(() => this.rollbackOnce(actor, raw));
+  }
+
+  /**
+   * An env has one revision, so a change to another remote also fails the compare-and-swap. When
+   * the remote this request touches is unchanged, nothing it checked is stale: run it again.
+   */
+  private async retrying(run: () => Promise<MoveResult>): Promise<MoveResult> {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        // oxlint-disable-next-line no-await-in-loop -- each attempt re-reads the env
+        return await run();
+      } catch (error) {
+        if (!(error instanceof RetryOperation)) throw error;
+        if (attempt >= 3) throw conflict('conflict', 'the env keeps changing; retry');
+      }
+    }
+  }
+
+  private async deployOnce(actor: string | null, raw: unknown): Promise<MoveResult> {
     const body = asBody(raw);
     rejectUnknown(body, [
       'env',
@@ -225,7 +282,7 @@ export class RegistryService {
     ]);
     const env = envOf(body);
     const name = nameOf(body, 'remote');
-    const version = field(body, 'version');
+    const version = field(body, 'version', SAFE_VERSION);
     const manifestUrl = field(body, 'manifestUrl');
     const owner = field(body, 'owner');
     const routes = routesOf(body.routes);
@@ -307,27 +364,30 @@ export class RegistryService {
       createdAt: at,
       createdBy: actor,
     };
-    await this.commit({
-      env,
-      expectedRev: state?.rev ?? 0,
-      at,
-      versions: [record],
-      pointer: { name, version, remote, killed: false },
-      audit: {
-        at,
-        tokenId: actor,
-        action: 'deploy',
+    await this.commit(
+      {
         env,
-        remote: name,
-        before: current?.version ?? null,
-        after: version,
-        detail: { warnings: warnings.length },
+        expectedRev: state?.rev ?? 0,
+        at,
+        versions: [record],
+        pointer: { name, version, remote, killed: false },
+        audit: {
+          at,
+          tokenId: actor,
+          action: 'deploy',
+          env,
+          remote: name,
+          before: current?.version ?? null,
+          after: version,
+          detail: { warnings: warnings.length },
+        },
       },
-    });
+      { seen: current },
+    );
     return this.result('deploy', env, remote, current?.version, true, warnings);
   }
 
-  async promote(actor: string | null, raw: unknown): Promise<MoveResult> {
+  private async promoteOnce(actor: string | null, raw: unknown): Promise<MoveResult> {
     const body = asBody(raw);
     rejectUnknown(body, ['from', 'to', 'remote']);
     const from = envOf(body, 'from');
@@ -353,7 +413,7 @@ export class RegistryService {
     });
   }
 
-  async rollback(actor: string | null, raw: unknown): Promise<MoveResult> {
+  private async rollbackOnce(actor: string | null, raw: unknown): Promise<MoveResult> {
     const body = asBody(raw);
     rejectUnknown(body, ['env', 'remote', 'to', 'force']);
     const env = envOf(body);
@@ -529,26 +589,29 @@ export class RegistryService {
     const remote = built.index.remotes.find((r) => r.name === m.name);
     if (remote === undefined) throw new ApiError(500, 'internal_error', 'index has no remote');
     const copy: VersionRecord = { ...m.record, env: m.env };
-    await this.commit({
-      env: m.env,
-      expectedRev: state?.rev ?? 0,
-      at,
-      versions: m.fromEnv === undefined ? [] : [copy],
-      pointer: { name: m.name, version: m.version, remote, killed: false },
-      audit: {
-        at,
-        tokenId: actor,
-        action: m.action,
+    await this.commit(
+      {
         env: m.env,
-        remote: m.name,
-        before: before?.version ?? null,
-        after: m.version,
-        detail: {
-          ...(m.fromEnv === undefined ? {} : { fromEnv: m.fromEnv }),
-          ...(m.force ? { forced: true } : {}),
+        expectedRev: state?.rev ?? 0,
+        at,
+        versions: m.fromEnv === undefined ? [] : [copy],
+        pointer: { name: m.name, version: m.version, remote, killed: false },
+        audit: {
+          at,
+          tokenId: actor,
+          action: m.action,
+          env: m.env,
+          remote: m.name,
+          before: before?.version ?? null,
+          after: m.version,
+          detail: {
+            ...(m.fromEnv === undefined ? {} : { fromEnv: m.fromEnv }),
+            ...(m.force ? { forced: true } : {}),
+          },
         },
       },
-    });
+      { seen: before },
+    );
     return this.result(m.action, m.env, remote, before?.version, true, warnings, m.fromEnv);
   }
 
@@ -575,12 +638,21 @@ export class RegistryService {
     };
   }
 
-  private async commit(change: Parameters<RegistryStorage['commit']>[0]): Promise<void> {
+  private async commit(
+    change: Parameters<RegistryStorage['commit']>[0],
+    retry?: { seen: PointerRecord | undefined },
+  ): Promise<void> {
     try {
       await this.storage.commit(change);
     } catch (error) {
-      if (error instanceof RevisionConflictError) throw conflict('conflict', error.message);
-      throw error;
+      if (!(error instanceof RevisionConflictError)) throw error;
+      if (retry !== undefined) {
+        const fresh = (await this.storage.readEnv(change.env))?.remotes.find(
+          (r) => r.name === change.pointer.name,
+        );
+        if (JSON.stringify(fresh) === JSON.stringify(retry.seen)) throw new RetryOperation();
+      }
+      throw conflict('conflict', error.message);
     }
     this.options.onChange?.(change.env);
   }
@@ -594,7 +666,12 @@ export class RegistryService {
       throw new ApiError(503, 'not_configured', 'deploy is off: no artifact reader');
     const missing = (what: string): ApiError =>
       new ApiError(422, 'artifact_missing', `${prefix}: ${what}`);
-    const manifestBytes = await this.readArtifact(artifacts, `${base}/${prefix}/mf-manifest.json`);
+    const budget = { left: DEPLOY_READ_BUDGET };
+    const manifestBytes = await this.readArtifact(
+      artifacts,
+      artifactUrl(base, `${prefix}/mf-manifest.json`),
+      budget,
+    );
     if (manifestBytes === undefined) throw missing('mf-manifest.json is not on the artifact host');
     const manifest = parseJson(manifestBytes);
     if (manifest === undefined) throw missing('mf-manifest.json is not valid JSON');
@@ -603,10 +680,21 @@ export class RegistryService {
     if (dist === undefined) return { manifest, manifestBytes, files };
     const wanted = [...new Set([dist.entry, ...Object.values(dist.exposes).flat()])];
     if (wanted.length > MAX_FILES) throw missing(`more than ${String(MAX_FILES)} first-load files`);
+    const unsafe = wanted.filter((f) => !isPortableRelativePath(f) || /[?#%]/.test(f));
+    if (unsafe.length > 0)
+      throw new ApiError(
+        422,
+        'artifact_invalid',
+        `${prefix}: mf-manifest.json names files that are not plain relative paths`,
+      );
     const gone: string[] = [];
     for (const file of wanted) {
       // oxlint-disable-next-line no-await-in-loop -- a handful of files
-      const bytes = await this.readArtifact(artifacts, `${base}/${prefix}/${file}`);
+      const bytes = await this.readArtifact(
+        artifacts,
+        artifactUrl(base, `${prefix}/${file}`),
+        budget,
+      );
       if (bytes === undefined) gone.push(file);
       else files[file] = bytes;
     }
@@ -620,14 +708,27 @@ export class RegistryService {
   private async readArtifact(
     artifacts: ArtifactSource,
     url: string,
+    budget: { left: number },
   ): Promise<Uint8Array | undefined> {
     try {
-      return await artifacts.get(url);
+      const bytes = await artifacts.get(url, { maxBytes: budget.left });
+      budget.left -= bytes?.byteLength ?? 0;
+      return bytes;
     } catch (error) {
+      if (error instanceof ArtifactTooLargeError)
+        throw new ApiError(
+          422,
+          'artifact_too_large',
+          'the artifact files are over the size the server will read for one deploy',
+        );
+      this.options.log?.(
+        'warn',
+        `could not read ${url}: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
       throw new ApiError(
         502,
         'artifact_unreachable',
-        `could not read ${url}: ${error instanceof Error ? error.message : 'unknown error'}`,
+        'could not read the artifact host; see the server log',
       );
     }
   }
@@ -641,7 +742,7 @@ export class RegistryService {
     const key = `envs/${env}/shell/mf-manifest.json`;
     let bytes: Uint8Array | undefined;
     try {
-      bytes = await artifacts.get(`${base}/${key}`);
+      bytes = await artifacts.get(artifactUrl(base, key), { maxBytes: 1024 * 1024 });
     } catch {
       return { warnings: [`the shell manifest ${key} could not be read; compat was not checked`] };
     }

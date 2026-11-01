@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises';
 import { isRegistryIndexRemote } from '@mfeflow/contracts';
 import { MIGRATIONS } from './migrations';
 import { assertSqliteSupport } from './node-version';
@@ -125,6 +126,11 @@ function tokenOf(row: Row): TokenRecord {
 const isBusy = (error: unknown): boolean =>
   error instanceof Error && /database is locked|SQLITE_BUSY/i.test(error.message);
 
+/** A new database file is private to the owner; an existing one keeps its mode. */
+function ignoreExists(error: unknown): void {
+  if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error;
+}
+
 export interface SqliteOptions {
   /** For tests of the version check; defaults to this process's Node. */
   nodeVersion?: string;
@@ -153,6 +159,8 @@ export async function openSqliteStorage(
 ): Promise<RegistryStorage> {
   assertSqliteSupport(options.nodeVersion);
   const { DatabaseSync } = await import('node:sqlite');
+  if (file !== ':memory:')
+    await fs.writeFile(file, '', { flag: 'wx', mode: 0o600 }).catch(ignoreExists);
   const db = new DatabaseSync(file);
   db.exec(`PRAGMA busy_timeout = ${String(options.busyTimeoutMs ?? 5000)}`);
   db.exec('PRAGMA journal_mode = WAL');

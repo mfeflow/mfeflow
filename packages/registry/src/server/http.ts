@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Log } from './fallback';
 import { ApiError, ENV_NAME, type RegistryService } from './service';
-import type { Action, RegistryStorage, TokenRecord } from './storage';
-import { allows, verifyToken } from './tokens';
+import type { RegistryStorage, TokenRecord } from './storage';
+import { allows, verifyToken, type Need } from './tokens';
 
 export const INDEX_CACHE = 'private, max-age=5';
 
@@ -83,28 +83,24 @@ export function createHandler(
 ): (req: IncomingMessage, res: ServerResponse) => void {
   const { service, storage, log } = options;
 
-  const post: Record<
-    string,
-    { action: Action; scope: (b: unknown) => { env: string; remote: string }; run: Handler }
-  > = {
+  const post: Record<string, { scope: (b: unknown) => Need[]; run: Handler }> = {
     '/v1/deploy': {
-      action: 'deploy',
-      scope: (b) => ({ env: peek(b, 'env'), remote: peek(b, 'remote') }),
+      scope: (b) => [{ action: 'deploy', env: peek(b, 'env'), remote: peek(b, 'remote') }],
       run: (t, b) => service.deploy(t.id, b),
     },
     '/v1/promote': {
-      action: 'promote',
-      scope: (b) => ({ env: peek(b, 'to'), remote: peek(b, 'remote') }),
+      scope: (b) => [
+        { action: 'promote', env: peek(b, 'to'), remote: peek(b, 'remote') },
+        { action: 'read', env: peek(b, 'from'), remote: peek(b, 'remote') },
+      ],
       run: (t, b) => service.promote(t.id, b),
     },
     '/v1/rollback': {
-      action: 'rollback',
-      scope: (b) => ({ env: peek(b, 'env'), remote: peek(b, 'remote') }),
+      scope: (b) => [{ action: 'rollback', env: peek(b, 'env'), remote: peek(b, 'remote') }],
       run: (t, b) => service.rollback(t.id, b),
     },
     '/v1/kill': {
-      action: 'kill',
-      scope: (b) => ({ env: peek(b, 'env'), remote: peek(b, 'remote') }),
+      scope: (b) => [{ action: 'kill', env: peek(b, 'env'), remote: peek(b, 'remote') }],
       run: (t, b) => service.kill(t.id, b),
     },
   };
@@ -191,12 +187,12 @@ export function createHandler(
       if (method !== 'POST') return wrongMethod('POST');
       const token = await authenticate(req);
       const body = await readJson(req, options.maxBodyBytes);
-      const { env, remote } = handler.scope(body);
-      if (!allows(token, { action: handler.action, env, remote }))
+      const denied = handler.scope(body).find((need) => !allows(token, need));
+      if (denied !== undefined)
         throw new ApiError(
           403,
           'forbidden',
-          `this token cannot ${handler.action} ${remote === '' ? 'that remote' : remote} in ${env === '' ? 'that env' : env}`,
+          `this token cannot ${denied.action} ${denied.remote === '' ? 'that remote' : (denied.remote ?? '')} in ${denied.env === '' ? 'that env' : denied.env}`,
         );
       send(res, 200, await handler.run(token, body));
       return 200;

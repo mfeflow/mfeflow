@@ -13,6 +13,7 @@ import {
   type Harness,
 } from './fixtures/harness';
 import { startRegistryServer } from './server';
+import { ArtifactTooLargeError, artifactUrl, DEPLOY_READ_BUDGET } from './service';
 import { openSqliteStorage } from './sqlite';
 import { sha256Hex } from './tokens';
 
@@ -175,16 +176,16 @@ describe('POST /v1/deploy', () => {
   });
 
   it('refuses a schema problem', async () => {
-    seedVersion(h.artifacts, 'cart', 'one point oh');
+    seedVersion(h.artifacts, 'cart', '1.0.0');
     const res = await h.call('POST', '/v1/deploy', {
       token: admin,
       body: {
         env: 'prod',
         remote: 'cart',
-        version: 'one point oh',
+        version: '1.0.0',
         owner: 'team-cart',
-        routes: ['/cart'],
-        manifestUrl: `${BASE_URL}/cart/one point oh/mf-manifest.json`,
+        routes: ['not-a-route'],
+        manifestUrl: `${BASE_URL}/cart/1.0.0/mf-manifest.json`,
       },
     });
     expect(res.status).toBe(422);
@@ -251,6 +252,9 @@ describe('POST /v1/deploy', () => {
     const down = await h.call('POST', '/v1/deploy', { token: admin, body });
     expect(down.status).toBe(502);
     expect(down.body.error.code).toBe('artifact_unreachable');
+    expect(JSON.stringify(down.body)).not.toContain('connection reset');
+    expect(JSON.stringify(down.body)).not.toContain(BASE_URL);
+    expect(h.logs.join('\n')).toContain('connection reset');
   });
 
   it('keeps a version immutable: same version, different manifest is refused', async () => {
@@ -298,35 +302,46 @@ describe('POST /v1/deploy', () => {
 });
 
 describe('concurrent deploys', () => {
-  it('commits one and gives the other a clear conflict, which then succeeds on retry', async () => {
+  const send = (name: string, version: string) =>
+    h.call('POST', '/v1/deploy', {
+      token: admin,
+      body: {
+        env: 'prod',
+        remote: name,
+        version,
+        owner: `team-${name}`,
+        routes: [`/${name}`],
+        manifestUrl: `${BASE_URL}/${name}/${version}/mf-manifest.json`,
+      },
+    });
+
+  it('commits one and gives the other a clear conflict when both touch the same remote', async () => {
     const release = h.artifacts.hold();
     seedVersion(h.artifacts, 'cart', '1.0.0');
-    seedVersion(h.artifacts, 'shop', '1.0.0');
-    const send = (name: string) =>
-      h.call('POST', '/v1/deploy', {
-        token: admin,
-        body: {
-          env: 'prod',
-          remote: name,
-          version: '1.0.0',
-          owner: `team-${name}`,
-          routes: [`/${name}`],
-          manifestUrl: `${BASE_URL}/${name}/1.0.0/mf-manifest.json`,
-        },
-      });
-    const names = ['cart', 'shop'];
-    const both = Promise.all(names.map((name) => send(name)));
+    seedVersion(h.artifacts, 'cart', '2.0.0');
+    const both = Promise.all([send('cart', '1.0.0'), send('cart', '2.0.0')]);
     await vi.waitFor(() => {
       expect(h.artifacts.reads.length).toBeGreaterThanOrEqual(2);
     });
     release();
     const results = await both;
     expect(results.map((r) => r.status).toSorted((a, b) => a - b)).toEqual([200, 409]);
-    const lostAt = results.findIndex((r) => r.status === 409);
-    expect(results[lostAt]?.body.error.code).toBe('conflict');
-    expect(results[lostAt]?.body.error.message).toContain('retry');
-    expect((await send(names[lostAt] ?? '')).status).toBe(200);
-    expect((await prodIndex()).remotes).toHaveLength(2);
+    const lost = results.find((r) => r.status === 409);
+    expect(lost?.body.error.code).toBe('conflict');
+    expect(lost?.body.error.message).toContain('retry');
+  });
+
+  it('lets deploys of different remotes in one env both succeed', async () => {
+    const release = h.artifacts.hold();
+    seedVersion(h.artifacts, 'cart', '1.0.0');
+    seedVersion(h.artifacts, 'shop', '1.0.0');
+    const both = Promise.all([send('cart', '1.0.0'), send('shop', '1.0.0')]);
+    await vi.waitFor(() => {
+      expect(h.artifacts.reads.length).toBeGreaterThanOrEqual(2);
+    });
+    release();
+    expect((await both).map((r) => r.status)).toEqual([200, 200]);
+    expect((await prodIndex()).remotes.map((r) => r.name).toSorted()).toEqual(['cart', 'shop']);
   });
 });
 
@@ -664,7 +679,11 @@ describe('auth', () => {
         body: { from: 'staging', to: 'prod', remote: 'cart' },
       });
     expect((await promote(toStaging)).status).toBe(403);
-    expect((await promote(toProd)).status).toBe(200);
+    const noReadOnSource = await promote(toProd);
+    expect(noReadOnSource.status).toBe(403);
+    expect(noReadOnSource.body.error.message).toContain('cannot read');
+    const both = await h.token({ actions: ['promote', 'read'] });
+    expect((await promote(both)).status).toBe(200);
     const noRollback = await h.token({ actions: ['promote', 'deploy'] });
     expect(
       (
@@ -897,5 +916,113 @@ describe('static fallback', () => {
     await bare.close();
     expect(logs.some((l) => l.includes('no fallback host set'))).toBe(true);
     expect(bare.fallback).toBeUndefined();
+  });
+});
+
+describe('artifact base escape', () => {
+  const stays = (url: string): boolean =>
+    url.startsWith(`${BASE_URL}/cart/1.0.0/`) ||
+    url === `${BASE_URL}/envs/prod/shell/mf-manifest.json`;
+
+  const body = (version: string, extra: Record<string, unknown> = {}) => ({
+    env: 'prod',
+    remote: 'cart',
+    version,
+    owner: 'team-cart',
+    routes: ['/cart'],
+    manifestUrl: `${BASE_URL}/cart/${version}/mf-manifest.json`,
+    ...extra,
+  });
+
+  it.each([
+    '../1.0.0',
+    '1.0.0/../../x',
+    '1.0.0?x=1',
+    '1.0.0#frag',
+    '%2e%2e/%2e%2e/1.0.0',
+    '1.0.0-..',
+    '1.0.0-a..b',
+    '1.0',
+    '1.0.0\\x',
+    'v1.0.0',
+  ])('refuses version %s before reading anything', async (version) => {
+    const res = await h.call('POST', '/v1/deploy', { token: admin, body: body(version) });
+    expect(res.status).toBe(400);
+    expect(h.artifacts.reads).toEqual([]);
+  });
+
+  it('accepts prerelease and build versions', async () => {
+    expect((await h.deploy(admin, 'cart', '1.4.2-rc.1+a1b2c3d')).status).toBe(200);
+  });
+
+  it('refuses a manifest that names a file outside its folder, and reads nothing outside the base', async () => {
+    seedVersion(h.artifacts, 'cart', '1.0.0');
+    const manifest = manifestFor('cart') as { metaData: { remoteEntry: { name: string } } };
+    manifest.metaData.remoteEntry.name = '../../evil/remoteEntry.js';
+    h.artifacts.files.set(
+      `${BASE_URL}/cart/1.0.0/mf-manifest.json`,
+      new TextEncoder().encode(JSON.stringify(manifest)),
+    );
+    const res = await h.call('POST', '/v1/deploy', { token: admin, body: body('1.0.0') });
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    for (const url of h.artifacts.reads) expect(stays(url)).toBe(true);
+  });
+
+  it('refuses file names with query, fragment or escape characters', async () => {
+    for (const name of ['a.js?x=1', 'a.js#f', 'a%2e%2e.js', '..\\a.js', '/etc/passwd']) {
+      seedVersion(h.artifacts, 'cart', '1.0.0');
+      const manifest = manifestFor('cart') as { metaData: { remoteEntry: { name: string } } };
+      manifest.metaData.remoteEntry.name = name;
+      h.artifacts.files.set(
+        `${BASE_URL}/cart/1.0.0/mf-manifest.json`,
+        new TextEncoder().encode(JSON.stringify(manifest)),
+      );
+      h.artifacts.reads.length = 0;
+      // eslint-disable-next-line no-await-in-loop
+      const res = await h.call('POST', '/v1/deploy', { token: admin, body: body('1.0.0') });
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(h.artifacts.reads.every(stays)).toBe(true);
+    }
+  });
+
+  it('maps an over-budget artifact to 422 without echoing the host', async () => {
+    seedVersion(h.artifacts, 'cart', '1.0.0');
+    vi.spyOn(h.artifacts, 'get').mockRejectedValue(new ArtifactTooLargeError(10));
+    const res = await h.call('POST', '/v1/deploy', { token: admin, body: body('1.0.0') });
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('artifact_too_large');
+  });
+
+  it('hands each read the budget that is left', async () => {
+    seedVersion(h.artifacts, 'cart', '1.0.0');
+    const get = vi.spyOn(h.artifacts, 'get');
+    await h.call('POST', '/v1/deploy', { token: admin, body: body('1.0.0') });
+    const limits = get.mock.calls.map((c) => c[1]?.maxBytes ?? 0);
+    expect(limits[0]).toBe(DEPLOY_READ_BUDGET);
+    expect(limits[1]).toBeLessThan(DEPLOY_READ_BUDGET);
+  });
+});
+
+describe('artifactUrl', () => {
+  const base = 'https://cdn.example.com/mfe';
+
+  it('keeps a path under the base and refuses anything that leaves it', () => {
+    expect(artifactUrl(base, 'cart/1.0.0/a.js')).toBe(`${base}/cart/1.0.0/a.js`);
+    for (const path of [
+      '../x',
+      'a/../../x',
+      '%2e%2e/x',
+      'a/%2E%2E/%2e%2e/x',
+      'a?x=1',
+      'a#f',
+      '..\\x',
+    ])
+      expect(() => artifactUrl(base, path)).toThrow(/leaves the artifact base/);
+  });
+});
+
+describe('database file', () => {
+  it.skipIf(process.platform === 'win32')('is created readable by its owner only', async () => {
+    expect((await fs.stat(h.dbFile)).mode & 0o777).toBe(0o600);
   });
 });

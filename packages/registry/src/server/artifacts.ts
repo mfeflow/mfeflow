@@ -1,4 +1,12 @@
-import type { ArtifactSource } from './service';
+import { ArtifactTooLargeError, type ArtifactSource } from './service';
+
+async function nextChunk(reader: { read(): Promise<unknown> }): Promise<Uint8Array | undefined> {
+  const result = await reader.read();
+  if (typeof result !== 'object' || result === null) throw new Error('unreadable body');
+  if ('done' in result && result.done === true) return undefined;
+  if ('value' in result && result.value instanceof Uint8Array) return result.value;
+  throw new Error('unreadable body');
+}
 
 export interface FetchSourceOptions {
   fetch?: typeof fetch;
@@ -13,7 +21,7 @@ export function fetchArtifactSource(options: FetchSourceOptions = {}): ArtifactS
   const max = options.maxBytes ?? 8 * 1024 * 1024;
   const timeout = options.timeoutMs ?? 10_000;
   return {
-    async get(url) {
+    async get(url, request) {
       const res = await doFetch(url, {
         redirect: 'error',
         signal: AbortSignal.timeout(timeout),
@@ -27,14 +35,29 @@ export function fetchArtifactSource(options: FetchSourceOptions = {}): ArtifactS
         await res.body?.cancel().catch(() => undefined);
         throw new Error(`HTTP ${String(res.status)}`);
       }
+      const limit = Math.min(max, request?.maxBytes ?? max);
       const declared = Number(res.headers.get('content-length') ?? 0);
-      if (declared > max) {
+      if (declared > limit) {
         await res.body?.cancel().catch(() => undefined);
-        throw new Error(`larger than ${String(max)} bytes`);
+        throw new ArtifactTooLargeError(limit);
       }
-      const bytes = new Uint8Array(await res.arrayBuffer());
-      if (bytes.byteLength > max) throw new Error(`larger than ${String(max)} bytes`);
-      return bytes;
+      if (res.body === null) return new Uint8Array();
+      const reader = res.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      for (;;) {
+        // oxlint-disable-next-line no-await-in-loop -- sequential stream reads
+        const chunk = await nextChunk(reader);
+        if (chunk === undefined) break;
+        total += chunk.byteLength;
+        if (total > limit) {
+          // oxlint-disable-next-line no-await-in-loop -- stop reading at once
+          await reader.cancel().catch(() => undefined);
+          throw new ArtifactTooLargeError(limit);
+        }
+        chunks.push(chunk);
+      }
+      return new Uint8Array(Buffer.concat(chunks));
     },
   };
 }

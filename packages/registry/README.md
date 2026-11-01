@@ -104,7 +104,7 @@ Without `s3:ListBucket`, S3 answers 403 instead of 404 for a key that does not e
 
 ## The server
 
-`@mfeflow/registry/server` is the same registry as a small HTTP service, for when a static index is not enough: scoped tokens, an audit log and a kill switch that works on the next request. It uses `node:http` and `node:sqlite`, so there is no framework and no database to run. It needs **Node 22.13 or newer** (or 23.4+, 24+); on an older Node it stops at start with a message saying so, because `node:sqlite` sits behind a flag before that. Node prints an "experimental" warning for SQLite; that is expected.
+`@mfeflow/registry/server` is the same registry as a small HTTP service, for when a static index is not enough: scoped tokens, an audit log and a kill switch that works on the next request. It uses `node:http` and `node:sqlite`, so there is no framework and no database to run. The package's `engines` is `>=22.13` for that reason (this also covers the `/static` and `/s3` subpaths, which would run on 22.12 but share the package). On an older Node the server stops at start with a message saying so, because `node:sqlite` sits behind a flag before that. Node prints an "experimental" warning for SQLite; that is expected.
 
 ```sh
 pnpm add @mfeflow/registry
@@ -130,15 +130,15 @@ S3 credentials for the fallback host come from `AWS_ACCESS_KEY_ID`, `AWS_SECRET_
 
 **Endpoints.** JSON in, JSON out. Upload the build to the artifact host first; the server never stores files.
 
-| Endpoint                  | Needs                   | What it does                                                                                     |
-| ------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
-| `GET /v1/index/:env?u=id` | nothing                 | The index for the env, the same shape as the static one.                                         |
-| `POST /v1/deploy`         | `deploy`                | Registers an uploaded version and serves it, after the schema, overlap, compat and budget gates. |
-| `POST /v1/promote`        | `promote` on the target | Points `to` at the version `from` serves.                                                        |
-| `POST /v1/rollback`       | `rollback`              | Back to `previous`, or to `to` from the history. `force` skips the gates, not the history check. |
-| `POST /v1/kill`           | `kill`                  | Removes the remote from the served index now. `restore: true` puts it back.                      |
-| `GET /v1/audit?env=`      | `read`                  | Who did what, when, and the versions before and after.                                           |
-| `GET /healthz`            | nothing                 | Checks the database.                                                                             |
+| Endpoint                  | Needs                                         | What it does                                                                                                                                               |
+| ------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/index/:env?u=id` | nothing                                       | The index for the env, the same shape as the static one.                                                                                                   |
+| `POST /v1/deploy`         | `deploy`                                      | Registers an uploaded version and serves it, after the schema, overlap, compat and budget gates.                                                           |
+| `POST /v1/promote`        | `promote` on the target, `read` on the source | Points `to` at the version `from` serves.                                                                                                                  |
+| `POST /v1/rollback`       | `rollback`                                    | Back to `previous`, or to `to` from the history. `force` skips the gates, not the history check.                                                           |
+| `POST /v1/kill`           | `kill`                                        | Removes the remote from the served index now. `restore: true` puts it back.                                                                                |
+| `GET /v1/audit?env=`      | `read`                                        | Who did what, when, and the versions before and after. Entries carry token ids and kill reasons (free text from the caller), so treat the log as internal. |
+| `GET /healthz`            | nothing                                       | Checks the database.                                                                                                                                       |
 
 A deploy sends `env`, `remote`, `version`, `owner`, `routes` and `manifestUrl`, which must be `<base>/<name>/<version>/mf-manifest.json` under the artifact base URL (`+` in a version is `_`). Optional: `platform` and `budgets.initialJsKb`, as in `mfe.json`. The server reads the manifest and the first-load files from the artifact host to measure and check them. A version is immutable: registering the same version with a different manifest is refused. A killed remote cannot be deployed, promoted or rolled back until it is restored.
 
@@ -150,7 +150,9 @@ A deploy sends `env`, `remote`, `version`, `owner`, `routes` and `manifestUrl`, 
 
 **Concurrent writers.** An env has a revision. A deploy, promote or rollback that read an older one gets `409 conflict` and should read again and retry, the same idea as the static `If-Match`. A kill retries by itself, because it has to land.
 
-**Security.** Bodies are capped and must be `application/json`. There are no CORS headers unless you list origins, and then only on the index endpoint. The server reads only URLs under the artifact base URL, with no redirects. Tokens, secrets and authorization headers are never logged. Rate limiting is not built in: put the server behind a proxy that limits requests.
+**Security.** The database file is created with mode 0600. Versions must be plain semver (`1.4.2`, `1.4.2-rc.1`, `1.4.2+sha`), file names from a manifest must be plain relative paths, and every artifact URL is rebuilt and checked to stay under the artifact base URL. A deploy reads at most 32 MiB from the artifact host in total, streamed with a running cap. Errors from the artifact host go to the server log, not the response. Bodies are capped and must be `application/json`. There are no CORS headers unless you list origins, and then only on the index endpoint. The server reads only URLs under the artifact base URL, with no redirects. Tokens, secrets and authorization headers are never logged. Rate limiting is not built in: put the server behind a proxy that limits requests.
+
+A promote needs a token that covers both envs (`env` `*`, or `admin`), since it reads one and writes the other.
 
 Not here yet: percentage rollout and telemetry gating (next), `mfeflow` CLI server mode and a Docker image (after that), Postgres.
 
