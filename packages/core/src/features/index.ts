@@ -9,11 +9,25 @@ export {
   fetchFeatureIndex,
   fetchRemoteText,
   getHttps,
+  checkIntegrity,
+  indexedVersion,
+  integrityOf,
   readCappedText,
   registryUrl,
   type FetchLike,
   type FetchResponse,
 } from './remote';
+export {
+  addTrusted,
+  configDirOf,
+  namespacesFromEnv,
+  readTrusted,
+  removeTrusted,
+  TRUST_ENV,
+  trustedNamespaces,
+  trustFileIn,
+  type TrustedRegistry,
+} from './trust';
 export { resolveFeature, resolveOptions, type ResolveInput } from './resolve';
 export { type Trust } from './policy';
 export { isProtectedPath } from './write-policy';

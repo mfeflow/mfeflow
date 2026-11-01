@@ -26,6 +26,7 @@ const runtimeIn = (out: string[], err: string[]) => ({
     features: path.resolve(import.meta.dirname, '../../../features'),
     templates: path.resolve(import.meta.dirname, '../../../templates'),
   },
+  configDir: path.join(os.tmpdir(), 'create-mfeflow-config'),
 });
 
 describe('create-mfeflow', () => {

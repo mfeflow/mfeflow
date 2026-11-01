@@ -3,7 +3,10 @@ import { rejection } from '../testing';
 import {
   fetchFeatureIndex,
   fetchRemoteText,
+  checkIntegrity,
   getHttps,
+  indexedVersion,
+  integrityOf,
   registryUrl,
   type FetchLike,
   type FetchResponse,
@@ -184,7 +187,9 @@ describe('plain http on the machine you are on', () => {
     async (origin) => {
       const { fetch, asked } = script(ok('{"a":1}'));
       const registry = { '@test': `${origin}/{name}.json` };
-      expect(await fetchRemoteText('@test/hello', registry, fetch)).toBe('{"a":1}');
+      expect(await fetchRemoteText('@test/hello', registry, fetch, undefined, true)).toBe(
+        '{"a":1}',
+      );
       expect(asked).toEqual([`${origin}/hello.json`]);
     },
   );
@@ -205,16 +210,16 @@ describe('plain http on the machine you are on', () => {
 
   it('lets a loopback registry redirect within loopback and to https', async () => {
     const within = script(redirect('http://localhost:4010/moved.json'), ok('{}'));
-    await fetchRemoteText('@test/hello', local, within.fetch);
+    await fetchRemoteText('@test/hello', local, within.fetch, undefined, true);
     expect(within.asked[1]).toBe('http://localhost:4010/moved.json');
     const up = script(redirect('https://cdn.example/hello.json'), ok('{}'));
-    await fetchRemoteText('@test/hello', local, up.fetch);
+    await fetchRemoteText('@test/hello', local, up.fetch, undefined, true);
     expect(up.asked[1]).toBe('https://cdn.example/hello.json');
   });
 
   it('refuses a loopback registry that redirects to another plain http host', async () => {
     const { fetch, asked } = script(redirect('http://example.com/hello.json'), ok('{}'));
-    const error = await rejection(fetchRemoteText('@test/hello', local, fetch));
+    const error = await rejection(fetchRemoteText('@test/hello', local, fetch, undefined, true));
     expect(error.message).toContain('not https');
     expect(asked).toHaveLength(1);
   });
@@ -228,13 +233,13 @@ describe('plain http on the machine you are on', () => {
 
   it('refuses an answer that ended up off the allowed hosts', async () => {
     const { fetch } = script({ ...ok('{}'), url: 'http://example.com/x' });
-    expect((await rejection(fetchRemoteText('@test/hello', local, fetch))).message).toContain(
-      'ended up at',
-    );
+    expect(
+      (await rejection(fetchRemoteText('@test/hello', local, fetch, undefined, true))).message,
+    ).toContain('ended up at');
     const garbled = script({ ...ok('{}'), url: 'not a url' });
-    expect((await rejection(fetchRemoteText('@test/hello', local, garbled.fetch))).code).toBe(
-      'MFEFLOW_E401',
-    );
+    expect(
+      (await rejection(fetchRemoteText('@test/hello', local, garbled.fetch, undefined, true))).code,
+    ).toBe('MFEFLOW_E401');
   });
 
   it('keeps other callers on https: loopback http is off unless asked for', async () => {
@@ -311,5 +316,139 @@ describe('fetchFeatureIndex', () => {
       fetchFeatureIndex('@acme', registries, reply(200, 'x'.repeat(1_000_001))),
     );
     expect(big.message).toContain('larger than 1 MB');
+  });
+});
+
+describe('private addresses need a trusted registry', () => {
+  const ok = (body: string): FetchResponse => ({
+    ok: true,
+    status: 200,
+    text: () => Promise.resolve(body),
+  });
+  const never: FetchLike = () => Promise.reject(new Error('the network must not be asked'));
+
+  it.each([
+    'http://127.0.0.1:4010',
+    'http://localhost:4010',
+    'http://[::1]:4010',
+    'https://10.0.0.5',
+    'https://172.20.1.1',
+    'https://192.168.1.5',
+    'https://169.254.169.254',
+    'https://[fd00::1]',
+    'https://registry.localhost',
+  ])('does not request %s until it is trusted', async (origin) => {
+    const registry = { '@test': `${origin}/{name}.json` };
+    const error = await rejection(fetchRemoteText('@test/hello', registry, never));
+    expect(error.code).toBe('MFEFLOW_E405');
+    const index = await rejection(fetchFeatureIndex('@test', registry, never));
+    expect(index.code).toBe('MFEFLOW_E405');
+  });
+
+  it('requests a private address once it is trusted', async () => {
+    const registry = { '@test': 'https://192.168.1.5/{name}.json' };
+    const text = await fetchRemoteText(
+      '@test/hello',
+      registry,
+      () => Promise.resolve(ok('{}')),
+      undefined,
+      true,
+    );
+    expect(text).toBe('{}');
+  });
+
+  it('refuses a public registry that redirects to a private address, and asks no further', async () => {
+    const asked: string[] = [];
+    const fetch: FetchLike = (url) => {
+      asked.push(url);
+      return Promise.resolve({
+        ok: false,
+        status: 302,
+        headers: { get: () => 'https://169.254.169.254/latest/meta-data' },
+        text: () => Promise.resolve(''),
+      });
+    };
+    const error = await rejection(fetchRemoteText('@acme/segment', registries, fetch));
+    expect(error.code).toBe('MFEFLOW_E405');
+    expect(asked).toHaveLength(1);
+  });
+});
+
+describe('integrity and the index version', () => {
+  it('hashes the exact text that was served', () => {
+    expect(integrityOf('a')).toBe(
+      'sha256-ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb',
+    );
+    expect(integrityOf('a')).not.toBe(integrityOf('a '));
+  });
+
+  const was = integrityOf('one');
+  const now = integrityOf('two');
+
+  it('passes when the served bytes match the recorded hash', () => {
+    expect(checkIntegrity('@acme/segment', was, was, false)).toBe(false);
+  });
+
+  it('is E406 when the registry now serves other bytes, naming both hashes', async () => {
+    const error = await rejection(
+      Promise.resolve().then(() => checkIntegrity('@acme/segment', was, now, false)),
+    );
+    expect(error.code).toBe('MFEFLOW_E406');
+    expect(error.message).toContain(was);
+    expect(error.message).toContain(now);
+  });
+
+  it('takes the change when it is accepted, and says it changed', () => {
+    expect(checkIntegrity('@acme/segment', was, now, true)).toBe(true);
+  });
+
+  const index = { items: [{ name: 'segment', version: '1.2.0', description: 'Segment' }] };
+  const serving =
+    (status: number, body: string): FetchLike =>
+    () =>
+      Promise.resolve({ ok: status === 200, status, text: () => Promise.resolve(body) });
+
+  it('reads the version the index lists for a feature', async () => {
+    const listed = await indexedVersion(
+      '@acme',
+      'segment',
+      registries,
+      serving(200, JSON.stringify(index)),
+    );
+    expect(listed).toBe('1.2.0');
+    const other = await indexedVersion(
+      '@acme',
+      'other',
+      registries,
+      serving(200, JSON.stringify(index)),
+    );
+    expect(other).toBeUndefined();
+  });
+
+  it('answers undefined for a registry without an index, and still fails for a broken one', async () => {
+    expect(await indexedVersion('@acme', 'segment', registries, serving(404, ''))).toBeUndefined();
+    const error = await rejection(indexedVersion('@acme', 'segment', registries, serving(500, '')));
+    expect(error.code).toBe('MFEFLOW_E401');
+  });
+});
+
+describe('secrets in URLs stay out of errors', () => {
+  const secret = { '@acme': 'https://acme.example/{name}.json?token=hunter2&v=1' };
+  const notFound: FetchLike = () =>
+    Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
+
+  it('hides a token when the registry answers with an error', async () => {
+    const error = await rejection(fetchRemoteText('@acme/segment', secret, notFound));
+    expect(error.message).toContain('token=***');
+    expect(error.message).not.toContain('hunter2');
+  });
+
+  it('hides a token when the connection fails or the index is missing', async () => {
+    const down = await rejection(
+      fetchRemoteText('@acme/segment', secret, () => Promise.reject(new Error('ECONNREFUSED'))),
+    );
+    expect(down.message).not.toContain('hunter2');
+    const missing = await rejection(fetchFeatureIndex('@acme', secret, notFound));
+    expect(missing.message).not.toContain('hunter2');
   });
 });

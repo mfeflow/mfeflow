@@ -77,13 +77,14 @@ export const COMMANDS: readonly Command[] = [
     name: 'registry',
     summary: 'configure third-party feature registries, or build one to host',
     usage:
-      'mfeflow registry add @namespace <url-template> | mfeflow registry list | mfeflow registry remove @namespace | mfeflow registry build <dir> [--out dir]',
+      'mfeflow registry add @namespace <url-template> | mfeflow registry list | mfeflow registry remove @namespace | mfeflow registry trust @namespace | mfeflow registry untrust @namespace | mfeflow registry build <dir> [--out dir]',
     args: REGISTRY_ARGS,
     examples: [
       'mfeflow registry add @acme https://acme.github.io/features/{name}.json',
       'mfeflow registry add @test http://127.0.0.1:4010/{name}.json   # plain http: loopback hosts only',
       'mfeflow registry list --json',
       'mfeflow registry remove @acme --dry-run',
+      'mfeflow registry trust @acme   # a registry from a cloned repo is not asked until you trust it',
       'mfeflow registry build ./my-registry --out ./site',
     ],
     run: runRegistry,

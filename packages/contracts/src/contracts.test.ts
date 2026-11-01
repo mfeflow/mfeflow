@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   isMfeflowProject,
   isMfeManifest,
+  isPrivateHost,
+  JSON_SCHEMAS,
+  redactUrl,
+  redactUrlsIn,
   isRegistryEntry,
   isRegistryIndex,
   MFE_NAME,
@@ -408,5 +412,110 @@ describe('mfeflow.json', () => {
 
   it('publishes schema URLs', () => {
     expect(SCHEMA_URLS.mfe).toBe('https://mfeflow.github.io/mfeflow/schema/mfe.json');
+  });
+});
+
+describe('feature integrity in mfeflow.json', () => {
+  const entry = (extra: object) => ({
+    version: 1,
+    topology: 'monorepo',
+    packageManager: 'pnpm',
+    scope: '@shopco',
+    apps: { storefront: { kind: 'shell', path: 'apps/storefront' } },
+    features: { '@someone/extra': { version: '1.0.0', ...extra } },
+  });
+
+  it('accepts a sha256 hash next to the feature', () => {
+    const integrity = `sha256-${'ab'.repeat(32)}`;
+    expect(validateMfeflowProject(entry({ integrity }))).toEqual([]);
+  });
+
+  it('rejects anything that is not a sha256 hash', () => {
+    for (const bad of ['abc', 'sha1-abc', `sha256-${'AB'.repeat(32)}`, 7]) {
+      expect(paths(validateMfeflowProject(entry({ integrity: bad }))), String(bad)).toEqual([
+        'features.@someone/extra.integrity',
+      ]);
+    }
+  });
+
+  it('puts integrity in the published JSON schema', () => {
+    const features = JSON_SCHEMAS.project.properties as Record<string, unknown>;
+    expect(JSON.stringify(features.features)).toContain('integrity');
+  });
+});
+
+describe('isPrivateHost', () => {
+  it.each([
+    'localhost',
+    'LOCALHOST',
+    'app.localhost',
+    '127.0.0.1',
+    '127.1.2.3',
+    '10.0.0.1',
+    '172.16.0.1',
+    '172.31.255.255',
+    '192.168.0.10',
+    '169.254.169.254',
+    '0.0.0.0',
+    '[::1]',
+    '[::]',
+    '[fc00::1]',
+    '[fd12:3456::1]',
+    '[fe80::1]',
+    '[::ffff:7f00:1]',
+    '[::ffff:c0a8:101]',
+  ])('is true for %s', (host) => {
+    expect(isPrivateHost(host)).toBe(true);
+  });
+
+  it.each([
+    'example.com',
+    'acme.github.io',
+    '8.8.8.8',
+    '172.15.0.1',
+    '172.32.0.1',
+    '192.169.0.1',
+    '11.0.0.1',
+    '[2606:4700::1111]',
+    '[::ffff:808:808]',
+    'localhost.example.com',
+  ])('is false for %s', (host) => {
+    expect(isPrivateHost(host)).toBe(false);
+  });
+
+  it('agrees with what URL.hostname reports', () => {
+    expect(isPrivateHost(new URL('http://[::1]:4010/x').hostname)).toBe(true);
+    expect(isPrivateHost(new URL('http://0x7f.1/x').hostname)).toBe(true);
+    expect(isPrivateHost(new URL('https://acme.dev/x').hostname)).toBe(false);
+  });
+});
+
+describe('redactUrl', () => {
+  it('hides the value of token-like parameters and keeps the rest', () => {
+    expect(redactUrl('https://r.dev/{name}.json?token=abc&v=2')).toBe(
+      'https://r.dev/{name}.json?token=***&v=2',
+    );
+    for (const key of ['api_key', 'apikey', 'sig', 'Signature', 'auth', 'password', 'secret']) {
+      expect(redactUrl(`https://r.dev/x?${key}=s3cret`), key).toBe(`https://r.dev/x?${key}=***`);
+    }
+    expect(redactUrl('https://r.dev/x?X-Amz-Signature=aa&X-Amz-Credential=bb&a=1')).toBe(
+      'https://r.dev/x?X-Amz-Signature=***&X-Amz-Credential=***&a=1',
+    );
+  });
+
+  it('hides a user name and password', () => {
+    expect(redactUrl('https://me:pw@r.dev/x')).toBe('https://***@r.dev/x');
+  });
+
+  it('leaves a URL without a secret as it is', () => {
+    for (const url of ['https://r.dev/{name}.json', 'https://r.dev/x?page=2#top', 'not a url']) {
+      expect(redactUrl(url)).toBe(url);
+    }
+  });
+
+  it('cleans every URL in a sentence', () => {
+    expect(redactUrlsIn('https://r.dev/a?token=1 answered 404, then http://x.dev/b?key=2')).toBe(
+      'https://r.dev/a?token=*** answered 404, then http://x.dev/b?key=***',
+    );
   });
 });
