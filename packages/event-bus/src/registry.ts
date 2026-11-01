@@ -5,6 +5,11 @@ export const PROTOCOL = 1;
 
 export type Listener = (payload: unknown) => void;
 
+/** One subscription. The set holds these, not the functions, so subscribing a function twice is two subscriptions. */
+export interface Subscription {
+  readonly handler: Listener;
+}
+
 export interface Config {
   replay: boolean;
   validate: ((payload: unknown) => unknown) | undefined;
@@ -12,10 +17,12 @@ export interface Config {
 
 export interface Registry {
   protocol: number;
-  listeners: Map<string, Set<Listener>>;
+  listeners: Map<string, Set<Subscription>>;
   /** The last payload of each event that replays. */
   last: Map<string, unknown>;
   config: Map<string, Config>;
+  /** Ids of the latest events delivered, so an event that arrives twice (directly and over the window) is delivered once. */
+  delivered: Set<string>;
   /** One entry per copy of this package that has used the registry. */
   copies: Set<symbol>;
 }
@@ -29,6 +36,7 @@ function create(): Registry {
     listeners: new Map(),
     last: new Map(),
     config: new Map(),
+    delivered: new Set(),
     copies: new Set(),
   };
 }
@@ -41,16 +49,12 @@ function isRegistry(value: unknown): value is Registry {
     Reflect.get(value, 'listeners') instanceof Map &&
     Reflect.get(value, 'last') instanceof Map &&
     Reflect.get(value, 'config') instanceof Map &&
+    Reflect.get(value, 'delivered') instanceof Set &&
     Reflect.get(value, 'copies') instanceof Set
   );
 }
 
 let own: Registry | undefined;
-
-/** True when this copy keeps its own registry and bridges to other copies through the window. */
-export function isIsolated(): boolean {
-  return own !== undefined;
-}
 
 /** Registers this copy, and says so in development when it is not the only one. */
 function attach(shared: Registry): Registry {
@@ -68,7 +72,7 @@ function attach(shared: Registry): Registry {
  * The registry every copy of this package on the page shares, kept on `globalThis` so a second
  * copy (a missing singleton share) still reaches the same subscribers. A copy that finds one it
  * cannot read (another protocol) keeps its own and talks to the other copies through
- * `./channel` instead.
+ * the window bridge in `./channel` only.
  */
 export function registry(): Registry {
   if (own) return own;

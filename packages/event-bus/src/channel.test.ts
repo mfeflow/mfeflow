@@ -81,15 +81,76 @@ describe('a registry this copy cannot read', () => {
     expect(heard).toHaveBeenCalledOnce();
   });
 
-  it('stays out of the way of copies that share the registry', async () => {
+  it('delivers once to copies that share a registry, though they also hear each other over the window', async () => {
     resetEventBusForTests();
     vi.resetModules();
-    const bus = await import('.');
-    const onWindow = vi.fn();
-    window.addEventListener(CHANNEL_EVENT, onWindow);
-    bus.publish('chat.said.v1', { text: 'quiet' });
-    window.removeEventListener(CHANNEL_EVENT, onWindow);
-    expect(onWindow).not.toHaveBeenCalled();
+    const a = await import('.');
+    vi.resetModules();
+    const b = await import('.');
+    const heardByA = vi.fn();
+    const heardByB = vi.fn();
+    a.subscribe('chat.said.v1', heardByA);
+    b.subscribe('chat.said.v1', heardByB);
+    a.publish('chat.said.v1', { text: 'once' });
+    b.publish('chat.said.v1', { text: 'twice' });
+    expect(heardByA.mock.calls).toEqual([[{ text: 'once' }], [{ text: 'twice' }]]);
+    expect(heardByB.mock.calls).toEqual([[{ text: 'once' }], [{ text: 'twice' }]]);
+  });
+});
+
+describe('an isolated copy and the copies that share the main registry', () => {
+  /** One copy on the main registry, then one that finds a registry it cannot read. */
+  async function mainAndIsolated(): Promise<{ main: Bus; isolated: Bus }> {
+    Reflect.deleteProperty(globalThis, KEY);
+    vi.resetModules();
+    const main = await import('.');
+    main.listenerCount('chat.said.v1');
+    const shared: unknown = Reflect.get(globalThis, KEY);
+    Reflect.set(globalThis, KEY, { protocol: 99 });
+    vi.resetModules();
+    const isolated = await import('.');
+    isolated.listenerCount('chat.said.v1');
+    Reflect.set(globalThis, KEY, shared);
+    return { main, isolated };
+  }
+
+  it('hear each other, in both directions', async () => {
+    const { main, isolated } = await mainAndIsolated();
+    const heardByMain = vi.fn();
+    const heardByIsolated = vi.fn();
+    main.subscribe('chat.said.v1', heardByMain);
+    isolated.subscribe('chat.said.v1', heardByIsolated);
+    isolated.publish('chat.said.v1', { text: 'to main' });
+    expect(heardByMain).toHaveBeenCalledExactlyOnceWith({ text: 'to main' });
+    expect(heardByIsolated).toHaveBeenCalledExactlyOnceWith({ text: 'to main' });
+    main.publish('chat.said.v1', { text: 'to isolated' });
+    expect(heardByIsolated).toHaveBeenLastCalledWith({ text: 'to isolated' });
+    expect(heardByIsolated).toHaveBeenCalledTimes(2);
+    expect(heardByMain).toHaveBeenCalledTimes(2);
+  });
+
+  it('run the receiving copy’s own validator on what arrives over the window', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { main, isolated } = await mainAndIsolated();
+    main.configureEvent('chat.said.v1', {
+      validate: (payload) => {
+        if (
+          typeof payload !== 'object' ||
+          payload === null ||
+          !('text' in payload) ||
+          payload.text === 'bad'
+        )
+          throw new TypeError('no bad words');
+        return { text: String(payload.text) };
+      },
+    });
+    const heard = vi.fn();
+    main.subscribe('chat.said.v1', heard);
+    isolated.publish('chat.said.v1', { text: 'bad' });
+    expect(heard).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('was not delivered: no bad words'));
+    isolated.publish('chat.said.v1', { text: 'fine' });
+    expect(heard).toHaveBeenCalledExactlyOnceWith({ text: 'fine' });
   });
 });
 

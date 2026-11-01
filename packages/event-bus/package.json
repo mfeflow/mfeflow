@@ -62,6 +62,7 @@
     }
   },
   "devDependencies": {
+    "@mfeflow/contracts": "workspace:*",
     "@rsbuild/plugin-react": "catalog:",
     "@rslib/core": "catalog:",
     "@testing-library/dom": "catalog:",

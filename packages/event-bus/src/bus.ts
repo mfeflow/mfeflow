@@ -1,6 +1,13 @@
 import { broadcast, listen, stopListening } from './channel';
 import type { EventMap } from './index';
-import { isIsolated, registry, resetRegistry, type Config, type Registry } from './registry';
+import {
+  registry,
+  resetRegistry,
+  type Config,
+  type Listener,
+  type Registry,
+  type Subscription,
+} from './registry';
 import { resetWarningsForTests, warnOnce } from './warn';
 
 /** The names an event can be published under. */
@@ -29,7 +36,7 @@ export interface SubscribeOptions {
   replay?: boolean | undefined;
 }
 
-// <domain>.<event>.v<major>, for example cart.item-added.v1
+// <domain>.<event>.v<major>, for example cart.item-added.v1. Kept equal to EVENT_NAME in @mfeflow/contracts by a test.
 const NAME = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+\.v[1-9][0-9]*$/;
 
 export function isEventName(name: string): boolean {
@@ -48,7 +55,7 @@ function reportHandlerError(name: string, error: unknown): void {
   console.error(`[mfeflow/event-bus] a handler for "${name}" threw`, error);
 }
 
-function call(name: string, handler: (payload: unknown) => void, payload: unknown): void {
+function call(name: string, handler: Listener, payload: unknown): void {
   try {
     handler(payload);
   } catch (error) {
@@ -60,8 +67,8 @@ function deliver(r: Registry, name: string, payload: unknown): void {
   const set = r.listeners.get(name);
   if (!set) return;
   // A copy, and a check before each call: a handler may subscribe or unsubscribe while we run.
-  for (const handler of Array.from(set)) {
-    if (set.has(handler)) call(name, handler, payload);
+  for (const subscription of Array.from(set)) {
+    if (set.has(subscription)) call(name, subscription.handler, payload);
   }
 }
 
@@ -69,10 +76,47 @@ function remember(r: Registry, name: string, payload: unknown): void {
   if (r.config.get(name)?.replay) r.last.set(name, payload);
 }
 
-function receive(name: string, payload: unknown): void {
+const DELIVERED_KEPT = 64;
+const origin = Math.random().toString(36).slice(2);
+let sent = 0;
+
+/** True when this registry already delivered the event with this id; records it otherwise. */
+function alreadyDelivered(r: Registry, id: string): boolean {
+  if (r.delivered.has(id)) return true;
+  r.delivered.add(id);
+  if (r.delivered.size > DELIVERED_KEPT) {
+    const oldest = r.delivered.values().next();
+    if (!oldest.done) r.delivered.delete(oldest.value);
+  }
+  return false;
+}
+
+/** Runs the event's validator, if it has one. Returns the payload to deliver, or undefined with a reason. */
+function checked(
+  r: Registry,
+  name: string,
+  payload: unknown,
+): { payload: unknown } | { reason: string } {
+  const validate = r.config.get(name)?.validate;
+  if (!validate) return { payload };
+  try {
+    return { payload: validate(payload) };
+  } catch (error) {
+    return { reason: error instanceof Error ? error.message : 'invalid payload' };
+  }
+}
+
+/** An event another copy sent over the window, delivered here under this registry's own rules. */
+function receive(id: string, name: string, payload: unknown): void {
   const r = registry();
-  remember(r, name, payload);
-  deliver(r, name, payload);
+  if (alreadyDelivered(r, id)) return;
+  const result = checked(r, name, payload);
+  if ('reason' in result) {
+    console.error(`[mfeflow/event-bus] "${name}" was not delivered: ${result.reason}`);
+    return;
+  }
+  remember(r, name, result.payload);
+  deliver(r, name, result.payload);
 }
 
 /**
@@ -82,23 +126,18 @@ function receive(name: string, payload: unknown): void {
 export function publish<K extends EventName>(name: K, ...args: PayloadArgs<K>): boolean {
   checkName(name);
   const r = registry();
-  let payload: unknown = args[0];
-  const validate = r.config.get(name)?.validate;
-  if (validate) {
-    try {
-      payload = validate(payload);
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : 'invalid payload';
-      console.error(`[mfeflow/event-bus] "${name}" was not sent: ${reason}`);
-      return false;
-    }
+  const result = checked(r, name, args[0]);
+  if ('reason' in result) {
+    console.error(`[mfeflow/event-bus] "${name}" was not sent: ${result.reason}`);
+    return false;
   }
-  remember(r, name, payload);
-  deliver(r, name, payload);
-  if (isIsolated()) {
-    listen(receive);
-    broadcast(name, payload);
-  }
+  const id = `${origin}:${String(sent++)}`;
+  alreadyDelivered(r, id);
+  remember(r, name, result.payload);
+  deliver(r, name, result.payload);
+  // Another copy may keep its own registry; it hears this over the window.
+  listen(receive);
+  broadcast(id, name, result.payload);
   return true;
 }
 
@@ -110,18 +149,18 @@ export function subscribe<K extends EventName>(
 ): () => void {
   checkName(name);
   const r = registry();
-  if (isIsolated()) listen(receive);
+  listen(receive);
   // The bus hands over what was published as `name`; the map says what that is.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- payloads were typed at publish
-  const listener = handler as (payload: unknown) => void;
+  const subscription: Subscription = { handler: handler as Listener };
   const set = r.listeners.get(name) ?? new Set();
   r.listeners.set(name, set);
-  set.add(listener);
+  set.add(subscription);
   if (options.replay !== false && r.config.get(name)?.replay && r.last.has(name)) {
-    call(name, listener, r.last.get(name));
+    call(name, subscription.handler, r.last.get(name));
   }
   return () => {
-    set.delete(listener);
+    set.delete(subscription);
     if (set.size === 0 && r.listeners.get(name) === set) r.listeners.delete(name);
   };
 }

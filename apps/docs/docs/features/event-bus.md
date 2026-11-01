@@ -50,8 +50,8 @@ A wrong name, a wrong payload or a missing payload fails `pnpm typecheck`.
 ## Versioned names
 
 Names are `<domain>.<event>.v<major>`. A change old listeners cannot read gets a new version (`cart.item-added.v2`);
-publish both until every listener has moved, then delete the old one. `mfe.json` `events` accepts these names (and the
-older `cart.item_added@1` form).
+publish both until every listener has moved, then delete the old one. `mfe.json` `events` takes the same names, checked by the
+same pattern (the `@major` form is not accepted).
 
 ## Replay for late subscribers
 

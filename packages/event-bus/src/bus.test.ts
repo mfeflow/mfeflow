@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { EVENT_NAME } from '@mfeflow/contracts';
 import {
   configureEvent,
   isEventName,
@@ -41,6 +42,22 @@ describe('publish and subscribe', () => {
 
   it('is fine to publish with nobody listening', () => {
     expect(publish('cart.cleared.v1')).toBe(true);
+  });
+
+  it('treats subscribing the same function twice as two subscriptions', () => {
+    const handler = vi.fn();
+    const first = subscribe('cart.cleared.v1', handler);
+    const second = subscribe('cart.cleared.v1', handler);
+    expect(listenerCount('cart.cleared.v1')).toBe(2);
+    publish('cart.cleared.v1');
+    expect(handler).toHaveBeenCalledTimes(2);
+    first();
+    first();
+    expect(listenerCount('cart.cleared.v1')).toBe(1);
+    publish('cart.cleared.v1');
+    expect(handler).toHaveBeenCalledTimes(3);
+    second();
+    expect(listenerCount('cart.cleared.v1')).toBe(0);
   });
 
   it('stops after unsubscribe, and unsubscribing twice is harmless', () => {
@@ -260,6 +277,18 @@ describe('validation', () => {
 });
 
 describe('event names', () => {
+  it('follow the pattern mfe.json validates', () => {
+    for (const name of [
+      'cart.item-added.v1',
+      'a.b.c.v3',
+      'cart.updated',
+      'Cart.x.v1',
+      'cart.item_added@1',
+    ]) {
+      expect(isEventName(name), name).toBe(EVENT_NAME.test(name));
+    }
+  });
+
   it.each(['cart.item-added.v1', 'checkout.order-placed.v12', 'a.b.c.v3'])('accepts %s', (name) => {
     expect(isEventName(name)).toBe(true);
   });
