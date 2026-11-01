@@ -80,9 +80,18 @@ export function devIndex(
   view: ProjectView,
   overrides: ReadonlyMap<string, string> = new Map(),
 ): DevIndex {
+  const inRepos = Object.entries(view.devRemotes ?? {})
+    .filter(([name]) => !view.apps.some((app) => app.name === name))
+    .map(([name, manifestUrl]): DevRemote => {
+      const override = overrides.get(name);
+      return {
+        name,
+        entry: override ?? manifestUrl,
+        version: override === undefined ? 'dev' : 'override',
+      };
+    });
   const remotes = view.apps
     .filter((app) => app.kind === 'remote')
-    .toSorted((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
     .map((app): DevRemote => {
       const entry = view.registry.dev?.[app.name];
       const fromRegistry = entry?.state === 'ok' ? entry.value : undefined;
@@ -94,7 +103,9 @@ export function devIndex(
         version: overrides.has(app.name) ? 'override' : (fromRegistry?.version ?? 'dev'),
       };
     })
-    .filter((remote) => remote.entry !== '');
+    .concat(inRepos)
+    .filter((remote) => remote.entry !== '')
+    .toSorted((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   return { remotes };
 }
 

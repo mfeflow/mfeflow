@@ -469,3 +469,70 @@ describe('mfeflow dev', () => {
     ]);
   });
 });
+
+describe('mfeflow dev in the shell repo of a polyrepo', () => {
+  async function shellRepo(): Promise<string> {
+    const cwd = await tempDir();
+    dirs.push(cwd);
+    const code = await main(
+      ['init', 'acme', '--topology', 'polyrepo', '--yes', '--no-install', '--cwd', cwd],
+      testRuntime(),
+    );
+    expect(code).toBe(0);
+    return path.join(cwd, 'acme', 'shell');
+  }
+
+  it('runs the shell only and lists the other repos remotes from the dev config', async () => {
+    const root = await shellRepo();
+    await fakeInstall(root, 'shell');
+    const { rt, done } = await start(root, 1);
+    expect(rt.dev.procs.map((p) => path.relative(root, p.spec.cwd))).toEqual([
+      path.join('apps', 'shell'),
+    ]);
+    expect((await registryOf(root)).remotes).toEqual([
+      { name: 'cart', entry: 'http://localhost:4312/mf-manifest.json', version: 'dev' },
+      { name: 'catalog', entry: 'http://localhost:4311/mf-manifest.json', version: 'dev' },
+    ]);
+    expect(rt.dev.watched[0]?.map((p) => path.relative(root, p))).toContain(
+      path.join('apps', 'shell', 'public', 'config'),
+    );
+    rt.dev.interrupt();
+    await done;
+  });
+
+  it('follows a change to the dev config', async () => {
+    const root = await shellRepo();
+    const { rt, done } = await start(root, 1);
+    const file = path.join(root, 'apps/shell/public/config/runtime-config.dev.json');
+    await fs.writeFile(
+      file,
+      JSON.stringify({
+        environment: 'dev',
+        devRemotes: { search: 'http://localhost:4313/mf-manifest.json' },
+      }),
+    );
+    rt.dev.change();
+    await until(() => rt.io.out.some((l) => l.includes('dev registry updated (search)')), 'update');
+    expect((await registryOf(root)).remotes.map((r) => r.name)).toEqual(['search']);
+    rt.dev.interrupt();
+    await done;
+  });
+
+  it('lets --remote point one of those remotes at a server you already run', async () => {
+    const root = await shellRepo();
+    const { rt, done } = await start(root, 1, '--remote', 'cart=http://localhost:3001');
+    expect((await registryOf(root)).remotes).toEqual([
+      { name: 'cart', entry: 'http://localhost:3001/mf-manifest.json', version: 'override' },
+      { name: 'catalog', entry: 'http://localhost:4311/mf-manifest.json', version: 'dev' },
+    ]);
+    rt.dev.interrupt();
+    await done;
+  });
+
+  it('names the remotes it knows when --remote has a name it does not', async () => {
+    const root = await shellRepo();
+    const rt = testRuntime();
+    expect(await main(['dev', '--remote', 'nope=http://localhost:1', '--cwd', root], rt)).toBe(2);
+    expect(rt.io.err.join('\n')).toContain('(remotes: catalog, cart)');
+  });
+});
