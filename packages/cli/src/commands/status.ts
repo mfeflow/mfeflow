@@ -176,7 +176,9 @@ export async function runStatus(
   const onTheHost = await hostEnvs(s);
   const envs =
     args.env === undefined
-      ? [...new Set([...onTheHost, ...s.view.envDirs.filter((e) => e !== 'dev')])].toSorted()
+      ? [...new Set([...onTheHost, ...s.view.envDirs.filter((e) => e !== 'dev')])].toSorted(
+          (a, b) => a.localeCompare(b),
+        )
       : [envOf(args)];
   const findings: Finding[] = [];
   const out: StatusEnv[] = [];

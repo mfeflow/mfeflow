@@ -120,7 +120,9 @@ export function normalizeBaseUrl(value: string, label: string): string {
   if (url.protocol === 'http:' && !isLoopbackHttp(url))
     throw bad('uses http, which is allowed only on localhost; use https');
   if (url.protocol !== 'https:' && url.protocol !== 'http:') throw bad('must be an https URL');
-  return url.href.replace(/\/+$/, '');
+  let end = url.href.length;
+  while (end > 0 && url.href.charCodeAt(end - 1) === 47) end -= 1;
+  return url.href.slice(0, end);
 }
 
 /** A failure from the host or the files around it as the catalogue error that names it. Secrets never reach the message. */
@@ -218,7 +220,7 @@ export async function hostEnvs(s: Session): Promise<string[]> {
     const match = /^envs\/([a-z][a-z0-9-]*)\/index\.json$/.exec(key);
     return match?.[1] === undefined ? [] : [match[1]];
   });
-  return [...new Set(envs)].toSorted();
+  return [...new Set(envs)].toSorted((a, b) => a.localeCompare(b));
 }
 
 export async function currentIndex(

@@ -7,7 +7,30 @@ import {
 import { describe, expect, it } from 'vitest';
 import { exitCodeOfCode } from './exit';
 import { validateResult } from './output';
-import { baseUrlFor, envOf, GATE_CODES, hostFailure, positionals, type Session } from './publish';
+import {
+  baseUrlFor,
+  envOf,
+  GATE_CODES,
+  hostFailure,
+  normalizeBaseUrl,
+  positionals,
+  type Session,
+} from './publish';
+
+describe('normalizeBaseUrl', () => {
+  it('trims trailing slashes and rejects what does not belong', () => {
+    expect(normalizeBaseUrl('https://cdn.test/a/', 'x')).toBe('https://cdn.test/a');
+    expect(normalizeBaseUrl('https://cdn.test', 'x')).toBe('https://cdn.test');
+    expect(() => normalizeBaseUrl('https://cdn.test#', 'x')).toThrow(/query or a fragment/);
+  });
+
+  it('stays fast on a very long run of slashes', () => {
+    const hostile = `https://cdn.test/${'/'.repeat(200_000)}`;
+    const started = performance.now();
+    expect(normalizeBaseUrl(hostile, 'x')).toBe('https://cdn.test');
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+});
 
 describe('gate codes', () => {
   it('maps every gate of the registry to its own E5xx code with an exit code of 7', () => {
