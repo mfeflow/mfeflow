@@ -17,7 +17,7 @@ pnpm mfeflow dev
 
 You should see one prefixed log line per app. The shell serves on port 4300. Remotes start at 4311 and count up. Press Ctrl+C to stop every app.
 
-The command writes a dev registry to `.mfeflow/dev-registry.json`, built from `registry/envs/dev`, and watches the project. If you add a remote while it runs, the new app starts and the shell lists it.
+The command writes a dev registry to `.mfeflow/dev-registry.json`, built from `registry/envs/dev`, and watches the project. If you add a remote while it runs, the new app starts and the shell lists it. With one repo per team, see [One repo per team](/guide/polyrepo).
 
 ## Run only some apps
 
