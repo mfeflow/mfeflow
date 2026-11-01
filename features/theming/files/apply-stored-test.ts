@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { applyStoredTheme, startingTheme } from './apply-stored';
+import { applyStoredTheme, currentStartingTheme } from './apply-stored';
 
 afterEach(() => {
   localStorage.clear();
@@ -8,7 +8,7 @@ afterEach(() => {
 
 describe('applyStoredTheme', () => {
   it('uses the default theme when nothing is stored', () => {
-    expect(startingTheme().name).toBe('light');
+    expect(currentStartingTheme().name).toBe('light');
   });
 
   it('puts the stored theme on <html> with its variables', () => {
@@ -20,8 +20,18 @@ describe('applyStoredTheme', () => {
 
   it('ignores a stored value that is not a theme', () => {
     localStorage.setItem('shell:theme', '{broken');
-    expect(startingTheme().name).toBe('light');
+    expect(currentStartingTheme().name).toBe('light');
     localStorage.setItem('shell:theme', JSON.stringify('purple'));
-    expect(startingTheme().name).toBe('light');
+    expect(currentStartingTheme().name).toBe('light');
   });
+
+  it.each(['constructor', '__proto__', 'toString'])(
+    'ignores a stored name that only exists on every object: %s',
+    (name) => {
+      localStorage.setItem('shell:theme', JSON.stringify(name));
+      expect(currentStartingTheme().name).toBe('light');
+      applyStoredTheme();
+      expect(document.documentElement.dataset.theme).toBe('light');
+    },
+  );
 });

@@ -108,5 +108,5 @@ export function noFlashScript(themes: readonly Theme[], options: NoFlashOptions)
     s: options.followSystem ?? true,
     t: Object.fromEntries(themes.map((t) => [t.name, { c: t.colorScheme, v: themeToCssVars(t) }])),
   }).replace(/</g, '\\u003c');
-  return `(function(){try{var o=${data};var n;try{n=JSON.parse(localStorage.getItem(o.k)||'null')}catch(e){}if(!o.t[n]){n=o.d;if(o.s&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches){for(var x in o.t){if(o.t[x].c==='dark'){n=x;break}}}}var t=o.t[n],r=document.documentElement;for(var v in t.v){r.style.setProperty(v,t.v[v])}r.setAttribute('data-theme',n);r.style.colorScheme=t.c}catch(e){}})();`;
+  return `(function(){try{var o=${data};var n;try{n=JSON.parse(localStorage.getItem(o.k)||'null')}catch(e){}if(!Object.prototype.hasOwnProperty.call(o.t,n)){n=o.d;if(o.s&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches){for(var x in o.t){if(o.t[x].c==='dark'){n=x;break}}}}var t=o.t[n],r=document.documentElement;for(var v in t.v){r.style.setProperty(v,t.v[v])}r.setAttribute('data-theme',n);r.style.colorScheme=t.c}catch(e){}})();`;
 }

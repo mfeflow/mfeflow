@@ -25,3 +25,6 @@ export const themes = [
 ];
 
 export const defaultTheme = 'light';
+
+// Use the system dark-mode setting when no theme is stored. The provider, the head script and the boot step all read this.
+export const followSystem = true;

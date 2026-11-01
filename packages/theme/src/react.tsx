@@ -53,7 +53,7 @@ export function ThemeProvider({
     themes,
     stored ?? undefined,
     defaultTheme,
-    followSystem && stored === null && prefersDark(),
+    followSystem && prefersDark(),
   );
 
   useLayoutEffect(() => {

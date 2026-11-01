@@ -43,7 +43,9 @@ The choice is saved under the shell's storage (`shell:theme`). Two things apply 
    even on a slow connection. `src/theme/head-script.ts` registers it, and `rsbuild.config.ts` imports that file.
 2. **`apply-stored.ts`, the first boot step**, which does the same before the shell renders its first component.
 
-With no stored choice, the system dark-mode setting decides. If your Content Security Policy forbids inline scripts
+With no stored choice, the system dark-mode setting decides, unless you set `followSystem = false` in `themes.ts`; the provider, the head script and
+the boot step all read that one value (the boot step through `startingTheme` from `@mfeflow/theme/starting`). A stored value that is not one of your
+themes, including names like `constructor`, is ignored. If your Content Security Policy forbids inline scripts
 (no `'unsafe-inline'` and no nonce), the first one is blocked and the second still applies the theme before the first
 render; only the empty page before the JavaScript has run keeps the default colours.
 
