@@ -97,5 +97,5 @@ export {
   type WrapProviderOp,
 } from './feature';
 
-export { DOCS_URL, SCHEMA_URLS, errorDocsUrl, type SchemaName } from './docs';
+export { DOCS_URL, SCHEMA_ALIASES, SCHEMA_URLS, errorDocsUrl, type SchemaName } from './docs';
 export { JSON_SCHEMAS } from './json-schema';

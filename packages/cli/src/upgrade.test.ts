@@ -152,3 +152,64 @@ describe('planProjectUpgrade on the 0.1.0 fixture', () => {
     });
   });
 });
+
+describe('the core 0.4.0 migration: mfe.json becomes mfeflow.app.json', () => {
+  const NEW_SCHEMA = 'https://mfeflow.github.io/mfeflow/schema/mfeflow-app.json';
+
+  it('moves an unedited file to the new name, tracked like a fresh one', async () => {
+    const { root, project } = await oldProject();
+    const up = await planProjectUpgrade(ctx, root, project, TO);
+    const change = (file: string) => up.plan.changes.find((c) => c.path === file);
+    expect(change('apps/cart/mfe.json')).toMatchObject({ action: 'delete' });
+    expect(change('apps/cart/mfeflow.app.json')).toMatchObject({ action: 'create', track: true });
+    expect(up.removed).not.toContain('apps/cart/mfe.json');
+
+    const { project: saved } = await applyPlan(up.plan, { root, project: up.project });
+    const after = await readTree(root);
+    expect(Object.keys(after).filter((f) => f.endsWith('mfe.json'))).toEqual([]);
+    expect(parse(after['apps/cart/mfeflow.app.json'])).toEqual({
+      ...parse(fixture.files['apps/cart/mfe.json']),
+      $schema: NEW_SCHEMA,
+    });
+    expect(Object.keys(saved?.files ?? {})).toContain('apps/cart/mfeflow.app.json');
+    expect(Object.keys(saved?.files ?? {})).not.toContain('apps/cart/mfe.json');
+  });
+
+  it('keeps your edits, adds the schema URL, and leaves the file untracked', async () => {
+    const mine =
+      '{\n  "name": "cart",\n  "owner": "team-payments",\n  "shells": ["shell"],\n  "routes": ["/cart", "/cart/*"],\n  "exposes": ["./App"]\n}\n';
+    const { root, project } = await oldProject({ 'apps/cart/mfe.json': mine });
+    const up = await planProjectUpgrade(ctx, root, project, TO);
+    const created = up.plan.changes.find((c) => c.path === 'apps/cart/mfeflow.app.json');
+    expect(created).toMatchObject({ action: 'create', track: false });
+    expect(created?.after).toBe(mine.replace('{\n', `{\n  "$schema": "${NEW_SCHEMA}",\n`));
+
+    const { project: saved } = await applyPlan(up.plan, { root, project: up.project });
+    const after = await readTree(root);
+    expect(after['apps/cart/mfe.json']).toBeUndefined();
+    expect(parse(after['apps/cart/mfeflow.app.json'])).toMatchObject({ owner: 'team-payments' });
+    expect(Object.keys(saved?.files ?? {})).not.toContain('apps/cart/mfeflow.app.json');
+
+    const again = await planProjectUpgrade(
+      ctx,
+      root,
+      parseProject(after['mfeflow.json'] ?? ''),
+      TO,
+    );
+    expect(again.plan.changes).toEqual([]);
+  });
+
+  it('leaves an app that already has both files alone, with a warning', async () => {
+    const both =
+      '{\n  "name": "cart",\n  "owner": "team-new",\n  "shells": ["shell"],\n  "routes": ["/cart"],\n  "exposes": ["./App"]\n}\n';
+    const { root, project } = await oldProject({ 'apps/cart/mfeflow.app.json': both });
+    const up = await planProjectUpgrade(ctx, root, project, TO);
+    const paths = up.plan.changes.map((c) => c.path);
+    expect(paths).not.toContain('apps/cart/mfe.json');
+    expect(paths).not.toContain('apps/cart/mfeflow.app.json');
+    expect(paths).toContain('apps/catalog/mfeflow.app.json');
+    expect(up.plan.warnings).toContain(
+      'apps/cart has both mfe.json and mfeflow.app.json; keep mfeflow.app.json and delete mfe.json (E122)',
+    );
+  });
+});
