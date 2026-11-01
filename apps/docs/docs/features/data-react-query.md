@@ -1,53 +1,91 @@
+---
+title: data-react-query - one shared cache for server data
+description: Fetch server data with TanStack Query so the shell and every remote share one cache, with keys that cannot collide between remotes.
+---
+
 # data-react-query
 
-Server state with TanStack Query, one cache for the whole page. Off by default.
+This page shows how to fetch and cache server data across the shell and all remotes with TanStack Query. Because there is one cache for the page, a request made by one remote is not repeated by another.
+
+## What you get
+
+The shell owns the query client and its provider. Each remote gets a wrapper, a set of query keys prefixed with its own name, and an example query. This feature is off by default.
+
+## Add it
 
 ```sh
 pnpm mfeflow add data-react-query
 ```
 
-## What you get
+What changed:
 
-| File                                   | What it is for                                                                                             |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `apps/shell/src/query/Query.tsx`       | The `QueryClient` and its provider, around the shell. Defaults (`staleTime`, `retry`) are yours to change. |
-| `apps/<remote>/src/query/Query.tsx`    | Wraps the remote's `App`. Inside the shell it does nothing; on its own it provides a client.               |
-| `apps/<remote>/src/query/keys.ts`      | `queryKeys`: every key starts with the remote's name.                                                      |
-| `apps/<remote>/src/query/useHealth.ts` | An example `useQuery`. With `http` it calls the app's `api` client; without it, `fetch`.                   |
+- `apps/shell/src/query/Query.tsx`, wrapped around the shell's `App`
+- `apps/<remote>/src/query/` with `Query.tsx`, `keys.ts` and `useHealth.ts`, wrapped around each remote's exposed `App`
+- tests for the shell and each remote, when `testing` is installed
+- `@tanstack/react-query` 5.105.0 in the shell and every remote
 
-## One client, because the package is a singleton
+## Use it
 
-`@tanstack/react-query` is in the list of shared singletons, so the shell loads it once and every remote gets that
-copy. The remote finds the shell's `QueryClient` through context: the same cache, the same in-flight requests and
-the same deduplication, whichever remote asked first. `mfeflow doctor` fails if the apps install different versions
-(check `singletons.versions`), because two copies would mean two caches and a context that never matches.
+Call `useQuery` in a remote as you normally would, with a key from that remote's `queryKeys`:
 
-## Keys
+```ts title="apps/cart/src/query/useHealth.ts"
+export function useHealth() {
+  return useQuery({
+    queryKey: queryKeys.health(),
+    queryFn: ({ signal }) => api.get('health', { signal }),
+  });
+}
+```
 
-A cache shared by independently deployed apps needs keys that cannot meet. Start every key with the remote's name
-(`queryKeys.all` is `['cart']`), and refresh one remote's data without touching another's:
+That is the version generated when `http` is installed. Without it, the same file uses `fetch` against `/api/health` and throws on a non-OK response.
+
+Keys start with the remote's name, so refreshing one remote's data leaves the others alone:
+
+```ts title="apps/cart/src/query/keys.ts"
+export const queryKeys = {
+  all: ['cart'] as const,
+  health: () => [...queryKeys.all, 'health'] as const,
+};
+```
 
 ```ts
 queryClient.invalidateQueries({ queryKey: queryKeys.all });
 ```
 
-Share data between remotes by reading the same key on purpose, and only for data the shell owns (the signed-in
-user, say). Put that key in the shell or the contracts package rather than copying the string.
+## Configure it
 
-## With `http`
+There are no install options. The shell's client defaults are yours to change:
 
-The example passes the query's `signal` to `api.get`, so leaving the page cancels the request. A 4xx is an
-`HttpError`; set `retry` to skip retries for those:
+```ts title="apps/shell/src/query/Query.tsx"
+export const queryClient = new QueryClient({
+  defaultOptions: { queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false } },
+});
+```
+
+| Setting                | Default | Effect                                          |
+| ---------------------- | ------- | ----------------------------------------------- |
+| `staleTime`            | 30000   | Milliseconds before cached data counts as stale |
+| `retry`                | 1       | Retries after a failed request                  |
+| `refetchOnWindowFocus` | `false` | Refetch when the tab regains focus              |
+
+## How it works
+
+`@tanstack/react-query` is a shared singleton, so the shell loads it once and every remote receives that copy. A remote finds the shell's client through React context, which gives you one cache and one set of in-flight requests whichever remote asks first.
+
+The remote's `Query` wrapper checks for a client in context. Inside the shell it renders its children as they are. When you run `pnpm dev` inside a remote on its own, there is no shell, so the wrapper creates a client for that run.
+
+## Gotchas
+
+- Two copies of the library would mean two caches and a context that never matches. `pnpm mfeflow doctor` checks that the apps install the same version.
+- Share data between remotes by reading the same key on purpose, and only for data the shell owns, such as the signed-in user. Put that key in the shell or the contracts package rather than copying the string.
+- With `http`, a 4xx arrives as an `HttpError`. Use `retry` to skip retries for those.
 
 ```ts
 retry: (count, error) => !(isHttpError(error) && error.status < 500) && count < 2,
 ```
 
-## Cost
+## Reference
 
-The shell pays for the library once; a remote adds only its wrapper (a few hundred bytes). If the first load is tight,
-load the provider with the first screen that needs data instead of at boot.
-
-## Standalone remotes
-
-`pnpm dev` inside a remote runs it with no shell. `Query.tsx` provides a client of its own then, so `useQuery` works there too.
+- [http](/features/http), whose client the example query uses
+- [Shared singletons](/concepts/shared-singletons)
+- [TanStack Query documentation](https://tanstack.com/query/latest)

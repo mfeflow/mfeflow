@@ -1,56 +1,39 @@
+---
+title: analytics-clarity - Microsoft Clarity that waits for consent
+description: Add Microsoft Clarity session replay and heatmaps next to Google Tag Manager, loaded only after the visitor accepts analytics in the consent banner.
+---
+
 # analytics-clarity
 
-Microsoft Clarity (session replay and heatmaps) behind `@mfeflow/analytics`, next to Google Tag Manager. Needs
-[`analytics-gtm`](./analytics-gtm) first, for the consent banner. Off by default.
+This feature adds Microsoft Clarity, which records sessions and builds heatmaps, without breaking consent rules. Clarity sets cookies and records the page, so it requests nothing until the visitor says yes in the banner. If they later withdraw consent, it stops.
+
+## What you get
+
+A Clarity provider that plugs into the same analytics layer as Google Tag Manager and follows the same consent choice. The project id comes from the runtime config, not the bundle. It is off by default, and it needs [analytics-gtm](/features/analytics-gtm) first because that feature provides the consent banner.
+
+## Add it
 
 ```sh
 pnpm mfeflow add analytics-gtm analytics-clarity
 ```
 
-Put the Clarity project id in the runtime config (Clarity shows it in Settings, Setup):
+What changed:
 
-```json
-// apps/shell/public/config/runtime-config.prod.json
+- `apps/shell/src/analytics/clarity.ts`, the boot step that reads `clarityId` and adds the provider without holding up first render
+- `clarity.test.ts` next to it, if you have the `testing` feature
+- a `clarityId` key in the runtime config
+
+## Use it
+
+Copy the project id from Clarity under Settings, then Setup, and put it in the runtime config of the environment that should record:
+
+```json title="apps/shell/public/config/runtime-config.prod.json"
 { "environment": "prod", "gtmId": "GTM-ABC123", "clarityId": "k3x9m2abcd" }
 ```
 
-An empty `clarityId` (the default) keeps Clarity off.
+With an empty `clarityId`, the default, Clarity stays off. Nothing else changes in your code: the existing banner and `tracker` calls now reach Clarity as well.
 
-## Consent comes first
-
-Clarity sets cookies and records the page, so it waits for the visitor:
-
-- Before the visitor grants `analytics_storage` in the banner, **nothing is requested**: no script, no cookie, no
-  `clarity` function on `window`.
-- When they grant it, the script is added, once, and Clarity is told what was granted (`consentv2`).
-- On a later visit the stored choice arrives in `init`, so a returning visitor who agreed gets Clarity from the
-  start, and one who declined never does.
-- If they withdraw consent, Clarity is told to stop and clear its cookies, and nothing more is sent.
-
-Events and page paths sent while consent is missing are dropped, not kept for later: granting consent does not
-replay the past.
-
-## What you get
-
-| File                                  | What it is for                                                                                       |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `apps/shell/src/analytics/clarity.ts` | The boot step. Reads `clarityId` and adds the Clarity provider, without holding up the first render. |
-
-The runtime key is added to the schema and to every `runtime-config.<env>.json` when `env-t3` is there, and to
-`public/config/runtime-config.json` when it is not.
-
-## Two providers at once
-
-`@mfeflow/analytics` runs more than one provider with `addProvider`. Both get every call from then on, a provider
-that throws does not stop the other, and it does not matter which feature starts first. `analytics-gtm` uses
-`addProvider` too (since this feature); if your `src/analytics/init.ts` is older and still calls `initAnalytics`,
-change that one line, or whichever starts second is ignored.
-
-`tracker.track('add_to_cart', { sku })` from a remote reaches Clarity as the event name only: Clarity events carry no
-parameters here, so nothing about the visitor leaves with them. `identify` is not sent to Clarity unless you pass
-`sendUserId: true` to `createClarityProvider`.
-
-## Using it without the feature
+Outside the generated shell, you can add the provider yourself:
 
 ```ts
 import { addProvider } from '@mfeflow/analytics/providers';
@@ -58,3 +41,44 @@ import { createClarityProvider } from '@mfeflow/analytics/clarity';
 
 addProvider(createClarityProvider({ projectId: 'k3x9m2abcd' }));
 ```
+
+## Configure it
+
+| Setting      | Where                          | Default                       |
+| ------------ | ------------------------------ | ----------------------------- |
+| `clarityId`  | runtime config                 | `""` (off)                    |
+| `projectId`  | `createClarityProvider` option | required                      |
+| `scriptUrl`  | `createClarityProvider` option | `https://www.clarity.ms/tag/` |
+| `sendUserId` | `createClarityProvider` option | `false`                       |
+
+`feature.json` has no prompts. The id must be empty or 8 to 12 lowercase letters and digits, and `pnpm check:runtime-config` checks that when you use [env-t3](/features/env-t3). Without env-t3 the key goes in `apps/shell/public/config/runtime-config.json`.
+
+## How it works
+
+The provider follows the visitor's consent in four steps:
+
+1. Until `analytics_storage` is granted, nothing is requested: no script, no cookie, no `clarity` function on `window`.
+2. When they grant it, the script is added once, and Clarity is told what was granted through `consentv2`.
+3. On a later visit the stored choice arrives at start, so a returning visitor who agreed gets Clarity from the beginning, and one who declined never does.
+4. If they withdraw consent, Clarity is told so, which stops it and clears its cookies, and nothing more is sent.
+
+Events and page paths sent while consent is missing are dropped. Granting consent does not replay the past.
+
+`@mfeflow/analytics` runs more than one provider through `addProvider`. Both get every call, a provider that throws does not stop the other, and it does not matter which one starts first. A call like `tracker.track('add_to_cart', { sku })` reaches Clarity as the event name only, so nothing about the visitor leaves with it. Page views arrive as a `page_path` value.
+
+## Gotchas
+
+:::warning
+Older projects may still call `initAnalytics(createGtmProvider(...))` in `src/analytics/init.ts`. Change it to `addProvider(...)`, imported from `@mfeflow/analytics/providers`. Otherwise whichever provider starts second is ignored.
+:::
+
+- **`identify` is not sent to Clarity** unless you pass `sendUserId: true` to `createClarityProvider`.
+- **A bad id throws at start.** The provider rejects anything that is not 8 to 12 lowercase letters and digits, and the shell logs a warning instead of starting Clarity.
+- **Adding env-t3 afterwards.** The key moves into the schema and the environment files. Delete `apps/shell/public/config/runtime-config.json`, or doctor reports it as missing `environment`.
+
+## Reference
+
+- [analytics-gtm](/features/analytics-gtm), which owns the consent banner and the `addProvider` setup
+- [env-t3](/features/env-t3), where `clarityId` is declared
+- [Runtime config](/concepts/runtime-config)
+- [`@mfeflow/analytics` README](https://github.com/mfeflow/mfeflow/tree/main/packages/analytics)

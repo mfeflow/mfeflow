@@ -1,36 +1,106 @@
+---
+title: analytics-gtm - Google Tag Manager with consent built in
+description: Load Google Tag Manager with Consent Mode v2, send page views on route changes, and let each remote track its own typed events.
+---
+
 # analytics-gtm
 
-Google Tag Manager with Consent Mode v2 behind `@mfeflow/analytics`. Off by default.
+This feature puts Google Tag Manager in your shell without breaking consent rules. Nothing loads until you set a container id in the runtime config, and no tag fires ahead of the visitor's choice. Each remote gets a typed tracker, so events are checked at compile time and arrive tagged with the remote that sent them.
+
+## What you get
+
+A shell that starts GTM from its runtime config, a cookie banner you can restyle, automatic page views, and a tracker per remote. The container id is not compiled into the bundle, so the same build can use a different container in each environment. It is off by default.
+
+## Add it
 
 ```sh
 pnpm mfeflow add analytics-gtm
 ```
 
-Set the container in the runtime config and the shell does the rest:
+What changed:
 
-```json
-// apps/shell/public/config/runtime-config.prod.json
+- `apps/shell/src/analytics/init.ts`, the boot step that reads `gtmId` and starts GTM
+- `apps/shell/src/analytics/Analytics.tsx`, which wraps the shell's `App`
+- `apps/shell/src/analytics/ConsentBanner.tsx`, an unstyled banner for you to restyle
+- `apps/<remote>/src/analytics.ts` in every remote
+- `@mfeflow/analytics` added to the shell and every remote
+- a `gtmId` key in the runtime config (see below)
+- unit tests next to each file, if you have the `testing` feature
+
+## Use it
+
+### Turn it on
+
+Set the container in the runtime config of the environment that should use it:
+
+```json title="apps/shell/public/config/runtime-config.prod.json"
 { "environment": "prod", "gtmId": "GTM-ABC123" }
 ```
 
-An empty `gtmId` (the default) keeps analytics off: no script is loaded and every tracker call is dropped.
+With an empty `gtmId`, which is the default, no script loads and every tracker call is dropped.
 
-## What you get
+### Send an event from a remote
 
-| File                                         | What it is for                                                                                                              |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `apps/shell/src/analytics/init.ts`           | The boot step. Reads `gtmId` from the runtime config and starts the GTM provider. It does not hold up first render.         |
-| `apps/shell/src/analytics/Analytics.tsx`     | Wraps the shell's `App`: page views on route changes, and the consent banner.                                               |
-| `apps/shell/src/analytics/ConsentBanner.tsx` | A minimal, unstyled banner on `useConsent()`: Accept analytics, Accept analytics and advertising, Reject. Yours to restyle. |
-| `apps/<remote>/src/analytics.ts`             | The remote's events (declaration merging) and its tracker.                                                                  |
+Each remote declares the events it sends. TypeScript then checks the name and the parameters:
 
-`@mfeflow/analytics` is a singleton: the shell starts it, remotes only use it. A remote that is opened on its own
-(`pnpm dev` in its folder) has no shell, so its events wait for analytics to start and are dropped.
+```ts title="apps/cart/src/analytics.ts"
+import { createTracker } from '@mfeflow/analytics';
 
-## Consent Mode v2
+declare module '@mfeflow/analytics' {
+  interface AnalyticsEvents {
+    cart_viewed: undefined;
+    add_to_cart: { sku: string; qty: number };
+  }
+}
 
-`createGtmProvider` pushes the four signals to `dataLayer`, all `denied`, with `wait_for_update`, **before** it adds the
-`gtm.js` script, and it pushes them as the `arguments` object that GTM understands (an array is ignored).
+export const events = ['cart_viewed', 'add_to_cart'] as const;
+export const tracker = createTracker('cart', { events });
+```
+
+The generated file has one starter event, `<remote>_viewed`. Use the tracker in a component:
+
+```tsx
+import { useTrackOnMount } from '@mfeflow/analytics/react';
+import { tracker } from '../analytics';
+
+useTrackOnMount(tracker, 'cart_viewed'); // once per mount, also under StrictMode
+tracker.track('add_to_cart', { sku, qty });
+```
+
+Every event carries `mfe_name` and `mfe_version` (`null` when the remote has none). In GTM these are the Data Layer Variables `mfe_name` and `mfe_version`. Both are always present, because the data layer merges nested objects and a missing key would keep the previous remote's value.
+
+### Build your own consent banner
+
+The generated banner uses a hook you can use directly:
+
+```tsx
+import { useConsent } from '@mfeflow/analytics/react';
+
+const { decided, acceptAll, rejectAll, update, consent } = useConsent();
+update({ analytics_storage: 'granted' }); // one signal at a time
+```
+
+The generated banner is honest about what each button does. **Accept analytics** grants `analytics_storage` and keeps the three `ad_*` signals denied. **Accept analytics and advertising** grants all four, and **Reject** denies them. If you change the wording, change the signals with it.
+
+## Configure it
+
+| Setting           | Where                      | Default           |
+| ----------------- | -------------------------- | ----------------- |
+| `gtmId`           | runtime config             | `""` (off)        |
+| `containerId`     | `createGtmProvider` option | required          |
+| `dataLayerName`   | `createGtmProvider` option | `dataLayer`       |
+| `scriptUrl`       | `createGtmProvider` option | Google's `gtm.js` |
+| `consentDefaults` | `createGtmProvider` option | all `denied`      |
+| `waitForUpdate`   | `createGtmProvider` option | `500` ms          |
+| `sendUserId`      | `createGtmProvider` option | `false`           |
+| `allowPii`        | `createGtmProvider` option | `false`           |
+| `pageViews`       | `<AnalyticsProvider>` prop | `true`            |
+
+`feature.json` itself has no prompts. The `gtmId` value must be empty or `GTM-` followed by 4 to 12 capital letters or digits, and `pnpm check:runtime-config` checks that. Change the provider options in `apps/shell/src/analytics/init.ts`.
+
+## How it works
+
+On a first visit, the provider pushes the four consent signals to `dataLayer`, all `denied`, before it adds the `gtm.js` script. The visitor's choice is saved in `localStorage` under `mfeflow:consent`. On the next visit it is sent as a consent update right after the defaults, still before `gtm.js` is requested.
 
 ```js
 dataLayer = [
@@ -49,91 +119,27 @@ dataLayer = [
 ];
 ```
 
-The visitor's choice is stored in `localStorage` (`mfeflow:consent`) and sent as a consent update right after the
-defaults on the next visit, still before `gtm.js` is requested.
+The signals are pushed as an `arguments` object because that is the only form GTM understands. An array of the same values is ignored.
 
-The generated banner grants only what its button says: **Accept analytics** grants `analytics_storage` and keeps the
-three `ad_*` signals denied; the `ad_*` signals are granted only by **Accept analytics and advertising**. Whatever you
-change, keep the wording in line with what the button grants.
+`<Analytics>` sends a `page_view` with `page_path`, `page_location` and `page_title` for the first page and after every `pushState`, `replaceState`, back or forward, and hash change, whatever router you use. The same path and query is never sent twice in a row. Hash routers such as `/#/catalog?x=1` are followed. The title is read after the route renders, so a page view can reach the data layer up to 300 ms after the navigation.
 
-```tsx
-import { useConsent } from '@mfeflow/analytics/react';
+In development, the tracker warns once about a name it did not declare or one GA4 would reject. GA4 names use letters, digits and underscores, start with a letter and run to 40 characters at most. Production builds stay quiet. In tests, `createRecordingProvider()` records every call and `noopProvider` drops them.
 
-const { decided, acceptAll, rejectAll, update, consent } = useConsent();
-update({ analytics_storage: 'granted' }); // one signal at a time
-```
+## Gotchas
 
-## Events
+:::warning
+Turn off the automatic page view in your GA4 configuration tag. If you leave it on, every page is counted twice.
+:::
 
-Each remote declares what it sends. TypeScript checks the name and the parameters:
+- **Personal data is dropped by default.** Parameters named like personal data (`email`, `phone`, `name`, `address`) or holding an email address are removed, and a development warning names them. The same goes for the query string in `page_path` and `page_location`: it loses anything that looks personal or secret (`email`, `token`, `auth`, `session`, `code`, any value that contains an email address). `utm_*`, `gclid` and `fbclid` stay, and the `#fragment` is never sent. Pass `allowPii: true` to turn off the parameter filter.
+- **`identify` sends nothing** unless you pass `sendUserId: true`, and traits are never sent.
+- **A remote opened on its own** with `pnpm dev` in its folder has no shell, so its events wait for analytics to start and are dropped.
+- **Adding env-t3 afterwards.** The key moves into the schema and the environment files. Delete `apps/shell/public/config/runtime-config.json`, or doctor reports it as missing `environment`.
+- **A second provider.** `init.ts` starts GTM with `addProvider`, so another provider such as [analytics-clarity](/features/analytics-clarity) can run next to it. If your project predates `addProvider` and still has `initAnalytics(createGtmProvider(...))` in that file, change it to `addProvider(...)`, imported from `@mfeflow/analytics/providers`. Otherwise the provider that starts second is ignored.
 
-```ts
-// apps/cart/src/analytics.ts
-import { createTracker } from '@mfeflow/analytics';
+## Reference
 
-declare module '@mfeflow/analytics' {
-  interface AnalyticsEvents {
-    cart_viewed: undefined;
-    add_to_cart: { sku: string; qty: number };
-  }
-}
-
-export const events = ['cart_viewed', 'add_to_cart'] as const;
-export const tracker = createTracker('cart', { events });
-```
-
-```tsx
-import { useTrackOnMount } from '@mfeflow/analytics/react';
-import { tracker } from '../analytics';
-
-useTrackOnMount(tracker, 'cart_viewed'); // once per mount, also under StrictMode
-tracker.track('add_to_cart', { sku, qty });
-```
-
-Every event carries `mfe_name: 'cart'` and `mfe_version` (`null` when the remote has none). In GTM those are the Data Layer Variables `mfe_name` and `mfe_version`. They are flat and always both present, because the data layer merges nested objects and a key that is missing would keep the previous remote's value.
-
-In development, `events` turns on a validator: a name the tracker did not declare, or one GA4 would reject (letters,
-digits and underscores, starting with a letter, at most 40 characters), logs a warning once. Production builds stay
-quiet. In tests, `createRecordingProvider()` records every call and `noopProvider` drops them.
-
-## Page views
-
-`<Analytics>` sends `page_view` (`page_path`, `page_location`, `page_title`) for the first page and after every
-`pushState`, `replaceState`, back/forward and hash changes, whatever router the shell uses. The same path and query is
-never sent twice in a row.
-
-- `page_path` and `page_location` include the query string, minus anything that looks like personal data or a secret
-  (`email`, `phone`, `name`, `token`, `auth`, `session`, `code`, any value that contains an email address). `utm_*`,
-  `gclid` and `fbclid` are kept. The `#fragment` is never sent.
-- A hash router (`/#/catalog?x=1`) is followed: the hash route goes into the path the same way.
-- `page_title` is read after the route has rendered: as soon as `document.title` changes after the navigation, or 300
-  ms later if the page keeps one title. A page view for a navigation can therefore reach the data layer a moment
-  after the event that triggered it.
-
-Turn off the automatic page view in your GA4 configuration tag, or every page is counted twice.
-
-## No personal data by default
-
-- Parameters named like personal data (`email`, `phone`, `name`, `address`, …) or holding an email address are
-  dropped, and a development warning names them. `createGtmProvider({ allowPii: true })` turns that off.
-- `identify` sends nothing unless `createGtmProvider({ sendUserId: true })`; traits are never sent.
-
-## Runtime config
-
-|                  | `gtmId`                                                                                          |
-| ---------------- | ------------------------------------------------------------------------------------------------ |
-| With `env-t3`    | Added to the schema and to every `runtime-config.<env>.json`, whichever feature was added first. |
-| Without `env-t3` | Added to `apps/shell/public/config/runtime-config.json`, which the shell fetches as it is.       |
-
-The value must be empty or match `GTM-` followed by letters and digits; `pnpm check:runtime-config` checks it.
-
-Adding `env-t3` to a project that already has `analytics-gtm` writes the key into the schema and the environment
-files too. Delete `apps/shell/public/config/runtime-config.json` then: the per-environment files replace it, and
-`pnpm mfeflow doctor` reports it as missing `environment` until it is gone.
-
-## A second provider
-
-`src/analytics/init.ts` starts GTM with `addProvider`, not `initAnalytics`, so another provider can run next to it
-whichever starts first. [`analytics-clarity`](./analytics-clarity) uses that. A project made before `addProvider`
-existed has `initAnalytics(createGtmProvider(...))` in that file: change it to `addProvider(...)` (imported from
-`@mfeflow/analytics/providers`) before adding a second provider, or the one that starts second is ignored.
+- [env-t3](/features/env-t3), where `gtmId` is declared and checked
+- [analytics-clarity](/features/analytics-clarity), a second provider that waits for the same consent
+- [Runtime config](/concepts/runtime-config)
+- [`@mfeflow/analytics` README](https://github.com/mfeflow/mfeflow/tree/main/packages/analytics)

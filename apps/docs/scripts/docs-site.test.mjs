@@ -108,3 +108,90 @@ describe('site', () => {
     }
   });
 });
+
+const SECTIONS = ['guide', 'concepts', 'features', 'reference'];
+
+function frontmatter(source) {
+  const match = /^---\n([\s\S]*?)\n---\n/.exec(source);
+  if (!match) return {};
+  const fields = {};
+  for (const line of match[1].split('\n')) {
+    const pair = /^(\w+):\s*(.+)$/.exec(line);
+    if (pair) fields[pair[1]] = pair[2].trim();
+  }
+  return fields;
+}
+
+async function sidebarPages(section) {
+  const meta = JSON.parse(await fs.readFile(path.join(DOCS_DIR, section, '_meta.json'), 'utf8'));
+  return meta.filter((item) => item.type === 'file').map((item) => item.name);
+}
+
+describe('navigation', () => {
+  it('has a nav entry for every section, and a link to the repository', async () => {
+    const nav = JSON.parse(await fs.readFile(path.join(DOCS_DIR, '_nav.json'), 'utf8'));
+    expect(nav.map((item) => item.text)).toEqual([
+      'Guide',
+      'Concepts',
+      'Features',
+      'Reference',
+      'GitHub',
+    ]);
+  });
+
+  it('lists only pages that exist, each with a title and a description', async () => {
+    for (const section of SECTIONS) {
+      for (const name of await sidebarPages(section)) {
+        const file = path.join(DOCS_DIR, section, `${name}.md`);
+        const source = await fs.readFile(file, 'utf8').catch(() => '');
+        const meta = frontmatter(source);
+        expect(source, `${section}/${name}.md is missing`).not.toBe('');
+        expect(meta.title, `${section}/${name}.md has no title`).toBeTruthy();
+        expect(
+          (meta.description ?? '').length,
+          `${section}/${name}.md needs a specific description`,
+        ).toBeGreaterThan(60);
+      }
+    }
+  });
+
+  it('puts every page of a section in its sidebar, apart from the old CLI address', async () => {
+    for (const section of SECTIONS) {
+      const listed = new Set(await sidebarPages(section));
+      const files = (await fs.readdir(path.join(DOCS_DIR, section)))
+        .filter((f) => f.endsWith('.md'))
+        .map((f) => f.slice(0, -'.md'.length));
+      const unlisted = files.filter((f) => !listed.has(f) && !(section === 'guide' && f === 'cli'));
+      expect(unlisted, `${section} pages missing from _meta.json`).toEqual([]);
+    }
+  });
+
+  it('has one h1 on every page', async () => {
+    for (const file of await markdownFiles(DOCS_DIR)) {
+      const body = (await fs.readFile(file, 'utf8')).replace(/```[\s\S]*?```/g, '');
+      const h1 = body.match(/^# .+$/gm) ?? [];
+      expect(h1.length, `${file} needs exactly one h1`).toBe(1);
+    }
+  });
+});
+
+describe('links', () => {
+  it('resolves every internal link to a page', async () => {
+    const pages = new Set();
+    for (const file of await markdownFiles(DOCS_DIR)) {
+      const route = path.relative(DOCS_DIR, file).replace(/\.md$/, '');
+      pages.add(route);
+      if (route.endsWith('/index')) pages.add(route.slice(0, -'index'.length));
+    }
+    const broken = [];
+    for (const file of await markdownFiles(DOCS_DIR)) {
+      const body = (await fs.readFile(file, 'utf8')).replace(/```[\s\S]*?```/g, '');
+      for (const [, target] of body.matchAll(/\]\((\/[^)\s]*)\)/g)) {
+        const route = target.split('#')[0].replace(/^\//, '');
+        if (route !== '' && !pages.has(route))
+          broken.push(`${path.relative(DOCS_DIR, file)} -> ${target}`);
+      }
+    }
+    expect(broken).toEqual([]);
+  });
+});
