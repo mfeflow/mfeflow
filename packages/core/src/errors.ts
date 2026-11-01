@@ -99,6 +99,14 @@ export const ERROR_CATALOGUE = {
     title: 'An app has both mfeflow.app.json and the old mfe.json',
     fix: `Keep mfeflow.app.json and delete mfe.json. Move any field you still need into mfeflow.app.json first. See ${DOCS_URL}/reference/mfeflow-app-json.`,
   },
+  E123: {
+    title: 'This folder already has an mfeflow.json',
+    fix: 'adopt only starts a project file; it never changes one. Use `mfeflow add` or `mfeflow upgrade` on this project, or run adopt in a folder that has no mfeflow.json.',
+  },
+  E124: {
+    title: 'adopt found nothing it can set up',
+    fix: 'adopt needs a Module Federation host (shell) it can read, and a literal `name` for each app. Run it in the folder that holds the shell, or a workspace root that contains it, and read `mfeflow adopt --dry-run` for what was skipped.',
+  },
   E201: {
     title: 'Feature not found',
     fix: 'List what is available with `mfeflow features`, or check the spelling.',

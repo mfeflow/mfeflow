@@ -33,6 +33,8 @@ Every error the CLI prints has a code like MFEFLOW_E102, a cause, a fix and a li
 | [E120](/errors/E120) | A PUBLIC_ variable would be baked into the bundle                                 |
 | [E121](/errors/E121) | A server env key is not listed in turbo.json                                      |
 | [E122](/errors/E122) | An app has both mfeflow.app.json and the old mfe.json                             |
+| [E123](/errors/E123) | This folder already has an mfeflow.json                                           |
+| [E124](/errors/E124) | adopt found nothing it can set up                                                 |
 
 ## Features (E2xx, exit code 4)
 

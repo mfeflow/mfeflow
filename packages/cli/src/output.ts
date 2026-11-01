@@ -39,6 +39,19 @@ export interface InitResult extends WriteReport {
   next: string[];
 }
 
+export interface AdoptResult extends WriteReport {
+  command: 'adopt';
+  scope: string;
+  apps: AppReport[];
+  /** Parts of the existing config adopt read but did not carry over, each with the reason. */
+  notAdopted: { dir: string; file: string; field: string; reason: string }[];
+  /** The build config files adopt read and left exactly as they were. */
+  buildConfig: string[];
+  /** Lines to paste into the shared list of a build config. */
+  snippet: string;
+  next: string[];
+}
+
 export interface AddResult extends WriteReport {
   command: 'add';
   kind: 'remote' | 'shell' | 'feature' | 'env-key';
@@ -296,6 +309,7 @@ export interface FailureResult {
 
 export type CliResult =
   | InitResult
+  | AdoptResult
   | AddResult
   | UpgradeResult
   | FeaturesResult
@@ -541,6 +555,24 @@ export function validateResult(value: unknown): Issue[] {
           c.add(`${p}port`, 'must be a number or null');
       });
       break;
+    case 'adopt':
+      checkWrite(c, value);
+      c.string(value, 'scope', '');
+      c.string(value, 'snippet', '');
+      c.texts(value, 'buildConfig', '');
+      c.texts(value, 'next', '');
+      c.objects(value, 'apps', '', (app, p) => {
+        c.string(app, 'name', p);
+        c.string(app, 'path', p);
+        if (app.kind !== 'shell' && app.kind !== 'remote')
+          c.add(`${p}kind`, 'must be shell or remote');
+        if (app.port !== null && typeof app.port !== 'number')
+          c.add(`${p}port`, 'must be a number or null');
+      });
+      c.objects(value, 'notAdopted', '', (item, p) => {
+        for (const key of ['dir', 'file', 'field', 'reason']) c.string(item, key, p);
+      });
+      break;
     case 'add':
       checkWrite(c, value);
       if (!['remote', 'shell', 'feature', 'env-key'].includes(String(value.kind))) {
@@ -645,7 +677,7 @@ export function validateResult(value: unknown): Issue[] {
     default:
       c.add(
         'command',
-        'must be init, add, upgrade, features, registry, doctor, validate, check-compat, budget, dev, deploy, promote, rollback or status',
+        'must be init, adopt, add, upgrade, features, registry, doctor, validate, check-compat, budget, dev, deploy, promote, rollback or status',
       );
   }
   return c.issues;
