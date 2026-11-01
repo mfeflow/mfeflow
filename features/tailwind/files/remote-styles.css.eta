@@ -1,0 +1,13 @@
+<%_ const prefix = it.app.name.replace(/[0-9]/g, (digit) => 'abcdefghij'[Number(digit)] ?? '').replace(/[^a-z]/g, '') || 'app' _%>
+/* No reset here: the shell has it. Classes are written <%= prefix %>:flex, and the theme variables are --<%= prefix %>-*. */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme) prefix(<%= prefix %>);
+@import 'tailwindcss/utilities.css' layer(utilities) prefix(<%= prefix %>);
+
+/* Tokens read the theme variables (--mf-*). The second value is used when there is no theme. */
+@theme inline {
+  --color-brand: var(--mf-color-primary, #2563eb);
+  --color-surface: var(--mf-color-surface, #f3f4f6);
+  --color-fg: var(--mf-color-fg, #111827);
+  --color-bg: var(--mf-color-bg, #ffffff);
+}

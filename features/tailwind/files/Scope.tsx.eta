@@ -1,0 +1,12 @@
+<%_ const prefix = it.app.name.replace(/[0-9]/g, (digit) => 'abcdefghij'[Number(digit)] ?? '').replace(/[^a-z]/g, '') || 'app' _%>
+import type { ReactNode } from 'react';
+import '../styles.css';
+
+/** Wraps this remote's App and loads its styles. The outline shows the brand token; delete it when you have your own markup. */
+export function Scope({ children }: { children: ReactNode }) {
+  return (
+    <div data-tailwind="<%= it.app.name %>" className="<%= prefix %>:p-2 <%= prefix %>:outline-2 <%= prefix %>:outline-brand">
+      {children}
+    </div>
+  );
+}

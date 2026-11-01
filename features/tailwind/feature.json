@@ -1,0 +1,87 @@
+{
+  "name": "tailwind",
+  "version": "0.1.0",
+  "description": "Tailwind CSS 4 through PostCSS. The shell loads Tailwind's reset (preflight) once; every app gets its own class prefix (cart:flex), so two remotes using the same utility with different tokens never collide. The colour tokens read the --mf-* theme variables, with fallbacks, so they follow theming whichever way round the two are added.",
+  "requires": ["core", "tsconfig"],
+  "files": [
+    {
+      "to": "postcss.config.mjs",
+      "target": "shell",
+      "from": "files/postcss.config.mjs"
+    },
+    {
+      "to": "src/styles.css",
+      "target": "shell",
+      "from": "files/shell-styles.css.eta",
+      "template": true
+    },
+    {
+      "to": "postcss.config.mjs",
+      "target": "remotes",
+      "from": "files/postcss.config.mjs"
+    },
+    {
+      "to": "src/styles.css",
+      "target": "remotes",
+      "from": "files/remote-styles.css.eta",
+      "template": true
+    },
+    {
+      "to": "src/tailwind/Scope.tsx",
+      "target": "remotes",
+      "from": "files/Scope.tsx.eta",
+      "template": true
+    },
+    {
+      "to": "src/tailwind/Scope.test.tsx",
+      "target": "remotes",
+      "from": "files/Scope-test.tsx.eta",
+      "template": true,
+      "when": {
+        "feature:testing": true
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "tailwindcss",
+      "range": "4.3.3",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "@tailwindcss/postcss",
+      "range": "4.3.3",
+      "target": "shell",
+      "dev": true
+    },
+    {
+      "name": "tailwindcss",
+      "range": "4.3.3",
+      "target": "remotes",
+      "dev": true
+    },
+    {
+      "name": "@tailwindcss/postcss",
+      "range": "4.3.3",
+      "target": "remotes",
+      "dev": true
+    }
+  ],
+  "transforms": [
+    {
+      "op": "add-import",
+      "file": "src/bootstrap.tsx",
+      "target": "shell",
+      "from": "./styles.css"
+    },
+    {
+      "op": "wrap-provider",
+      "file": "src/exposed/App.tsx",
+      "target": "remotes",
+      "component": "Scope",
+      "from": "../tailwind/Scope",
+      "function": "App"
+    }
+  ]
+}

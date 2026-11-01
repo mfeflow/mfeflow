@@ -47,6 +47,7 @@ describe.each([
   'http',
   'theming',
   'i18n',
+  'tailwind',
 ])('mfeflow add %s', (feature) => {
   it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
     expect(await add(feature)).toBe(0);
@@ -82,6 +83,7 @@ describe.each([
       http: ['src/api/client.ts'],
       theming: ['src/theme/tokens.ts'],
       i18n: ['src/i18n/I18n.tsx', 'src/i18n/messages/en.json'],
+      tailwind: ['postcss.config.mjs', 'src/styles.css', 'src/tailwind/Scope.tsx'],
     }[feature];
     for (const file of perApp ?? []) expect(tree, file).toHaveProperty([`apps/checkout/${file}`]);
   });

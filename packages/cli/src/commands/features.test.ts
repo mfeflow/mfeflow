@@ -70,6 +70,7 @@ describe('mfeflow features', () => {
       http: false,
       theming: false,
       i18n: false,
+      tailwind: false,
       'ci-github': false,
       'git-hooks': false,
     });

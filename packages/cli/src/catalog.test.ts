@@ -21,6 +21,7 @@ describe('first-party catalogue', () => {
       'http',
       'theming',
       'i18n',
+      'tailwind',
       'ci-github',
       'git-hooks',
     ]);
