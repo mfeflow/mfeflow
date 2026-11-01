@@ -2,8 +2,33 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { changedFolders, cleanEnv, main, unbumped } from './check-feature-versions.mjs';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import {
+  changedFolders,
+  cleanEnv,
+  compareVersions,
+  main,
+  unbumped,
+} from './check-feature-versions.mjs';
+
+// The fixture repos must not read the user's git config (hooksPath, signing, templates).
+const ISOLATION = {
+  GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : '/dev/null',
+  GIT_CONFIG_NOSYSTEM: '1',
+};
+const saved = {};
+beforeAll(() => {
+  for (const [key, value] of Object.entries(ISOLATION)) {
+    saved[key] = process.env[key];
+    process.env[key] = value;
+  }
+});
+afterAll(() => {
+  for (const key of Object.keys(ISOLATION)) {
+    if (saved[key] === undefined) delete process.env[key];
+    else process.env[key] = saved[key];
+  }
+});
 
 let repo;
 const run = (...args) => {
@@ -46,6 +71,40 @@ describe('check-feature-versions', () => {
     expect(cleanEnv({ GIT_DIR: '/x', GIT_INDEX_FILE: 'y', PATH: '/bin' })).toEqual({
       PATH: '/bin',
     });
+  });
+
+  it('keeps the GIT_CONFIG_* variables, which choose config files, not a repo', () => {
+    expect(cleanEnv({ GIT_CONFIG_GLOBAL: 'x', GIT_CONFIG_NOSYSTEM: '1', GIT_DIR: '/x' })).toEqual({
+      GIT_CONFIG_GLOBAL: 'x',
+      GIT_CONFIG_NOSYSTEM: '1',
+    });
+  });
+
+  it('compares semver versions, with a release above its prerelease', () => {
+    expect(compareVersions('0.2.0', '0.1.0')).toBe(1);
+    expect(compareVersions('0.1.0', '0.10.0')).toBe(-1);
+    expect(compareVersions('1.0.0', '1.0.0')).toBe(0);
+    expect(compareVersions('1.0.0', '1.0.0-rc.1')).toBe(1);
+    expect(compareVersions('1.0.0-rc.1', '1.0.0')).toBe(-1);
+    expect(compareVersions('latest', '1.0.0')).toBeUndefined();
+  });
+
+  it('fails when a version goes down', () => {
+    write('features/forms/feature.json', manifest('0.0.9'));
+    commit('lower');
+    expect(unbumped(repo, 'main')).toEqual([
+      'features/forms/feature.json went down from version 0.1.0 to 0.0.9',
+    ]);
+  });
+
+  it('sees folders and files with non-ASCII names', () => {
+    write('features/café/feature.json', manifest('0.1.0'));
+    write('features/forms/files/naïve.ts', 'x\n');
+    commit('unicode');
+    expect(changedFolders(repo, 'main', 'HEAD')).toEqual(['features/café', 'features/forms']);
+    expect(unbumped(repo, 'main')).toEqual([
+      'features/forms changed but features/forms/feature.json is still at version 0.1.0',
+    ]);
   });
 
   it('passes when nothing under features or templates changed', () => {

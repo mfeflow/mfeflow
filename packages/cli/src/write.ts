@@ -12,9 +12,8 @@ import {
 } from '@mfeflow/core';
 import { Cancelled } from './exit';
 import type { Globals } from './args';
-import { withProjectChange } from './pipeline';
+import { stampCli, withProjectChange } from './pipeline';
 import type { Runtime } from './runtime';
-import { readPackageJson } from './version';
 
 export interface WriteRequest {
   rt: Runtime;
@@ -134,7 +133,7 @@ async function exists(dir: string): Promise<boolean> {
  */
 export async function writePlan(request: WriteRequest): Promise<WriteOutcome> {
   const { rt, globals, root, plan } = request;
-  const project: MfeflowProject = { ...request.project, cli: readPackageJson().version };
+  const project = stampCli(request.project, plan);
   const shown = withProjectChange(plan, project);
   if (!globals.json) {
     rt.io.stdout(summarize(shown));

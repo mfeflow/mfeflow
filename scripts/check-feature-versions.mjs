@@ -8,9 +8,31 @@ import path from 'node:path';
 
 const ROOTS = new Set(['features', 'templates']);
 
-/** The environment without the GIT_* variables a hook sets, which would point git at the wrong repo. */
+/**
+ * The environment without the GIT_* variables a hook sets, which would point git at the wrong
+ * repo. GIT_CONFIG_* stays: it says which config files to read, not which repo.
+ */
 export function cleanEnv(env = process.env) {
-  return Object.fromEntries(Object.entries(env).filter(([key]) => !key.startsWith('GIT_')));
+  return Object.fromEntries(
+    Object.entries(env).filter(([key]) => !key.startsWith('GIT_') || key.startsWith('GIT_CONFIG')),
+  );
+}
+
+const parse = (v) => /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+.*)?$/.exec(String(v));
+
+/** -1, 0 or 1 for two versions, or undefined if either is not semver. A release beats its own prerelease. */
+export function compareVersions(a, b) {
+  const left = parse(a);
+  const right = parse(b);
+  if (!left || !right) return undefined;
+  for (let i = 1; i <= 3; i++) {
+    const diff = Number(left[i]) - Number(right[i]);
+    if (diff !== 0) return Math.sign(diff);
+  }
+  if (left[4] === right[4]) return 0;
+  if (left[4] === undefined) return 1;
+  if (right[4] === undefined) return -1;
+  return left[4] < right[4] ? -1 : 1;
 }
 
 function git(cwd, args) {
@@ -37,7 +59,7 @@ function versionAt(cwd, ref, folder) {
 
 /** The `features/<name>` and `templates/<name>` folders that have a changed file between two refs. */
 export function changedFolders(cwd, from, to) {
-  const names = git(cwd, ['diff', '--name-only', '--no-renames', `${from}`, to]).split('\n');
+  const names = git(cwd, ['diff', '-z', '--name-only', '--no-renames', from, to]).split('\0');
   const folders = new Set();
   for (const file of names) {
     const [root, name, ...rest] = file.split('/');
@@ -56,6 +78,8 @@ export function unbumped(cwd, base) {
     if (before === undefined || after === undefined) continue;
     if (before === after) {
       problems.push(`${folder} changed but ${folder}/feature.json is still at version ${after}`);
+    } else if (compareVersions(after, before) === -1) {
+      problems.push(`${folder}/feature.json went down from version ${before} to ${after}`);
     }
   }
   return problems;

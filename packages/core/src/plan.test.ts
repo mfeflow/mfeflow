@@ -368,6 +368,49 @@ describe('PlanBuilder setRange', () => {
     });
   });
 
+  it('leaves npm:, link:, file:, repository and URL specifiers alone, with a warning', async () => {
+    for (const specifier of [
+      'npm:other@^1.0.0',
+      'link:../react',
+      'file:./react.tgz',
+      'github:facebook/react',
+      'git+https://example.com/react.git',
+      'https://example.com/react.tgz',
+    ]) {
+      const b = new PlanBuilder(reader({ 'package.json': deps(specifier) }));
+      await b.setRange('package.json', 'react', '^19.0.0');
+      const plan = b.build();
+      expect(plan.changes, specifier).toEqual([]);
+      expect(plan.warnings[0], specifier).toContain(specifier);
+    }
+  });
+
+  it('accepts a semver range or a dist-tag, and refuses anything else (E202)', async () => {
+    for (const ok of ['^19.0.0', '>=18 <20', '19.x', 'next']) {
+      const b = new PlanBuilder(reader({ 'package.json': deps('^18.0.0') }));
+      await b.setRange('package.json', 'react', ok);
+      expect(b.build().changes[0]?.after, ok).toContain(`"react": "${ok}"`);
+    }
+    for (const bad of ['', 'not a range!', 'link:../x', 'catalog:', 'workspace:*', 'a/b']) {
+      const b = new PlanBuilder(reader({ 'package.json': deps('^18.0.0') }));
+      expect(await rejection(b.setRange('package.json', 'react', bad)), bad).toMatchObject({
+        code: 'MFEFLOW_E202',
+      });
+    }
+  });
+
+  it('says so when pnpm-workspace.yaml is not valid YAML', async () => {
+    const b = new PlanBuilder(
+      reader({
+        'package.json': deps('catalog:'),
+        'pnpm-workspace.yaml': 'catalog:\n  react: [1\n',
+      }),
+    );
+    const error = await rejection(b.setRange('package.json', 'react', '19.3.1'));
+    expect(error).toMatchObject({ code: 'MFEFLOW_E208' });
+    expect((error as Error).message).toContain('not valid YAML');
+  });
+
   it('lets a third-party feature ask only for the range already there', async () => {
     const b = new PlanBuilder(reader({ 'package.json': deps('^18.0.0') })).scoped('third-party');
     await b.setRange('package.json', 'react', '^18.0.0');
