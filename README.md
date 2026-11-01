@@ -152,7 +152,7 @@ The four checks are ordinary commands. The ci-github feature adds a workflow tha
 
 ## Features
 
-There are 23 first-party features. Each lives in `features/` and can be added on its own.
+There are 24 first-party features. Each lives in `features/` and can be added on its own.
 
 **Foundation**
 
