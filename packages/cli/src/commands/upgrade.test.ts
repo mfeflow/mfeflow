@@ -1,7 +1,13 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { hashContent, parseProject, serializeProject } from '@mfeflow/core';
+import {
+  hashContent,
+  integrityOf,
+  parseProject,
+  serializeProject,
+  type FetchLike,
+} from '@mfeflow/core';
 import { main, validateResult, type UpgradeResult } from '..';
 import { EXIT } from '../exit';
 import {
@@ -130,7 +136,70 @@ describe('mfeflow upgrade on the 0.1.0 fixture', () => {
     const root = await oldProject({ [HOME]: 'my own home page\n', 'docs/ci.md': 'my ci notes\n' });
     const { code } = await upgrade(root, ['--yes', '--accept', HOME, '--keep', 'docs/ci.md']);
     expect(code).toBe(EXIT.ok);
-    expect((await readTree(root))['docs/ci.md']).toBe('my ci notes\n');
+    const tree = await readTree(root);
+    expect(tree['docs/ci.md']).toBe('my ci notes\n');
+    expect(tree[HOME]).not.toBe('my own home page\n');
+  });
+
+  it('upgrades an untouched project in a plain non-interactive run, with no flags at all', async () => {
+    const root = await oldProject();
+    const { code, rt } = await upgrade(root, []);
+    expect(code).toBe(EXIT.ok);
+    expect(rt.system.installs).toHaveLength(1);
+    expect(parseProject((await readTree(root))['mfeflow.json'] ?? '').cli).toBe(running);
+  });
+
+  it('leaves a file you edited alone when the new version generates what the old one did', async () => {
+    const root = await oldProject();
+    expect((await upgrade(root, ['--yes'])).code).toBe(EXIT.ok);
+    expect((await upgrade(root, ['--yes', '--accept', 'all'])).code).toBe(EXIT.ok);
+    const file = path.join(root, ...HOME.split('/'));
+    await fs.writeFile(file, 'my own home page\n');
+    const { code, rt } = await upgrade(root, ['--json']);
+    expect(code).toBe(EXIT.ok);
+    expect(json(rt)).toMatchObject({ upToDate: true, diverged: [] });
+    expect(await fs.readFile(file, 'utf8')).toBe('my own home page\n');
+  });
+
+  it('is not up to date while a file waits for a decision, in a dry run and a real one', async () => {
+    const root = await oldProject();
+    expect((await upgrade(root, ['--yes'])).code).toBe(EXIT.ok);
+    const project = parseProject((await readTree(root))['mfeflow.json'] ?? '');
+    delete project.files?.[HOME];
+    await fs.writeFile(path.join(root, 'mfeflow.json'), serializeProject(project));
+    await fs.writeFile(path.join(root, ...HOME.split('/')), 'my own home page\n');
+    const dry = await upgrade(root, ['--json', '--dry-run']);
+    expect(dry.code).toBe(EXIT.ok);
+    expect(json(dry.rt)).toMatchObject({ upToDate: false, diverged: [{ path: HOME }] });
+    const real = await upgrade(root, ['--json']);
+    expect(real.code).toBe(8);
+  });
+
+  it('reports a symlinked generated file without waiting for a decision, and never writes over it', async (ctx) => {
+    const root = await oldProject();
+    const outside = path.join(root, '..', `mfeflow-link-${path.basename(root)}.md`);
+    dirs.push(outside);
+    await fs.writeFile(outside, 'kept elsewhere\n');
+    const link = path.join(root, 'README.md');
+    await fs.rm(link);
+    try {
+      await fs.symlink(outside, link);
+    } catch {
+      ctx.skip();
+    }
+    for (const args of [['--yes'], ['--yes', '--accept', 'all']]) {
+      // oxlint-disable-next-line no-await-in-loop -- the second run starts from the first
+      const { code, rt } = await upgrade(root, [...args, '--json']);
+      expect(code).toBe(EXIT.ok);
+      expect(json(rt).diverged.find((d) => d.path === 'README.md')).toMatchObject({
+        reason: 'symlink',
+        decision: 'undecided',
+      });
+      // oxlint-disable-next-line no-await-in-loop -- see above
+      expect((await fs.lstat(link)).isSymbolicLink()).toBe(true);
+      // oxlint-disable-next-line no-await-in-loop -- see above
+      expect(await fs.readFile(outside, 'utf8')).toBe('kept elsewhere\n');
+    }
   });
 
   it('names the keys you would lose in an env file the CLI added to, and keeps them with --keep', async () => {
@@ -285,5 +354,78 @@ describe('mfeflow upgrade arguments and errors', () => {
     expect(code).toBe(EXIT.ok);
     expect(rt.io.out.join('\n')).toContain('already at');
     expect(await readTree(project)).toEqual(before);
+  });
+});
+
+describe('mfeflow upgrade with a registry feature', () => {
+  const manifest = {
+    name: '@acme/hello',
+    version: '1.0.0',
+    files: [{ to: 'src/hello.ts', target: 'shell', content: 'export const hello = 1;\n' }],
+  };
+  const serving =
+    (body: object): FetchLike =>
+    (url) =>
+      Promise.resolve({
+        ok: !url.endsWith('/index.json'),
+        status: url.endsWith('/index.json') ? 404 : 200,
+        text: () => Promise.resolve(JSON.stringify(body)),
+      });
+
+  /** The fixture with `@acme/hello` installed at 1.0.0, hashed as served. */
+  async function withRegistryFeature(): Promise<string> {
+    const project = parseProject(fixture.files['mfeflow.json']);
+    project.registries = { '@acme': 'https://acme.dev/{name}.json' };
+    project.features['@acme/hello'] = {
+      version: '1.0.0',
+      integrity: integrityOf(JSON.stringify(manifest)),
+    };
+    return oldProject({ 'mfeflow.json': serializeProject(project) });
+  }
+
+  it('will not apply it without --yes when nobody can confirm, and writes nothing', async () => {
+    const root = await withRegistryFeature();
+    const before = await readTree(root);
+    const rt = testRuntime({ trust: ['@acme'], fetch: serving(manifest) });
+    const { code } = await upgrade(root, [], rt);
+    expect(code).toBe(EXIT.usage);
+    expect(rt.io.err.join('\n')).toContain('--yes');
+    expect(await readTree(root)).toEqual(before);
+  });
+
+  it('applies it with --yes, and a dry run needs no --yes', async () => {
+    const root = await withRegistryFeature();
+    const dry = testRuntime({ trust: ['@acme'], fetch: serving(manifest) });
+    expect((await upgrade(root, ['--dry-run'], dry)).code).toBe(EXIT.ok);
+    const rt = testRuntime({ trust: ['@acme'], fetch: serving(manifest) });
+    expect((await upgrade(root, ['--yes'], rt)).code).toBe(EXIT.ok);
+    expect((await readTree(root))['apps/shell/src/hello.ts']).toBe('export const hello = 1;\n');
+  });
+
+  it('stops with E406 when the registry serves other bytes for the same version', async () => {
+    const root = await withRegistryFeature();
+    const before = await readTree(root);
+    const changed = { ...manifest, files: [{ ...manifest.files[0], content: 'evil();\n' }] };
+    const rt = testRuntime({ trust: ['@acme'], fetch: serving(changed) });
+    const { code } = await upgrade(root, ['--yes'], rt);
+    expect(code).toBe(6);
+    expect(rt.io.err.join('\n')).toContain('MFEFLOW_E406');
+    expect(await readTree(root)).toEqual(before);
+
+    const accepted = testRuntime({ trust: ['@acme'], fetch: serving(changed) });
+    expect((await upgrade(root, ['--yes', '--accept-changed-content'], accepted)).code).toBe(0);
+    expect(
+      parseProject((await readTree(root))['mfeflow.json'] ?? '').features['@acme/hello'],
+    ).toMatchObject({
+      integrity: integrityOf(JSON.stringify(changed)),
+    });
+  });
+
+  it('does not ask a registry the user has not trusted on this machine', async () => {
+    const root = await withRegistryFeature();
+    const rt = testRuntime({ fetch: serving(manifest) });
+    const { code } = await upgrade(root, ['--yes'], rt);
+    expect(code).toBe(6);
+    expect(rt.io.err.join('\n')).toContain('MFEFLOW_E405');
   });
 });

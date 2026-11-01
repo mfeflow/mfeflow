@@ -1,5 +1,7 @@
 import path from 'node:path';
 import {
+  checkIntegrity,
+  isMfeflowError,
   messageOf,
   realFs,
   planUpgrade,
@@ -21,6 +23,10 @@ const ALWAYS = ['core', 'tsconfig'];
 export interface UpgradeContext {
   roots: AssetRoots;
   fetch: FetchLike;
+  /** Registry namespaces the user trusts to be on loopback or private addresses. */
+  trusted?: ReadonlySet<string>;
+  /** Take registry content that differs from the hash recorded in mfeflow.json. */
+  acceptChanged?: boolean;
 }
 
 /** The features `init` would apply for these recorded ones, in its order, `core` and `tsconfig` first. */
@@ -51,6 +57,7 @@ export async function planProjectUpgrade(
         registries: project.registries,
         fetch: ctx.fetch,
         version: project.features[name]?.version,
+        trusted: ctx.trusted,
       });
       const recorded = project.features[name]?.version;
       if (
@@ -60,9 +67,15 @@ export async function planProjectUpgrade(
       ) {
         throw new Error(`the registry serves ${loaded.manifest.version}, installed is ${recorded}`);
       }
+      const hash = project.features[name]?.integrity;
+      if (loaded.trust === 'third-party' && hash !== undefined && loaded.integrity !== undefined) {
+        checkIntegrity(name, hash, loaded.integrity, ctx.acceptChanged === true);
+      }
       features.push(loaded);
     } catch (error) {
-      if (ALWAYS.includes(name)) throw error;
+      if (ALWAYS.includes(name) || (isMfeflowError(error) && error.code === 'MFEFLOW_E406')) {
+        throw error;
+      }
       skipped.push({ name, reason: messageOf(error) });
     }
   }

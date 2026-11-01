@@ -587,7 +587,7 @@ describe('files the CLI adds keys to', () => {
   });
 
   it('calls a file edited by hand edited, even when it has keys', async () => {
-    const up = await run(envTs(['A', 'MINE']), envTs(['A']), envTs(['A']));
+    const up = await run(envTs(['A', 'MINE']), envTs(['A', 'B']), envTs(['A']));
     expect(up.diverged[0]).toMatchObject({ reason: 'edited', lostKeys: ['MINE'] });
   });
 
@@ -697,6 +697,55 @@ describe('decisions', () => {
       decisions: { accept: new Set(['src/config.ts']) },
     });
     expect(up.plan.changes.find((c) => c.path === 'src/config.ts')?.after).toBe('new config\r\n');
+  });
+});
+
+describe('trust, symlinks and unchanged templates', () => {
+  it('keeps the trust of a third-party feature on the files it writes', async () => {
+    const thirdParty: LoadedFeature = {
+      ...feature('@acme/hello', '1.0.0', { 'src/hello.ts': 'hello\n' }),
+      trust: 'third-party',
+    };
+    const up = await planUpgrade(projectOf(OLD), {
+      ...input(OLD),
+      features: [newCore(), thirdParty],
+    });
+    const trust = Object.fromEntries(up.plan.changes.map((c) => [c.path, c.trust]));
+    expect(trust['src/hello.ts']).toBe('third-party');
+    expect(trust['README.md']).toBe('first-party');
+  });
+
+  it('never offers a symlink for writing, edited or not, even with accept all', async () => {
+    const disk = { ...OLD, 'README.md': 'my readme\n' };
+    const up = await planUpgrade(projectOf(OLD), {
+      ...input(disk),
+      decisions: { accept: 'all' },
+      isSymlink: (file) => Promise.resolve(file === 'README.md'),
+    });
+    expect(up.diverged.find((d) => d.path === 'README.md')).toMatchObject({ reason: 'symlink' });
+    expect(up.diverged.find((d) => d.path === 'README.md')?.decision).toBeUndefined();
+    expect(up.plan.changes.map((c) => c.path)).not.toContain('README.md');
+  });
+
+  it('does not offer a file you edited when the new version generates what the old one did', async () => {
+    const same = { ...OLD, 'src/config.ts': 'old config\n' };
+    const files = { ...NEW, 'src/config.ts': 'old config\n' };
+    const up = await planUpgrade(projectOf(same), {
+      ...input({ ...same, 'src/config.ts': 'my own config\n' }),
+      features: [feature('core', '0.2.0', files)],
+    });
+    expect(up.diverged.map((d) => d.path)).not.toContain('src/config.ts');
+    expect(up.plan.changes.map((c) => c.path)).not.toContain('src/config.ts');
+  });
+
+  it('counts a key whose value you changed as one the replacement would lose', async () => {
+    const withValue = (schema: string) => envTs(['A']).replace('A: z.string()', `A: ${schema}`);
+    const disk = withValue('z.string().min(3)');
+    const up = await planUpgrade(projectOf({ 'env.ts': disk }, { cli: '0.1.0' }), {
+      ...input({ 'env.ts': disk, 'apps/shell/package.json': OLD['apps/shell/package.json'] ?? '' }),
+      features: [feature('core', '0.2.0', { 'env.ts': withValue('z.string().min(1)') })],
+    });
+    expect(up.diverged[0]).toMatchObject({ reason: 'edited-by-cli', lostKeys: ['A'] });
   });
 });
 

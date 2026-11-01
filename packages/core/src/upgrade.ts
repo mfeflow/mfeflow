@@ -11,7 +11,7 @@ import { hashContent, normalizeEol } from './hash';
 import { asRecord, editJsonObject, parseJsonObject } from './json';
 import { PlanBuilder, type FileChange, type Plan, type PlanFeature, type ReadFile } from './plan';
 import type { MfeflowProject } from './project';
-import { dotenvKeys, schemaKeys } from './transforms';
+import { schemaKeys } from './transforms';
 
 /**
  * What a first-party migration module exports (as `default` or `migrate`). It records its
@@ -215,6 +215,8 @@ function recordedOptions(
 interface Replay {
   files: Map<string, string>;
   tracked: Set<string>;
+  /** Files a third-party feature wrote or edited. They keep that trust all the way to the write. */
+  thirdParty: Set<string>;
   features: PlanFeature[];
   warnings: string[];
 }
@@ -251,7 +253,9 @@ async function replay(project: MfeflowProject, input: UpgradeInput): Promise<Rep
   const built = builder.build();
   const files = new Map<string, string>();
   const tracked = new Set<string>();
+  const thirdParty = new Set<string>();
   for (const change of built.changes) {
+    if (change.trust === 'third-party') thirdParty.add(change.path);
     if (change.after === null) continue;
     files.set(change.path, change.after);
     if (change.track) tracked.add(change.path);
@@ -260,6 +264,7 @@ async function replay(project: MfeflowProject, input: UpgradeInput): Promise<Rep
   return {
     files,
     tracked,
+    thirdParty,
     features: [...byName.values()],
     warnings,
   };
@@ -286,27 +291,48 @@ interface Classified {
 
 type Verdict = 'create' | 'missing' | 'matching' | 'replace' | 'leave' | DivergeReason;
 
-function keysOf(file: string, source: string): string[] | undefined {
+/** Each key of an env-style file with its value written out, so a changed value shows. */
+function entriesOf(file: string, source: string): Map<string, string> | undefined {
   const base = file.slice(file.lastIndexOf('/') + 1);
   try {
-    if (base.endsWith('.json')) return Object.keys(parseJsonObject(file, source));
-    if (base.startsWith('.env')) return dotenvKeys(source);
-    return schemaKeys(source, file, base === 'env.ts' ? 'server' : 'runtime')?.map((k) => k.name);
+    if (base.endsWith('.json')) {
+      const json = parseJsonObject(file, source);
+      return new Map(Object.entries(json).map(([key, value]) => [key, JSON.stringify(value)]));
+    }
+    if (base.startsWith('.env')) {
+      const values = new Map<string, string>();
+      for (const line of source.split('\n')) {
+        const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$/.exec(line);
+        if (match?.[1] !== undefined) values.set(match[1], (match[2] ?? '').trim());
+      }
+      return values;
+    }
+    const keys = schemaKeys(source, file, base === 'env.ts' ? 'server' : 'runtime');
+    return keys === undefined
+      ? undefined
+      : new Map(keys.map((k) => [k.name, k.schema.replaceAll(/\s+/g, ' ')]));
   } catch {
     return undefined;
   }
 }
 
 /**
- * The keys `add env-key` put in a file that the new version does not generate, or undefined when
- * the file cannot be read that way. Replacing a file that has such keys would drop them.
+ * The keys `add env-key` put in a file that the new version does not generate, and the keys whose
+ * value you changed from the new version's. Replacing the file would drop both. Undefined when the
+ * file cannot be read that way.
  */
 function lostKeys(file: string, disk: string, incoming: string): string[] | undefined {
-  const yours = keysOf(file, disk);
-  const wanted = keysOf(file, incoming);
+  const yours = entriesOf(file, disk);
+  const wanted = entriesOf(file, incoming);
   if (yours === undefined || wanted === undefined) return undefined;
-  return yours.filter((key) => !wanted.includes(key));
+  return [...yours].filter(([key, value]) => wanted.get(key) !== value).map(([key]) => key);
 }
+
+/** Verdicts that end in a write, or in an offer to write, over whatever is at the path. */
+const writes = (verdict: Verdict) =>
+  verdict === 'create' ||
+  verdict === 'replace' ||
+  (verdict !== 'missing' && verdict !== 'matching' && verdict !== 'leave' && verdict !== 'symlink');
 
 /** What to do with one generated file, given what is on disk and what was recorded for it. */
 function judge(
@@ -325,6 +351,8 @@ function judge(
   }
   if (USER_DATA.test(file)) return 'leave';
   if (kept !== undefined) return kept === hashContent(incoming) ? 'leave' : 'edited';
+  // The new version generates what the old one did: there is nothing incoming to decide about.
+  if (recorded !== undefined && recorded === hashContent(incoming)) return 'leave';
   if (recorded === undefined) return 'untracked';
   if (recorded !== hashContent(disk)) return 'edited';
   if (ENV_KEY_FILES.test(file)) {
@@ -357,8 +385,8 @@ async function compareFiles(
       ...(project.kept?.[file] === undefined ? {} : { kept: project.kept[file] }),
       anySkipped: options.anySkipped,
     });
-    // oxlint-disable-next-line no-await-in-loop -- only asked for a file that would be replaced
-    if (verdict === 'replace' && (await options.isSymlink?.(file))) verdict = 'symlink';
+    // oxlint-disable-next-line no-await-in-loop -- only asked for a file that would be written
+    if (writes(verdict) && (await options.isSymlink?.(file))) verdict = 'symlink';
     if (verdict === 'missing') out.missing.push(file);
     else if (verdict === 'matching') out.matching.push(file);
     else if (verdict === 'create') {
@@ -679,7 +707,11 @@ export async function planUpgrade(
   const built = builder.build();
   const plan: Plan = {
     ...built,
-    changes: built.changes.map(keepLineEndings),
+    changes: built.changes.map((change) => {
+      const kept = keepLineEndings(change);
+      kept.trust = fresh.thirdParty.has(kept.path) ? 'third-party' : kept.trust;
+      return kept;
+    }),
     features: fresh.features,
     warnings: [
       ...fresh.warnings,

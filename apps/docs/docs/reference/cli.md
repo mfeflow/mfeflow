@@ -145,14 +145,20 @@ Moves the project to the version of mfeflow you run. It never asks npm for a new
 mfeflow upgrade [--to <version>] [--dry-run] [--json] [--yes] [--accept <path|all>] [--keep <path|all>]
 ```
 
-| Flag                   | Meaning                                                                                                      |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `--dry-run`            | Print the summary and every diff, write nothing                                                              |
-| `--accept <path\|all>` | Replace a file you changed with the new version. A path, a comma list, or `all`. Symlinks are never replaced |
-| `--keep <path\|all>`   | Keep your file. It is raised again only when the new version of it changes                                   |
-| `--to <version>`       | Must be the version that runs, because the files come from it. Anything else is E107                         |
+| Flag                       | Meaning                                                                                                      |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `--dry-run`                | Print the summary and every diff, write nothing                                                              |
+| `--accept <path\|all>`     | Replace a file you changed with the new version. A path, a comma list, or `all`. Symlinks are never replaced |
+| `--keep <path\|all>`       | Keep your file. It is raised again only when the new version of it changes                                   |
+| `--yes`                    | Never ask. A changed file still needs `--accept` or `--keep`, and a registry feature is applied              |
+| `--accept-changed-content` | Take a registry feature whose content differs from the recorded hash                                         |
+| `--to <version>`           | Must be the version that runs, because the files come from it. Anything else is E107                         |
 
-A generated file you did not edit is replaced and a new file is created. `package.json`, `pnpm-workspace.yaml` and `turbo.json` only get small edits. Files the new version no longer makes, and files you deleted, are listed and left alone. A file you changed is never written unless you accept it. Without a terminal, a changed file with no decision stops the run before anything is written, with E604 and exit code 8. The files are written all or nothing, and the install runs in the same step.
+A generated file you did not edit is replaced and a new file is created. `package.json`, `pnpm-workspace.yaml` and `turbo.json` only get small edits. Files the new version no longer makes, and files you deleted, are listed and left alone. A file you changed is offered only when the new version generates something different from the old one. It is never written unless you accept it.
+
+Without a terminal there is nobody to ask. A changed file with no decision stops the run before anything is written, with E604 and exit code 8, even with `--yes`. A `--dry-run` never fails that way: it prints everything and exits 0. A symlink is reported and never written over, with or without `--accept all`. It needs no decision and never blocks a run.
+
+A feature from a registry is applied only after you confirm in a terminal, or pass `--yes` without one. The content of each registry feature is compared with the hash in `mfeflow.json`. If the registry now serves other bytes for the same version, the run stops with E406. Pass `--accept-changed-content` to take them. The files are written all or nothing, and the install runs in the same step.
 
 `--json` prints `{ ok, command: "upgrade", dryRun, root, from, fromSource, to, upToDate, replaced, created, edited, diverged: [{ path, reason, decision, lostKeys, diff }], missing, removed, migrations, plan, written, installed, diff }`.
 

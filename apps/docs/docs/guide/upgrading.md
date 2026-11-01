@@ -117,7 +117,7 @@ You should see an error, and the exit code is 8:
 MFEFLOW_E604 Files you changed need a decision: 1 not decided: apps/shell/src/pages/Home.tsx
 ```
 
-Add `--accept` or `--keep` and run it again. The [error page](/errors/E604) has the details.
+Add `--accept` or `--keep` and run it again. `--yes` does not skip this: it only stops the questions. A `--dry-run` never fails this way, and exits 0 even when files wait for a decision. The [error page](/errors/E604) has the details.
 
 ## What does the upgrade touch?
 
@@ -125,6 +125,9 @@ Add `--accept` or `--keep` and run it again. The [error page](/errors/E604) has 
 - `package.json`, `pnpm-workspace.yaml` and `turbo.json` only get small edits. The `@mfeflow/*` ranges move, and new scripts, dependencies and tasks are added.
 - Files the new version no longer makes, and files you deleted, are listed. They are never deleted and never brought back.
 - A file that `add env-key` added keys to is replaced only if every key in it is still in the new version. Otherwise it is listed with your keys. Accepting it drops them, so add them back with `mfeflow add env-key`.
+- A symlink is reported and never written over, even with `--accept all`. It needs no decision and never blocks a run.
+- A file you edited is offered only when the new version generates something different from the old one.
+- A feature from a registry is applied only after you confirm, or with `--yes` when there is no terminal. If the registry now serves other bytes for the same version, the run stops with E406 until you pass `--accept-changed-content`.
 - Files are written all or nothing, and the install runs in the same step. If it fails, every file is put back.
 
 `mfeflow.json` records a hash for each copied file, and a `kept` entry for each file you kept. The flags are in the [CLI reference](/reference/cli#upgrade).

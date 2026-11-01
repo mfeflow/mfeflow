@@ -21,6 +21,7 @@ import {
 import { planReport, type UpgradeFileReport, type UpgradeResult } from '../output';
 import { withProjectChange } from '../pipeline';
 import type { Runtime } from '../runtime';
+import { trustedIn } from '../trust';
 import { planProjectUpgrade } from '../upgrade';
 import { readPackageJson } from '../version';
 import { writePlan, type WriteOutcome } from '../write';
@@ -41,6 +42,11 @@ export const UPGRADE_ARGS = {
     description: 'Keep your version of a file you changed: a path, a list, or all',
     valueHint: 'path|all',
   },
+  'accept-changed-content': {
+    type: 'boolean',
+    description:
+      'Take a registry feature whose content differs from the hash recorded in mfeflow.json',
+  },
   ...GLOBAL_ARGS,
 } as const satisfies ArgsDef;
 
@@ -49,7 +55,7 @@ const REASONS: Record<DivergedUpgrade['reason'], string> = {
   untracked: 'mfeflow did not write it, but a different file is there',
   'edited-by-cli': 'mfeflow added keys to it',
   'skipped-feature': 'a feature that may have changed it could not be replayed',
-  symlink: 'a symlink, never replaced',
+  symlink: 'a symlink, never written over',
 };
 
 const MANIFESTS = /(^|\/)(package\.json|pnpm-workspace\.yaml)$/;
@@ -96,7 +102,10 @@ function assertNamed(
       );
     }
     if (entry.reason === 'symlink') {
-      throw new MfeflowError('E107', `--${flag} ${file} is a symlink; mfeflow never replaces one`);
+      throw new MfeflowError(
+        'E107',
+        `--${flag} ${file} is a symlink; mfeflow never writes over one`,
+      );
     }
   }
 }
@@ -181,11 +190,13 @@ function divergedLines(entries: readonly DivergedUpgrade[]): string[] {
         ? 'will be replaced'
         : entry.decision === 'keep'
           ? 'kept'
-          : 'needs a decision';
+          : entry.reason === 'symlink'
+            ? 'left alone, no decision needed'
+            : 'needs a decision';
     lines.push(`  ${entry.path}  ${REASONS[entry.reason]}; ${state}`);
     if (entry.lostKeys !== undefined && entry.decision !== 'keep') {
       lines.push(
-        `    your keys ${entry.lostKeys.join(', ')} are not in the new file; --accept drops them, add them back with mfeflow add env-key`,
+        `    your keys or values for ${entry.lostKeys.join(', ')} are not in the new file; --accept drops them, add them back with mfeflow add env-key`,
       );
     }
   }
@@ -234,6 +245,11 @@ function summaryText(up: UpgradePlan, sorted: Sorted): string {
   return lines.join('\n').replaceAll(/\n{3,}/g, '\n\n');
 }
 
+/** Files that wait for a decision. A symlink never does: it is reported and left alone. */
+function undecidedOf(up: UpgradePlan): DivergedUpgrade[] {
+  return up.diverged.filter((d) => d.decision === undefined && d.reason !== 'symlink');
+}
+
 function undecidedMessage(undecided: readonly DivergedUpgrade[]): string {
   const names = undecided.slice(0, SHOWN).map((d) => d.path);
   const more =
@@ -242,6 +258,26 @@ function undecidedMessage(undecided: readonly DivergedUpgrade[]): string {
 }
 
 /** The target version: the one running, because the files come from this mfeflow. */
+/** A registry the user has not trusted on this machine is never asked, as in `add`. */
+function assertTrusted(
+  features: Record<string, unknown>,
+  registries: Record<string, string> | undefined,
+  trusted: ReadonlySet<string>,
+): void {
+  const untrusted = new Set(
+    Object.keys(features)
+      .filter((name) => name.startsWith('@'))
+      .map((name) => name.slice(0, name.indexOf('/')))
+      .filter((namespace) => namespace in (registries ?? {}) && !trusted.has(namespace)),
+  );
+  if (untrusted.size > 0) {
+    throw new MfeflowError(
+      'E405',
+      `${[...untrusted].join(', ')} is installed here but not trusted on this machine, so it was not requested`,
+    );
+  }
+}
+
 function targetOf(args: Record<string, unknown>): string {
   const running = readPackageJson().version;
   const to = text(args, 'to') ?? running;
@@ -277,7 +313,7 @@ function printPlan(
   sorted: Sorted,
   upToDate: boolean,
 ): void {
-  const undecided = up.diverged.filter((d) => d.decision === undefined);
+  const undecided = undecidedOf(up);
   if (!upToDate || undecided.length > 0) rt.io.stdout(summaryText(up, sorted));
   const open = globals.dryRun ? up.diverged : undecided;
   if (open.length > 0 && (globals.dryRun || globals.canPrompt || globals.verbose)) {
@@ -303,11 +339,15 @@ function printOutcome(
     rt.io.stdout(`\n${root} is already at ${up.to}; nothing to write.`);
     return;
   }
+  if (outcome.written.length === 0 && !outcome.dryRun) {
+    rt.io.stdout('\nNothing was written.');
+    return;
+  }
   if (outcome.dryRun) {
     rt.io.stdout(`\n${renderDiff(outcome.shown)}\nDry run: nothing was written.`);
     return;
   }
-  const left = up.diverged.filter((d) => d.decision === undefined).length;
+  const left = undecidedOf(up).length;
   const note = left > 0 ? ` ${String(left)} files you changed were left as they are.` : '';
   rt.io.stdout(`\nUpgraded to ${up.to}.${note}`);
 }
@@ -326,23 +366,28 @@ export async function runUpgrade(
 
   const root = await findProjectRoot(globals.cwd);
   const project = await loadProject(root);
-  const up = await planProjectUpgrade({ roots: rt.roots, fetch: rt.fetch }, root, project, to, {
+  const trusted = await trustedIn(rt, project.registries);
+  assertTrusted(project.features, project.registries, trusted.fetch);
+  const context = {
+    roots: rt.roots,
+    fetch: rt.fetch,
+    trusted: trusted.privateOk,
+    acceptChanged: args['accept-changed-content'] === true,
+  };
+  const up = await planProjectUpgrade(context, root, project, to, {
     ...(accept === undefined ? {} : { accept }),
     ...(keep === undefined ? {} : { keep }),
   });
   assertNamed('accept', accept, up.diverged);
   assertNamed('keep', keep, up.diverged);
-  assertMayWrite(
-    globals,
-    up,
-    up.diverged.filter((d) => d.decision === undefined),
-  );
+  assertMayWrite(globals, up, undecidedOf(up));
 
   const sorted = sortChanges(up);
   const shownPlan = withProjectChange(up.plan, up.project);
-  const upToDate = shownPlan.changes.length === 0;
+  const nothingToWrite = shownPlan.changes.length === 0;
+  const upToDate = nothingToWrite && undecidedOf(up).length === 0;
   if (!globals.json) printPlan(rt, globals, up, sorted, upToDate);
-  const outcome: WriteOutcome = upToDate
+  const outcome: WriteOutcome = nothingToWrite
     ? { dryRun: globals.dryRun, shown: shownPlan, written: [], installed: false }
     : await writePlan({
         rt,
