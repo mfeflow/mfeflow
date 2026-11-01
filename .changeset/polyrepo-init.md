@@ -10,4 +10,6 @@ The platform repo holds two shared packages, published with Changesets, a reusab
 
 `mfeflow add team-repo checkout`, run in the shell repo, adds one more remote repo next to the others and registers it in the shell. The shell finds its remotes in `devRemotes` in `public/config/runtime-config.dev.json`, so `mfeflow dev` in the shell repo works with remotes that run from other repos. `mfeflow validate` and `doctor` know which repo they are in, and a platform repo may have no shell in `mfeflow.json`.
 
+`--org` sets the GitHub owner the generated CI and Renovate files point at; it defaults to the scope without the `@`. If `git init` cannot run in a repo, `init` warns and names it instead of failing.
+
 The `core` template moved to 0.5.0 because the shell's `rsbuild.config.ts` reads its dev remotes from config in a polyrepo. A monorepo gets the same file as before. `ci-github` and `env-t3` cannot be used in a polyrepo yet. `hybrid` is still not available.

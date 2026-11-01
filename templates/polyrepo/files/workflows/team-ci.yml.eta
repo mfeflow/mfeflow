@@ -9,4 +9,4 @@ jobs:
   ci:
     permissions:
       contents: read
-    uses: <%= it.scope.slice(1) %>/platform/.github/workflows/reusable-ci.yml@main
+    uses: <%= it.options.org || it.scope.slice(1) %>/platform/.github/workflows/reusable-ci.yml@main

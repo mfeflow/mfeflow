@@ -9,10 +9,10 @@ import { assertAppName, nameFrom, portFor, remoteGlue, REMOTE_PORT } from '../gl
 import { readText } from '../inspect';
 import { chooseLocal } from '../local';
 import type { FeatureOptions } from '../options';
-import { planReport, type AddResult } from '../output';
+import { planReport, type AddResult, type PlanReport } from '../output';
 import { createBuilder } from '../pipeline';
 import { DEV_CONFIG, devConfigText, portOf, readDevRemotes, withDevRemote } from '../devremotes';
-import { mergeReports, planRepo, PLATFORM_DIR, prefixReport } from '../polyrepo';
+import { mergeReports, notReposWarning, planRepo, PLATFORM_DIR, prefixReport } from '../polyrepo';
 import type { Runtime } from '../runtime';
 import { writePlan } from '../write';
 import { assertEmpty } from './init';
@@ -59,7 +59,10 @@ export async function addTeamRepo(
   const port = portFor(args, taken, REMOTE_PORT);
   const org = path.dirname(root);
   const repoRoot = path.join(org, name);
+  await assertNotLink(repoRoot);
   await assertEmpty(repoRoot);
+  const existed = await exists(repoRoot);
+  const recordedOrg = project.features[POLYREPO_FEATURE]?.options?.org;
 
   const inherited = Object.keys(project.features).filter((n) => !KEPT_IN_SHELL.has(n));
   const features = inCatalogueOrder(inherited.filter(isFirstParty));
@@ -71,6 +74,7 @@ export async function addTeamRepo(
     dir: name,
     root: repoRoot,
     scope: project.scope,
+    ...(typeof recordedOrg === 'string' && recordedOrg !== '' ? { org: recordedOrg } : {}),
     remote: { name, port },
     features,
     featureOptions,
@@ -111,6 +115,7 @@ export async function addTeamRepo(
     if (!ok) throw new Cancelled();
   }
   const inner = { ...globals, canPrompt: false };
+  const notRepos: string[] = [];
   if (!globals.json) rt.io.stdout(`\n${name}/`);
   const created = await writePlan({
     rt,
@@ -119,7 +124,7 @@ export async function addTeamRepo(
     plan: repoPlan,
     project: repo.project,
     afterWrite: async () => {
-      await rt.system.initRepo(repoRoot);
+      if (!(await rt.system.initRepo(repoRoot))) notRepos.push(name);
     },
   });
   if (!globals.json) rt.io.stdout(`\n${path.basename(root)}/`);
@@ -127,7 +132,7 @@ export async function addTeamRepo(
   try {
     registered = await writePlan({ rt, globals: inner, root, plan: shellPlan, project });
   } catch (error) {
-    if (!created.dryRun) await fs.rm(repoRoot, { recursive: true, force: true });
+    if (!created.dryRun) await takeBack(repoRoot, existed);
     throw error;
   }
 
@@ -140,10 +145,13 @@ export async function addTeamRepo(
     added: [name],
     skipped: [],
     created: repoRoot,
-    plan: mergeReports([
-      prefixReport(planReport(created.shown), name),
-      prefixReport(planReport(registered.shown), path.basename(root)),
-    ]),
+    plan: withWarnings(
+      mergeReports([
+        prefixReport(planReport(created.shown), name),
+        prefixReport(planReport(registered.shown), path.basename(root)),
+      ]),
+      notReposWarning(notRepos),
+    ),
     written: [
       ...created.written.map((file) => `${name}/${file}`),
       ...registered.written.map((file) => `${path.basename(root)}/${file}`),
@@ -157,6 +165,7 @@ export async function addTeamRepo(
     if (result.dryRun) rt.io.stdout('\nDry run: nothing was written.');
     else {
       rt.io.stdout(`\nAdded ${name} (team-repo) at ${repoRoot}.`);
+      for (const warning of notReposWarning(notRepos)) rt.io.stdout(`Warning: ${warning}`);
       rt.io.stdout(
         `Next:\n  cd ../${name}${created.installed ? '' : ' && pnpm install'}\n  pnpm dev`,
       );
@@ -167,6 +176,33 @@ export async function addTeamRepo(
 
 function optionalPort(port: number | undefined): { port?: number } {
   return port === undefined ? {} : { port };
+}
+
+function withWarnings(plan: PlanReport, warnings: readonly string[]): PlanReport {
+  return { ...plan, warnings: [...plan.warnings, ...warnings] };
+}
+
+/** A link at the new repo's path would be followed by the write and removed by a rollback. */
+async function assertNotLink(dir: string): Promise<void> {
+  try {
+    if ((await fs.lstat(dir)).isSymbolicLink()) {
+      throw new MfeflowError('E108', `${dir} is a symlink; use a real folder or another name`);
+    }
+  } catch (error) {
+    if (error instanceof MfeflowError) throw error;
+  }
+}
+
+/** Undoes the new repo: its contents when the folder was there before the run, the folder when not. */
+async function takeBack(dir: string, existed: boolean): Promise<void> {
+  if (!existed) {
+    await fs.rm(dir, { recursive: true, force: true });
+    return;
+  }
+  const entries = await fs.readdir(dir);
+  await Promise.all(
+    entries.map((entry) => fs.rm(path.join(dir, entry), { recursive: true, force: true })),
+  );
 }
 
 async function exists(file: string): Promise<boolean> {

@@ -266,4 +266,47 @@ describe('mfeflow add team-repo', () => {
     expect(code).not.toBe(0);
     expect(await fs.readdir(org)).not.toContain('checkout');
   });
+
+  it('keeps an empty folder that was already there when it takes the repo back', async () => {
+    await fs.mkdir(path.join(org, 'checkout'));
+    const rt = testRuntime();
+    const { system } = rt;
+    rt.system = {
+      ...system,
+      initRepo: async (root) => {
+        await fs.rm(path.join(shell, 'mfeflow.json'));
+        return system.initRepo(root);
+      },
+    };
+    const { code } = await addTeamRepo(shell, ['checkout', '--no-install'], rt);
+    expect(code).not.toBe(0);
+    expect(await fs.readdir(path.join(org, 'checkout'))).toEqual([]);
+  });
+
+  it('refuses a symlink at the new repo path and leaves it alone', async () => {
+    const elsewhere = await tempDir();
+    dirs.push(elsewhere);
+    await fs.symlink(elsewhere, path.join(org, 'checkout'));
+    const { code, rt } = await addTeamRepo(shell, ['checkout', '--no-install']);
+    expect(code).not.toBe(0);
+    expect(rt.io.err.join('')).toContain('is a symlink');
+    expect((await fs.lstat(path.join(org, 'checkout'))).isSymbolicLink()).toBe(true);
+    expect(await fs.readdir(elsewhere)).toEqual([]);
+  });
+
+  it('warns, and still succeeds, when git init did not run', async () => {
+    const rt = testRuntime();
+    rt.system = { ...rt.system, initRepo: () => Promise.resolve(false) };
+    const { code } = await addTeamRepo(shell, ['checkout', '--no-install', '--json'], rt);
+    expect(code).toBe(0);
+    const result = JSON.parse(rt.io.out.join('')) as AddResult;
+    expect(result.plan.warnings.join('\n')).toContain('checkout is not a git repo');
+  });
+
+  it('points the new repo at the same GitHub owner as the others', async () => {
+    await polyrepo('--org', 'acme-inc');
+    await addTeamRepo(shell, ['checkout', '--no-install']);
+    const ci = await fs.readFile(path.join(org, 'checkout/.github/workflows/ci.yml'), 'utf8');
+    expect(ci).toContain('uses: acme-inc/platform/.github/workflows/reusable-ci.yml@main');
+  });
 });

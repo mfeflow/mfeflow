@@ -210,7 +210,7 @@ You should see a line like this from git:
 branch 'main' set up to track 'origin/main'.
 ```
 
-Repeat for `shell`, `catalog`, `cart` and `checkout`. The generated files assume the organization is `acme`, the scope without the `@`. Change it in `renovate.json` and `.github/workflows/ci.yml` if yours differs.
+Repeat for `shell`, `catalog`, `cart` and `checkout`. The CI and Renovate files point at `<owner>/platform`. The owner defaults to the scope without the `@`, here `acme`. If your GitHub owner is different, create the repos with `--org <github-owner>`, and `init` prints which owner the CI calls. `add team-repo` reuses the same owner.
 
 Each team repo calls the reusable workflow in `platform/.github/workflows/reusable-ci.yml`. If the platform repo is private, allow the others to use it under Settings, Actions, General, Access.
 

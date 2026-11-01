@@ -1,4 +1,4 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github><%= it.scope.slice(1) %>/platform"]
+  "extends": ["github><%= it.options.org || it.scope.slice(1) %>/platform"]
 }

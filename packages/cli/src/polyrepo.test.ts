@@ -441,4 +441,62 @@ describe('mfeflow init --topology polyrepo, the other paths', () => {
     expect(rt.io.err.join('')).toContain('E215');
     expect(await fs.readdir(parent)).toEqual([]);
   });
+
+  it('warns by name, and still succeeds, for repos git init did not make', async () => {
+    const parent = await fresh();
+    const rt = testRuntime();
+    rt.system = { ...rt.system, initRepo: (root) => Promise.resolve(!root.endsWith('cart')) };
+    const code = await main(
+      ['init', 'acme', '--topology', 'polyrepo', '--yes', '--no-install', '--cwd', parent],
+      rt,
+    );
+    expect(code).toBe(0);
+    const out = rt.io.out.join('\n');
+    expect(out).toContain('Warning: cart is not a git repo');
+    expect(out).toContain('run git init there');
+    expect(out).not.toContain('each with its own git repo');
+  });
+
+  it('removes the folders it made above the org folder when a late repo fails', async () => {
+    const parent = await fresh();
+    await fs.mkdir(path.join(parent, 'a'));
+    const rt = testRuntime();
+    rt.system = { ...fakeSystem(), install: () => Promise.reject(new Error('network is down')) };
+    const code = await main(
+      ['init', 'a/b/c', '--topology', 'polyrepo', '--yes', '--cwd', parent],
+      rt,
+    );
+    expect(code).not.toBe(0);
+    expect(await fs.readdir(path.join(parent, 'a'))).toEqual([]);
+  });
+
+  it('points CI and Renovate at --org, and says so', async () => {
+    const parent = await fresh();
+    const { code, rt } = await init(parent, '--org', 'Acme-Inc');
+    expect(code).toBe(0);
+    expect(rt.io.out.join('\n')).toContain("CI calls Acme-Inc/platform's reusable workflow");
+    const tree = await files(path.join(parent, 'acme'));
+    expect(tree['shell/.github/workflows/ci.yml']).toContain(
+      'uses: Acme-Inc/platform/.github/workflows/reusable-ci.yml@main',
+    );
+    expect(tree['catalog/renovate.json']).toContain('github>Acme-Inc/platform');
+    expect(tree['platform/default.json']).toContain('Acme-Inc');
+    expect(tree['platform/.github/workflows/reusable-ci.yml']).toContain('Acme-Inc/platform');
+  });
+
+  it('defaults the owner to the scope without @, and names it after init', async () => {
+    const parent = await fresh();
+    const { rt } = await init(parent, '--scope', '@shopco');
+    expect(rt.io.out.join('\n')).toContain("CI calls shopco/platform's reusable workflow");
+  });
+
+  it('rejects an --org that is not a GitHub owner, or one without a polyrepo', async () => {
+    const parent = await fresh();
+    const bad = await init(parent, '--org', 'not an owner');
+    expect(bad.code).not.toBe(0);
+    expect(bad.rt.io.err.join('')).toContain('must be a GitHub user or organization name');
+    const mono = testRuntime();
+    expect(await main(['init', 'x', '--org', 'acme', '--yes', '--cwd', parent], mono)).not.toBe(0);
+    expect(mono.io.err.join('')).toContain('--org is for --topology polyrepo');
+  });
 });

@@ -62,14 +62,15 @@ Creates a project.
 mfeflow init [dir] [options]
 ```
 
-| Flag                     | Type       | Default                                           | Meaning                                  |
-| ------------------------ | ---------- | ------------------------------------------------- | ---------------------------------------- |
-| `--scope <@scope>`       | text       | from the folder name                              | npm scope for the project packages       |
-| `--remotes <a,b>`        | list       | `catalog,cart`                                    | Remotes to create                        |
-| `--features <a,b>`       | list       | `lint-oxlint`, `url-factory`, `env-t3`, `testing` | Optional features to turn on             |
-| `--package-manager <pm>` | text       | `pnpm`                                            | Only `pnpm` in this release              |
-| `--topology <name>`      | text       | `monorepo`                                        | `monorepo` or `polyrepo`                 |
-| `--option <f.k=v>`       | repeatable | none                                              | A feature option, as `feature.key=value` |
+| Flag                     | Type       | Default                                           | Meaning                                                   |
+| ------------------------ | ---------- | ------------------------------------------------- | --------------------------------------------------------- |
+| `--scope <@scope>`       | text       | from the folder name                              | npm scope for the project packages                        |
+| `--remotes <a,b>`        | list       | `catalog,cart`                                    | Remotes to create                                         |
+| `--features <a,b>`       | list       | `lint-oxlint`, `url-factory`, `env-t3`, `testing` | Optional features to turn on                              |
+| `--package-manager <pm>` | text       | `pnpm`                                            | Only `pnpm` in this release                               |
+| `--topology <name>`      | text       | `monorepo`                                        | `monorepo` or `polyrepo`                                  |
+| `--org <owner>`          | text       | the scope without `@`                             | polyrepo: GitHub owner the CI and Renovate files point at |
+| `--option <f.k=v>`       | repeatable | none                                              | A feature option, as `feature.key=value`                  |
 
 Feature names accepted by `--features`: lint-oxlint, url-factory, env-t3, testing, analytics-gtm, telemetry-otel, event-bus, route-factory, http, theming, i18n, tailwind, ui-shadcn, forms, data-react-query, analytics-clarity, storybook, ci-github, git-hooks, commit-prompt.
 

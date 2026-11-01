@@ -1,6 +1,6 @@
 {
   "name": "polyrepo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "What a polyrepo repo has beyond the monorepo template: the platform packages, the reusable CI and Renovate preset, and a package.json, README and CI caller for each repo.",
   "prompts": [
     {
@@ -14,6 +14,12 @@
       "name": "name",
       "type": "string",
       "message": "The remote's name (repo remote only)",
+      "default": ""
+    },
+    {
+      "name": "org",
+      "type": "string",
+      "message": "The GitHub owner the repos will live under (default: the scope without @)",
       "default": ""
     }
   ],

@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import {
   inOrder,
   MfeflowError,
@@ -46,6 +47,8 @@ export interface RepoRequest {
   dir: string;
   root: string;
   scope: string;
+  /** The GitHub owner the CI and Renovate files point at; the scope without `@` when empty. */
+  org?: string | undefined;
   /** The remote this repo holds (kind remote only). */
   remote?: RemoteSpec;
   /** The remotes the shell routes to and lists in its dev config (kind shell only). */
@@ -178,7 +181,11 @@ export async function planRepo(rt: Runtime, request: RepoRequest): Promise<RepoP
   const [first, ...others] = loaded;
   if (first === undefined) throw new MfeflowError('E201', 'core');
   const core = await polyrepoCore(first, request);
-  const polyrepoOptions = { repo: kind, ...(request.remote ? { name: request.remote.name } : {}) };
+  const polyrepoOptions = {
+    repo: kind,
+    ...(request.remote ? { name: request.remote.name } : {}),
+    ...(request.org ? { org: request.org } : {}),
+  };
   await inOrder([core, ...others], (feature) =>
     resolveFeature({
       feature,
@@ -244,27 +251,56 @@ export interface RepoWrite {
 
 async function exists(file: string): Promise<boolean> {
   try {
-    await fs.access(file);
+    await fs.lstat(file);
     return true;
   } catch {
     return false;
   }
 }
 
+/** The folders of `dir`'s path that do not exist yet, outermost first. */
+export async function missingParents(dir: string): Promise<string[]> {
+  const missing: string[] = [];
+  let current = dir;
+  // oxlint-disable-next-line no-await-in-loop -- walks up one folder at a time
+  while (!(await exists(current))) {
+    missing.unshift(current);
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return missing;
+}
+
+/** The warning for repos `git init` did not make, or nothing when all of them are. */
+export function notReposWarning(dirs: readonly string[]): string[] {
+  if (dirs.length === 0) return [];
+  return [
+    `${dirs.join(', ')} ${dirs.length === 1 ? 'is' : 'are'} not a git repo (git is missing or failed); run git init there`,
+  ];
+}
+
+export interface RepoWrites {
+  writes: RepoWrite[];
+  /** Folders where `git init` did not run. */
+  notRepos: string[];
+}
+
 /**
  * Writes the repos one after another, each in its own transaction with its own `git init`. If one
- * fails, the repos this run already wrote are removed again, and so is the org folder if the run
- * made it, so nothing half-built is left next to the repos that were already there.
+ * fails, the repos this run already wrote are removed again, and so are the folders above them that
+ * this run made (while empty), so nothing half-built is left behind.
  */
 export async function writeRepos(
   rt: Runtime,
   globals: Globals,
   org: string,
   repos: readonly RepoPlan[],
-): Promise<RepoWrite[]> {
+): Promise<RepoWrites> {
   const made: string[] = [];
-  const orgExisted = await exists(org);
-  const done: RepoWrite[] = [];
+  const created = await missingParents(org);
+  const writes: RepoWrite[] = [];
+  const notRepos: string[] = [];
   try {
     await inOrder(repos, async (repo) => {
       const { request, project, plan } = repo;
@@ -276,16 +312,30 @@ export async function writeRepos(
         plan,
         project,
         afterWrite: async () => {
-          await rt.system.initRepo(request.root);
+          if (!(await rt.system.initRepo(request.root))) notRepos.push(request.dir);
         },
       });
       if (!outcome.dryRun) made.push(request.root);
-      done.push({ repo, outcome });
+      writes.push({ repo, outcome });
     });
   } catch (error) {
     await Promise.all(made.map((dir) => fs.rm(dir, { recursive: true, force: true })));
-    if (!orgExisted) await fs.rmdir(org).catch(() => undefined);
+    for (const dir of created.toReversed()) {
+      // oxlint-disable-next-line no-await-in-loop -- innermost first, each only while empty
+      await fs.rmdir(dir).catch(() => undefined);
+    }
     throw error;
   }
-  return done;
+  return { writes, notRepos };
+}
+
+const GITHUB_OWNER = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
+
+/** The GitHub owner from `--org`, checked; undefined when not given. */
+export function checkOrg(org: string | undefined): string | undefined {
+  if (org === undefined || org === '') return undefined;
+  if (!GITHUB_OWNER.test(org)) {
+    throw new MfeflowError('E107', `--org "${org}" must be a GitHub user or organization name`);
+  }
+  return org;
 }

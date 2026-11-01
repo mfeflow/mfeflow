@@ -32,7 +32,7 @@ import {
   parseFeatureOptions,
   type FeatureOptions,
 } from '../options';
-import { planReport, type InitResult } from '../output';
+import { planReport, type InitResult, type PlanReport } from '../output';
 import { Cancelled } from '../exit';
 import { chooseLocal } from '../local';
 import { createBuilder } from '../pipeline';
@@ -40,6 +40,8 @@ import { loadPreset, type Preset } from '../preset';
 import type { Runtime } from '../runtime';
 import {
   assertFeaturesFit,
+  checkOrg,
+  notReposWarning,
   mergeReports,
   planRepo,
   prefixReport,
@@ -85,6 +87,12 @@ export const INIT_ARGS = {
       'monorepo (default), or polyrepo: a platform repo, a shell repo and a repo for each remote',
     valueHint: 'name',
   },
+  org: {
+    type: 'string',
+    description:
+      'polyrepo: the GitHub owner the CI and Renovate files point at (default: the scope without @)',
+    valueHint: 'owner',
+  },
   option: {
     type: 'string',
     description: 'A feature option, repeatable: --option feature.key=value',
@@ -101,6 +109,7 @@ export type Topology = 'monorepo' | 'polyrepo';
 
 export interface InitOptions {
   topology: Topology;
+  org?: string;
   dir: string;
   scope: string;
   remotes: string[];
@@ -227,7 +236,19 @@ export async function resolveInitOptions(
     preset.options ?? {},
     parseFeatureOptions(repeated(raw, 'option')),
   );
-  return { topology, dir, scope, remotes, features, featureOptions };
+  const org = checkOrg(text(args, 'org'));
+  if (org !== undefined && topology !== 'polyrepo') {
+    throw new MfeflowError('E107', '--org is for --topology polyrepo');
+  }
+  return {
+    topology,
+    ...(org === undefined ? {} : { org }),
+    dir,
+    scope,
+    remotes,
+    features,
+    featureOptions,
+  };
 }
 
 export async function assertEmpty(
@@ -376,6 +397,7 @@ async function runPolyrepoInit(
   }
   const base = {
     scope: options.scope,
+    ...(options.org === undefined ? {} : { org: options.org }),
     features: options.features,
     featureOptions: options.featureOptions,
     local: globals.local,
@@ -392,6 +414,7 @@ async function runPolyrepoInit(
     },
     ...remotes.map((remote): RepoRequest => ({
       scope: base.scope,
+      org: options.org,
       features: base.features,
       featureOptions: base.featureOptions,
       local: base.local,
@@ -410,7 +433,7 @@ async function runPolyrepoInit(
     });
     if (!ok) throw new Cancelled();
   }
-  const written = await writeRepos(rt, globals, org, plans);
+  const { writes: written, notRepos } = await writeRepos(rt, globals, org, plans);
   const dryRun = written.every((w) => w.outcome.dryRun);
   const installed = !dryRun && written.every((w) => w.outcome.installed);
   const dirs = requests.map((r) => r.dir);
@@ -428,8 +451,13 @@ async function runPolyrepoInit(
         port: app.port ?? null,
       })),
     ),
-    plan: mergeReports(
-      written.map(({ repo, outcome }) => prefixReport(planReport(outcome.shown), repo.request.dir)),
+    plan: withWarnings(
+      mergeReports(
+        written.map(({ repo, outcome }) =>
+          prefixReport(planReport(outcome.shown), repo.request.dir),
+        ),
+      ),
+      notReposWarning(notRepos),
     ),
     written: written.flatMap(({ repo, outcome }) =>
       outcome.written.map((file) => `${repo.request.dir}/${file}`),
@@ -451,20 +479,27 @@ async function runPolyrepoInit(
     ],
     ...(dryRun ? { diff: written.map((w) => w.outcome.diff ?? '').join('\n') } : {}),
   };
-  if (!globals.json) printInit(rt, result);
+  if (!globals.json) printInit(rt, result, options.org ?? options.scope.slice(1));
   return result;
 }
 
-function printInit(rt: Runtime, result: InitResult): void {
+function withWarnings(plan: PlanReport, warnings: readonly string[]): PlanReport {
+  return { ...plan, warnings: [...plan.warnings, ...warnings] };
+}
+
+function printInit(rt: Runtime, result: InitResult, org?: string): void {
   if (result.dryRun) {
     rt.io.stdout('\nDry run: nothing was written.');
     return;
   }
   if (result.repos !== undefined) {
     const names = result.repos.map((repo) => repo.name);
+    const problem = result.plan.warnings.find((w) => w.includes('not a git repo'));
     rt.io.stdout(
-      `\nCreated ${result.root} with ${String(names.length)} repos (${names.join(', ')}), each with its own git repo.`,
+      `\nCreated ${result.root} with ${String(names.length)} repos (${names.join(', ')})${problem === undefined ? ', each with its own git repo' : ''}.`,
     );
+    if (problem !== undefined) rt.io.stdout(`Warning: ${problem}`);
+    rt.io.stdout(`CI calls ${org ?? ''}/platform's reusable workflow; check the owner.`);
     rt.io.stdout(`Next:\n${result.next.map((line) => `  ${line}`).join('\n')}`);
     return;
   }
