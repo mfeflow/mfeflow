@@ -169,7 +169,7 @@ Runtime config is public. Everything in `public/config/` is copied into `dist/`,
 ## Reference
 
 - [Runtime config](/concepts/runtime-config), the idea behind build once, deploy many
-- [Deploying](/guide/deploying) and [CI and budgets](/guide/ci-and-budgets) for where the check runs
+- [Deploying](/guide/deploy/) and [CI and budgets](/guide/ci-and-budgets) for where the check runs
 - [E118](/errors/E118), [E119](/errors/E119), [E120](/errors/E120) and [E121](/errors/E121)
 - [`mfeflow` CLI reference](/reference/cli)
 - [t3-env documentation](https://env.t3.gg)

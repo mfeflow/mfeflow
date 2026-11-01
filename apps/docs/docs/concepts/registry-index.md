@@ -79,11 +79,11 @@ A project keeps one small file per remote per environment:
 }
 ```
 
-Each file says what one remote serves in one environment. `mfeflow validate` checks them against the registry entry schema. `mfeflow dev` reads the dev folder to build the development index. For production, no command combines these files into `index.json` yet, so you write that file. See [Deploy](/guide/deploying).
+Each file says what one remote serves in one environment. `mfeflow validate` checks them against the registry entry schema. `mfeflow dev` reads the dev folder to build the development index. For production, no command combines these files into `index.json` yet, so you write that file. See [Deploy](/guide/deploy/).
 
 ## What is planned?
 
-The entry format already allows a `previous` version and a `rollout` with a percentage. They are not read by anything yet. The plan is that a rollback changes which version an entry points to, and does not rebuild. That belongs to Phase 05 and is not built.
+The entry format already allows a `previous` version and a `rollout` with a percentage. They are not read by anything yet. The plan is that a rollback changes which version an entry points to, and does not rebuild. The `mfeflow rollback` command does the pointer change on a static host, see [Deploy and roll back a remote](/guide/deploy-and-rollback). Percentage rollouts need the registry server, which is not built.
 
 ## Next
 

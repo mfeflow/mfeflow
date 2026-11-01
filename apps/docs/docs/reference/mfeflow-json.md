@@ -43,6 +43,7 @@ The JSON Schema is published at `https://mfeflow.github.io/mfeflow/schema/mfeflo
 | `apps`           | object                           | Yes      | One entry per app, keyed by name. Needs at least one shell, except in a platform or remote repo  |
 | `features`       | object                           | Yes      | Installed features, keyed by name                                                                |
 | `files`          | object                           | No       | Hash of each copied file, keyed by relative path                                                 |
+| `kept`           | object                           | No       | Files `upgrade --keep` left alone, keyed by relative path                                        |
 | `registries`     | object                           | No       | Third-party feature registries, keyed by namespace                                               |
 | `local`          | text                             | No       | Path to a built mfeflow checkout. Set by `--local` only                                          |
 | `budget`         | object                           | No       | Overrides of the cost-model limits                                                               |
@@ -69,6 +70,10 @@ Feature names look like `analytics-gtm`, or `@someone/feature` for a registry fe
 ## files
 
 Each key is a relative path with forward slashes. Each value is `sha256-` followed by 64 hex characters. The hashes let `doctor` tell when you edited a copied file (E117, a warning). Do not edit them.
+
+## kept
+
+Written by `mfeflow upgrade --keep`. Each value is the hash of the new version the file was kept against. While the new version is that one, `upgrade` leaves the file out of its report. When the new version changes, the file is raised again. Do not edit it.
 
 ## registries
 

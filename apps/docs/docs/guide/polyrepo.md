@@ -260,6 +260,8 @@ Every `mfeflow.json` has `topology` set to `polyrepo` and a `repo` of `platform`
 
 `--features ci-github: not in a polyrepo yet, every repo already calls the reusable workflow in the platform repo` (E107). Leave the feature out. `env-t3` is refused too, because it writes the runtime config files that hold the dev config.
 
+`upgrade does not work in the repos of a polyrepo yet` (E107). Update the `mfeflow` packages in each repo by hand for now.
+
 `pnpm install` fails in a team repo on CI. The `link:` paths need `platform` next to the repo. [Publish the packages](#6-publish-the-platform-packages) and replace the links.
 
 ## Next

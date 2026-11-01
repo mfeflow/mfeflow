@@ -96,4 +96,4 @@ The file is public. Anyone can fetch it. Put in addresses and identifiers, such 
 ## Related
 
 - Where the files live: [Project structure](/guide/project-structure).
-- Serving it in production: [Deploy](/guide/deploying).
+- Serving it in production: [Deploy](/guide/deploy/).

@@ -55,7 +55,7 @@ demo/
 
 ## Which files do I own?
 
-All generated files are yours to edit. mfeflow records a hash of each copied file in `mfeflow.json`. If you change one, `doctor` shows a warning (E117). That is information only. It exists so a future upgrade command can show you a diff before touching the file.
+All generated files are yours to edit. mfeflow records a hash of each copied file in `mfeflow.json`. If you change one, `doctor` shows a warning (E117). That is information only. `mfeflow upgrade` uses it to tell your edits from untouched files, and shows you a diff before touching a file you changed.
 
 Some files are also touched by `mfeflow add`. Features look for a fixed shape in them, such as the `routes` array in the route table. Keep that shape when you edit them, or `add` stops and tells you what it could not find (E208).
 

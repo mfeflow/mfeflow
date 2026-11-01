@@ -39,10 +39,12 @@ export function serializeProject(project: MfeflowProject): string {
   if (issues.length > 0) throw new MfeflowError('E104', describeIssues(issues));
   const { $schema, ...rest } = project;
   const files = rest.files && Object.fromEntries(Object.entries(rest.files).toSorted(byKey));
+  const kept = rest.kept && Object.fromEntries(Object.entries(rest.kept).toSorted(byKey));
   const ordered = {
     $schema: $schema ?? SCHEMA_URLS.project,
     ...rest,
     ...(files ? { files } : {}),
+    ...(kept ? { kept } : {}),
   };
   return `${JSON.stringify(ordered, null, 2)}\n`;
 }

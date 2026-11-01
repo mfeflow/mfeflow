@@ -1,10 +1,14 @@
 import path from 'node:path';
 import {
+  checkIntegrity,
+  isMfeflowError,
   messageOf,
+  MfeflowError,
   realFs,
   planUpgrade,
   type LoadedFeature,
   type MfeflowProject,
+  type UpgradeDecisions,
   type UpgradePlan,
 } from '@mfeflow/core';
 import type { AssetRoots } from './assets';
@@ -19,6 +23,10 @@ const ALWAYS = ['core', 'tsconfig'];
 export interface UpgradeContext {
   roots: AssetRoots;
   fetch: FetchLike;
+  /** Registry namespaces the user trusts to be on loopback or private addresses. */
+  trusted?: ReadonlySet<string>;
+  /** Take registry content that differs from the hash recorded in mfeflow.json. */
+  acceptChanged?: boolean;
 }
 
 /** The features `init` would apply for these recorded ones, in its order, `core` and `tsconfig` first. */
@@ -37,7 +45,13 @@ export async function planProjectUpgrade(
   root: string,
   project: MfeflowProject,
   toVersion: string = readPackageJson().version,
+  decisions: UpgradeDecisions = {},
 ): Promise<UpgradePlan> {
+  if (project.topology === 'polyrepo') {
+    throw new MfeflowError('E107', 'upgrade does not work in the repos of a polyrepo yet', {
+      fix: 'Nothing was changed. Update the mfeflow packages in each repo by hand for now.',
+    });
+  }
   const features: LoadedFeature[] = [];
   const skipped: { name: string; reason: string }[] = [];
   for (const name of replayOrder(project)) {
@@ -48,6 +62,7 @@ export async function planProjectUpgrade(
         registries: project.registries,
         fetch: ctx.fetch,
         version: project.features[name]?.version,
+        trusted: ctx.trusted,
       });
       const recorded = project.features[name]?.version;
       if (
@@ -57,9 +72,15 @@ export async function planProjectUpgrade(
       ) {
         throw new Error(`the registry serves ${loaded.manifest.version}, installed is ${recorded}`);
       }
+      const hash = project.features[name]?.integrity;
+      if (loaded.trust === 'third-party' && hash !== undefined && loaded.integrity !== undefined) {
+        checkIntegrity(name, hash, loaded.integrity, ctx.acceptChanged === true);
+      }
       features.push(loaded);
     } catch (error) {
-      if (ALWAYS.includes(name)) throw error;
+      if (ALWAYS.includes(name) || (isMfeflowError(error) && error.code === 'MFEFLOW_E406')) {
+        throw error;
+      }
       skipped.push({ name, reason: messageOf(error) });
     }
   }
@@ -81,6 +102,7 @@ export async function planProjectUpgrade(
   );
   return planUpgrade(project, {
     toVersion,
+    decisions,
     read: projectReader(root),
     features,
     glue,

@@ -63,6 +63,38 @@ export interface AddResult extends WriteReport {
   created?: string;
 }
 
+export interface UpgradeFileReport {
+  path: string;
+  reason: 'edited' | 'untracked' | 'edited-by-cli' | 'skipped-feature' | 'symlink';
+  /** `accept`: written with the new version. `keep`: left, and remembered. `undecided`: left, and the run fails without a person to ask. */
+  decision: 'accept' | 'keep' | 'undecided';
+  /** Keys in your file that the new version lacks; accepting drops them. */
+  lostKeys: string[];
+  /** Unified diff from your file to the new version. */
+  diff: string;
+}
+
+export interface UpgradeResult extends WriteReport {
+  command: 'upgrade';
+  from: string;
+  /** Where `from` was read: the `cli` field of mfeflow.json, or the shell's `@mfeflow/runtime` range. */
+  fromSource: 'mfeflow.json' | 'package.json';
+  to: string;
+  /** Nothing to write: the project already matches this version. */
+  upToDate: boolean;
+  /** Generated files you had not changed, now at the new version. */
+  replaced: string[];
+  created: string[];
+  /** package.json, pnpm-workspace.yaml and turbo.json, edited in place. */
+  edited: string[];
+  diverged: UpgradeFileReport[];
+  /** Generated files you deleted. Not brought back. */
+  missing: string[];
+  /** Files the new version no longer generates. Left in place. */
+  removed: string[];
+  migrations: { feature: string; from: string; to: string }[];
+}
+
 export interface FeatureInfo {
   /** `mfeflow` for the features that ship with the CLI, otherwise the registry's namespace, like `@test`. */
   source: string;
@@ -280,6 +312,7 @@ export interface FailureResult {
 export type CliResult =
   | InitResult
   | AddResult
+  | UpgradeResult
   | FeaturesResult
   | RegistryResult
   | ReportResult
@@ -542,6 +575,27 @@ export function validateResult(value: unknown): Issue[] {
       c.texts(value, 'skipped', '');
       if (value.created !== undefined) c.string(value, 'created', '');
       break;
+    case 'upgrade':
+      checkWrite(c, value);
+      for (const key of ['from', 'to']) c.string(value, key, '');
+      if (value.fromSource !== 'mfeflow.json' && value.fromSource !== 'package.json') {
+        c.add('fromSource', 'must be mfeflow.json or package.json');
+      }
+      c.boolean(value, 'upToDate', '');
+      for (const key of ['replaced', 'created', 'edited', 'missing', 'removed']) {
+        c.texts(value, key, '');
+      }
+      c.objects(value, 'diverged', '', (f, p) => {
+        for (const key of ['path', 'reason', 'diff']) c.string(f, key, p);
+        if (!['accept', 'keep', 'undecided'].includes(String(f.decision))) {
+          c.add(`${p}decision`, 'must be accept, keep or undecided');
+        }
+        c.texts(f, 'lostKeys', p);
+      });
+      c.objects(value, 'migrations', '', (m, p) => {
+        for (const key of ['feature', 'from', 'to']) c.string(m, key, p);
+      });
+      break;
     case 'features':
       if (value.search !== null && typeof value.search !== 'string') {
         c.add('search', 'must be text or null');
@@ -617,7 +671,7 @@ export function validateResult(value: unknown): Issue[] {
     default:
       c.add(
         'command',
-        'must be init, add, features, registry, doctor, validate, check-compat, budget, dev, deploy, promote, rollback or status',
+        'must be init, add, upgrade, features, registry, doctor, validate, check-compat, budget, dev, deploy, promote, rollback or status',
       );
   }
   return c.issues;
