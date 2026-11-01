@@ -69,7 +69,9 @@ pnpm mfeflow check-compat
 
 The first reports a singleton with more than one version across apps (E301). The second reports a remote that needs a range the shell does not satisfy (E302). A remote can state its needs under `platform` in `mfe.json`.
 
-At runtime, `@mfeflow/runtime` can read Module Federation's share scope and list packages that are missing or loaded twice. The shell runs this check in development and when the page is opened with `?mfeflow-assert`. It does not run on every production page load.
+At runtime, `@mfeflow/runtime` can read Module Federation's share scope and list packages that are missing or loaded twice. In a generated project, the shell runs this check in development only, as remotes load. It reports a duplicate or missing React in the console and in the dev panel.
+
+The check is not loaded in production builds, so it costs nothing there. The storefront example's tests also trigger it with `?mfeflow-assert`.
 
 ## What should I do as a developer?
 

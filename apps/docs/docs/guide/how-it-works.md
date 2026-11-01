@@ -85,7 +85,9 @@ There are two checks. At build and review time, `mfeflow doctor` compares single
 
 At run time, the runtime package can read Module Federation's share scope. It reports packages that are missing or loaded in more than one version.
 
-The shell runs this check in development and when the page is opened with `?mfeflow-assert`. It does not run on every production page load. The storefront example wires it in `examples/storefront/shell/src/assert.ts`.
+In a generated project, the shell runs this check in development only. It reports a duplicate or missing React in the console and in the dev panel. The check is not loaded in production builds, so it costs nothing there.
+
+The storefront example in the repository also runs it on demand with `?mfeflow-assert`, for its tests.
 
 ## How does development differ from production?
 
