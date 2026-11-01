@@ -95,6 +95,18 @@ describe('localHost', () => {
     await expect(fs.stat(path.join(dir, 'escape.txt'))).rejects.toThrow();
   });
 
+  it('two writers holding the same ETag: exactly one replaces the index', async () => {
+    const host = localHost(dir);
+    const first = await host.put('envs/prod/index.json', '0', opts);
+    const results = await Promise.allSettled(
+      ['a', 'b', 'c', 'd'].map((body) =>
+        host.put('envs/prod/index.json', body, { ...opts, ifMatch: first.etag ?? '' }),
+      ),
+    );
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(await host.list?.('')).toEqual(['envs/prod/index.json']);
+  });
+
   describe('ifNoneMatch', () => {
     it('creates once, then refuses', async () => {
       const host = localHost(dir);

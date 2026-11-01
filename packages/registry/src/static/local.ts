@@ -112,14 +112,31 @@ export function localHost(dir: string): RegistryHost {
     async put(key, body, options: PutOptions) {
       const file = await fileOf(key);
       const bytes = toBytes(body);
-      if (options.ifMatch !== undefined) {
+      if (options.ifMatch === undefined) {
+        if (!(await write(file, bytes, options.ifNoneMatch === '*')))
+          throw new PreconditionFailedError(key);
+        return { etag: etagOf(bytes) };
+      }
+      // Check and write under a lock file, so two writers holding the same ETag cannot both win.
+      const lock = `${file}.lock`;
+      await fs.mkdir(path.dirname(file), { recursive: true });
+      let handle;
+      try {
+        handle = await fs.open(lock, 'wx');
+      } catch (error) {
+        if (hasCode(error, 'EEXIST')) throw new PreconditionFailedError(key);
+        throw error;
+      }
+      try {
         const current = await readOrUndefined(file);
         if (current === undefined || etagOf(current) !== options.ifMatch)
           throw new PreconditionFailedError(key);
+        await write(file, bytes, false);
+        return { etag: etagOf(bytes) };
+      } finally {
+        await handle.close();
+        await fs.rm(lock, { force: true });
       }
-      if (!(await write(file, bytes, options.ifNoneMatch === '*')))
-        throw new PreconditionFailedError(key);
-      return { etag: etagOf(bytes) };
     },
     async get(key): Promise<StoredObject | undefined> {
       const body = await readOrUndefined(await fileOf(key));
@@ -134,7 +151,9 @@ export function localHost(dir: string): RegistryHost {
     async list(prefix) {
       const all: string[] = [];
       await walk(root, '', all);
-      return all.filter((key) => key.startsWith(prefix) && !key.endsWith('.tmp')).toSorted();
+      return all
+        .filter((key) => key.startsWith(prefix) && !key.endsWith('.tmp') && !key.endsWith('.lock'))
+        .toSorted();
     },
   };
 }
