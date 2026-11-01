@@ -66,6 +66,7 @@ Every error the CLI prints has a code like MFEFLOW_E102, a cause, a fix and a li
 | [E304](/errors/E304) | A bundle is over its budget                   |
 | [E305](/errors/E305) | There is no build output to measure           |
 | [E306](/errors/E306) | A dev server could not start                  |
+| [E307](/errors/E307) | The shell to check against could not be read  |
 
 ## Registry (E4xx, exit code 6)
 

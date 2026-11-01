@@ -2,7 +2,16 @@ export { fetchArtifactSource } from './artifacts';
 export { configFromEnv, ConfigError, type ServerConfig } from './config';
 export { FallbackPublisher, type Log } from './fallback';
 export { parseHostSpec, openHost, type HostSpec } from './host-spec';
+export {
+  DEFAULT_GATE,
+  evaluateGate,
+  type Counts,
+  type GateSettings,
+  type GateVerdict,
+} from './gate';
 export { createHandler, INDEX_CACHE } from './http';
+export { createRateLimiter, type RateLimiter } from './rate-limit';
+export { inRollout } from './rollout';
 export { main, type MainIo } from './main';
 export { assertSqliteSupport, sqliteSupport, SQLITE_UNFLAGGED } from './node-version';
 export {
@@ -11,6 +20,9 @@ export {
   type ArtifactSource,
   type KillResult,
   type MoveResult,
+  type RolloutResult,
+  type RolloutStatus,
+  type RolloutSummary,
 } from './service';
 export { startRegistryServer, type RegistryServer, type StartOptions } from './server';
 export { openSqliteStorage } from './sqlite';

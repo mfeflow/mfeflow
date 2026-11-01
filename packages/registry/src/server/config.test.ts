@@ -11,6 +11,10 @@ describe('configFromEnv', () => {
       artifactBaseUrl: undefined,
       corsOrigins: [],
       maxBodyBytes: 262_144,
+      gate: { minLoads: 200, minClients: 50, factor: 2, floor: 0.02 },
+      beaconLimit: { burst: 60, perMinute: 60 },
+      rolloutMaxReporters: 20_000,
+      trustProxy: false,
     });
   });
 
@@ -23,6 +27,14 @@ describe('configFromEnv', () => {
       MFEFLOW_REGISTRY_ARTIFACT_BASE_URL: 'https://cdn.example.com/mfe/',
       MFEFLOW_REGISTRY_CORS_ORIGINS: 'https://a.example.com, https://b.example.com/path',
       MFEFLOW_REGISTRY_MAX_BODY_BYTES: '2048',
+      MFEFLOW_REGISTRY_GATE_MIN_LOADS: '500',
+      MFEFLOW_REGISTRY_GATE_MIN_CLIENTS: '80',
+      MFEFLOW_REGISTRY_GATE_FACTOR: '3',
+      MFEFLOW_REGISTRY_GATE_FLOOR: '0.05',
+      MFEFLOW_REGISTRY_BEACON_BURST: '5',
+      MFEFLOW_REGISTRY_BEACON_PER_MINUTE: '30',
+      MFEFLOW_REGISTRY_ROLLOUT_MAX_REPORTERS: '5000',
+      MFEFLOW_REGISTRY_TRUST_PROXY: 'true',
     });
     expect(config).toEqual({
       port: 9000,
@@ -32,7 +44,20 @@ describe('configFromEnv', () => {
       artifactBaseUrl: 'https://cdn.example.com/mfe',
       corsOrigins: ['https://a.example.com', 'https://b.example.com'],
       maxBodyBytes: 2048,
+      gate: { minLoads: 500, minClients: 80, factor: 3, floor: 0.05 },
+      beaconLimit: { burst: 5, perMinute: 30 },
+      rolloutMaxReporters: 5000,
+      trustProxy: true,
     });
+  });
+
+  it('reports a bad gate setting', () => {
+    expect(() => configFromEnv({ MFEFLOW_REGISTRY_GATE_FACTOR: 'lots' })).toThrow(
+      /MFEFLOW_REGISTRY_GATE_FACTOR must be a number/,
+    );
+    expect(() => configFromEnv({ MFEFLOW_REGISTRY_GATE_MIN_LOADS: '0' })).toThrow(
+      /MFEFLOW_REGISTRY_GATE_MIN_LOADS/,
+    );
   });
 
   it('treats empty values as unset', () => {

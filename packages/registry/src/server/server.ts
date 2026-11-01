@@ -76,6 +76,8 @@ export async function startRegistryServer(options: StartOptions): Promise<Regist
     storage,
     artifacts,
     artifactBaseUrl: config.artifactBaseUrl,
+    gate: config.gate,
+    maxReporters: config.rolloutMaxReporters,
     ...(options.now === undefined ? {} : { now: options.now }),
     onChange: (changed) => fallback?.request(changed),
     log,
@@ -87,9 +89,16 @@ export async function startRegistryServer(options: StartOptions): Promise<Regist
       storage,
       corsOrigins: config.corsOrigins,
       maxBodyBytes: config.maxBodyBytes,
+      beaconLimit: config.beaconLimit,
+      trustProxy: config.trustProxy,
       log,
     }),
   );
+  if (!config.trustProxy && !/^(localhost|127\.\d+\.\d+\.\d+|\[?::1\]?)$/.test(config.bind))
+    log(
+      'warn',
+      `bound to ${config.bind} without MFEFLOW_REGISTRY_TRUST_PROXY=true: beacons are rate limited per socket address, so behind a proxy every browser shares one limit`,
+    );
   server.requestTimeout = 30_000;
   server.headersTimeout = 15_000;
   await new Promise<void>((resolve, reject) => {

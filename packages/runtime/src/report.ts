@@ -22,6 +22,9 @@ function versionMap(): Map<string, string> {
   return created;
 }
 
+/** The version the registry gave this remote on this page, if any. */
+export const remoteVersion = (mfe: string): string | undefined => versionMap().get(mfe);
+
 /** Remembers each remote's version so its reports say `cart@1.2.3`. Replaces what was remembered before. */
 export function rememberRemoteVersions(remotes: readonly { name: string; version?: string }[]) {
   const versions = versionMap();

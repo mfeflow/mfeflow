@@ -195,6 +195,38 @@ A feature from a registry is applied only after you confirm in a terminal, or pa
 
 `doctor --fix` repairs a missing workspace version (E111) and missing registry entry files (E114). Add `--dry-run` to see the diff first.
 
+### check-compat
+
+Checks each remote's shared ranges against the shell it runs in. By default it reads the shell's versions from `node_modules` in this repo.
+
+```bash
+mfeflow check-compat [--against <url|file>] [--json]
+```
+
+| Flag                    | Meaning                                                                                  |
+| ----------------------- | ---------------------------------------------------------------------------------------- |
+| `--against <url\|file>` | Read the shell's versions from a deployed shell instead of this repo. See the list below |
+
+`--against` takes one of three things:
+
+- A registry index for an environment. The shell's `mf-manifest.json` is read from `shell/mf-manifest.json` beside it.
+- A deployed shell `mf-manifest.json`.
+- A local file of either kind.
+
+Every remote in this repo is then checked against the versions the shell shares. A remote that needs a React the shell does not provide is an error (E302) and exits with code 5.
+
+A URL must be https. Plain http is allowed for localhost only. The answer may not be larger than 1 MB, and a redirect to a private address is refused. A source that cannot be read is E307.
+
+Some versions cannot be compared before install, such as `workspace:*` or `catalog:`. Each one is a warning, not an error.
+
+If the shell is not in this repo and you pass no `--against`, the check cannot compare anything. It does not pass silently. It prints this warning:
+
+```text
+warning shell is not in this repo, pass --against <url|file>
+```
+
+A warning does not change the exit code, as with every other check. The command exits 0 unless there is an error. With `--json`, `against` holds the source you passed, with any token in a URL hidden.
+
 ## budget
 
 Measures the built JavaScript of the shell and each remote against the cost model. Build first.

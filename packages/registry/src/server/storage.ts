@@ -1,6 +1,14 @@
 import type { RegistryIndexRemote } from '@mfeflow/contracts';
 
-export const ACTIONS = ['read', 'deploy', 'promote', 'rollback', 'kill', 'admin'] as const;
+export const ACTIONS = [
+  'read',
+  'deploy',
+  'promote',
+  'rollback',
+  'kill',
+  'rollout',
+  'admin',
+] as const;
 export type Action = (typeof ACTIONS)[number];
 
 /** A version registered in one env. Files are immutable, so the manifest it was registered with is kept. */
@@ -28,6 +36,30 @@ export interface PointerRecord {
   killed: boolean;
   killReason?: string;
   updatedAt: string;
+}
+
+/** A candidate being served to `percent`% of clients while the pointer stays on stable. */
+export interface RolloutRecord {
+  env: string;
+  remote: string;
+  /** Salts the assignment hash, so a new rollout reshuffles who gets the candidate. */
+  id: string;
+  stable: string;
+  candidate: string;
+  /** The index entry served to clients in the candidate group. */
+  candidateRemote: RegistryIndexRemote;
+  percent: number;
+  /** The percents still to come, increasing; `step` moves to the next one. */
+  steps: number[];
+  startedAt: string;
+  updatedAt: string;
+}
+
+/** What one side of a rollout reported. Each browser counts once, so `loads` and `clients` match. */
+export interface VersionCounts {
+  loads: number;
+  errors: number;
+  clients: number;
 }
 
 export interface EnvState {
@@ -68,6 +100,8 @@ export interface EnvChange {
     killReason?: string;
   };
   audit: NewAudit;
+  /** Starts or updates this remote's rollout, or ends it. */
+  rollout?: { set: RolloutRecord } | { clear: string };
 }
 
 export interface TokenRecord {
@@ -101,6 +135,23 @@ export interface RegistryStorage {
   readEnv(env: string): Promise<EnvState | undefined>;
   listEnvs(): Promise<string[]>;
   getVersion(env: string, remote: string, version: string): Promise<VersionRecord | undefined>;
+  /** Active rollouts in one env. */
+  listRollouts(env: string): Promise<RolloutRecord[]>;
+  /**
+   * Records that one browser loaded this version in this rollout, and whether it hit an error.
+   * A browser counts one load and at most one error per version, however often it reports.
+   * Ignored when the rollout has ended. Running counts are kept beside the rows, in the same
+   * transaction, so reading them never scans. Once the rollout has `maxReporters` browsers, new
+   * ones are dropped (a browser already counted can still turn its load into an error).
+   */
+  addRolloutReport(
+    rolloutId: string,
+    version: string,
+    client: string,
+    errored: boolean,
+    maxReporters: number,
+  ): Promise<void>;
+  rolloutCounts(rolloutId: string): Promise<Record<string, VersionCounts>>;
   /** Applies the change, its versions and its audit entry in one transaction, or throws `RevisionConflictError`. */
   commit(change: EnvChange): Promise<void>;
   addAudit(entry: NewAudit): Promise<void>;
