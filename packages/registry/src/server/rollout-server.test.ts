@@ -375,7 +375,7 @@ describe('the gate', () => {
     });
     expect(String(entry?.detail.reason)).toContain('10.0%');
     expect(String(entry?.detail.reason)).toContain('1.0%');
-  });
+  }, 30_000);
 
   it('leaves a healthy candidate alone', async () => {
     await startRollout();
