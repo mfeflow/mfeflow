@@ -6,6 +6,7 @@ export type {
   AddResult,
   BudgetResult,
   DevResult,
+  DeployResult,
   CliResult,
   FailureResult,
   FeatureInfo,
@@ -16,6 +17,7 @@ export type {
   RegistryResult,
   RegistryStatus,
   ReportResult,
+  StatusResult,
 } from './output';
 export { realRuntime, type Runtime } from './runtime';
 export type { Io } from './io';
