@@ -252,6 +252,7 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
       name: str(FEATURE_NAME),
       version: str(),
       description: str(),
+      keywords: strings(),
       prompts: {
         type: 'array',
         items: item(

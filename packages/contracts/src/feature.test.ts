@@ -5,6 +5,7 @@ const feature = {
   name: '@acme/segment',
   version: '1.0.0',
   description: 'Segment analytics',
+  keywords: ['analytics', 'segment'],
   prompts: [
     { name: 'region', type: 'select', choices: ['us', 'eu'], default: 'us' },
     { name: 'debug', type: 'boolean', default: false },
@@ -54,6 +55,13 @@ describe('feature.json', () => {
   it('accepts a complete manifest', () => {
     expect(validateFeatureManifest(feature)).toEqual([]);
     expect(isFeatureManifest(feature)).toBe(true);
+  });
+
+  it('checks keywords', () => {
+    expect(validateFeatureManifest({ ...feature, keywords: 'analytics' })[0]?.path).toBe(
+      'keywords',
+    );
+    expect(validateFeatureManifest({ ...feature, keywords: [1] })[0]?.path).toBe('keywords[0]');
   });
 
   it('rejects non-objects', () => {
