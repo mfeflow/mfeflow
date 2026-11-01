@@ -114,7 +114,7 @@ describe('validateResult', () => {
   it('names what is wrong, by path', () => {
     const paths = (value: unknown) => validateResult(value).map((i) => i.path);
     expect(paths(null)).toEqual(['']);
-    expect(paths({ ok: true, command: 'deploy' })).toEqual(['command']);
+    expect(paths({ ok: true, command: 'upgrade' })).toEqual(['command']);
     expect(paths({ ...init, ok: 'yes' })).toEqual(['ok']);
     expect(
       paths({ ...init, root: 1, apps: [{ name: 'a', kind: 'other', path: 'p', port: 'x' }] }),

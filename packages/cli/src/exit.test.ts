@@ -32,7 +32,7 @@ describe('exit codes', () => {
       feature: 4,
       build: 5,
       registry: 6,
-      upgrade: 7,
+      deploy: 7,
       cancelled: 130,
     });
   });
