@@ -43,6 +43,6 @@ Bucket: **singleton**. Share `@mfeflow/analytics` and `@mfeflow/analytics/react`
 ## Links
 
 - [mfeflow repository](https://github.com/mfeflow/mfeflow) and its README
-- [mfeflow.dev](https://mfeflow.dev) (documentation, coming soon)
+- [Documentation](https://mfeflow.github.io/mfeflow/)
 
 MIT licensed.
