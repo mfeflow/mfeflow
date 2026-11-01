@@ -27,6 +27,26 @@ const cart = {
 
 const paths = (issues: { path: string }[]) => issues.map((i) => i.path);
 
+describe('mfe.json event names', () => {
+  it.each(['cart.item-added.v1', 'cart.item_added@1', 'checkout.order-placed.v12'])(
+    'accepts %s',
+    (name) => {
+      expect(validateMfeManifest({ ...cart, events: { publishes: [name], consumes: [] } })).toEqual(
+        [],
+      );
+    },
+  );
+
+  it.each(['cart.item-added', 'cart.item-added.v0', 'cart.item-added.1', 'Cart.item.v1'])(
+    'rejects %s',
+    (name) => {
+      expect(
+        paths(validateMfeManifest({ ...cart, events: { publishes: [name], consumes: [] } })),
+      ).toEqual(['events.publishes[0]']);
+    },
+  );
+});
+
 describe('mfe.json', () => {
   it('accepts a complete manifest', () => {
     expect(validateMfeManifest(cart)).toEqual([]);

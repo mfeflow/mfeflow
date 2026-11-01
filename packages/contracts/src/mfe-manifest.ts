@@ -30,8 +30,8 @@ export interface MfeManifest {
 export const MFE_NAME = /^[a-z][a-z0-9]*(?:_[a-z][a-z0-9]*)*$/;
 export const ROUTE = /^\/[A-Za-z0-9/_:*.-]*$/;
 export const EXPOSE = /^\.\/[A-Za-z0-9_/-]+$/;
-/** `<domain>.<event>@<major>`, e.g. `cart.item_added@1`. */
-export const EVENT_NAME = /^[a-z][a-z0-9-]*\.[a-z][a-z0-9_]*@[0-9]+$/;
+/** `<domain>.<event>@<major>` (`cart.item_added@1`) or the `@mfeflow/event-bus` form `<domain>.<event>.v<major>` (`cart.item-added.v1`). */
+export const EVENT_NAME = /^[a-z][a-z0-9-]*\.[a-z][a-z0-9_-]*(?:@[0-9]+|\.v[1-9][0-9]*)$/;
 /** `<domain>_<object>_<action>`, e.g. `checkout_order_completed`. */
 export const ANALYTICS_EVENT = /^[a-z][a-z0-9]*(_[a-z0-9]+)+$/;
 
@@ -58,11 +58,11 @@ export function validateMfeManifest(value: unknown): Issue[] {
   if (events) {
     c.stringArray(events, 'publishes', 'events', {
       pattern: EVENT_NAME,
-      hint: 'must look like "cart.item_added@1"',
+      hint: 'must look like "cart.item-added.v1" or "cart.item_added@1"',
     });
     c.stringArray(events, 'consumes', 'events', {
       pattern: EVENT_NAME,
-      hint: 'must look like "cart.item_added@1"',
+      hint: 'must look like "cart.item-added.v1" or "cart.item_added@1"',
     });
   }
   c.stringArray(value, 'analyticsEvents', '', {
