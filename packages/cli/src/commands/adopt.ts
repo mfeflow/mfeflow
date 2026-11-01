@@ -10,6 +10,7 @@ import {
   type FederationReport,
   type MfeflowProject,
   type NotAdopted,
+  type Plan,
 } from '@mfeflow/core';
 import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals } from '../args';
@@ -92,11 +93,30 @@ function assertMayWrite(globals: ReturnType<typeof readGlobals>): void {
   );
 }
 
+/** mfeflow.json may have appeared since the first check; the plan would then overwrite it. */
+export function assertNoProjectFile(plan: Plan): void {
+  if (plan.projectBefore !== undefined && plan.projectBefore !== null) {
+    throw new MfeflowError('E123', 'it appeared while adopt was reading the project');
+  }
+}
+
+/** A last guard behind the promise that adopt never edits a build config. */
+export function assertBuildConfigUntouched(plan: Plan, buildConfig: readonly string[]): void {
+  const touched = plan.changes.filter((change) => buildConfig.includes(change.path));
+  if (touched.length > 0) {
+    throw new MfeflowError(
+      'E105',
+      `adopt would have changed ${touched.map((c) => c.path).join(', ')}, a build config file; nothing was written`,
+    );
+  }
+}
+
 async function buildPlan(
   rt: Runtime,
   root: string,
   adoption: AdoptPlan,
   checkout: string | undefined,
+  buildConfig: readonly string[],
 ) {
   const builder = createBuilder(root, checkout);
   await builder.captureProject();
@@ -133,7 +153,10 @@ async function buildPlan(
     }
   }
   for (const warning of adoption.warnings) builder.warn(warning);
-  return builder.build();
+  const plan = builder.build();
+  assertNoProjectFile(plan);
+  assertBuildConfigUntouched(plan, buildConfig);
+  return plan;
 }
 
 function listNotAdopted(items: readonly NotAdopted[]): string {
@@ -183,10 +206,10 @@ export async function runAdopt(
     packageManager: await packageManagerOf(root),
   });
   const chosen = chooseLocal(adoption.project, root, globals.cwd, globals.local);
-  const plan = await buildPlan(rt, root, adoption, chosen.checkout);
+  const buildConfig = buildConfigsOf(report);
+  const plan = await buildPlan(rt, root, adoption, chosen.checkout, buildConfig);
 
   const outcome = await writePlan({ rt, globals, root, plan, project: chosen.project });
-  const buildConfig = buildConfigsOf(report);
   const apps: AppReport[] = Object.entries(chosen.project.apps).map(([name, app]) => ({
     name,
     kind: app.kind,

@@ -41,6 +41,10 @@ export interface AdoptPlan {
   warnings: string[];
 }
 
+/** Control characters in config-derived text would let a config rewrite the terminal. */
+const CONTROL = new RegExp(String.raw`[\u0000-\u001f\u007f-\u009f]`, 'g');
+export const printable = (text: string): string => text.replaceAll(CONTROL, '?');
+
 const join = (dir: string, file: string): string => (dir === '.' ? file : `${dir}/${file}`);
 
 function localPort(entry: string): number | undefined {
@@ -113,26 +117,54 @@ function shellsLoading(name: string, shells: readonly { app: DetectedApp; name: 
     .map((shell) => shell.name);
 }
 
-function portFor(
-  remote: { app: DetectedApp; name: string },
-  shells: readonly { app: DetectedApp }[],
-  used: Set<number>,
-  warnings: string[],
-): number {
-  const { app, name } = remote;
-  const fromShell = shells
+/** The port a shell's localhost URL gives for the remote called `name`. */
+function portFromShells(name: string, shells: readonly { app: DetectedApp }[]): number | undefined {
+  return shells
     .flatMap((shell) => Object.entries(shell.app.remotes))
     .filter(([alias, r]) => (r.name ?? alias) === name)
     .map(([, r]) => localPort(r.entry))
     .find((port) => port !== undefined);
-  const known = app.port ?? fromShell;
-  if (known !== undefined) return known;
-  let port = DEV_PORT_START;
-  while (used.has(port)) port += 1;
-  warnings.push(
-    `${name}: no dev port found in its config, so its dev registry entry uses ${String(port)}; change it if the app runs elsewhere`,
-  );
-  return port;
+}
+
+/**
+ * The dev port of every remote: declared, else from a shell's localhost URL, else the next free
+ * one from 4311. Every port in use is recorded, and two apps on one port are warned about.
+ */
+function assignPorts(
+  named: readonly { app: DetectedApp; name: string }[],
+  shells: readonly { app: DetectedApp }[],
+  warnings: string[],
+): Map<string, number> {
+  const claims = new Map<number, string[]>();
+  const claim = (port: number, name: string): void => {
+    claims.set(port, [...(claims.get(port) ?? []), name]);
+  };
+  const ports = new Map<string, number>();
+  const portless: string[] = [];
+  for (const { app, name } of named) {
+    const port = app.port ?? (app.role === 'remote' ? portFromShells(name, shells) : undefined);
+    if (port === undefined) {
+      if (app.role === 'remote') portless.push(name);
+      continue;
+    }
+    claim(port, name);
+    if (app.role === 'remote') ports.set(name, port);
+  }
+  for (const [port, names] of claims) {
+    if (names.length > 1) {
+      warnings.push(`${names.join(', ')} are all on port ${String(port)}; give each app its own`);
+    }
+  }
+  let next = DEV_PORT_START;
+  for (const name of portless) {
+    while (claims.has(next)) next += 1;
+    claim(next, name);
+    ports.set(name, next);
+    warnings.push(
+      `${name}: no dev port found in its config, so its dev registry entry uses ${String(next)}; change it if the app runs elsewhere`,
+    );
+  }
+  return ports;
 }
 
 /**
@@ -157,11 +189,10 @@ export function planAdoption(input: AdoptInput): AdoptPlan {
   }
 
   const apps: MfeflowProject['apps'] = {};
-  const used = new Set(named.flatMap(({ app }) => (app.port === undefined ? [] : [app.port])));
+  const ports = assignPorts(named, shells, warnings);
   const appFiles: AdoptAppFile[] = [];
   const adoptedRemotes: AdoptRemote[] = [];
-  for (const entry of named) {
-    const { app, name } = entry;
+  for (const { app, name } of named) {
     apps[name] = {
       kind: app.role,
       path: app.dir,
@@ -182,12 +213,11 @@ export function planAdoption(input: AdoptInput): AdoptPlan {
         ...(Object.keys(platform).length > 0 ? { platform } : {}),
       },
     });
-    if (app.role === 'remote') {
-      adoptedRemotes.push({ name, port: portFor(entry, shells, used, warnings) });
-    }
+    const port = ports.get(name);
+    if (app.role === 'remote' && port !== undefined) adoptedRemotes.push({ name, port });
   }
   warnings.unshift(
-    `routes are empty (mfeflow cannot read them from a build config); add the paths each app serves to ${appFiles.map((f) => join(f.dir, 'mfeflow.app.json')).join(', ')}`,
+    `routes are empty (mfeflow cannot read them from a build config); add the paths each app serves to ${appFiles.map((f) => printable(join(f.dir, 'mfeflow.app.json'))).join(', ')}`,
   );
   const scriptOnly = remotes
     .flatMap(({ name }) =>
@@ -195,7 +225,7 @@ export function planAdoption(input: AdoptInput): AdoptPlan {
         .flatMap(({ app }) => Object.entries(app.remotes))
         .filter(([alias, r]) => (r.name ?? alias) === name && r.type === 'script'),
     )
-    .map(([alias]) => alias);
+    .map(([alias]) => printable(alias));
   if (scriptOnly.length > 0) {
     warnings.push(
       `${[...new Set(scriptOnly)].join(', ')}: loaded from a remoteEntry.js, but the registry entries point at mf-manifest.json; check that the remote builds one`,
@@ -204,7 +234,7 @@ export function planAdoption(input: AdoptInput): AdoptPlan {
   const fromElsewhere = shells
     .flatMap(({ app }) => Object.entries(app.remotes))
     .filter(([alias, r]) => !named.some((n) => n.name === (r.name ?? alias)))
-    .map(([alias]) => alias);
+    .map(([alias]) => printable(alias));
   if (fromElsewhere.length > 0) {
     warnings.push(
       `${[...new Set(fromElsewhere)].join(', ')}: loaded by a shell but not found in this folder, so no app or registry entry was written`,
@@ -228,7 +258,12 @@ export function planAdoption(input: AdoptInput): AdoptPlan {
     appFiles,
     remotes: adoptedRemotes,
     shellDirs: shells.map(({ app }) => app.dir),
-    notAdopted,
+    notAdopted: notAdopted.map((item) => ({
+      dir: printable(item.dir),
+      file: printable(item.file),
+      field: printable(item.field),
+      reason: printable(item.reason),
+    })),
     warnings,
   };
 }

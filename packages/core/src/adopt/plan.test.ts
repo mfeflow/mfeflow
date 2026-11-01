@@ -140,4 +140,50 @@ describe('planAdoption', () => {
     expect(() => plan([])).toThrow(/no Module Federation config was found/);
     expect(() => plan([unnamed(app())])).toThrow(/no app had a usable name/);
   });
+
+  it('gives two remotes without a port different ports', () => {
+    const result = plan([app({ port: 4311 }), remote('a'), remote('b')]);
+    expect(result.remotes).toEqual([
+      { name: 'a', port: 4312 },
+      { name: 'b', port: 4313 },
+    ]);
+  });
+
+  it('does not hand a portless remote the port another remote got from a URL', () => {
+    const result = plan([
+      app({
+        remotes: {
+          a: { name: 'a', entry: 'http://localhost:4311/mf-manifest.json', type: 'manifest' },
+        },
+      }),
+      remote('b'),
+      remote('a'),
+    ]);
+    expect(result.remotes).toEqual([
+      { name: 'b', port: 4312 },
+      { name: 'a', port: 4311 },
+    ]);
+  });
+
+  it('warns, naming the apps, when two apps declare one port', () => {
+    const result = plan([
+      app({ port: 3000 }),
+      remote('a', { port: 3000 }),
+      remote('b', { port: 3001 }),
+    ]);
+    expect(result.warnings).toContain('shell, a are all on port 3000; give each app its own');
+  });
+
+  it('strips control characters from names and aliases before they reach a message', () => {
+    const result = plan([
+      app({
+        remotes: { 'x\u001b[2Jy': { entry: 'https://cdn.example.com/m.json', type: 'manifest' } },
+      }),
+      remote('c', { name: 'bad\u001bname' }),
+    ]);
+    const text = JSON.stringify([result.warnings, result.notAdopted]);
+    expect(text).not.toContain('\\u001b');
+    expect(result.warnings.join('')).toContain('x?[2Jy');
+    expect(result.notAdopted[0]?.reason).toContain('bad?name');
+  });
 });

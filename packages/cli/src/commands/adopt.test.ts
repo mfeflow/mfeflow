@@ -1,15 +1,16 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isMfeManifest, validateMfeflowProject, validateRegistryEntry } from '@mfeflow/contracts';
 import { hashContent, parseProject } from '@mfeflow/core';
+import { emptyPlan, type FileChange } from '@mfeflow/core';
 import { main, validateResult, type AdoptResult } from '..';
+import { assertBuildConfigUntouched, assertNoProjectFile } from './adopt';
 import { EXIT } from '../exit';
 import { readTree, removeDir, REPO, scriptedPrompter, tempDir, testRuntime } from '../testing';
 import { readPackageJson } from '../version';
 
 const FIXTURES = path.join(REPO, 'packages', 'core', 'test-fixtures', 'adopt');
-const BUILD_FILE = /(rsbuild|rspack|webpack)\.config\.\w+$|module-federation\.config\.\w+$/;
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -43,13 +44,15 @@ function dependenciesOf(tree: Record<string, string>, file: string): Record<stri
   return typeof deps === 'object' && deps !== null ? Object.fromEntries(Object.entries(deps)) : {};
 }
 
-async function hashBuildFiles(root: string): Promise<Record<string, string>> {
+async function hashFiles(root: string, files: string[]): Promise<Record<string, string>> {
   const tree = await readTree(root);
-  return Object.fromEntries(
-    Object.entries(tree)
-      .filter(([file]) => BUILD_FILE.test(file))
-      .map(([file, content]) => [file, hashContent(content)]),
-  );
+  return Object.fromEntries(files.map((file) => [file, hashContent(tree[file] ?? 'MISSING')]));
+}
+
+/** The build config files the detector itself lists, found with a dry run. */
+async function listedBuildFiles(root: string): Promise<string[]> {
+  const { rt } = await adopt(root, ['--dry-run', '--json']);
+  return jsonOf(rt.io.out).buildConfig;
 }
 
 describe('mfeflow adopt', () => {
@@ -122,12 +125,52 @@ describe('mfeflow adopt', () => {
     expect(rt.io.out.join('\n')).toContain('routes are empty');
   });
 
-  it('leaves a project that mfeflow validate accepts', async () => {
-    const root = await copyOf('monorepo');
-    expect((await adopt(root, ['--yes'])).code).toBe(EXIT.ok);
-    const check = testRuntime();
-    expect(await main(['validate', '--cwd', root, '--json'], check)).toBe(EXIT.ok);
-    expect(JSON.parse(check.io.out.join(''))).toMatchObject({ ok: true });
+  it.each(['monorepo', 'rsbuild-consumer', 'webpack-esm'])(
+    'leaves a %s project that mfeflow validate accepts',
+    async (fixture) => {
+      const root = await copyOf(fixture);
+      expect((await adopt(root, ['--yes'])).code).toBe(EXIT.ok);
+      const check = testRuntime();
+      expect(await main(['validate', '--cwd', root, '--json'], check)).toBe(EXIT.ok);
+      expect(JSON.parse(check.io.out.join(''))).toMatchObject({ ok: true });
+    },
+  );
+
+  it('refuses, and keeps the file, when mfeflow.json appears after the first check', async () => {
+    const root = await copyOf('webpack-esm');
+    const target = path.join(root, 'mfeflow.json');
+    const original = fs.readFile.bind(fs);
+    let reads = 0;
+    const spy = vi.spyOn(fs, 'readFile').mockImplementation(async (...args) => {
+      if (args[0] === target && ++reads === 2) await fs.writeFile(target, '{"mine":true}\n');
+      return original(...args);
+    });
+    try {
+      const { code, rt } = await adopt(root, ['--yes']);
+      expect(code).toBe(EXIT.project);
+      expect(rt.io.err.join('\n')).toContain('MFEFLOW_E123');
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await fs.readFile(target, 'utf8')).toBe('{"mine":true}\n');
+  });
+
+  it('has guards that stop a plan with mfeflow.json or a build config in it', () => {
+    expect(() => assertNoProjectFile({ ...emptyPlan(), projectBefore: '{}' })).toThrow(
+      /E123|already/,
+    );
+    expect(() => assertNoProjectFile({ ...emptyPlan(), projectBefore: null })).not.toThrow();
+    const change: FileChange = {
+      path: 'mf.options.ts',
+      action: 'patch',
+      before: 'a',
+      after: 'b',
+      track: false,
+      trust: 'first-party',
+    };
+    const plan = { ...emptyPlan(), changes: [change] };
+    expect(() => assertBuildConfigUntouched(plan, ['mf.options.ts'])).toThrow(/mf\.options\.ts/);
+    expect(() => assertBuildConfigUntouched(plan, ['rsbuild.config.ts'])).not.toThrow();
   });
 
   it('never changes a build config file, even when it writes', async () => {
@@ -135,12 +178,14 @@ describe('mfeflow adopt', () => {
       // oxlint-disable-next-line no-await-in-loop -- one temp copy at a time
       const root = await copyOf(fixture);
       // oxlint-disable-next-line no-await-in-loop -- hash, run, hash again
-      const before = await hashBuildFiles(root);
-      expect(Object.keys(before).length).toBeGreaterThan(0);
+      const listed = await listedBuildFiles(root);
+      // oxlint-disable-next-line no-await-in-loop -- as above
+      const before = await hashFiles(root, listed);
+      expect(listed.length).toBeGreaterThan(0);
       // oxlint-disable-next-line no-await-in-loop -- as above
       expect((await adopt(root, ['--yes'])).code).toBe(EXIT.ok);
       // oxlint-disable-next-line no-await-in-loop -- as above
-      expect(await hashBuildFiles(root)).toEqual(before);
+      expect(await hashFiles(root, listed)).toEqual(before);
     }
   });
 

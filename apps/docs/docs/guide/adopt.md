@@ -57,7 +57,7 @@ Run the command without `--dry-run`. In a terminal it asks once before it writes
 pnpm dlx mfeflow adopt
 ```
 
-Without a terminal, such as in a script, pass `--yes`. Without it the command exits with code 2 and writes nothing. The files are written all or nothing, and the install runs in the same step.
+Without a terminal, such as in a script, pass `--yes`. Without it the command exits with code 2 and writes nothing. This includes `--json`, which never prompts, so a real run with `--json` needs `--yes` too. The files are written all or nothing, and the install runs in the same step.
 
 You should see the same summary, then the next steps.
 
