@@ -218,7 +218,7 @@ describe('mfeflow doctor', () => {
     expect(single?.message).toContain('shell 19.3.1');
   });
 
-  it.each(['@mfeflow/analytics', '@mfeflow/telemetry'])(
+  it.each(['@mfeflow/analytics', '@mfeflow/telemetry', '@mfeflow/event-bus'])(
     'finds %s installed in two versions',
     async (name) => {
       const root = await project();

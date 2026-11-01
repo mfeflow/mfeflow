@@ -16,6 +16,8 @@ export const SINGLETON_SPECIFIERS: readonly string[] = [
   '@mfeflow/analytics',
   '@mfeflow/analytics/react',
   '@mfeflow/telemetry',
+  '@mfeflow/event-bus',
+  '@mfeflow/event-bus/react',
   '@mfeflow/storage',
   '@mfeflow/storage/react',
   '@mfeflow/theme',
