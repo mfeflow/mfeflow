@@ -1,5 +1,11 @@
 # @mfeflow/rsbuild
 
+## 0.3.0
+
+### Minor Changes
+
+- [#32](https://github.com/mfeflow/mfeflow/pull/32) [`351ef12`](https://github.com/mfeflow/mfeflow/commit/351ef123ecd790872b7f1312c7fd06e37f35fdbe) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - Add `registerHeadScript(name, source)`: `createShellConfig` puts each registered script first in the shell's `<head>`, ahead of the bundles. A name registered again replaces its script, so a dev-server config reload does not add a second one. The `theming` feature uses it for the stored-theme script.
+
 ## 0.2.0
 
 ### Minor Changes

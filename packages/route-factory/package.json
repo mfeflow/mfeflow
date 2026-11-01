@@ -1,6 +1,6 @@
 {
   "name": "@mfeflow/route-factory",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Typed links between micro-frontends: each remote defines its routes once, and a link to any of them is checked for missing params, missing search params and unknown routes at compile time.",
   "keywords": [
     "micro-frontend",

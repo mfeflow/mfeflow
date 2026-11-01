@@ -1,5 +1,11 @@
 # @mfeflow/oxlint-config
 
+## 0.3.0
+
+### Minor Changes
+
+- [#32](https://github.com/mfeflow/mfeflow/pull/32) [`351ef12`](https://github.com/mfeflow/mfeflow/commit/351ef123ecd790872b7f1312c7fd06e37f35fdbe) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - Allow `import './src/theme/head-script'` as a side-effect import, which the `theming` feature adds to the shell's `rsbuild.config.ts`.
+
 ## 0.2.0
 
 No changes in this release.
