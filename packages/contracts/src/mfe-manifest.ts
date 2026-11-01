@@ -3,7 +3,7 @@ import { Checker, isObj, type Issue } from './validate';
 
 export { EXPOSE, ROUTE };
 
-/** `mfe.json`: who owns a micro-frontend and what it promises. */
+/** `mfeflow.app.json` (formerly `mfe.json`): who owns a micro-frontend and what it promises. */
 export interface MfeManifest {
   $schema?: string;
   /** Module Federation name: lowercase letters, digits, `_`. */

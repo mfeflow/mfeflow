@@ -12,9 +12,9 @@ describe('primaryExpose', () => {
 describe('judgeRemoteInitial', () => {
   const kb = (n: number) => n * 1024;
 
-  it('holds the entry plus the primary expose to the mfe.json budget', () => {
+  it('holds the entry plus the primary expose to the mfeflow.app.json budget', () => {
     const pass = judgeRemoteInitial({ entryBytes: kb(5), exposeBytes: kb(3) }, 8);
-    expect(pass).toEqual({ kb: 8, totalKb: 8, limitKb: 8, pass: true, source: 'mfe.json' });
+    expect(pass).toEqual({ kb: 8, totalKb: 8, limitKb: 8, pass: true, source: 'mfeflow.app.json' });
     expect(judgeRemoteInitial({ entryBytes: kb(5), exposeBytes: kb(3.5) }, 8).pass).toBe(false);
   });
 

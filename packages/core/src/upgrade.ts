@@ -587,7 +587,9 @@ export async function planUpgrade(
 
   await runMigrations(project, input, builder);
   const skipped = input.skipped ?? [];
-  const removed = skipped.length === 0 ? await findRemoved(project, fresh, input.read) : [];
+  // A file a migration deletes or moves is not reported as left behind.
+  const planned: ReadFile = (file) => builder.content(file);
+  const removed = skipped.length === 0 ? await findRemoved(project, fresh, planned) : [];
 
   const built = builder.build();
   const plan: Plan = {
@@ -596,6 +598,7 @@ export async function planUpgrade(
     features: fresh.features,
     warnings: [
       ...fresh.warnings,
+      ...built.warnings,
       ...skipped.map(
         ({ name, reason }) =>
           `${name} was not replayed (${reason}); its files were left as they are`,
