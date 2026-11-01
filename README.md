@@ -19,7 +19,7 @@ one tracer.
 
 ## Status
 
-0.2.0 is on npm; every public package is versioned together (see [versioning and releases](docs/versioning.md) for the version policy and the release flow). Phase 04 (features) is built, with three things still open: there is no `mfeflow remove`, so "adds and removes cleanly" is tested for adding only; the dev overlay is not built; and the generated GitHub Actions workflow has not yet run on a fresh GitHub repository, which needs the CLI published.
+0.3.0 is on npm; every public package is versioned together (see [versioning and releases](docs/versioning.md) for the version policy and the release flow). Phase 04 (features) is built, with three things still open: there is no `mfeflow remove`, so "adds and removes cleanly" is tested for adding only; the dev overlay is not built; and the generated GitHub Actions workflow has not yet been run on a fresh GitHub repository.
 
 What works today, from the repo:
 
