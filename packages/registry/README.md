@@ -8,7 +8,7 @@ A registry for your remotes that lives on a static host. You build the next `ind
 pnpm add @mfeflow/registry
 ```
 
-The static path is a library the `mfeflow` deploy and rollback commands sit on. The server is below.
+The `mfeflow deploy`, `promote`, `rollback` and `status` commands are built on this package; see [Deploying remotes](https://mfeflow.github.io/mfeflow/guide/deploying). Use the library directly when you want to deploy from your own script. The server is below.
 
 ## Build and gate an index
 
