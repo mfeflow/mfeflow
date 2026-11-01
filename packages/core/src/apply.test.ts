@@ -291,6 +291,48 @@ describe('applyPlan', () => {
       });
     });
 
+    describe('with refuseSymlinks', () => {
+      it('refuses a symlinked package.json, in a dry run too, and leaves its target alone', async () => {
+        await fs.mkdir(at('real'));
+        await fs.writeFile(at('real/package.json'), '{"a":1}');
+        await fs.symlink('real/package.json', at('package.json'));
+        const plan = planOf(patch('package.json', '{"a":1}', '{"a":2}'));
+        const errors = await Promise.all(
+          [true, false].map((dryRun) =>
+            rejection(applyPlan(plan, { root, dryRun, refuseSymlinks: true })),
+          ),
+        );
+        expect(errors.map((e) => e.code)).toEqual(['MFEFLOW_E105', 'MFEFLOW_E105']);
+        expect(await read('real/package.json')).toBe('{"a":1}');
+      });
+
+      it('refuses a create under a symlinked folder even when the file does not exist yet', async () => {
+        await fs.mkdir(at('real'));
+        await fs.symlink(at('real'), at('alias'));
+        await expect(
+          applyPlan(planOf(create('alias/new.ts', 'x')), { root, refuseSymlinks: true }),
+        ).rejects.toMatchObject({ code: 'MFEFLOW_E105' });
+        expect(await exists('real/new.ts')).toBe(false);
+      });
+
+      it('catches a link put in place after the plan was made', async () => {
+        await fs.mkdir(at('src'));
+        await fs.mkdir(at('elsewhere'));
+        const plan = planOf(create('src/a.ts', 'x'));
+        await fs.rm(at('src'), { recursive: true });
+        await fs.symlink(at('elsewhere'), at('src'));
+        await expect(applyPlan(plan, { root, refuseSymlinks: true })).rejects.toMatchObject({
+          code: 'MFEFLOW_E105',
+        });
+        expect(await fs.readdir(at('elsewhere'))).toEqual([]);
+      });
+
+      it('writes normally when no part of the path is a link', async () => {
+        await applyPlan(planOf(create('plain/a.ts', 'x')), { root, refuseSymlinks: true });
+        expect(await read('plain/a.ts')).toBe('x');
+      });
+    });
+
     it('checks every target before writing the first one', async () => {
       await fs.symlink(outside, at('link'));
       await expect(
