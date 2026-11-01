@@ -9,7 +9,8 @@ export const EXIT = {
   feature: 4,
   build: 5,
   registry: 6,
-  upgrade: 7,
+  deploy: 7,
+  upgrade: 8,
   cancelled: 130,
 } as const;
 
@@ -30,7 +31,8 @@ const BY_RANGE: Record<string, number> = {
   '2': EXIT.feature,
   '3': EXIT.build,
   '4': EXIT.registry,
-  '5': EXIT.upgrade,
+  '5': EXIT.deploy,
+  '6': EXIT.upgrade,
 };
 
 /** The exit code of a catalogue code such as `MFEFLOW_E301`. */

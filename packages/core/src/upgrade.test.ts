@@ -543,6 +543,163 @@ describe('planUpgrade', () => {
   });
 });
 
+const envTs = (keys: string[]) =>
+  [
+    "import { createEnv } from '@t3-oss/env-core';",
+    "import { z } from 'zod';",
+    'export const env = createEnv({',
+    '  server: {',
+    ...keys.map((key) => `    ${key}: z.string(),`),
+    '  },',
+    '  runtimeEnv: process.env,',
+    '});',
+    '',
+  ].join('\n');
+
+describe('files the CLI adds keys to', () => {
+  const run = (disk: string, incoming: string, recordedAs = disk) => {
+    const files = {
+      'env.ts': disk,
+      'apps/shell/package.json': OLD['apps/shell/package.json'] ?? '',
+    };
+    const project = projectOf({ 'env.ts': recordedAs }, { cli: '0.1.0' });
+    return planUpgrade(project, {
+      ...input(files),
+      features: [feature('core', '0.2.0', { 'env.ts': incoming })],
+    });
+  };
+
+  it('replaces the file when your keys are all still in the new version', async () => {
+    const up = await run(envTs(['A']), envTs(['A', 'B']));
+    expect(up.diverged).toEqual([]);
+    expect(up.plan.changes.find((c) => c.path === 'env.ts')?.after).toBe(envTs(['A', 'B']));
+  });
+
+  it('flags the file with the keys you would lose', async () => {
+    const up = await run(envTs(['A', 'MINE']), envTs(['A', 'B']));
+    expect(up.diverged).toHaveLength(1);
+    expect(up.diverged[0]).toMatchObject({
+      path: 'env.ts',
+      reason: 'edited-by-cli',
+      lostKeys: ['MINE'],
+    });
+    expect(up.plan.changes.map((c) => c.path)).not.toContain('env.ts');
+  });
+
+  it('calls a file edited by hand edited, even when it has keys', async () => {
+    const up = await run(envTs(['A', 'MINE']), envTs(['A']), envTs(['A']));
+    expect(up.diverged[0]).toMatchObject({ reason: 'edited', lostKeys: ['MINE'] });
+  });
+
+  it('reads dotenv and runtime-config files the same way', async () => {
+    const dotenv = projectOf({ '.env.example': 'A=1\nMINE=2\n' }, { cli: '0.1.0' });
+    const runtime = projectOf(
+      { 'apps/shell/public/config/runtime-config.dev.json': '{"a":1,"mine":2}\n' },
+      { cli: '0.1.0' },
+    );
+    const shell = { 'apps/shell/package.json': OLD['apps/shell/package.json'] ?? '' };
+    const a = await planUpgrade(dotenv, {
+      ...input({ ...shell, '.env.example': 'A=1\nMINE=2\n' }),
+      features: [feature('core', '0.2.0', { '.env.example': 'A=1\n' })],
+    });
+    expect(a.diverged[0]).toMatchObject({ reason: 'edited-by-cli', lostKeys: ['MINE'] });
+    const b = await planUpgrade(runtime, {
+      ...input({
+        ...shell,
+        'apps/shell/public/config/runtime-config.dev.json': '{"a":1,"mine":2}\n',
+      }),
+      features: [
+        feature('core', '0.2.0', {
+          'apps/shell/public/config/runtime-config.dev.json': '{"a":1}\n',
+        }),
+      ],
+    });
+    expect(b.diverged[0]).toMatchObject({ reason: 'edited-by-cli', lostKeys: ['mine'] });
+  });
+});
+
+describe('decisions', () => {
+  const disk = { ...OLD, 'src/config.ts': 'my own config\n', 'README.md': 'my readme\n' };
+  const plan = (decisions: UpgradeInput['decisions'], project = projectOf(OLD)) =>
+    planUpgrade(project, { ...input(disk), ...(decisions ? { decisions } : {}) });
+
+  it('writes an accepted file with the new version and records its hash', async () => {
+    const up = await plan({ accept: new Set(['src/config.ts']) });
+    const change = up.plan.changes.find((c) => c.path === 'src/config.ts');
+    expect(change).toMatchObject({
+      action: 'patch',
+      before: 'my own config\n',
+      after: 'new config\n',
+    });
+    expect(up.diverged.find((d) => d.path === 'src/config.ts')?.decision).toBe('accept');
+    expect(up.diverged.find((d) => d.path === 'README.md')?.decision).toBeUndefined();
+    expect(up.project.files?.['src/config.ts']).toBe(hashContent('new config\n'));
+  });
+
+  it('leaves a kept file alone and remembers the version it was kept against', async () => {
+    const up = await plan({ keep: new Set(['src/config.ts']) });
+    expect(up.plan.changes.map((c) => c.path)).not.toContain('src/config.ts');
+    expect(up.diverged.find((d) => d.path === 'src/config.ts')?.decision).toBe('keep');
+    expect(up.project.files?.['src/config.ts']).toBe(hashContent('my own config\n'));
+    expect(up.project.kept).toEqual({ 'src/config.ts': hashContent('new config\n') });
+  });
+
+  it('never replaces a kept file on a later run, and raises it again only when the new version changes', async () => {
+    const first = await plan({ keep: 'all' });
+    const second = await planUpgrade(first.project, input(disk));
+    expect(second.plan.changes.map((c) => c.path)).not.toContain('src/config.ts');
+    expect(second.plan.changes.map((c) => c.path)).not.toContain('README.md');
+    expect(second.diverged.map((d) => d.path)).not.toContain('src/config.ts');
+    const newer = feature('core', '0.3.0', { ...NEW, 'src/config.ts': 'newer config\n' });
+    const third = await planUpgrade(first.project, { ...input(disk), features: [newer] });
+    expect(third.plan.changes.map((c) => c.path)).not.toContain('src/config.ts');
+    expect(third.diverged.find((d) => d.path === 'src/config.ts')).toMatchObject({
+      reason: 'edited',
+      incoming: 'newer config\n',
+    });
+  });
+
+  it('lets an accept clear an earlier keep', async () => {
+    const kept = await plan({ keep: 'all' });
+    const newer = feature('core', '0.3.0', { ...NEW, 'src/config.ts': 'newer config\n' });
+    const up = await planUpgrade(kept.project, {
+      ...input(disk),
+      features: [newer],
+      decisions: { accept: new Set(['src/config.ts']) },
+    });
+    expect(up.project.kept?.['src/config.ts']).toBeUndefined();
+    expect(up.project.files?.['src/config.ts']).toBe(hashContent('newer config\n'));
+  });
+
+  it('takes `all` as every file but a symlink', async () => {
+    const up = await planUpgrade(projectOf(OLD), {
+      ...input({ ...OLD, 'src/config.ts': 'my own config\n' }),
+      decisions: { accept: 'all' },
+      isSymlink: (file) => Promise.resolve(file === 'README.md'),
+    });
+    const decisions = Object.fromEntries(up.diverged.map((d) => [d.path, d.decision]));
+    expect(decisions['src/config.ts']).toBe('accept');
+    expect(decisions['README.md']).toBeUndefined();
+    expect(up.diverged.find((d) => d.path === 'README.md')?.reason).toBe('symlink');
+  });
+
+  it('lets a named path beat `all` in the other list', async () => {
+    const up = await plan({ accept: 'all', keep: new Set(['README.md']) });
+    const decisions = Object.fromEntries(up.diverged.map((d) => [d.path, d.decision]));
+    expect(decisions['README.md']).toBe('keep');
+    expect(decisions['src/config.ts']).toBe('accept');
+  });
+
+  it('keeps CRLF in an accepted file', async () => {
+    const crlf = { ...disk, 'src/config.ts': 'my\r\nconfig\r\n' };
+    const up = await planUpgrade(projectOf(OLD), {
+      ...input(crlf),
+      decisions: { accept: new Set(['src/config.ts']) },
+    });
+    expect(up.plan.changes.find((c) => c.path === 'src/config.ts')?.after).toBe('new config\r\n');
+  });
+});
+
 describe('migrations', () => {
   const calls: string[] = [];
   const modules: Record<string, (b: PlanBuilder) => Promise<void>> = {
@@ -590,6 +747,11 @@ describe('migrations', () => {
     expect(
       up.plan.changes.filter((c) => c.path.startsWith('migrated-')).map((c) => c.path),
     ).toEqual(['migrated-one.txt', 'migrated-two.txt']);
+    expect(up.migrations).toEqual([
+      { feature: 'core', from: '0.1.0', to: '0.1.5' },
+      { feature: 'core', from: '0.1.0', to: '0.2.0' },
+      { feature: 'core', from: '0.2.0', to: '0.3.0' },
+    ]);
   });
 
   it('skips a migration the project already has, and one the new version does not reach', async () => {

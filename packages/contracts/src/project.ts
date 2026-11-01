@@ -18,6 +18,11 @@ export interface MfeflowProject {
   features: Record<string, { version: string; options?: Record<string, unknown> }>;
   /** Hashes of copied files, so `upgrade` can tell when a file was edited. */
   files?: Record<string, string>;
+  /**
+   * Files `upgrade --keep` left alone: the hash of the new version each one was kept against.
+   * While the new version is that one, the file stays quiet; when it changes, the file is raised again.
+   */
+  kept?: Record<string, string>;
   /** Third-party feature registries: `{ "@someone": "https://…/{name}.json" }`, https only (plain http for loopback hosts). `@mfeflow` is reserved. */
   registries?: Record<string, string>;
   /** Built mfeflow checkout, relative to the project root, that `@mfeflow/*` dependencies link to. Set by `--local` only. */
@@ -134,6 +139,15 @@ export function validateMfeflowProject(value: unknown): Issue[] {
   if (files) {
     for (const [file, hash] of Object.entries(files)) {
       const at = `files.${file}`;
+      if (!isSafeRelativePath(file)) c.add(at, 'must be a relative path with forward slashes');
+      if (typeof hash !== 'string' || !FILE_HASH.test(hash))
+        c.add(at, 'must be a hash like "sha256-<64 hex characters>"');
+    }
+  }
+  const kept = c.object(value, 'kept', '', false);
+  if (kept) {
+    for (const [file, hash] of Object.entries(kept)) {
+      const at = `kept.${file}`;
       if (!isSafeRelativePath(file)) c.add(at, 'must be a relative path with forward slashes');
       if (typeof hash !== 'string' || !FILE_HASH.test(hash))
         c.add(at, 'must be a hash like "sha256-<64 hex characters>"');

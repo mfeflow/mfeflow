@@ -5,6 +5,7 @@ import {
   planUpgrade,
   type LoadedFeature,
   type MfeflowProject,
+  type UpgradeDecisions,
   type UpgradePlan,
 } from '@mfeflow/core';
 import type { AssetRoots } from './assets';
@@ -38,6 +39,7 @@ export async function planProjectUpgrade(
   root: string,
   project: MfeflowProject,
   toVersion: string = readPackageJson().version,
+  decisions: UpgradeDecisions = {},
 ): Promise<UpgradePlan> {
   const features: LoadedFeature[] = [];
   const skipped: { name: string; reason: string }[] = [];
@@ -82,6 +84,7 @@ export async function planProjectUpgrade(
   );
   return planUpgrade(project, {
     toVersion,
+    decisions,
     read: projectReader(root),
     features,
     glue,

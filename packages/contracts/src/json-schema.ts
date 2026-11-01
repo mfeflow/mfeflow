@@ -233,6 +233,11 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
         propertyNames: relativePath,
         additionalProperties: str(FILE_HASH),
       },
+      kept: {
+        type: 'object',
+        propertyNames: relativePath,
+        additionalProperties: str(FILE_HASH),
+      },
       registries: {
         type: 'object',
         propertyNames: {
