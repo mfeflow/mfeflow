@@ -1,0 +1,29 @@
+import { checkSingletons, reportRemoteError } from '@mfeflow/runtime';
+
+// The shell's rsbuild preset defines the packages it shares; remotes load later, so the check repeats.
+declare const __MFEFLOW_SINGLETONS__: readonly string[];
+
+declare global {
+  var mfeflowCheckSingletons: (() => ReturnType<typeof checkSingletons>) | undefined;
+}
+
+const reported = new Set<string>();
+
+function check(): ReturnType<typeof checkSingletons> {
+  const result = checkSingletons(__MFEFLOW_SINGLETONS__);
+  const problems = [
+    ...result.duplicated.map((name) => `${name} is loaded in more than one version`),
+    ...result.missing.map((name) => `${name} is not in the share scope`),
+  ];
+  for (const problem of problems) {
+    if (reported.has(problem)) continue;
+    reported.add(problem);
+    reportRemoteError('<%= it.app.name %>', 'singletons', new Error(problem));
+  }
+  return result;
+}
+
+// Loaded only in development and on `?mfeflow-assert`: it reads every loaded remote's share scope.
+globalThis.mfeflowCheckSingletons = check;
+check();
+setInterval(check, 3000);
