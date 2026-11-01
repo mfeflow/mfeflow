@@ -112,7 +112,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: npm
     permissions:
-      id-token: write # npm provenance, and trusted publishing once it is configured
+      id-token: write # npm trusted publishing (OIDC) and provenance
       contents: read
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -165,9 +165,9 @@ jobs:
             echo "$name $version $tarball $tag" >> "$RUNNER_TEMP/verified.txt"
           done < <(jq -c '.[]' <<<"$PLAN")
       # Skips versions already on npm, so a re-run after a partial failure is safe.
-      # NODE_AUTH_TOKEN is set on this step only, for the first release. Once trusted publishing is
-      # configured on npm for every package (see docs/versioning.md), delete this env line and the
-      # NPM_TOKEN secret; the id-token permission above already makes OIDC work with no other change.
+      # Authentication is npm trusted publishing (OIDC) through `id-token: write`; there is no npm
+      # token. A new package needs one manual first publish and a trusted publisher on npmjs.com
+      # before this job can publish it (see docs/versioning.md).
       - name: Publish
         run: |
           set -euo pipefail
@@ -179,8 +179,6 @@ jobs:
             grep -q E404 "$RUNNER_TEMP/view.err" || { cat "$RUNNER_TEMP/view.err"; exit 1; }
             npm publish "./release/$tarball" --provenance --access public --ignore-scripts --tag "$tag"
           done < "$RUNNER_TEMP/verified.txt"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   tag:
     name: tag and release

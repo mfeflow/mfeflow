@@ -82,16 +82,19 @@ Mandatory before the first publish:
 
 1. Environment `npm` (Settings, Environments): deployment branches `main` only, and a required
    reviewer.
-2. `NPM_TOKEN` as a secret of the environment `npm`, not a repository secret; delete any
-   repository-level `NPM_TOKEN`. Use an automation token with the shortest expiry that can publish
-   `mfeflow`, `create-mfeflow` and `@mfeflow/*`, and delete it after the first publish.
-3. Trusted publishing on npmjs.com for each public package (Settings, Trusted Publisher, GitHub
-   Actions): repository `mfeflow/mfeflow`, workflow `release.yml`, environment `npm`.
+2. Trusted publishing on npmjs.com for each public package (Settings, Trusted Publisher, GitHub
+   Actions): repository `mfeflow/mfeflow`, workflow `release.yml`, environment `npm`, and
+   "Allow npm publish" ticked. Publishing uses OIDC only; there is no npm token in CI.
 
 Also needed: the repository variable `RELEASE_ENABLED` = `true` when ready to release.
 
-After the first publish, delete the `NPM_TOKEN` secret and the `NODE_AUTH_TOKEN` line in the
-`Publish` step. The job already has `id-token: write`, so publishing keeps working through OIDC.
+### Adding a new public package
+
+A trusted publisher can only be added to a package that already exists, so a new package needs
+one manual first publish by an owner (`npm publish <tarball> --access public` from the release
+artifact, with 2FA), then a trusted publisher like the others. After that it releases through CI
+like every other package. Unscoped packages (`mfeflow`, `create-mfeflow`) belong to their
+maintainers, not the org: add each owner with `npm owner add`.
 
 Optional: a tag ruleset so only the release workflow can create `v*` and `*@*` tags.
 
