@@ -97,6 +97,12 @@
       "template": true
     },
     {
+      "to": "src/assert.ts",
+      "target": "shell",
+      "from": "files/shell/src/assert.ts.eta",
+      "template": true
+    },
+    {
       "to": "src/App.tsx",
       "target": "shell",
       "from": "files/shell/src/App.tsx.eta",

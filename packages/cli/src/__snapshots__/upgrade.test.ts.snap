@@ -18,6 +18,7 @@ exports[`planProjectUpgrade on the 0.1.0 fixture > plans the real deltas between
     "patch apps/shell/package.json",
     "patch apps/shell/src/analytics/init.ts",
     "patch apps/shell/src/api/endpoints.ts",
+    "create apps/shell/src/assert.ts",
     "patch apps/shell/src/bootstrap.tsx",
     "patch apps/shell/vitest.config.ts",
     "patch docs/ci.md",

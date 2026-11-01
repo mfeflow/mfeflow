@@ -1,10 +1,11 @@
-import { registryIndexUrl, type FeatureRegistryItem } from '@mfeflow/contracts';
+import { redactUrl, registryIndexUrl, type FeatureRegistryItem } from '@mfeflow/contracts';
 import {
   fetchFeatureIndex,
   findProjectRoot,
   isMfeflowError,
   loadProject,
   type MfeflowProject,
+  type Trusted,
 } from '@mfeflow/core';
 import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals } from '../args';
@@ -12,6 +13,7 @@ import { FIRST_PARTY, loadAny } from '../catalog';
 import { reportOf, unexpectedReport } from '../exit';
 import type { FeatureInfo, FeaturesResult, RegistryStatus } from '../output';
 import type { Runtime } from '../runtime';
+import { trustedIn } from '../trust';
 
 export const FEATURES_ARGS = {
   search: {
@@ -60,19 +62,34 @@ interface Fetched {
   items: FeatureRegistryItem[];
 }
 
-/** Every configured registry's index, asked for at the same time; one that fails is reported, not thrown. */
-function fetchIndexes(rt: Runtime, registries: Record<string, string>): Promise<Fetched[]> {
+/**
+ * The index of every registry the user trusts, asked for at the same time; one that fails is
+ * reported, not thrown. A registry that is only named in mfeflow.json is not asked at all.
+ */
+function fetchIndexes(
+  rt: Runtime,
+  registries: Record<string, string>,
+  trusted: Trusted,
+): Promise<Fetched[]> {
   return Promise.all(
     Object.entries(registries)
       .toSorted(([a], [b]) => a.localeCompare(b))
       .map(async ([namespace, template]): Promise<Fetched> => {
-        const base = { namespace, index: registryIndexUrl(template) };
+        const base = { namespace, index: redactUrl(registryIndexUrl(template)) };
+        if (!trusted.fetch.has(namespace)) {
+          return { status: { ...base, trusted: false, items: 0, error: null }, items: [] };
+        }
         try {
-          const items = await fetchFeatureIndex(namespace, registries, rt.fetch);
-          return { status: { ...base, items: items.length, error: null }, items };
+          const items = await fetchFeatureIndex(
+            namespace,
+            registries,
+            rt.fetch,
+            trusted.privateOk.has(namespace),
+          );
+          return { status: { ...base, trusted: true, items: items.length, error: null }, items };
         } catch (error) {
           const report = isMfeflowError(error) ? reportOf(error) : unexpectedReport(error);
-          return { status: { ...base, items: 0, error: report }, items: [] };
+          return { status: { ...base, trusted: true, items: 0, error: report }, items: [] };
         }
       }),
   );
@@ -103,7 +120,9 @@ export async function runFeatures(
         };
       }),
     ),
-    fetchIndexes(rt, project?.registries ?? {}),
+    trustedIn(rt, project?.registries).then((trusted) =>
+      fetchIndexes(rt, project?.registries ?? {}, trusted),
+    ),
   ]);
   const fromRegistries = fetched.flatMap(({ status, items }) =>
     items
@@ -142,6 +161,18 @@ export async function runFeatures(
     }
     for (const { namespace, error } of registries) {
       if (error) rt.io.stderr(`Could not read ${namespace}: ${error.message}\n  ${error.fix}`);
+    }
+    const untrusted = registries.filter((r) => !r.trusted).map((r) => r.namespace);
+    if (untrusted.length > 0) {
+      rt.io.stdout(
+        [
+          '',
+          ...untrusted.map(
+            (namespace) =>
+              `${namespace}: not trusted yet, nothing was requested. Run \`mfeflow registry trust ${namespace}\` to list its features.`,
+          ),
+        ].join('\n'),
+      );
     }
     rt.io.stdout(
       registries.length === 0

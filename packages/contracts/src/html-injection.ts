@@ -31,13 +31,17 @@ export interface InjectionOptions {
   snapshot?: boolean;
 }
 
+/** Fields the runtime never reads; `exposes` becomes preload hints, the rest is rollback bookkeeping. */
+const NOT_INLINED = new Set(['exposes', 'previous', 'history', 'rolledBackFrom']);
+
 /**
  * The HTML an edge function or server adds to the shell's `index.html` for one
  * route: the registry as `window.__MFE_REGISTRY__` (so the shell fetches no
  * index) and preload hints for the files each remote the route renders needs.
  * Everything the runtime reads from the fetched index is inlined, so both
  * paths register the same remotes; only the per-expose `exposes` file lists
- * stay out of the page.
+ * and the rollback fields (`previous`, `history`, `rolledBackFrom`) stay out
+ * of the page.
  *
  * Hints match how the browser will request each file, or it downloads twice:
  * classic scripts and styles are `rel="preload"` without `crossorigin`; the
@@ -56,7 +60,7 @@ export function registryInjection(
   const inline = {
     remotes: index.remotes.map((remote) =>
       Object.fromEntries(
-        Object.entries(pickRegistryFields(remote)).filter(([key]) => key !== 'exposes'),
+        Object.entries(pickRegistryFields(remote)).filter(([key]) => !NOT_INLINED.has(key)),
       ),
     ),
   };

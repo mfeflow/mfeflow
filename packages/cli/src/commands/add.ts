@@ -1,4 +1,5 @@
 import {
+  checkIntegrity,
   findProjectRoot,
   inOrder,
   loadProject,
@@ -25,6 +26,7 @@ import { chooseLocal } from '../local';
 import { createBuilder } from '../pipeline';
 import { loadPreset } from '../preset';
 import type { Runtime } from '../runtime';
+import { trustedIn } from '../trust';
 import { writePlan } from '../write';
 
 export const ADD_ARGS = {
@@ -63,6 +65,11 @@ export const ADD_ARGS = {
     description: 'add env-key: root, every shell or every remote, instead of --app',
     valueHint: 'root|shell|remotes',
   },
+  'accept-changed-content': {
+    type: 'boolean',
+    description:
+      'Take a registry feature whose content differs from the hash recorded in mfeflow.json',
+  },
   ...GLOBAL_ARGS,
 } as const satisfies ArgsDef;
 
@@ -95,7 +102,8 @@ async function nameFrom(
  * What a new app of `kind` gets: the app-level parts of `core` and of every feature already
  * installed. A registry feature is fetched at the version the project recorded, and applied
  * only past the same gate as `add <feature>`; if the registry no longer serves that version
- * nothing is written.
+ * nothing is written. The registry must be trusted, and the bytes must match the hash recorded
+ * when the feature was added (E406), unless `acceptChanged`: then `next` records the new hash.
  */
 async function addAppParts(
   rt: Runtime,
@@ -105,9 +113,25 @@ async function addAppParts(
   next: MfeflowProject,
   kind: 'shell' | 'remotes',
   name: string,
+  acceptChanged: boolean,
 ): Promise<LoadedFeature> {
   const names = ['core', ...Object.keys(project.features).filter((n) => n !== 'core')];
   const { canPrompt } = globals;
+  const trusted = await trustedIn(rt, project.registries);
+  const untrusted = [
+    ...new Set(
+      names
+        .filter((n) => n.startsWith('@'))
+        .map((n) => n.slice(0, n.indexOf('/')))
+        .filter((ns) => ns in (project.registries ?? {}) && !trusted.fetch.has(ns)),
+    ),
+  ];
+  if (untrusted.length > 0) {
+    throw new MfeflowError(
+      'E405',
+      `${untrusted.join(', ')} is installed here but not trusted on this machine, so it was not requested`,
+    );
+  }
   const loadedAll = await Promise.all(
     names.map((feature) =>
       loadAny(feature, {
@@ -115,6 +139,7 @@ async function addAppParts(
         registries: project.registries,
         fetch: rt.fetch,
         version: project.features[feature]?.version,
+        trusted: trusted.privateOk,
       }),
     ),
   );
@@ -139,6 +164,18 @@ async function addAppParts(
         );
       }
       fromRegistry.push(feature);
+      const entry = next.features[feature];
+      const now = loaded.integrity;
+      if (entry !== undefined && now !== undefined) {
+        if (entry.integrity === undefined) {
+          if (!globals.json) {
+            rt.io.stdout(`${feature} has no integrity hash in mfeflow.json; recording one now.`);
+          }
+          next.features[feature] = { ...entry, integrity: now };
+        } else if (checkIntegrity(feature, entry.integrity, now, acceptChanged)) {
+          next.features[feature] = { ...entry, integrity: now };
+        }
+      }
     }
     planned.push({ feature, parts });
   });
@@ -171,6 +208,7 @@ async function addApp(
   const next: MfeflowProject = {
     ...project,
     apps: { ...project.apps, [name]: { kind, path: `apps/${name}`, port } },
+    features: { ...project.features },
   };
   const builder = createBuilder(root, chosen.checkout);
   const core = await addAppParts(
@@ -181,6 +219,7 @@ async function addApp(
     next,
     kind === 'remote' ? 'remotes' : 'shell',
     name,
+    args['accept-changed-content'] === true,
   );
   const version = core.manifest.version;
   if (kind === 'remote') {
@@ -349,9 +388,16 @@ async function addFeatures(
   }
 
   assertOptionsAreForFeatures(options, adding);
+  const trusted = await trustedIn(rt, project.registries);
   const loaded = await Promise.all(
     adding.map((name) =>
-      loadAny(name, { roots: rt.roots, registries: project.registries, fetch: rt.fetch }),
+      loadAny(name, {
+        roots: rt.roots,
+        registries: project.registries,
+        fetch: rt.fetch,
+        trusted: trusted.privateOk,
+        checkIndex: true,
+      }),
     ),
   );
   const thirdParty = loaded.filter((f) => f.trust === 'third-party').map((f) => f.manifest.name);

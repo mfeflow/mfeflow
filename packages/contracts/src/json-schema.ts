@@ -226,7 +226,10 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
       features: {
         type: 'object',
         propertyNames: str(FEATURE_NAME),
-        additionalProperties: item({ version: str(), options: { type: 'object' } }, ['version']),
+        additionalProperties: item(
+          { version: str(), options: { type: 'object' }, integrity: str(FILE_HASH) },
+          ['version'],
+        ),
       },
       files: {
         type: 'object',
@@ -349,6 +352,9 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
             version: str(),
             routes: strings(ROUTE),
             owner: str(),
+            previous: str(),
+            history: strings(),
+            rolledBackFrom: str(),
           },
           ['name', 'entry'],
         ),

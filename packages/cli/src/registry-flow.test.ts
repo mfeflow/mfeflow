@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { loadProject } from '@mfeflow/core';
 import { main, validateResult, type FeaturesResult } from '.';
 import { REPO, removeDir, tempDir, testRuntime } from './testing';
@@ -12,7 +12,9 @@ import { REPO, removeDir, tempDir, testRuntime } from './testing';
 const FIXTURE = path.join(REPO, 'e2e/registry-fixture');
 
 const realFetch = (url: string, init?: RequestInit) => fetch(url, init);
-const runtime = () => testRuntime({ fetch: realFetch });
+/** One user config folder per test, so `registry add` in one run is remembered by the next. */
+let configDir = '';
+const runtime = () => testRuntime({ fetch: realFetch, configDir });
 
 let work: string;
 let site: string;
@@ -40,6 +42,12 @@ beforeAll(async () => {
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   origin = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;
+});
+
+let runs = 0;
+beforeEach(() => {
+  runs += 1;
+  configDir = path.join(work, `config-${String(runs)}`);
 });
 
 afterAll(async () => {
@@ -86,7 +94,7 @@ describe('a third-party registry, end to end', () => {
       }),
     ]);
     expect((listed as FeaturesResult).registries).toEqual([
-      { namespace: '@test', index: `${origin}/index.json`, items: 1, error: null },
+      { namespace: '@test', index: `${origin}/index.json`, trusted: true, items: 1, error: null },
     ]);
 
     const refused = runtime();
@@ -112,7 +120,9 @@ describe('a third-party registry, end to end', () => {
     expect(await fs.readFile(path.join(cwd, 'pnpm-workspace.yaml'), 'utf8')).toMatch(
       /clsx: \^?2\.1\.1/,
     );
-    expect((await loadProject(cwd)).features['@test/hello']).toEqual({ version: '1.0.0' });
+    const recorded = (await loadProject(cwd)).features['@test/hello'];
+    expect(recorded?.version).toBe('1.0.0');
+    expect(recorded?.integrity).toMatch(/^sha256-[0-9a-f]{64}$/);
 
     const again = runtime();
     expect(await main(['add', '@test/hello', '--yes', '--no-install', '--cwd', cwd], again)).toBe(
@@ -184,6 +194,26 @@ describe('a third-party registry, end to end', () => {
     expect(result.registries[0]?.error?.code).toBe('MFEFLOW_E401');
     const add = runtime();
     expect(await main(['add', '@gone/x', '--yes', '--no-install', '--cwd', cwd], add)).toBe(6);
+  });
+
+  it('a cloned repo names a registry but asks nothing of it until the user trusts it', async () => {
+    const cwd = await newProject('cloned');
+    const template = `${origin}/{name}.json`;
+    await main(['registry', 'add', '@test', template, '--cwd', cwd], runtime());
+    // A fresh machine: same mfeflow.json, a config folder that trusts nothing.
+    const fresh = testRuntime({ fetch: realFetch, configDir: path.join(work, 'fresh-config') });
+    expect(await main(['features', '--json', '--cwd', cwd], fresh)).toBe(0);
+    const before = JSON.parse(fresh.io.out.join('')) as FeaturesResult;
+    expect(before.features.some((f) => f.source === '@test')).toBe(false);
+    expect(before.registries[0]).toMatchObject({ namespace: '@test', trusted: false, items: 0 });
+
+    const trust = testRuntime({ fetch: realFetch, configDir: path.join(work, 'fresh-config') });
+    expect(await main(['registry', 'trust', '@test', '--yes', '--cwd', cwd], trust)).toBe(0);
+    const after = testRuntime({ fetch: realFetch, configDir: path.join(work, 'fresh-config') });
+    await main(['features', '--json', '--cwd', cwd], after);
+    expect(
+      (JSON.parse(after.io.out.join('')) as FeaturesResult).features.map((f) => f.name),
+    ).toContain('@test/hello');
   });
 
   it('does not let plain http reach anything but this machine', async () => {

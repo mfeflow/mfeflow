@@ -1,6 +1,10 @@
+import { createHash } from 'node:crypto';
 import {
   isLoopbackHttp,
+  isPrivateHost,
   isRegistryProtocol,
+  redactUrl,
+  redactUrlsIn,
   registryIndexUrl,
   registryTemplateProblem,
   validateFeatureRegistryIndex,
@@ -52,12 +56,14 @@ export function registryUrl(
   try {
     parsed = new URL(url);
   } catch (error) {
-    throw new MfeflowError('E401', `${namespace} has an invalid URL (${url})`, { cause: error });
+    throw new MfeflowError('E401', `${namespace} has an invalid URL (${redactUrl(url)})`, {
+      cause: error,
+    });
   }
   if (!isRegistryProtocol(parsed)) {
     throw new MfeflowError(
       'E401',
-      `${url} is not https (plain http is for 127.0.0.1, localhost and [::1] only)`,
+      `${redactUrl(url)} is not https (plain http is for 127.0.0.1, localhost and [::1] only)`,
     );
   }
   return parsed.href;
@@ -67,17 +73,38 @@ export function registryUrl(
  * GETs `url`, following redirects by hand so one that leaves https is refused before it is
  * requested. `code` is the error every failure here throws. With `loopback`, a URL that starts
  * on plain http at 127.0.0.1, localhost or [::1] may stay on such a host; nothing else may
- * step down to http, and an https URL never ends up on one.
+ * step down to http, and an https URL never ends up on one. With `blockPrivate`, no request goes
+ * to a loopback or private address (`isPrivateHost`), not even by redirect; that is E405. With
+ * `blockPrivate: false` (a trusted registry) a private address is fine only when `url` itself is
+ * private, so a public server can never redirect you into a private network.
  */
 export async function getHttps(
   url: string,
   fetchImpl: FetchLike,
   code: 'E109' | 'E401',
-  options: { loopback?: boolean } = {},
+  options: { loopback?: boolean; blockPrivate?: boolean } = {},
 ): Promise<FetchResponse> {
   const fail = (at: string, why: string, cause?: unknown): never => {
-    throw new MfeflowError(code, `${at}: ${why}`, cause === undefined ? {} : { cause });
+    throw new MfeflowError(
+      code,
+      redactUrlsIn(`${at}: ${why}`),
+      cause === undefined ? {} : { cause },
+    );
   };
+  const startsPrivate = isPrivateHost(new URL(url).hostname);
+  const refusePrivate = (target: URL): void => {
+    if (options.blockPrivate === undefined || !isPrivateHost(target.hostname)) return;
+    // Trust covers a private address the user wrote, never one a public server points at.
+    if (!options.blockPrivate && startsPrivate) return;
+    const why = options.blockPrivate
+      ? 'those are only requested from a trusted registry'
+      : 'a public registry may not send you to one';
+    throw new MfeflowError(
+      'E405',
+      `${redactUrl(target.href)} is a loopback or private address; ${why}`,
+    );
+  };
+  refusePrivate(new URL(url));
   const startsLoopback = options.loopback === true && isLoopbackHttp(new URL(url));
   const permitted = (target: URL): boolean =>
     target.protocol === 'https:' || (startsLoopback && isLoopbackHttp(target));
@@ -103,6 +130,7 @@ export async function getHttps(
     if (response.url !== undefined && response.url !== '' && !addressOk(response.url)) {
       fail(url, `ended up at ${response.url}, which is not https`);
     }
+    if (response.url !== undefined && response.url !== '') refusePrivate(new URL(response.url));
     if (response.status < 300 || response.status >= 400) return response;
     const location = response.headers?.get('location');
     // oxlint-disable-next-line no-await-in-loop -- the redirect body is not wanted
@@ -117,6 +145,7 @@ export async function getHttps(
       return fail(current, 'redirected to a bad address', error);
     }
     if (!permitted(next)) fail(url, `redirected to ${next.href}, which is not https`);
+    refusePrivate(next);
     current = next.href;
   }
   return fail(url, 'redirected too many times');
@@ -128,21 +157,51 @@ export async function fetchRemoteText(
   registries: Record<string, string>,
   fetchImpl: FetchLike = realFetch,
   version?: string,
+  trusted = false,
 ): Promise<string> {
   const url = registryUrl(name, registries, version);
-  const response = await getHttps(url, fetchImpl, 'E401', { loopback: true });
+  const shown = redactUrl(url);
+  const response = await getHttps(url, fetchImpl, 'E401', {
+    loopback: true,
+    blockPrivate: !trusted,
+  });
   if (!response.ok) {
     const hint = response.status === 404 ? `${name} is not in that registry` : undefined;
     throw new MfeflowError(
       'E401',
-      `${url} answered ${String(response.status)}${hint ? `: ${hint}` : ''}`,
+      `${shown} answered ${String(response.status)}${hint ? `: ${hint}` : ''}`,
     );
   }
   return readCappedText(
     response,
     MAX_BYTES,
-    () => new MfeflowError('E402', `${url} is larger than 1 MB`),
+    () => new MfeflowError('E402', `${shown} is larger than 1 MB`),
   );
+}
+
+/**
+ * Compares the hash recorded when `name` was added with the one of what the registry serves now.
+ * A difference is an E406 unless `accept`; returns whether the content changed.
+ */
+export function checkIntegrity(
+  name: string,
+  recorded: string,
+  served: string,
+  accept: boolean,
+): boolean {
+  if (recorded === served) return false;
+  if (!accept) {
+    throw new MfeflowError(
+      'E406',
+      `${name} was ${recorded} when you added it and is now ${served}`,
+    );
+  }
+  return true;
+}
+
+/** `sha256-<hex>` of the exact text a registry served. */
+export function integrityOf(text: string): string {
+  return `sha256-${createHash('sha256').update(text, 'utf8').digest('hex')}`;
 }
 
 /**
@@ -185,34 +244,66 @@ export async function fetchFeatureIndex(
   namespace: string,
   registries: Record<string, string>,
   fetchImpl: FetchLike = realFetch,
+  trusted = false,
 ): Promise<FeatureRegistryItem[]> {
+  const items = await readIndex(namespace, registries, fetchImpl, trusted, false);
+  return items ?? [];
+}
+
+/**
+ * The version `<namespace>`'s index lists for the bare feature `name`, undefined when the index
+ * does not list it or the registry has none (404). Any other failure to read it is thrown.
+ */
+export async function indexedVersion(
+  namespace: string,
+  name: string,
+  registries: Record<string, string>,
+  fetchImpl: FetchLike = realFetch,
+  trusted = false,
+): Promise<string | undefined> {
+  const items = await readIndex(namespace, registries, fetchImpl, trusted, true);
+  return items?.find((item) => item.name === name)?.version;
+}
+
+async function readIndex(
+  namespace: string,
+  registries: Record<string, string>,
+  fetchImpl: FetchLike,
+  trusted: boolean,
+  missingOk: boolean,
+): Promise<FeatureRegistryItem[] | undefined> {
   const template = registries[namespace];
   if (template === undefined) throw new MfeflowError('E210', namespace);
   const problem = registryTemplateProblem(template);
   if (problem !== undefined) throw new MfeflowError('E401', `${namespace}: ${problem}`);
   const url = registryIndexUrl(template);
-  const response = await getHttps(url, fetchImpl, 'E401', { loopback: true });
+  const shown = redactUrl(url);
+  const response = await getHttps(url, fetchImpl, 'E401', {
+    loopback: true,
+    blockPrivate: !trusted,
+  });
   if (!response.ok) {
+    if (missingOk && response.status === 404) return undefined;
     const hint = response.status === 404 ? ': this registry has no index.json' : '';
-    throw new MfeflowError('E401', `${url} answered ${String(response.status)}${hint}`);
+    throw new MfeflowError('E401', `${shown} answered ${String(response.status)}${hint}`);
   }
   const text = await readCappedText(
     response,
     MAX_BYTES,
-    () => new MfeflowError('E403', `${url} is larger than 1 MB`),
+    () => new MfeflowError('E403', `${shown} is larger than 1 MB`),
   );
   let value: unknown;
   try {
     value = JSON.parse(text);
   } catch (error) {
     const reason = messageOf(error).replaceAll(/\p{Cc}/gu, '?');
-    throw new MfeflowError('E403', `${url} is not JSON (${reason})`, { cause: error });
+    throw new MfeflowError('E403', `${shown} is not JSON (${reason})`, { cause: error });
   }
   const issues = validateFeatureRegistryIndex(value);
   if (issues.length > 0) {
-    const shown = issues.slice(0, 3).map((i) => `${i.path || '(root)'} ${i.message}`);
+    const first = issues.slice(0, 3).map((i) => `${i.path || '(root)'} ${i.message}`);
     const more = issues.length > 3 ? `; and ${String(issues.length - 3)} more` : '';
-    throw new MfeflowError('E403', `${url}: ${shown.join('; ')}${more}`);
+    throw new MfeflowError('E403', `${shown}: ${first.join('; ')}${more}`);
   }
   return itemsOf(value);
 }

@@ -194,6 +194,14 @@ export const ERROR_CATALOGUE = {
     title: 'A feature in the registry folder cannot be published',
     fix: 'Fix the features listed above. They are checked with the same rules `mfeflow add @namespace/name` applies, so a feature that passes here installs for users.',
   },
+  E405: {
+    title: 'The registry is not trusted yet',
+    fix: 'Run `mfeflow registry trust @namespace` once to allow requests to it, or remove it from "registries".',
+  },
+  E406: {
+    title: 'The registry changed a feature since you added it',
+    fix: 'Nothing was written. Look at what changed; if you accept the new content, run the command again with --accept-changed-content.',
+  },
   E601: {
     title: 'Cannot tell which version of mfeflow made this project',
     fix: 'Add "cli": "<version>" to mfeflow.json (the version you created the project with), or give the shell a plain @mfeflow/runtime range in its package.json, then run the command again.',
