@@ -3,7 +3,7 @@
 Unit tests in every app and a browser smoke test for the whole platform. On by default in new projects.
 
 ```sh
-mfeflow add testing
+pnpm mfeflow add testing
 pnpm test                       # Vitest, every app
 pnpm exec playwright install chromium   # once
 pnpm test:e2e                   # Playwright, headless

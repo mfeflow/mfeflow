@@ -1,6 +1,6 @@
 # ci-github
 
-A GitHub Actions workflow for pull requests. Opt-in: `mfeflow add ci-github`.
+A GitHub Actions workflow for pull requests. Opt-in: `pnpm mfeflow add ci-github`.
 
 It is not part of the default set because `init` cannot know whether the project will be the root of a GitHub
 repository, and a workflow in any other folder never runs. Add it once the repository exists.
@@ -13,7 +13,7 @@ repository, and a workflow in any other folder never runs. Add it once the repos
 2. lint and format check (when `lint-oxlint` is installed), typecheck, tooling typecheck
 3. `pnpm test` (when `testing` is installed)
 4. `pnpm build`
-5. `mfeflow doctor`, `validate`, `check-compat` and `budget`
+5. `pnpm mfeflow doctor`, `validate`, `check-compat` and `budget`
 6. `pnpm check:runtime-config` (when `env-t3` is installed)
 7. the Playwright smoke test, with the report uploaded on failure (when `testing` is installed)
 

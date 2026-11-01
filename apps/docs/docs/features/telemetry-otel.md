@@ -3,7 +3,7 @@
 OpenTelemetry for the browser behind `@mfeflow/telemetry`. Off by default.
 
 ```sh
-mfeflow add telemetry-otel
+pnpm mfeflow add telemetry-otel
 ```
 
 Point the shell at an OTLP/HTTP endpoint in the runtime config:
@@ -125,7 +125,7 @@ If you need `await` to keep the span, capture the context before it and run the 
 `pnpm check:runtime-config` checks the URL, the ratio and the list.
 
 Adding `env-t3` later writes the keys into the schema and the environment files too. Delete
-`apps/shell/public/config/runtime-config.json` then: the per-environment files replace it, and `mfeflow doctor`
+`apps/shell/public/config/runtime-config.json` then: the per-environment files replace it, and `pnpm mfeflow doctor`
 reports it as missing `environment` until it is gone.
 
 ## Versions
