@@ -20,7 +20,7 @@ A change to any of these is a breaking change:
 
 - CLI commands, flags and exit codes (`mfeflow init`, `add`, `doctor`, `--json` output shapes, ...).
 - `MFEFLOW_E*` error codes: their meaning and exit codes. New codes are not breaking.
-- The `mfeflow.json`, `mfe.json` and registry (`index.json`) schemas.
+- The `mfeflow.json`, `mfeflow.app.json` and registry (`index.json`) schemas.
 - `feature.json` and the names and options of the transform ops (`add-import`, `wrap-provider`, ...).
 - Each package's `exports`: the subpaths and what they export.
 - The layout of a generated project that `mfeflow upgrade` migrates.

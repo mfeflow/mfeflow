@@ -7,9 +7,18 @@ import {
   type MfeManifest,
   type RegistryEntry,
 } from '@mfeflow/contracts';
-import { hasErrno, loadProject, messageOf, type MfeflowProject } from '@mfeflow/core';
+import {
+  APP_FILE,
+  hasErrno,
+  legacyAppFileNotice,
+  loadProject,
+  messageOf,
+  readAppFile,
+  type MfeflowProject,
+} from '@mfeflow/core';
 import { parse as parseYaml } from 'yaml';
 import { DEV_CONFIG_IN_APP, readDevRemotes } from './devremotes';
+import type { Io } from './io';
 import { SINGLETON_PACKAGES } from './singletons';
 
 export const ENVS = ['dev', 'staging', 'prod'] as const;
@@ -35,6 +44,8 @@ export interface AppView {
   present: boolean;
   pkg: PackageView | undefined;
   mfe: Read<MfeManifest>;
+  /** Path from the root of the app file that was read: `mfeflow.app.json`, or the old `mfe.json`. */
+  appFile: string;
 }
 
 export interface WorkspacePackage {
@@ -55,6 +66,8 @@ export interface ProjectView {
   registry: Record<string, Record<string, Read<RegistryEntry>>>;
   /** Folders under registry/envs that exist. */
   envDirs: string[];
+  /** Folders of the apps that still use the old `mfe.json` name. */
+  legacyAppFiles: string[];
 }
 
 type Obj = Record<string, unknown>;
@@ -73,7 +86,10 @@ export async function readText(file: string): Promise<string | undefined> {
 }
 
 async function readJson(file: string): Promise<Read<unknown>> {
-  const text = await readText(file);
+  return parseJson(await readText(file));
+}
+
+function parseJson(text: string | undefined): Read<unknown> {
   if (text === undefined) return { state: 'missing' };
   try {
     return { state: 'ok', value: JSON.parse(text) };
@@ -186,13 +202,28 @@ async function readPackage(dir: string, catalogs: Catalogs): Promise<PackageView
   return view;
 }
 
-async function readMfe(dir: string): Promise<Read<MfeManifest>> {
-  const read = await readJson(path.join(dir, 'mfe.json'));
-  if (read.state !== 'ok') return read;
+/** The app file of `dir`, under its new name or the old one. Throws E122 when both exist. */
+async function readMfe(
+  dir: string,
+): Promise<{ mfe: Read<MfeManifest>; name: string; legacy: boolean }> {
+  const file = await readAppFile(dir);
+  const name = file?.name ?? APP_FILE;
+  const legacy = file?.legacy ?? false;
+  const read = parseJson(file?.text);
+  if (read.state !== 'ok') return { mfe: read, name, legacy };
   const issues = validateMfeManifest(read.value);
-  if (issues.length > 0) return { state: 'invalid', issues };
+  if (issues.length > 0) return { mfe: { state: 'invalid', issues }, name, legacy };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated just above
-  return { state: 'ok', value: read.value as MfeManifest };
+  return { mfe: { state: 'ok', value: read.value as MfeManifest }, name, legacy };
+}
+
+const noticed = new WeakSet<object>();
+
+/** Prints the old app file name notice to stderr, at most once for each `io`, which is once per command. */
+export function noticeLegacyAppFiles(io: Pick<Io, 'stderr'>, legacy: readonly string[]): void {
+  if (legacy.length === 0 || noticed.has(io)) return;
+  noticed.add(io);
+  io.stderr(legacyAppFileNotice(legacy));
 }
 
 async function readRegistry(root: string): Promise<{
@@ -230,14 +261,20 @@ async function readRegistry(root: string): Promise<{
   return { registry, envDirs };
 }
 
-/** Everything the checks read, loaded once. Throws the E102-E104 errors of `loadProject`. */
-export async function inspectProject(root: string): Promise<ProjectView> {
+/**
+ * Everything the checks read, loaded once. Throws the E102-E104 errors of `loadProject`, and E122
+ * when an app has both app file names. With `io`, apps on the old name get one notice per command.
+ */
+export async function inspectProject(root: string, io?: Pick<Io, 'stderr'>): Promise<ProjectView> {
   const project = await loadProject(root);
   const { globs, catalogs } = await readWorkspaceFile(root);
+  const legacyAppFiles: string[] = [];
   const apps = await Promise.all(
     Object.entries(project.apps).map(async ([name, app]): Promise<AppView> => {
       const dir = path.join(root, ...app.path.split('/'));
       const pkg = await readPackage(dir, catalogs);
+      const file = await readMfe(dir);
+      if (file.legacy) legacyAppFiles.push(app.path);
       return {
         name,
         kind: app.kind,
@@ -246,10 +283,13 @@ export async function inspectProject(root: string): Promise<ProjectView> {
         port: app.port,
         present: pkg !== undefined,
         pkg,
-        mfe: await readMfe(dir),
+        mfe: file.mfe,
+        appFile: `${app.path}/${file.name}`,
       };
     }),
   );
+  legacyAppFiles.sort((a, b) => a.localeCompare(b));
+  if (io) noticeLegacyAppFiles(io, legacyAppFiles);
   const folders = await expandGlobs(root, globs);
   const workspace = (
     await Promise.all(
@@ -266,6 +306,7 @@ export async function inspectProject(root: string): Promise<ProjectView> {
     project,
     apps,
     workspace,
+    legacyAppFiles,
     ...(devRemotes === undefined ? {} : { devRemotes }),
     ...(await readRegistry(root)),
   };

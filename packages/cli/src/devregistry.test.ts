@@ -12,6 +12,7 @@ const remote = (name: string, port: number): AppView => ({
   present: true,
   pkg: undefined,
   mfe: { state: 'missing' },
+  appFile: `apps/${name}/mfeflow.app.json`,
 });
 
 const view = (apps: AppView[], registry: ProjectView['registry'] = {}): ProjectView => ({
@@ -22,6 +23,7 @@ const view = (apps: AppView[], registry: ProjectView['registry'] = {}): ProjectV
   workspace: [],
   registry,
   envDirs: [],
+  legacyAppFiles: [],
 });
 
 describe('devIndex', () => {

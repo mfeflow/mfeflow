@@ -1,6 +1,6 @@
 ---
 title: Project structure
-description: A tour of every file in a new mfeflow project, which ones you edit, which ones a feature manages, and what mfeflow.json, mfe.json and the registry folder do.
+description: A tour of every file in a new mfeflow project, which ones you edit, which ones a feature manages, and what mfeflow.json, mfeflow.app.json and the registry folder do.
 ---
 
 # Project structure
@@ -32,7 +32,7 @@ demo/
 │   └── prod/     catalog.json  cart.json
 └── apps/
     ├── shell/
-    │   ├── mfe.json  package.json  rsbuild.config.ts  tsconfig.json
+    │   ├── mfeflow.app.json  package.json  rsbuild.config.ts  tsconfig.json
     │   ├── env.ts  vitest.config.ts
     │   ├── public/config/runtime-config.{dev,staging,prod}.json
     │   └── src/
@@ -44,7 +44,7 @@ demo/
     │       ├── mocks/    handlers.ts  server.ts
     │       └── test/     setup.ts
     ├── catalog/
-    │   ├── mfe.json  package.json  rsbuild.config.ts  tsconfig.json
+    │   ├── mfeflow.app.json  package.json  rsbuild.config.ts  tsconfig.json
     │   ├── env.ts  vitest.config.ts
     │   └── src/
     │       ├── index.ts  bootstrap.tsx
@@ -68,7 +68,7 @@ Some files are also touched by `mfeflow add`. Features look for a fixed shape in
 | `apps/*/rsbuild.config.ts`               | Rarely                         | `add remote` writes it; features add an import |
 | `mfeflow.json`                           | Only `budget` and `registries` | Every `add` command                            |
 | `registry/envs/*/*.json`                 | Yes, before deploy             | `add remote` creates entries                   |
-| `apps/*/mfe.json`                        | Yes                            | `add remote` creates it                        |
+| `apps/*/mfeflow.app.json`                | Yes                            | `add remote` creates it                        |
 
 ## What is in the shell?
 
@@ -97,13 +97,13 @@ export default createRemoteConfig({
 });
 ```
 
-## What are mfeflow.json and mfe.json?
+## What are mfeflow.json and mfeflow.app.json?
 
 `mfeflow.json` at the root is the CLI's record of the project: apps, ports, installed features and file hashes. Read the [field reference](/reference/mfeflow-json). Do not edit the hashes by hand.
 
-Each app has an `mfe.json` that names its owner, the routes it claims and what it exposes. See [Ownership](/concepts/ownership) and the [field reference](/reference/mfe-json).
+Each app has an `mfeflow.app.json` that names its owner, the routes it claims and what it exposes. See [Ownership](/concepts/ownership) and the [field reference](/reference/mfeflow-app-json).
 
-```json title="apps/catalog/mfe.json"
+```json title="apps/catalog/mfeflow.app.json"
 {
   "name": "catalog",
   "owner": "team-catalog",

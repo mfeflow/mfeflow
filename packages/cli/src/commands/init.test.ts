@@ -46,7 +46,7 @@ describe('mfeflow init', () => {
         'apps/shell/src/index.ts',
         'apps/shell/public/config/runtime-config.dev.json',
         'apps/catalog/src/exposed/App.tsx',
-        'apps/cart/mfe.json',
+        'apps/cart/mfeflow.app.json',
         'registry/envs/dev/catalog.json',
         'registry/envs/prod/cart.json',
         '.oxlintrc.json',
@@ -547,9 +547,25 @@ describe('mfeflow init', () => {
     await main(['init', 'app', '--yes', '--no-install', '--cwd', cwd], testRuntime());
     for (const app of ['shell', 'catalog', 'cart']) {
       const manifest: unknown = JSON.parse(
-        await fs.readFile(path.join(cwd, 'app', 'apps', app, 'mfe.json'), 'utf8'),
+        await fs.readFile(path.join(cwd, 'app', 'apps', app, 'mfeflow.app.json'), 'utf8'),
       );
       expect(validateMfeManifest(manifest)).toEqual([]);
     }
+  });
+
+  it('writes mfeflow.app.json, with the new schema URL, and no mfe.json anywhere', async () => {
+    const cwd = await workspace();
+    await main(['init', 'app', '--yes', '--no-install', '--cwd', cwd], testRuntime());
+    const tree = await readTree(path.join(cwd, 'app'));
+    const files = Object.keys(tree);
+    expect(files.filter((f) => f.endsWith('/mfeflow.app.json')).toSorted()).toEqual([
+      'apps/cart/mfeflow.app.json',
+      'apps/catalog/mfeflow.app.json',
+      'apps/shell/mfeflow.app.json',
+    ]);
+    expect(files.filter((f) => f.endsWith('mfe.json'))).toEqual([]);
+    expect(JSON.parse(tree['apps/cart/mfeflow.app.json'] ?? '{}')).toMatchObject({
+      $schema: 'https://mfeflow.github.io/mfeflow/schema/mfeflow-app.json',
+    });
   });
 });

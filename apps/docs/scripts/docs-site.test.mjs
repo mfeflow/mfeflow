@@ -2,11 +2,11 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { DOCS_URL, SCHEMA_URLS } from '@mfeflow/contracts';
+import { DOCS_URL, SCHEMA_ALIASES, SCHEMA_URLS } from '@mfeflow/contracts';
 import { ERROR_CATALOGUE } from '@mfeflow/core';
 import config from '../rspress.config';
 import { emitErrorPages, errorPage, generatedCodes } from './emit-error-pages.mjs';
-import { emitSchemas, schemaPath } from './emit-schemas.mjs';
+import { emitSchemas, schemaPath, urlPath } from './emit-schemas.mjs';
 
 const DOCS_DIR = path.join(import.meta.dirname, '../docs');
 
@@ -29,9 +29,11 @@ describe('schemas', () => {
     await fs.rm(publicDir, { recursive: true, force: true });
   });
 
+  const total = Object.keys(SCHEMA_URLS).length + Object.keys(SCHEMA_ALIASES).length;
+
   it('emits a file for every URL in SCHEMA_URLS, at the path the URL names', async () => {
     const written = await emitSchemas(publicDir);
-    expect(written).toHaveLength(Object.keys(SCHEMA_URLS).length);
+    expect(written).toHaveLength(total);
     for (const [name, url] of Object.entries(SCHEMA_URLS)) {
       expect(`${DOCS_URL}/${schemaPath(name)}`).toBe(url);
       const file = path.join(publicDir, ...schemaPath(name).split('/'));
@@ -40,9 +42,19 @@ describe('schemas', () => {
     }
   });
 
+  it('serves the app file schema at the old mfe.json URL too, so old $schema lines resolve', async () => {
+    await emitSchemas(publicDir);
+    const read = async (url) =>
+      JSON.parse(await fs.readFile(path.join(publicDir, ...urlPath(url).split('/')), 'utf8'));
+    const alias = await read(`${DOCS_URL}/schema/mfe.json`);
+    expect(alias).toEqual(await read(SCHEMA_URLS.mfe));
+    expect(alias.$id).toBe(`${DOCS_URL}/schema/mfeflow-app.json`);
+    expect(alias.title).toBe('mfeflow.app.json');
+  });
+
   it('writes again over an earlier build', async () => {
     await emitSchemas(publicDir);
-    await expect(emitSchemas(publicDir)).resolves.toHaveLength(Object.keys(SCHEMA_URLS).length);
+    await expect(emitSchemas(publicDir)).resolves.toHaveLength(total);
   });
 });
 
@@ -177,7 +189,7 @@ describe('navigation', () => {
   });
 
   it('puts every page of a section in its sidebar, apart from the old addresses', async () => {
-    const stubs = new Set(['guide/cli', 'guide/deploying']);
+    const stubs = new Set(['guide/cli', 'guide/deploying', 'reference/mfe-json']);
     for (const section of SECTIONS) {
       const listed = new Set(await sidebarPages(section));
       const unlisted = (await pagesIn(section)).filter(

@@ -3,7 +3,7 @@
   { "type": "file", "name": "shared-singletons", "label": "Shared singletons" },
   { "type": "file", "name": "registry-index", "label": "The registry index" },
   { "type": "file", "name": "runtime-config", "label": "Runtime config" },
-  { "type": "file", "name": "ownership", "label": "Ownership with mfe.json" },
+  { "type": "file", "name": "ownership", "label": "Ownership with mfeflow.app.json" },
   { "type": "file", "name": "cost-model", "label": "The cost model" },
   { "type": "file", "name": "third-party-features", "label": "Third-party features" }
 ]

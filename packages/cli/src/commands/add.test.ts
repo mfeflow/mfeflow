@@ -45,7 +45,7 @@ describe('mfeflow add remote', () => {
       expect.arrayContaining([
         'apps/checkout/package.json',
         'apps/checkout/rsbuild.config.ts',
-        'apps/checkout/mfe.json',
+        'apps/checkout/mfeflow.app.json',
         'apps/checkout/src/exposed/App.tsx',
         'apps/checkout/tsconfig.json',
         'apps/checkout/src/api/endpoints.ts',
@@ -117,7 +117,7 @@ describe('mfeflow add remote', () => {
     expect(code).toBe(0);
     expect(await readTree(project)).toEqual(before);
     expect(rt.system.installs).toEqual([]);
-    expect(rt.io.out.join('\n')).toContain('diff --mfeflow apps/checkout/mfe.json');
+    expect(rt.io.out.join('\n')).toContain('diff --mfeflow apps/checkout/mfeflow.app.json');
     expect(rt.io.out.join('\n')).toContain('+++ b/mfeflow.json');
   });
 
