@@ -93,6 +93,11 @@ export async function startRegistryServer(options: StartOptions): Promise<Regist
       log,
     }),
   );
+  if (!config.trustProxy && !/^(localhost|127\.\d+\.\d+\.\d+|\[?::1\]?)$/.test(config.bind))
+    log(
+      'warn',
+      `bound to ${config.bind} without MFEFLOW_REGISTRY_TRUST_PROXY=true: beacons are rate limited per socket address, so behind a proxy every browser shares one limit`,
+    );
   server.requestTimeout = 30_000;
   server.headersTimeout = 15_000;
   await new Promise<void>((resolve, reject) => {

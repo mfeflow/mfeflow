@@ -84,4 +84,18 @@ export const MIGRATIONS: readonly { id: number; name: string; sql: string }[] = 
       );
     `,
   },
+  {
+    id: 3,
+    name: 'rollout-reporters',
+    sql: `
+      DROP TABLE rollout_stats;
+      CREATE TABLE rollout_reporters (
+        rollout_id TEXT NOT NULL,
+        version TEXT NOT NULL,
+        client TEXT NOT NULL,
+        errored INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (rollout_id, version, client)
+      );
+    `,
+  },
 ];

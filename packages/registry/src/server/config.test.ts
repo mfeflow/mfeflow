@@ -11,7 +11,7 @@ describe('configFromEnv', () => {
       artifactBaseUrl: undefined,
       corsOrigins: [],
       maxBodyBytes: 262_144,
-      gate: { minLoads: 200, factor: 2, floor: 0.02 },
+      gate: { minLoads: 200, minClients: 50, factor: 2, floor: 0.02 },
       beaconLimit: { burst: 60, perMinute: 60 },
       trustProxy: false,
     });
@@ -27,6 +27,7 @@ describe('configFromEnv', () => {
       MFEFLOW_REGISTRY_CORS_ORIGINS: 'https://a.example.com, https://b.example.com/path',
       MFEFLOW_REGISTRY_MAX_BODY_BYTES: '2048',
       MFEFLOW_REGISTRY_GATE_MIN_LOADS: '500',
+      MFEFLOW_REGISTRY_GATE_MIN_CLIENTS: '80',
       MFEFLOW_REGISTRY_GATE_FACTOR: '3',
       MFEFLOW_REGISTRY_GATE_FLOOR: '0.05',
       MFEFLOW_REGISTRY_BEACON_BURST: '5',
@@ -41,7 +42,7 @@ describe('configFromEnv', () => {
       artifactBaseUrl: 'https://cdn.example.com/mfe',
       corsOrigins: ['https://a.example.com', 'https://b.example.com'],
       maxBodyBytes: 2048,
-      gate: { minLoads: 500, factor: 3, floor: 0.05 },
+      gate: { minLoads: 500, minClients: 80, factor: 3, floor: 0.05 },
       beaconLimit: { burst: 5, perMinute: 30 },
       trustProxy: true,
     });

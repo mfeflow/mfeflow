@@ -271,7 +271,7 @@ export async function openSqliteStorage(
     if (change.rollout !== undefined) {
       if ('clear' in change.rollout) {
         run('DELETE FROM rollouts WHERE env = ? AND remote = ?', change.env, change.pointer.name);
-        run('DELETE FROM rollout_stats WHERE rollout_id = ?', change.rollout.clear);
+        run('DELETE FROM rollout_reporters WHERE rollout_id = ?', change.rollout.clear);
       } else {
         const r = change.rollout.set;
         run(
@@ -319,22 +319,27 @@ export async function openSqliteStorage(
     listRollouts: sync((env) =>
       all('SELECT * FROM rollouts WHERE env = ? ORDER BY remote', env).map(rolloutOf),
     ),
-    addRolloutCounts: sync((rolloutId, version, counts: VersionCounts) => {
+    addRolloutReport: sync((rolloutId, version, client, errored) => {
       run(
-        `INSERT INTO rollout_stats (rollout_id, version, loads, errors)
+        `INSERT INTO rollout_reporters (rollout_id, version, client, errored)
          SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM rollouts WHERE rollout_id = ?)
-         ON CONFLICT (rollout_id, version) DO UPDATE SET loads = loads + excluded.loads, errors = errors + excluded.errors`,
+         ON CONFLICT (rollout_id, version, client) DO UPDATE SET errored = MAX(errored, excluded.errored)`,
         rolloutId,
         version,
-        counts.loads,
-        counts.errors,
+        client,
+        errored ? 1 : 0,
         rolloutId,
       );
     }),
     rolloutCounts: sync((rolloutId) => {
       const out: Record<string, VersionCounts> = {};
-      for (const row of all('SELECT * FROM rollout_stats WHERE rollout_id = ?', rolloutId))
-        out[text(row, 'version')] = { loads: whole(row, 'loads'), errors: whole(row, 'errors') };
+      for (const row of all(
+        'SELECT version, COUNT(*) AS clients, SUM(errored) AS errors FROM rollout_reporters WHERE rollout_id = ? GROUP BY version',
+        rolloutId,
+      )) {
+        const clients = whole(row, 'clients');
+        out[text(row, 'version')] = { loads: clients, errors: whole(row, 'errors'), clients };
+      }
       return out;
     }),
     commit: sync((change) => {

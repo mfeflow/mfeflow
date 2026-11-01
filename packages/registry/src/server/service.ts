@@ -123,8 +123,9 @@ export interface RolloutResult {
   serves: string;
 }
 
-/** Counts a beacon may carry. A page batches per remote@version, so these are generous. */
-export const BEACON_MAX_COUNT = 1000;
+/** A page reports each remote once, and a page has few remotes. */
+export const BEACON_MAX_ENTRIES = 20;
+const CLIENT_ID = /^[\w.:-]{1,128}$/;
 
 export interface KillResult {
   ok: true;
@@ -690,6 +691,15 @@ export class RegistryService {
 
     if (action === 'complete') {
       if (pointer.killed) throw conflict('killed', `${name} is killed in ${env}; restore it first`);
+      const others = state.remotes.filter((r) => !r.killed && r.name !== name).map((r) => r.remote);
+      const overlap = validateRegistryIndex({
+        remotes: [...others, rollout.candidateRemote],
+      }).filter((i) => i.code === ROUTE_OVERLAP);
+      if (overlap.length > 0)
+        throw conflict(
+          'route_overlap',
+          `${name}@${rollout.candidate} cannot become stable: ${overlap.map((i) => i.message).join('; ')}. The rollout is still running; abort it or change the other remote`,
+        );
       await this.commit(
         {
           env,
@@ -733,32 +743,54 @@ export class RegistryService {
   }
 
   /**
-   * Adds a browser report to the running rollout of that remote, then asks the gate. Reports for
-   * anything that is not the candidate or stable of an active rollout are dropped without a write.
+   * One page's report: its client id `u` and up to 20 `{remote, version, loads, errors}` entries,
+   * each `loads` 0 or 1 and `errors` no more than `loads`. A browser counts once per rollout side,
+   * however often it reports (the dedupe is a table in storage). Entries for anything that is not
+   * the candidate or stable of a running rollout are dropped without a write. Then the gate runs.
    */
   async beacon(raw: unknown): Promise<void> {
     const body = asBody(raw);
-    rejectUnknown(body, ['env', 'remote', 'version', 'loads', 'errors']);
+    rejectUnknown(body, ['env', 'u', 'entries']);
     const env = envOf(body);
-    const name = nameOf(body);
-    const version = field(body, 'version', SAFE_VERSION);
-    const loads = wholeNumber(body.loads, 'loads', 0, BEACON_MAX_COUNT);
-    const errors = wholeNumber(body.errors, 'errors', 0, BEACON_MAX_COUNT);
-    if (errors > loads) throw bad('"errors" cannot be more than "loads"');
-    if (loads === 0) return;
-    const rollout = (await this.storage.listRollouts(env)).find((r) => r.remote === name);
-    if (rollout === undefined || (version !== rollout.stable && version !== rollout.candidate))
-      return;
-    await this.storage.addRolloutCounts(rollout.id, version, { loads, errors });
-    if (version !== rollout.candidate) return;
-    await this.judge(rollout);
+    const client = field(body, 'u', CLIENT_ID);
+    const list = body.entries;
+    if (!Array.isArray(list) || list.length === 0 || list.length > BEACON_MAX_ENTRIES)
+      throw bad(`"entries" must be a list of 1 to ${String(BEACON_MAX_ENTRIES)} reports`);
+    const entries = list.map((item) => {
+      const entry = asBody(item);
+      rejectUnknown(entry, ['remote', 'version', 'loads', 'errors']);
+      const loads = wholeNumber(entry.loads, 'loads', 0, 1);
+      const errors = wholeNumber(entry.errors, 'errors', 0, 1);
+      if (errors > loads) throw bad('"errors" cannot be more than "loads"');
+      return {
+        remote: nameOf(entry),
+        version: field(entry, 'version', SAFE_VERSION),
+        loads,
+        errors,
+      };
+    });
+    const rollouts = await this.storage.listRollouts(env);
+    const judged = new Map<string, RolloutRecord>();
+    for (const { remote, version, loads, errors } of entries) {
+      const rollout = rollouts.find((r) => r.remote === remote);
+      if (loads === 0 || rollout === undefined) continue;
+      if (version !== rollout.stable && version !== rollout.candidate) continue;
+      // oxlint-disable-next-line no-await-in-loop -- at most 20 small writes
+      await this.storage.addRolloutReport(rollout.id, version, client, errors === 1);
+      if (version === rollout.candidate) judged.set(rollout.id, rollout);
+    }
+    for (const rollout of judged.values()) {
+      // oxlint-disable-next-line no-await-in-loop -- a page rarely has more than a couple
+      await this.judge(rollout);
+    }
   }
 
   private async judge(rollout: RolloutRecord): Promise<void> {
     const settings = this.options.gate ?? DEFAULT_GATE;
     const counts = await this.storage.rolloutCounts(rollout.id);
-    const candidate = counts[rollout.candidate] ?? { loads: 0, errors: 0 };
-    const stable = counts[rollout.stable] ?? { loads: 0, errors: 0 };
+    const none = { loads: 0, errors: 0, clients: 0 };
+    const candidate = counts[rollout.candidate] ?? none;
+    const stable = counts[rollout.stable] ?? none;
     const verdict = evaluateGate(candidate, stable, settings);
     if (verdict.verdict !== 'halt') return;
     try {
