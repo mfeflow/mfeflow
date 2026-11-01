@@ -1,91 +1,145 @@
+---
+title: env-t3 - Typed env that fails the build, config you can swap per environment
+description: Validate server variables when the build starts, and load browser settings from a per-environment JSON file so one build runs in dev, staging and prod.
+---
+
 # env-t3
 
-Typed environment variables with [t3-env](https://env.t3.gg), without baking an environment into a bundle.
-On by default in new projects.
-
-```sh
-pnpm mfeflow add env-t3                                   # zod
-pnpm mfeflow add env-t3 --option env-t3.validator=valibot # or arktype
-mfeflow init my-app --option env-t3.validator=arktype --yes
-```
+This feature stops a missing variable from reaching production, and keeps environment-specific values out of your JavaScript bundle. Server and build variables are checked when the build starts. Browser settings come from a small JSON file that each environment supplies.
 
 ## What you get
 
-| File                                                 | What it is for                                                                                                                                                                                                                            |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `env.ts` in every app and in the project root        | `createEnv({ server, runtimeEnv: process.env, emptyStringAsUndefined: true })`. `rsbuild.config.ts` imports it, so a missing or invalid server variable fails the build and names the variable. The root one is for scripts (deploy, CI). |
-| `.env.example` next to each `env.ts`                 | The variables a new developer has to set.                                                                                                                                                                                                 |
-| `apps/shell/src/config/schema.ts`                    | The runtime-config schema, a Standard Schema object (`runtimeConfigSchema`).                                                                                                                                                              |
-| `apps/shell/public/config/runtime-config.<env>.json` | One file per environment: `dev`, `staging`, `prod`.                                                                                                                                                                                       |
-| `apps/shell/src/config/runtime.ts`                   | `getRuntimeConfig()`, typed from the schema, and the boot step that loads `/config/runtime-config.json`.                                                                                                                                  |
-| `scripts/check-runtime-config.ts`                    | `pnpm check:runtime-config [env ...]` validates every config file against the schema. Run it in CI and before a deploy.                                                                                                                   |
+Build-time variables go in `env.ts`, checked with [t3-env](https://env.t3.gg). Anything the browser needs, like an API URL or a GTM id, goes in runtime config, a JSON file the shell fetches when it boots. That split is what lets you build once and deploy the same files to every environment. New projects get this feature by default.
 
-## Server variables and runtime config
-
-Build once, deploy many: one build runs in dev, staging and prod, so nothing that differs per environment is
-compiled into it.
-
-- **Server and build-time variables** (`env.ts`) are read by processes: `rsbuild`, scripts, the registry. They are
-  never in the browser bundle. The build is the only place their values are used.
-- **Browser configuration** (API base URLs, a GTM container, flags) lives in `runtime-config.<env>.json`, served as
-  `/config/runtime-config.json` by the environment. The shell fetches it once at boot through `fetchRuntimeConfig()` from `@mfeflow/runtime`, which `analytics-gtm` and `telemetry-otel` use too, so the file is requested once however many features read it. `getRuntimeConfig()` returns
-  it with the types of the schema. The browser bundle imports only the _type_ of the schema, so the validator
-  (zod, valibot or arktype) is not in it; `pnpm check:runtime-config` validates the files at deploy time.
-
-`public/config/` is copied into `dist/`, so every environment's file ships in every build. Keep secrets out of
-runtime config; it is public by design.
-
-### Which file `/config/runtime-config.json` is
-
-There is no `runtime-config.json` in the project; each environment picks its own file.
-
-- **`pnpm dev` and `rsbuild preview`**: the dev and preview servers answer `/config/runtime-config.json` with
-  `runtime-config.dev.json`. Set `MFE_ENV` to use another environment's file, for example
-  `MFE_ENV=staging pnpm exec rsbuild preview` in `apps/shell`. A name with no file is a 404 that lists the files that exist, and the smoke test
-  fails on it.
-- **A deploy**: the build is the same for every environment. As the last step of a deploy, copy that environment's file
-  over the URL the shell fetches:
-
-  ```sh
-  pnpm check:runtime-config prod
-  cp dist/config/runtime-config.prod.json dist/config/runtime-config.json
-  ```
-
-  Or have the host or CDN rewrite `/config/runtime-config.json` to `/config/runtime-config.prod.json`. A deploy that
-  skips the step makes the shell report a failed load and `getRuntimeConfig()` throw, rather than run with another
-  environment's values.
-
-## Add a key
+## Add it
 
 ```sh
-pnpm mfeflow add env-key API_ORIGIN --scope server --schema "z.url()" --value https://api.example.com
-pnpm mfeflow add env-key GTM_ID --scope runtime --schema "z.string().min(1)" --value GTM-XXXX
+pnpm mfeflow add env-t3
 ```
 
-The schema is written in the validator you chose: `v.pipe(v.string(), v.url())` for valibot, `type('string.url')`
-for arktype.
+To pick a different validator than zod:
 
-- `--scope server` adds the key to `env.ts` in every app (`--app cart` for one, `--app root` for the root), a line to
-  `.env.example`, and the key to `globalEnv` in `turbo.json`. Turborepo hides variables it was not told about and
-  replays cached builds without running `env.ts`, so an unlisted key would not reach the build.
-- `--scope runtime` adds the key to the schema and to every `runtime-config*.json` of the shell. Fill in the real
-  value per environment; `pnpm check:runtime-config` fails until each file passes the schema.
-- Running it again changes nothing. `--dry-run` prints the diff.
+```sh
+pnpm mfeflow add env-t3 --option env-t3.validator=valibot
+```
 
-Features add their own runtime keys the same way: [`analytics-gtm`](./analytics-gtm) adds `gtmId` and
-[`telemetry-otel`](./telemetry-otel) adds `otlpEndpoint`, `traceSampleRatio` and `propagateTraceHeaderCorsUrls`, to the
-schema and to every environment file, whichever of the two features was added first. A
-`public/config/runtime-config.json` that a feature created before env-t3 was added is replaced by the
-per-environment files: delete it.
+What changed:
 
-## `PUBLIC_*` variables
+```text
+env.ts, .env.example           # in the project root, the shell and every remote
+apps/shell/
+├── src/config/
+│   ├── schema.ts              # the runtime config schema
+│   └── runtime.ts             # loads the config at boot
+└── public/config/
+    ├── runtime-config.dev.json
+    ├── runtime-config.staging.json
+    └── runtime-config.prod.json
+scripts/
+└── check-runtime-config.ts    # wired up as pnpm check:runtime-config
+```
 
-Rsbuild inlines every `PUBLIC_*` variable at build time. Use them only for values that are the same everywhere
-(`PUBLIC_APP_NAME`, `PUBLIC_BUILD_VERSION`). Anything else belongs in runtime config; `pnpm mfeflow doctor` warns (E120).
+Each `rsbuild.config.ts` now imports `./env`. The shell gets a boot step that loads the runtime config.
 
-## Doctor checks
+## Use it
 
-With the feature installed, `pnpm mfeflow doctor` also runs:
+### Add a secret the server needs
+
+```sh
+pnpm mfeflow add env-key API_ORIGIN \
+  --scope server --schema "z.url()" --value https://api.example.com
+```
+
+The key lands in these places:
+
+```text
+env.ts          # every app
+.env.example    # every app
+turbo.json      # under globalEnv
+```
+
+Write the schema in your validator's syntax:
+
+```text
+zod      z.url()
+valibot  v.pipe(v.string(), v.url())
+arktype  type('string.url')
+```
+
+Pass `--app cart` for one app, or `--app root` for the root. Run it twice and nothing changes, and `--dry-run` prints the diff.
+
+This is the generated file before you add anything:
+
+```ts title="apps/shell/env.ts"
+export const env = createEnv({
+  server: {
+    NODE_ENV: z.enum(['development', 'production', 'test']).optional(),
+  },
+  runtimeEnv: process.env,
+  emptyStringAsUndefined: true,
+});
+```
+
+Because `rsbuild.config.ts` imports it, a missing or invalid variable stops the build and names the variable.
+
+### Add a setting the browser needs
+
+```sh
+pnpm mfeflow add env-key GTM_ID \
+  --scope runtime --schema "z.string().min(1)" --value GTM-XXXX
+```
+
+This adds the key to the schema and to all three `runtime-config.<env>.json` files. Put the real value in each environment's file, because `pnpm check:runtime-config` fails until every file passes the schema.
+
+Read it in code with the type your schema gives it:
+
+```ts
+import { getRuntimeConfig } from './config/runtime';
+
+const { environment } = getRuntimeConfig();
+```
+
+### Serve and ship the right file
+
+Your project has no file named `runtime-config.json`. The dev and preview servers answer that URL with the dev file. Set `MFE_ENV` to pick another one:
+
+```sh
+MFE_ENV=staging pnpm exec rsbuild preview
+```
+
+For a deploy, validate the environment's file and copy it over the URL the shell fetches, as the last step:
+
+```sh
+pnpm check:runtime-config prod
+cp dist/config/runtime-config.prod.json dist/config/runtime-config.json
+```
+
+A host or CDN rewrite from `/config/runtime-config.json` to the prod file does the same job. If you skip this step the shell reports a failed load and `getRuntimeConfig()` throws, so it never runs with another environment's values.
+
+## Configure it
+
+| Option                           | Values                         | Default | Where it applies                                  |
+| -------------------------------- | ------------------------------ | ------- | ------------------------------------------------- |
+| `env-t3.validator`               | `zod`, `valibot`, `arktype`    | `zod`   | `env.ts`, the runtime config schema and the check |
+| `MFE_ENV` (environment variable) | an environment name, lowercase | `dev`   | which file the dev and preview servers serve      |
+
+The validator prompt is the only option in `feature.json`. Dependencies are pinned there too: `@t3-oss/env-core` 0.13.11, plus zod 4.6.7, valibot 1.5.0 or arktype 2.2.9.
+
+## How it works
+
+`env.ts` runs in whatever process imports it, such as rsbuild or a script, and never ships to the browser. The browser bundle imports only the type of `runtimeConfigSchema`, so the validator library stays out of it.
+
+At boot, `loadRuntimeConfig()` fetches the file through the runtime package. It fetches once, however many features read it.
+
+Features that need browser settings add their own keys the same way you do. The order you add the features in does not matter.
+
+| Feature                                          | Keys it adds                                                       |
+| ------------------------------------------------ | ------------------------------------------------------------------ |
+| [analytics-gtm](/features/analytics-gtm)         | `gtmId`                                                            |
+| [telemetry-otel](/features/telemetry-otel)       | `otlpEndpoint`, `traceSampleRatio`, `propagateTraceHeaderCorsUrls` |
+| [analytics-clarity](/features/analytics-clarity) | `clarityId`                                                        |
+
+Doctor also checks the setup:
 
 | Check                | Code                 | Finds                                                                                        |
 | -------------------- | -------------------- | -------------------------------------------------------------------------------------------- |
@@ -94,13 +148,28 @@ With the feature installed, `pnpm mfeflow doctor` also runs:
 | `env.public-prefix`  | [E120](/errors/E120) | a `PUBLIC_*` variable other than the two constants                                           |
 | `env.turbo`          | [E121](/errors/E121) | a required server key not listed in `turbo.json`                                             |
 
-Doctor compares keys without running your code; the values are checked by `pnpm check:runtime-config`.
+Doctor compares keys without running your code. The values are checked by `pnpm check:runtime-config`.
 
-## Notes
+## Gotchas
 
-- `scripts/check-runtime-config.ts` runs with `node --experimental-strip-types`, so it needs Node 22.12 or newer
-  (22.18 or newer without a warning).
-- Runtime config belongs to the shell. Remotes call nothing at boot; a remote that needs a value gets it from the
-  shell's config or from its own build.
-- `@t3-oss/env-core` is a 0.x package. It is pinned in the catalog and used only in `env.ts`, so replacing it is a
-  change to those files.
+:::warning
+Runtime config is public. Everything in `public/config/` is copied into `dist/`, so every environment's file ships with every build. Keep secrets in `env.ts`, never in a runtime-config file.
+:::
+
+- **`PUBLIC_*` variables are baked in.** Rsbuild inlines them at build time. Use them only for values that are the same everywhere, such as the app name and build version. Doctor warns about anything else with E120.
+
+- **An old `runtime-config.json`.** If a feature created `public/config/runtime-config.json` before you added env-t3, delete it. The per-environment files replace it, and doctor reports it as missing `environment` until it is gone.
+
+- **Only the shell has runtime config.** Remotes call nothing at boot. A remote that needs a value reads it from the shell's config or gets it from its own build.
+
+- **Node version.** The check script runs with `node --experimental-strip-types`, so it needs Node 22.12 or newer.
+
+- **t3-env is 0.x.** It is used only in `env.ts`, so replacing it later means changing those files and nothing else.
+
+## Reference
+
+- [Runtime config](/concepts/runtime-config), the idea behind build once, deploy many
+- [Deploying](/guide/deploying) and [CI and budgets](/guide/ci-and-budgets) for where the check runs
+- [E118](/errors/E118), [E119](/errors/E119), [E120](/errors/E120) and [E121](/errors/E121)
+- [`mfeflow` CLI reference](/reference/cli)
+- [t3-env documentation](https://env.t3.gg)

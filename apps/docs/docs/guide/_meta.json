@@ -1,0 +1,19 @@
+[
+  { "type": "section-header", "label": "Start" },
+  { "type": "file", "name": "introduction", "label": "Introduction" },
+  { "type": "file", "name": "why-mfeflow", "label": "Why try mfeflow" },
+  { "type": "file", "name": "quickstart", "label": "Quickstart" },
+  { "type": "section-header", "label": "Build" },
+  { "type": "file", "name": "project-structure", "label": "Project structure" },
+  { "type": "file", "name": "how-it-works", "label": "How it works" },
+  { "type": "file", "name": "adding-a-remote", "label": "Add a remote" },
+  { "type": "file", "name": "adding-features", "label": "Add features" },
+  { "type": "file", "name": "development", "label": "Develop locally" },
+  { "type": "section-header", "label": "Ship" },
+  { "type": "file", "name": "ci-and-budgets", "label": "CI and budgets" },
+  { "type": "file", "name": "deploying", "label": "Deploy" },
+  { "type": "file", "name": "upgrading", "label": "Versions and upgrades" },
+  { "type": "section-header", "label": "Help" },
+  { "type": "file", "name": "troubleshooting", "label": "Troubleshooting" },
+  { "type": "file", "name": "faq", "label": "FAQ" }
+]
