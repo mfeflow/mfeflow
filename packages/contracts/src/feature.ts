@@ -38,9 +38,17 @@ export interface FeaturePrompt {
 }
 
 export interface FeatureFile {
-  /** Destination, relative to the target. */
+  /**
+   * Destination, relative to the target. `{{app.name}}` and the other template values are filled
+   * in per app, so a feature can write one file for each remote.
+   */
   to: string;
   target?: FeatureTarget;
+  /**
+   * Resolve `to` from the project root instead of the target app, for a file about the app that
+   * lives elsewhere, like `packages/contracts/src/routes/{{app.name}}.ts`. First-party only.
+   */
+  atRoot?: boolean;
   when?: FeatureCondition;
   /** Source file inside a local feature folder. Remote features cannot use it. */
   from?: string;
@@ -51,6 +59,7 @@ export interface FeatureFile {
 }
 
 export interface FeatureDependency {
+  /** An npm package name. `{{scope}}/contracts` is the project's own package of that name. */
   name: string;
   range: string;
   dev?: boolean;
@@ -209,6 +218,10 @@ export const ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 export const JOB_ID = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 export const SCRIPT_NAME = /^[A-Za-z0-9:_.-]+$/;
 export const PACKAGE = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
+/** A package in the project's own scope: `{{scope}}/contracts`. */
+export const SCOPED_PACKAGE = /^\{\{scope\}\}\/[a-z0-9-~][a-z0-9-._~]*$/;
+/** What a first-party dependency name may be, for the JSON schema. */
+export const DEPENDENCY_NAME = new RegExp(`${PACKAGE.source}|${SCOPED_PACKAGE.source}`);
 
 function isTransformOp(op: string): op is TransformOpName {
   return TRANSFORM_OPS.some((name) => name === op);
@@ -425,13 +438,16 @@ export function validateFeatureManifest(value: unknown): Issue[] {
     checkWhen(c, f, at);
     c.string(f, 'from', at, { required: false });
     c.string(f, 'content', at, { required: false });
+    if (f.atRoot !== undefined && typeof f.atRoot !== 'boolean')
+      c.add(`${at}.atRoot`, 'must be true or false');
     if (typeof f.from === 'string' && !isSafeRelativePath(f.from))
       c.add(`${at}.from`, 'must be a relative path with forward slashes and no ".."');
     if ((f.from === undefined) === (f.content === undefined))
       c.add(at, 'needs exactly one of from or content');
   });
   eachObject(c, value, 'dependencies', (d, at) => {
-    c.string(d, 'name', at, { pattern: PACKAGE, hint: 'must be an npm package name' });
+    if (typeof d.name !== 'string' || !SCOPED_PACKAGE.test(d.name))
+      c.string(d, 'name', at, { pattern: PACKAGE, hint: 'must be an npm package name' });
     c.string(d, 'range', at);
     checkTarget(c, d, at);
     checkWhen(c, d, at);

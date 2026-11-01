@@ -1,0 +1,58 @@
+{
+  "name": "@mfeflow/http",
+  "version": "0.1.0",
+  "description": "A small fetch client over @mfeflow/url-factory endpoints: async bearer tokens, timeouts, retries with backoff for idempotent methods only, typed JSON, and errors that carry the status and body but no URL.",
+  "keywords": [
+    "micro-frontend",
+    "mfe",
+    "module-federation",
+    "fetch",
+    "http-client",
+    "retry",
+    "typescript"
+  ],
+  "homepage": "https://mfeflow.github.io/mfeflow/",
+  "bugs": "https://github.com/mfeflow/mfeflow/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfeflow/mfeflow.git",
+    "directory": "packages/http"
+  },
+  "license": "MIT",
+  "author": "Sanjeev Sharma <speedsharma.ai@gmail.com>",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "rslib build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mfeflow/url-factory": "workspace:*"
+  },
+  "devDependencies": {
+    "@rslib/core": "catalog:",
+    "@types/node": "catalog:",
+    "msw": "catalog:",
+    "typescript": "catalog:"
+  },
+  "mfeflow": {
+    "bucket": "stateless"
+  }
+}

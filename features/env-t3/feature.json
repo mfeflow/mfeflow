@@ -373,6 +373,27 @@
       "when": {
         "feature:telemetry-otel": true
       }
+    },
+    {
+      "op": "add-env-key",
+      "file": "src/config/schema.ts",
+      "target": "shell",
+      "key": "apiUrl",
+      "scope": "runtime",
+      "schema": {
+        "zod": "z.string().min(1)",
+        "valibot": "v.pipe(v.string(), v.minLength(1))",
+        "arktype": "'string > 0'"
+      },
+      "value": "/api",
+      "configFiles": [
+        "public/config/runtime-config.dev.json",
+        "public/config/runtime-config.staging.json",
+        "public/config/runtime-config.prod.json"
+      ],
+      "when": {
+        "feature:http": true
+      }
     }
   ]
 }

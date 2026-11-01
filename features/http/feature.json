@@ -1,0 +1,81 @@
+{
+  "name": "http",
+  "version": "0.1.0",
+  "description": "A fetch client over your url-factory endpoints (@mfeflow/http): src/api/client.ts in every app, with retries for idempotent requests, timeouts and typed errors. The API base URL is the runtime config's apiUrl.",
+  "requires": ["core", "tsconfig", "url-factory"],
+  "files": [
+    {
+      "to": "src/api/client.ts",
+      "target": "shell",
+      "from": "files/client.ts"
+    },
+    {
+      "to": "src/api/client.ts",
+      "target": "remotes",
+      "from": "files/client.ts"
+    },
+    {
+      "to": "src/api/client.test.ts",
+      "target": "shell",
+      "from": "files/client-test.ts",
+      "when": {
+        "feature:testing": true
+      }
+    },
+    {
+      "to": "src/api/client.test.ts",
+      "target": "remotes",
+      "from": "files/client-test.ts",
+      "when": {
+        "feature:testing": true
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@mfeflow/http",
+      "range": "latest",
+      "target": "shell"
+    },
+    {
+      "name": "@mfeflow/http",
+      "range": "latest",
+      "target": "remotes"
+    }
+  ],
+  "transforms": [
+    {
+      "op": "add-env-key",
+      "file": "src/config/schema.ts",
+      "target": "shell",
+      "key": "apiUrl",
+      "scope": "runtime",
+      "schema": {
+        "zod": "z.string().min(1)",
+        "valibot": "v.pipe(v.string(), v.minLength(1))",
+        "arktype": "'string > 0'"
+      },
+      "value": "/api",
+      "configFiles": [
+        "public/config/runtime-config.dev.json",
+        "public/config/runtime-config.staging.json",
+        "public/config/runtime-config.prod.json"
+      ],
+      "when": {
+        "feature:env-t3": true
+      }
+    },
+    {
+      "op": "add-env-key",
+      "file": "public/config/runtime-config.json",
+      "target": "shell",
+      "key": "apiUrl",
+      "scope": "runtime",
+      "schema": "z.string().min(1)",
+      "value": "/api",
+      "when": {
+        "feature:env-t3": false
+      }
+    }
+  ]
+}

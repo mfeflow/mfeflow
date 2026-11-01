@@ -117,6 +117,37 @@ describe('feature.json', () => {
     ]);
   });
 
+  it('accepts a dependency in the project scope, atRoot, and a name template in a destination', () => {
+    expect(
+      paths({
+        ...feature,
+        files: [
+          { to: 'packages/contracts/src/routes/{{app.name}}.ts', content: 'x', atRoot: true },
+        ],
+        dependencies: [{ name: '{{scope}}/contracts', range: 'workspace:*' }],
+      }),
+    ).toEqual([]);
+  });
+
+  it('rejects an atRoot that is not true or false and a scope template that is not a package', () => {
+    expect(
+      paths({
+        ...feature,
+        files: [{ to: 'a', content: 'x', atRoot: 'yes' }],
+        dependencies: [
+          { name: '{{scope}}/Bad Name', range: '1' },
+          { name: '{{scope}}', range: '1' },
+          { name: '{{other}}/x', range: '1' },
+        ],
+      }),
+    ).toEqual([
+      'files[0].atRoot',
+      'dependencies[0].name',
+      'dependencies[1].name',
+      'dependencies[2].name',
+    ]);
+  });
+
   it('accepts a group, an app name and app:<name> as a target, and rejects app: alone', () => {
     const files = (target: string) => [{ to: 'a', content: 'x', target }];
     for (const target of ['root', 'shell', 'remotes', 'cart', 'app:shell', 'app:cart']) {

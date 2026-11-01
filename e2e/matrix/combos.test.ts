@@ -4,13 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { combinations, featuresOf, find, presetOf, runsE2e, stepsFor } from './combos';
 
 describe('combinations', () => {
-  it('has 38 with unique ids: the old 16, env/testing/ci on lint + url-factory, two validators, and analytics + telemetry', () => {
+  it('has 45 with unique ids: the old 16, env/testing/ci on lint + url-factory, two validators, analytics + telemetry, and event-bus + route-factory + http', () => {
     const all = combinations();
-    expect(all).toHaveLength(38);
-    expect(new Set(all.map((c) => c.id)).size).toBe(38);
+    expect(all).toHaveLength(45);
+    expect(new Set(all.map((c) => c.id)).size).toBe(45);
     expect(all.filter((c) => !c.env && !c.testing && !c.ci)).toHaveLength(16);
-    expect(all.filter((c) => c.remotes === 1)).toHaveLength(22);
-    expect(all.filter((c) => c.gtm || c.otel)).toHaveLength(6);
+    expect(all.filter((c) => c.remotes === 1)).toHaveLength(28);
+    expect(all.filter((c) => c.gtm || c.otel)).toHaveLength(7);
+    expect(all.filter((c) => c.bus || c.routes || c.http)).toHaveLength(7);
     const ids = all.map((c) => c.id);
     for (const id of [
       'bare-r1',
@@ -22,15 +23,25 @@ describe('combinations', () => {
       'lint-url-env-testing-gtm-r1',
       'lint-url-env-testing-otel-r1',
       'lint-url-testing-gtm-otel-r1',
+      'lint-url-env-testing-ci-gtm-otel-bus-routes-http-r3',
+      'lint-url-env-testing-bus-r1',
+      'lint-url-env-testing-routes-r1',
+      'lint-url-env-testing-http-r1',
+      'lint-url-testing-bus-routes-http-r1',
+      'lint-url-env-valibot-testing-bus-routes-http-r1',
+      'lint-url-env-arktype-testing-bus-routes-http-r1',
     ]) {
       expect(ids).toContain(id);
     }
     expect(all.filter((c) => c.validator !== 'zod').every((c) => c.env)).toBe(true);
   });
 
-  it('runs the browser test on the full set with both analytics and telemetry, and no other new one', () => {
+  it('runs the browser test on the full set with analytics and telemetry, with and without the platform features, and no other new one', () => {
     const both = combinations().filter((c) => c.gtm && c.otel);
-    expect(both.filter(runsE2e).map((c) => c.id)).toEqual(['lint-url-env-testing-ci-gtm-otel-r3']);
+    expect(both.filter(runsE2e).map((c) => c.id)).toEqual([
+      'lint-url-env-testing-ci-gtm-otel-r3',
+      'lint-url-env-testing-ci-gtm-otel-bus-routes-http-r3',
+    ]);
     expect(both.some((c) => !c.env)).toBe(true);
   });
 });
@@ -86,6 +97,22 @@ describe('what a combination generates', () => {
       'testing',
       'analytics-gtm',
       'telemetry-otel',
+      'ci-github',
+    ]);
+  });
+
+  it('adds event-bus before route-factory, which looks for the contracts package, and http last', () => {
+    const c = find(['lint-url-env-testing-ci-gtm-otel-bus-routes-http-r3'])[0]!;
+    expect(featuresOf(c)).toEqual([
+      'lint-oxlint',
+      'url-factory',
+      'env-t3',
+      'testing',
+      'analytics-gtm',
+      'telemetry-otel',
+      'event-bus',
+      'route-factory',
+      'http',
       'ci-github',
     ]);
   });

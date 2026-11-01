@@ -1,0 +1,11 @@
+import { createLinks, defineRoutes } from '@mfeflow/route-factory';
+
+// <%= it.app.name %>'s public paths. `/<%= it.app.name %>` is where the shell serves this remote.
+// A route is a path template: `:id` is a path param, and `?q&page?` after the path names search
+// params (q is required, page is optional). Links to a route are checked against this table.
+export const routes = defineRoutes('/<%= it.app.name %>', {
+  home: '/',
+});
+
+// Links to this remote's routes. Another remote links here by adding `{ <%= it.app.name %>: routes }` to its own createLinks.
+export const links = createLinks({ <%= it.app.name %>: routes });

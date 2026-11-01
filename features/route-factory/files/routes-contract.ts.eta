@@ -1,0 +1,11 @@
+import { createLinks, defineRoutes } from '@mfeflow/route-factory';
+import { routes as contract } from '<%= it.scope %>/contracts/routes/<%= it.app.name %>';
+
+// The paths are in the contracts package, so another remote can link here without importing this
+// one. `/<%= it.app.name %>` is where the shell serves this remote.
+export const routes = defineRoutes('/<%= it.app.name %>', contract);
+
+// Links to this remote's routes. Another remote links here with
+//   import { routes as <%= it.app.name %> } from '<%= it.scope %>/contracts/routes/<%= it.app.name %>'
+// and createLinks({ <%= it.app.name %>: defineRoutes('/<%= it.app.name %>', <%= it.app.name %>) }).
+export const links = createLinks({ <%= it.app.name %>: routes });

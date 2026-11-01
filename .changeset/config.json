@@ -19,6 +19,9 @@
       "@mfeflow/storage",
       "@mfeflow/analytics",
       "@mfeflow/telemetry",
+      "@mfeflow/event-bus",
+      "@mfeflow/route-factory",
+      "@mfeflow/http",
       "@mfeflow/testing",
       "@mfeflow/tsconfig",
       "@mfeflow/oxlint-config"

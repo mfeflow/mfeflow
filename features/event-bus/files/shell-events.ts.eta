@@ -1,0 +1,19 @@
+import { configureEvent } from '@mfeflow/event-bus';
+import type { Events } from '<%= it.scope %>/contracts/events';
+
+// The platform's event map is the contracts package's. This one declaration merges it in.
+declare module '@mfeflow/event-bus' {
+  // oxlint-disable-next-line typescript/no-empty-interface -- merges the contracts into the platform map
+  interface EventMap extends Events {}
+}
+
+/**
+ * How the platform's events behave, set once at boot. The shell imports the bus here, which makes
+ * it the one that provides the copy every remote shares.
+ */
+export function configureShellEvents(): void {
+  // "This remote is up" is a fact about the page, not a moment: a remote that mounts later still
+  // hears the latest announcement. Only the last one is kept. Leave replay off for events that
+  // are things that happened, like cart.item-added.v1.
+  configureEvent('mfe.ready.v1', { replay: true });
+}

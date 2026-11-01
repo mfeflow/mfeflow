@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { createUrlFactory, defineEndpoints, type PathParams } from '.';
+import { createUrlFactory, defineEndpoints, fillPath, type PathParams } from '.';
 
 const endpoints = defineEndpoints({
   listOrders: { service: 'orders', path: '/v1/orders' },
@@ -60,8 +60,23 @@ describe('createUrlFactory', () => {
   });
 });
 
+describe('fillPath', () => {
+  it.each(['.', '..'])('refuses the value %s, which would walk out of the path', (value) => {
+    expect(() => apiUrl('getOrder', { params: { orderId: value } })).toThrow(
+      `cannot be "${value}"`,
+    );
+    expect(() => fillPath('/a/:id', { id: value }, 'x', 'y')).toThrow('x: param "id" for "y"');
+  });
+
+  it('keeps dots inside a longer value and ends a name at the first other character', () => {
+    expect(fillPath('/a/:id.json', { id: 'a.b' }, 'x', 'y')).toBe('/a/a.b.json');
+    expect(fillPath('/a/:order-id', { order: 7 }, 'x', 'y')).toBe('/a/7-id');
+  });
+});
+
 describe('types', () => {
-  it('derives params from the template', () => {
+  it('derives params from the template, ending a name where fillPath does', () => {
+    expectTypeOf<PathParams<'/a/:order-id'>>().toEqualTypeOf<'order'>();
     expectTypeOf<PathParams<'/v1/orders/:orderId/items/:itemId'>>().toEqualTypeOf<
       'orderId' | 'itemId'
     >();

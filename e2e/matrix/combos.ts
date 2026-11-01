@@ -12,6 +12,9 @@ export interface Combo {
   ci: boolean;
   gtm: boolean;
   otel: boolean;
+  bus: boolean;
+  routes: boolean;
+  http: boolean;
   validator: Validator;
   remotes: 1 | 3;
 }
@@ -25,7 +28,21 @@ export interface Step {
 const REMOTE_NAMES = ['catalog', 'cart', 'checkout'];
 
 type Flags = Partial<
-  Pick<Combo, 'lint' | 'url' | 'hooks' | 'env' | 'testing' | 'ci' | 'gtm' | 'otel' | 'validator'>
+  Pick<
+    Combo,
+    | 'lint'
+    | 'url'
+    | 'hooks'
+    | 'env'
+    | 'testing'
+    | 'ci'
+    | 'gtm'
+    | 'otel'
+    | 'bus'
+    | 'routes'
+    | 'http'
+    | 'validator'
+  >
 >;
 
 function make(flags: Flags, remotes: 1 | 3): Combo {
@@ -38,6 +55,9 @@ function make(flags: Flags, remotes: 1 | 3): Combo {
     ci: false,
     gtm: false,
     otel: false,
+    bus: false,
+    routes: false,
+    http: false,
     validator: 'zod' as Validator,
     ...flags,
   };
@@ -51,6 +71,9 @@ function make(flags: Flags, remotes: 1 | 3): Combo {
     combo.ci ? 'ci' : '',
     combo.gtm ? 'gtm' : '',
     combo.otel ? 'otel' : '',
+    combo.bus ? 'bus' : '',
+    combo.routes ? 'routes' : '',
+    combo.http ? 'http' : '',
   ].filter((p) => p !== '');
   return {
     ...combo,
@@ -65,7 +88,10 @@ function make(flags: Flags, remotes: 1 | 3): Combo {
  * valibot and arktype validators. All with one or three remotes. Then analytics-gtm and
  * telemetry-otel: the full set with both (the one that runs the browser test), each alone on the
  * default set, both without env-t3 (their runtime keys go to public/config/runtime-config.json),
- * and both on the other two validators (their schema keys are written per validator).
+ * and both on the other two validators (their schema keys are written per validator). Then
+ * event-bus, route-factory and http: all three together with everything else on three remotes
+ * (the second one that runs the browser test), each alone on the default set, all three without env-t3 (http's runtime key goes to
+ * public/config/runtime-config.json), and all three on the other two validators.
  */
 export function combinations(): Combo[] {
   const flags = [false, true];
@@ -92,6 +118,15 @@ export function combinations(): Combo[] {
   for (const validator of ['valibot', 'arktype'] as const) {
     out.push(make({ ...base, gtm: true, otel: true, validator }, 1));
   }
+  const platform = { bus: true, routes: true, http: true };
+  out.push(make({ ...base, ci: true, gtm: true, otel: true, ...platform }, 3));
+  out.push(make({ ...base, bus: true }, 1));
+  out.push(make({ ...base, routes: true }, 1));
+  out.push(make({ ...base, http: true }, 1));
+  out.push(make({ ...base, env: false, ...platform }, 1));
+  for (const validator of ['valibot', 'arktype'] as const) {
+    out.push(make({ ...base, ...platform, validator }, 1));
+  }
   return out;
 }
 
@@ -112,6 +147,9 @@ export function featuresOf(combo: Combo): string[] {
     ...(combo.testing ? ['testing'] : []),
     ...(combo.gtm ? ['analytics-gtm'] : []),
     ...(combo.otel ? ['telemetry-otel'] : []),
+    ...(combo.bus ? ['event-bus'] : []),
+    ...(combo.routes ? ['route-factory'] : []),
+    ...(combo.http ? ['http'] : []),
     ...(combo.ci ? ['ci-github'] : []),
     ...(combo.hooks ? ['git-hooks'] : []),
   ];

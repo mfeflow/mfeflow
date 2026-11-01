@@ -71,6 +71,8 @@ describe('sharedSingletons', () => {
       '@mfeflow/analytics',
       '@mfeflow/analytics/react',
       '@mfeflow/telemetry',
+      '@mfeflow/event-bus',
+      '@mfeflow/event-bus/react',
     ]) {
       expect(DEFAULT_SINGLETONS).toContain(s);
     }

@@ -16,6 +16,9 @@ describe('first-party catalogue', () => {
       'testing',
       'analytics-gtm',
       'telemetry-otel',
+      'event-bus',
+      'route-factory',
+      'http',
       'ci-github',
       'git-hooks',
     ]);

@@ -1,0 +1,10 @@
+{
+  "name": "<%= it.scope %>/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./events": "./src/events/index.ts",
+    "./routes/*": "./src/routes/*.ts"
+  }
+}

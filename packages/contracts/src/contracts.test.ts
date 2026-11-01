@@ -19,13 +19,33 @@ const cart = {
   shells: ['storefront'],
   routes: ['/cart'],
   exposes: ['./App', './MiniCart'],
-  events: { publishes: [], consumes: ['cart.item_added@1'] },
+  events: { publishes: [], consumes: ['cart.item-added.v1'] },
   analyticsEvents: ['cart_item_added'],
   budgets: { initialJsKb: 120, lcpMs: 2500 },
   platform: { react: '^19', '@mfeflow/runtime': '^0.1' },
 };
 
 const paths = (issues: { path: string }[]) => issues.map((i) => i.path);
+
+describe('mfe.json event names', () => {
+  it.each(['cart.item-added.v1', 'a.b.c.v3', 'checkout.order-placed.v12'])('accepts %s', (name) => {
+    expect(validateMfeManifest({ ...cart, events: { publishes: [name], consumes: [] } })).toEqual(
+      [],
+    );
+  });
+
+  it.each([
+    'cart.item-added',
+    'cart.item-added.v0',
+    'cart.item-added.1',
+    'Cart.item.v1',
+    'cart.item_added@1',
+  ])('rejects %s', (name) => {
+    expect(
+      paths(validateMfeManifest({ ...cart, events: { publishes: [name], consumes: [] } })),
+    ).toEqual(['events.publishes[0]']);
+  });
+});
 
 describe('mfe.json', () => {
   it('accepts a complete manifest', () => {

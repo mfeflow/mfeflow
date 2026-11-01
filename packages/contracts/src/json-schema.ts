@@ -5,6 +5,7 @@ import {
   FEATURE_NAME,
   IDENT,
   JOB_ID,
+  DEPENDENCY_NAME,
   PACKAGE,
   SCRIPT_NAME,
   TARGET,
@@ -267,6 +268,7 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
               from: relativePath,
               content: str(),
               template: { type: 'boolean' },
+              atRoot: { type: 'boolean' },
             },
             ['to'],
           ),
@@ -275,10 +277,10 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
       },
       dependencies: {
         type: 'array',
-        items: item({ name: str(PACKAGE), range: str(), dev: { type: 'boolean' }, target, when }, [
-          'name',
-          'range',
-        ]),
+        items: item(
+          { name: str(DEPENDENCY_NAME), range: str(), dev: { type: 'boolean' }, target, when },
+          ['name', 'range'],
+        ),
       },
       scripts: {
         type: 'array',

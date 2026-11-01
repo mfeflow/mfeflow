@@ -28,6 +28,9 @@ export const FIRST_PARTY: readonly FirstPartyFeature[] = [
   { name: 'testing', always: false, default: true },
   { name: 'analytics-gtm', always: false, default: false },
   { name: 'telemetry-otel', always: false, default: false },
+  { name: 'event-bus', always: false, default: false },
+  { name: 'route-factory', always: false, default: false },
+  { name: 'http', always: false, default: false },
   { name: 'ci-github', always: false, default: false },
   { name: 'git-hooks', always: false, default: false },
 ];

@@ -15,6 +15,7 @@
     "@mfeflow/storage": "workspace:*",
     "@mfeflow/theme": "workspace:*",
     "@module-federation/enhanced": "catalog:",
+    "@storefront/contracts": "workspace:*",
     "i18next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",

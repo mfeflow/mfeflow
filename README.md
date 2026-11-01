@@ -28,6 +28,7 @@ What works today, from the repo:
 - `@mfeflow/runtime`, `@mfeflow/rsbuild`, `@mfeflow/storage`, `@mfeflow/theme`, `@mfeflow/i18n`, `@mfeflow/url-factory`: the runtime and build packages, exercised by the storefront example.
 - `@mfeflow/tsconfig`, `@mfeflow/oxlint-config`, `@mfeflow/testing`: shared config and test helpers.
 - `@mfeflow/analytics` and `@mfeflow/telemetry`: singleton packages behind provider interfaces, started by the shell only. Google Tag Manager with Consent Mode v2, and OpenTelemetry for the browser loaded after first render. The `analytics-gtm` and `telemetry-otel` features wire them into a project.
+- `@mfeflow/event-bus`, `@mfeflow/route-factory` and `@mfeflow/http`: typed events between remotes (a shared singleton, with replay for late subscribers), typed links between remotes from a contracts package, and a fetch client over the url-factory endpoints with retries for idempotent requests. The `event-bus`, `route-factory` and `http` features wire them into a project.
 - `@mfeflow/core`: the engine behind the CLI. It loads and saves `mfeflow.json`, plans a change as data with a unified diff, applies it atomically with rollback, edits files with seven built-in transform ops, and resolves features from a local folder or a namespaced registry. Third-party features are declarative only and never run code.
 - `mfeflow` and `create-mfeflow`: `init`, `add remote|shell|<feature>` and `features`; the first features (`tsconfig`, `lint-oxlint`, `url-factory`, `git-hooks`); `--local` to run a generated project from a checkout.
 - `mfeflow dev` (one command for the shell and every remote, a dev registry that follows `add remote`, `--remote name=url` overrides), `mfeflow doctor` (with `--fix` and `--json`), `validate`, `check-compat` and `budget` for CI.
@@ -48,6 +49,7 @@ Next: `upgrade`, the typed env feature, the registry and the generated CI/CD.
 ```bash
 npm create mfeflow@latest my-platform     # pick topology, remotes and features
 mfeflow add telemetry-otel analytics-gtm  # add what you need later
+mfeflow add event-bus route-factory http
 mfeflow deploy catalog --env prod
 mfeflow rollback catalog --env prod       # a pointer flip, no rebuild
 ```
