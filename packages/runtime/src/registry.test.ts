@@ -353,7 +353,10 @@ describe('loadRegistryIndex with a fallback', () => {
   const sources = ['/registry/index.json', `${CDN}/registry/index.json`];
   const withCdn = { allowedOrigins: [CDN] };
   const isCdn = (url: string | URL | Request) =>
-    (typeof url === 'string' ? url : url instanceof URL ? url.href : url.url).startsWith(CDN);
+    new URL(
+      typeof url === 'string' ? url : url instanceof URL ? url.href : url.url,
+      'https://shop.test',
+    ).origin === CDN;
   const ok = () => Promise.resolve(new Response(JSON.stringify(index)));
   const answer = (primary: () => Promise<Response>) =>
     vi.fn((url: string | URL | Request) => (isCdn(url) ? ok() : primary()));
@@ -433,7 +436,7 @@ describe('loadRegistryIndex with a fallback', () => {
   it('refuses a fallback on an origin that is not allowed, without fetching it', async () => {
     const fetchFn = answer(() => Promise.resolve(new Response('x', { status: 500 })));
     await expect(loadRegistryIndex(sources, { fetch: fetchFn })).rejects.toThrow(
-      /cdn.example.com.*must be same-origin or in allowedOrigins/,
+      /cdn\.example\.com.*must be same-origin or in allowedOrigins/,
     );
     expect(fetchFn).toHaveBeenCalledTimes(1);
     await expect(
