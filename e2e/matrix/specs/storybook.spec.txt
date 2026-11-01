@@ -1,0 +1,53 @@
+import fs from 'node:fs';
+import http from 'node:http';
+import path from 'node:path';
+import { expect, test } from '@playwright/test';
+
+// Written into the project by the matrix. Serves the built composed Storybook (pnpm storybook:build) and
+// checks that every remote is a ref and that a remote's story renders inside it.
+const remotes = fs
+  .readdirSync('registry/envs/dev')
+  .filter((file) => file.endsWith('.json'))
+  .map((file) => file.slice(0, -'.json'.length))
+  .toSorted();
+
+const root = path.resolve('apps/shell/dist/storybook');
+const types = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.svg': 'image/svg+xml',
+  '.woff2': 'font/woff2',
+};
+
+let server;
+let base = '';
+
+test.beforeAll(async () => {
+  server = http.createServer((req, res) => {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    const file = path.join(root, url.pathname.endsWith('/') ? `${url.pathname}index.html` : url.pathname);
+    if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+      res.writeHead(404).end();
+      return;
+    }
+    res.writeHead(200, { 'content-type': types[path.extname(file)] ?? 'application/octet-stream' });
+    fs.createReadStream(file).pipe(res);
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  base = `http://127.0.0.1:${server.address().port}`;
+});
+
+test.afterAll(() => {
+  server.close();
+});
+
+test('the shell Storybook lists every remote and renders their stories', async ({ page }) => {
+  const first = remotes[0];
+  await page.goto(`${base}/?path=/story/${first}_${first}-app--default`);
+  const tree = page.locator('#storybook-explorer-tree');
+  for (const name of remotes) await expect(tree.getByText(name, { exact: true }).first()).toBeVisible();
+  const frame = page.frameLocator(`iframe[src*="/${first}/iframe.html"]`);
+  await expect(frame.getByTestId(first)).toBeVisible();
+});

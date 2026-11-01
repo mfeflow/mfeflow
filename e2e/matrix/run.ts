@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { combinations, find, presetOf, stepsFor, type Combo } from './combos.ts';
 import { envChecks } from './env-checks.ts';
+import { prepareE2e, storybookChecks } from './ui-checks.ts';
 
 const repo = path.resolve(import.meta.dirname, '../..');
 const cli = path.join(repo, 'packages/cli/bin/mfeflow.js');
@@ -57,6 +58,13 @@ async function check(combo: Combo, work: string): Promise<string | undefined> {
   if (generate !== 0) return 'generate';
   for (const step of stepsFor(combo)) {
     console.log(`\n--- ${combo.id}: ${step.name}`);
+    if (step.name === 'test:e2e') {
+      const problem = prepareE2e(project, combo);
+      if (problem) {
+        console.error(problem);
+        return step.name;
+      }
+    }
     if (step.command === 'internal') {
       const problem = envChecks(project, cli, combo.validator);
       if (problem) {
@@ -72,6 +80,13 @@ async function check(combo: Combo, work: string): Promise<string | undefined> {
         : // oxlint-disable-next-line no-await-in-loop -- as above
           await run('pnpm', step.args, project);
     if (code !== 0) return step.name;
+    if (step.name === 'storybook:build') {
+      const problem = storybookChecks(project, combo);
+      if (problem) {
+        console.error(problem);
+        return step.name;
+      }
+    }
   }
   return undefined;
 }

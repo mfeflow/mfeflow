@@ -1,17 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { combinations, featuresOf, find, presetOf, runsE2e, stepsFor } from './combos';
+import { combinations, featuresOf, find, presetOf, runsE2e, runsUiE2e, stepsFor } from './combos';
 
 describe('combinations', () => {
-  it('has 45 with unique ids: the old 16, env/testing/ci on lint + url-factory, two validators, analytics + telemetry, and event-bus + route-factory + http', () => {
+  it('has 59 with unique ids: the old 16, env/testing/ci on lint + url-factory, two validators, analytics + telemetry, event-bus + route-factory + http, and the react-scale features', () => {
     const all = combinations();
-    expect(all).toHaveLength(45);
-    expect(new Set(all.map((c) => c.id)).size).toBe(45);
-    expect(all.filter((c) => !c.env && !c.testing && !c.ci)).toHaveLength(16);
-    expect(all.filter((c) => c.remotes === 1)).toHaveLength(28);
-    expect(all.filter((c) => c.gtm || c.otel)).toHaveLength(7);
-    expect(all.filter((c) => c.bus || c.routes || c.http)).toHaveLength(7);
+    expect(all).toHaveLength(59);
+    expect(new Set(all.map((c) => c.id)).size).toBe(59);
+    expect(all.filter((c) => !c.env && !c.testing && !c.ci && !c.commit)).toHaveLength(16);
+    expect(all.filter((c) => c.remotes === 1)).toHaveLength(40);
+    expect(all.filter((c) => c.gtm || c.otel)).toHaveLength(10);
+    expect(all.filter((c) => c.bus || c.routes || c.http)).toHaveLength(9);
     const ids = all.map((c) => c.id);
     for (const id of [
       'bare-r1',
@@ -36,13 +36,73 @@ describe('combinations', () => {
     expect(all.filter((c) => c.validator !== 'zod').every((c) => c.env)).toBe(true);
   });
 
-  it('runs the browser test on the full set with analytics and telemetry, with and without the platform features, and no other new one', () => {
+  it('adds the react-scale features in targeted combinations, not in every one', () => {
+    const all = combinations();
+    const ids = all.map((c) => c.id);
+    for (const id of [
+      'lint-url-env-testing-ci-theme-i18n-tw-shadcn-sb-r3',
+      'lint-url-testing-theme-i18n-tw-r1',
+      'lint-url-env-testing-tw-shadcn-r1',
+      'lint-url-env-testing-forms-r1',
+      'lint-url-env-testing-forms-formsvalibot-r1',
+      'lint-url-testing-forms-formsarktype-r1',
+      'lint-url-env-testing-http-query-r1',
+      'lint-url-testing-query-r1',
+      'lint-url-env-testing-gtm-clarity-r1',
+      'lint-url-testing-gtm-clarity-r1',
+      'lint-url-hooks-commit-r1',
+      'commit-r1',
+    ]) {
+      expect(ids).toContain(id);
+    }
+    expect(
+      all.filter((c) => c.theme || c.i18n || c.tailwind || c.shadcn || c.storybook),
+    ).toHaveLength(5);
+    expect(all.filter((c) => c.forms)).toHaveLength(4);
+    expect(all.filter((c) => c.query)).toHaveLength(3);
+    expect(all.filter((c) => c.clarity)).toHaveLength(3);
+    expect(all.filter((c) => c.commit)).toHaveLength(3);
+  });
+
+  it('runs the browser test on the full set with analytics and telemetry, with and without the platform features, and the one with every feature, and no other new one', () => {
     const both = combinations().filter((c) => c.gtm && c.otel);
     expect(both.filter(runsE2e).map((c) => c.id)).toEqual([
       'lint-url-env-testing-ci-gtm-otel-r3',
       'lint-url-env-testing-ci-gtm-otel-bus-routes-http-r3',
+      'lint-url-hooks-env-testing-ci-gtm-otel-bus-routes-http-theme-i18n-tw-shadcn-forms-query-clarity-sb-commit-r3',
     ]);
     expect(both.some((c) => !c.env)).toBe(true);
+  });
+});
+
+describe('the browser tests for tokens, theme, language and Storybook', () => {
+  it('run only where the three UI features and the full test set are on, with three remotes', () => {
+    const ui = combinations().filter(runsUiE2e);
+    expect(ui.map((c) => c.id)).toEqual([
+      'lint-url-env-testing-ci-theme-i18n-tw-shadcn-sb-r3',
+      'lint-url-hooks-env-testing-ci-gtm-otel-bus-routes-http-theme-i18n-tw-shadcn-forms-query-clarity-sb-commit-r3',
+    ]);
+    expect(ui.every((c) => c.remotes === 3 && c.testing && c.ci)).toBe(true);
+  });
+
+  it('builds the composed Storybook after the build steps and before the browser test', () => {
+    const names = stepsFor(find(['lint-url-env-testing-ci-theme-i18n-tw-shadcn-sb-r3'])[0]!).map(
+      (s) => s.name,
+    );
+    expect(names.indexOf('storybook:build')).toBeGreaterThan(names.indexOf('build'));
+    expect(names.indexOf('storybook:build')).toBeLessThan(names.indexOf('test:e2e'));
+    expect(stepsFor(find(['lint-url-env-testing-sb-r1'])[0]!).map((s) => s.name)).toContain(
+      'storybook:build',
+    );
+  });
+
+  it('passes the forms library to the feature through the preset', () => {
+    const c = find(['lint-url-env-testing-forms-formsvalibot-r1'])[0]!;
+    expect(presetOf(c).options).toEqual({
+      'env-t3': { validator: 'zod' },
+      forms: { validator: 'valibot' },
+    });
+    expect(featuresOf(c)).toContain('forms');
   });
 });
 

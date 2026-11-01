@@ -41,7 +41,12 @@
       }
     },
     {
-      "files": ["examples/storefront/e2e/**", "e2e/matrix/run.ts", "bench/time-to-running.ts"],
+      "files": [
+        "examples/storefront/e2e/**",
+        "e2e/matrix/run.ts",
+        "e2e/matrix/ui-checks.ts",
+        "bench/time-to-running.ts"
+      ],
       "rules": {
         "import/extensions": "off"
       }

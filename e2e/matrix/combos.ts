@@ -15,7 +15,18 @@ export interface Combo {
   bus: boolean;
   routes: boolean;
   http: boolean;
+  theme: boolean;
+  i18n: boolean;
+  tailwind: boolean;
+  shadcn: boolean;
+  forms: boolean;
+  query: boolean;
+  clarity: boolean;
+  storybook: boolean;
+  commit: boolean;
   validator: Validator;
+  /** The schema library of the forms feature, which is its own option. */
+  formsValidator: Validator;
   remotes: 1 | 3;
 }
 
@@ -25,7 +36,7 @@ export interface Step {
   args: string[];
 }
 
-const REMOTE_NAMES = ['catalog', 'cart', 'checkout'];
+export const REMOTE_NAMES = ['catalog', 'cart', 'checkout'];
 
 type Flags = Partial<
   Pick<
@@ -41,7 +52,17 @@ type Flags = Partial<
     | 'bus'
     | 'routes'
     | 'http'
+    | 'theme'
+    | 'i18n'
+    | 'tailwind'
+    | 'shadcn'
+    | 'forms'
+    | 'query'
+    | 'clarity'
+    | 'storybook'
+    | 'commit'
     | 'validator'
+    | 'formsValidator'
   >
 >;
 
@@ -58,7 +79,17 @@ function make(flags: Flags, remotes: 1 | 3): Combo {
     bus: false,
     routes: false,
     http: false,
+    theme: false,
+    i18n: false,
+    tailwind: false,
+    shadcn: false,
+    forms: false,
+    query: false,
+    clarity: false,
+    storybook: false,
+    commit: false,
     validator: 'zod' as Validator,
+    formsValidator: 'zod' as Validator,
     ...flags,
   };
   const parts = [
@@ -74,6 +105,16 @@ function make(flags: Flags, remotes: 1 | 3): Combo {
     combo.bus ? 'bus' : '',
     combo.routes ? 'routes' : '',
     combo.http ? 'http' : '',
+    combo.theme ? 'theme' : '',
+    combo.i18n ? 'i18n' : '',
+    combo.tailwind ? 'tw' : '',
+    combo.shadcn ? 'shadcn' : '',
+    combo.forms ? 'forms' : '',
+    combo.forms && combo.formsValidator !== 'zod' ? `forms${combo.formsValidator}` : '',
+    combo.query ? 'query' : '',
+    combo.clarity ? 'clarity' : '',
+    combo.storybook ? 'sb' : '',
+    combo.commit ? 'commit' : '',
   ].filter((p) => p !== '');
   return {
     ...combo,
@@ -91,7 +132,11 @@ function make(flags: Flags, remotes: 1 | 3): Combo {
  * and both on the other two validators (their schema keys are written per validator). Then
  * event-bus, route-factory and http: all three together with everything else on three remotes
  * (the second one that runs the browser test), each alone on the default set, all three without env-t3 (http's runtime key goes to
- * public/config/runtime-config.json), and all three on the other two validators.
+ * public/config/runtime-config.json), and all three on the other two validators. Then the react-scale
+ * features: theming + i18n + tailwind + ui-shadcn + storybook on three remotes with ci (runs the browser tests
+ * for tokens, theme, language and the composed Storybook), the same without env-t3, tailwind and the data
+ * and form features each alone, clarity next to gtm with and without env-t3, the commit prompt on its own
+ * and beside git-hooks, and one run of everything together.
  */
 export function combinations(): Combo[] {
   const flags = [false, true];
@@ -127,6 +172,39 @@ export function combinations(): Combo[] {
   for (const validator of ['valibot', 'arktype'] as const) {
     out.push(make({ ...base, ...platform, validator }, 1));
   }
+  const ui = { theme: true, i18n: true, tailwind: true, shadcn: true };
+  out.push(make({ ...base, ci: true, ...ui, storybook: true }, 3));
+  out.push(make({ ...base, env: false, theme: true, i18n: true, tailwind: true }, 1));
+  out.push(make({ ...base, tailwind: true, shadcn: true }, 1));
+  out.push(make({ ...base, storybook: true }, 1));
+  out.push(make({ ...base, http: true, query: true }, 1));
+  out.push(make({ ...base, env: false, query: true }, 1));
+  out.push(make({ ...base, forms: true }, 1));
+  out.push(make({ ...base, forms: true, formsValidator: 'valibot' }, 1));
+  out.push(make({ ...base, env: false, forms: true, formsValidator: 'arktype' }, 1));
+  out.push(make({ ...base, gtm: true, clarity: true }, 1));
+  out.push(make({ ...base, env: false, gtm: true, clarity: true }, 1));
+  out.push(make({ lint: true, url: true, hooks: true, commit: true }, 1));
+  out.push(make({ commit: true }, 1));
+  out.push(
+    make(
+      {
+        ...base,
+        ci: true,
+        hooks: true,
+        gtm: true,
+        otel: true,
+        ...platform,
+        ...ui,
+        forms: true,
+        query: true,
+        clarity: true,
+        storybook: true,
+        commit: true,
+      },
+      3,
+    ),
+  );
   return out;
 }
 
@@ -150,8 +228,17 @@ export function featuresOf(combo: Combo): string[] {
     ...(combo.bus ? ['event-bus'] : []),
     ...(combo.routes ? ['route-factory'] : []),
     ...(combo.http ? ['http'] : []),
+    ...(combo.theme ? ['theming'] : []),
+    ...(combo.i18n ? ['i18n'] : []),
+    ...(combo.tailwind ? ['tailwind'] : []),
+    ...(combo.shadcn ? ['ui-shadcn'] : []),
+    ...(combo.forms ? ['forms'] : []),
+    ...(combo.query ? ['data-react-query'] : []),
+    ...(combo.clarity ? ['analytics-clarity'] : []),
+    ...(combo.storybook ? ['storybook'] : []),
     ...(combo.ci ? ['ci-github'] : []),
     ...(combo.hooks ? ['git-hooks'] : []),
+    ...(combo.commit ? ['commit-prompt'] : []),
   ];
 }
 
@@ -164,13 +251,24 @@ export function presetOf(combo: Combo): {
   return {
     remotes: REMOTE_NAMES.slice(0, combo.remotes),
     features: featuresOf(combo),
-    ...(combo.env ? { options: { 'env-t3': { validator: combo.validator } } } : {}),
+    ...(combo.env || combo.forms
+      ? {
+          options: {
+            ...(combo.env ? { 'env-t3': { validator: combo.validator } } : {}),
+            ...(combo.forms ? { forms: { validator: combo.formsValidator } } : {}),
+          },
+        }
+      : {}),
   };
 }
 
 /** Whether the Playwright smoke test runs: it needs a browser, so only on the three-remote runs of the full set. */
 export const runsE2e = (combo: Combo): boolean =>
   combo.testing && combo.remotes === 3 && combo.env && combo.ci;
+
+/** Whether the browser test of the colour tokens, the theme and the language runs. */
+export const runsUiE2e = (combo: Combo): boolean =>
+  runsE2e(combo) && combo.theme && combo.i18n && combo.tailwind;
 
 /** What a person would run on the result, in order. Lint and format only exist with lint-oxlint. */
 export function stepsFor(combo: Combo): Step[] {
@@ -200,6 +298,9 @@ export function stepsFor(combo: Combo): Step[] {
             args: ['check:runtime-config'],
           } satisfies Step,
         ]
+      : []),
+    ...(combo.storybook
+      ? [{ name: 'storybook:build', command: 'pnpm', args: ['storybook:build'] } satisfies Step]
       : []),
     ...(runsE2e(combo)
       ? [{ name: 'test:e2e', command: 'pnpm', args: ['test:e2e'] } satisfies Step]

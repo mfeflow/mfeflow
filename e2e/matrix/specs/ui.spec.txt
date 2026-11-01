@@ -1,0 +1,74 @@
+import fs from 'node:fs';
+import { expect, test } from '@playwright/test';
+
+// Written into the project by the matrix (e2e/matrix/run.ts). Before it runs, catalog and cart get their own
+// --color-primary and checkout keeps the one that reads the theme.
+const remotes = fs
+  .readdirSync('registry/envs/dev')
+  .filter((file) => file.endsWith('.json'))
+  .map((file) => file.slice(0, -'.json'.length))
+  .toSorted();
+
+test.use({ colorScheme: 'light' });
+
+async function outline(page, name) {
+  return page.locator(`[data-tailwind="${name}"]`).evaluate((el) => getComputedStyle(el).outlineColor);
+}
+
+async function showAll(page) {
+  await page.goto('/');
+  for (const name of remotes) await expect(page.getByTestId(name)).toBeVisible();
+}
+
+test('two remotes use the same utility with different tokens and do not collide', async ({ page }) => {
+  await showAll(page);
+  expect(await outline(page, 'catalog')).toBe('rgb(185, 28, 28)');
+  expect(await outline(page, 'cart')).toBe('rgb(15, 118, 110)');
+  expect(await outline(page, 'checkout')).toBe('rgb(37, 99, 235)');
+});
+
+test('only the shell loads Tailwind preflight', async ({ page }) => {
+  await showAll(page);
+  await page.waitForLoadState('networkidle');
+  const hrefs = await page.locator('link[rel="stylesheet"]').evaluateAll((links) => links.map((link) => link.href));
+  const withReset = [];
+  for (const href of hrefs) {
+    const response = await page.request.get(href);
+    if (/box-sizing:\s*border-box/.test(await response.text())) withReset.push(new URL(href).port);
+  }
+  expect(withReset).toEqual(['4300']);
+});
+
+test('the theme reaches every remote through the tokens, and is remembered without a flash', async ({ page }) => {
+  await page.addInitScript(() => {
+    const seen = new MutationObserver(() => {
+      const root = document.getElementById('root');
+      if (root && root.childElementCount > 0 && Reflect.get(window, '__themeAtRender') === undefined) {
+        Reflect.set(window, '__themeAtRender', document.documentElement.dataset.theme ?? 'none');
+        seen.disconnect();
+      }
+    });
+    seen.observe(document, { childList: true, subtree: true });
+  });
+  await showAll(page);
+  await page.locator('.theme-toggle select').selectOption('dark');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  expect(await outline(page, 'checkout')).toBe('rgb(96, 165, 250)');
+  expect(await outline(page, 'catalog')).toBe('rgb(185, 28, 28)');
+  await page.reload();
+  for (const name of remotes) await expect(page.getByTestId(name)).toBeVisible();
+  expect(await page.evaluate(() => Reflect.get(window, '__themeAtRender'))).toBe('dark');
+  expect(await outline(page, 'checkout')).toBe('rgb(96, 165, 250)');
+});
+
+test('the language reaches every remote, flips the page direction and is remembered', async ({ page }) => {
+  await showAll(page);
+  for (const name of remotes) await expect(page.getByTestId(`${name}-hello`)).toHaveText(`Hello from ${name}`);
+  await page.locator('.language-switcher select').selectOption('ar');
+  for (const name of remotes) await expect(page.getByTestId(`${name}-hello`)).toHaveText(`مرحبا من ${name}`);
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+  await page.reload();
+  for (const name of remotes) await expect(page.getByTestId(`${name}-hello`)).toHaveText(`مرحبا من ${name}`);
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+});
