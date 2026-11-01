@@ -1,7 +1,7 @@
 {
   "name": "@mfeflow/registry",
-  "version": "0.4.0",
   "description": "The mfeflow remote registry: a static index with gates and rollback, and a self-hosted server with scoped tokens, an audit log and a kill switch.",
+  "version": "0.5.0",
   "keywords": [
     "micro-frontend",
     "mfe",
