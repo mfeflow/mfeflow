@@ -1,5 +1,6 @@
 import { Checker, isObj, isSafeRelativePath, type Issue } from './validate';
 import { MFE_NAME } from './mfe-manifest';
+import { registryTemplateProblem } from './feature-registry';
 
 /** `mfeflow.json`: the CLI's record of a project. */
 export interface MfeflowProject {
@@ -13,7 +14,7 @@ export interface MfeflowProject {
   features: Record<string, { version: string; options?: Record<string, unknown> }>;
   /** Hashes of copied files, so `upgrade` can tell when a file was edited. */
   files?: Record<string, string>;
-  /** Third-party feature registries: `{ "@someone": "https://…/{name}.json" }`. `@mfeflow` is reserved. */
+  /** Third-party feature registries: `{ "@someone": "https://…/{name}.json" }`, https only (plain http for loopback hosts). `@mfeflow` is reserved. */
   registries?: Record<string, string>;
   /** Built mfeflow checkout, relative to the project root, that `@mfeflow/*` dependencies link to. Set by `--local` only. */
   local?: string;
@@ -124,8 +125,12 @@ export function validateMfeflowProject(value: unknown): Issue[] {
       const at = `registries.${ns}`;
       if (ns === '@mfeflow') c.add(at, '@mfeflow is reserved for first-party features');
       else if (!REGISTRY_NAMESPACE.test(ns)) c.add(at, 'namespaces look like "@someone"');
-      if (typeof url !== 'string' || !url.startsWith('https://') || !url.includes('{name}'))
-        c.add(at, 'must be an https URL containing {name}');
+      if (typeof url !== 'string')
+        c.add(at, 'must be a URL template like "https://example.com/{name}.json"');
+      else {
+        const problem = registryTemplateProblem(url);
+        if (problem !== undefined) c.add(at, problem);
+      }
     }
   }
   if ('local' in value) {

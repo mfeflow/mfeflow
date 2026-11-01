@@ -15,6 +15,13 @@ import { ANALYTICS_EVENT, EVENT_NAME, EXPOSE, MFE_NAME, ROUTE } from './mfe-mani
 import { CHECKOUT_PATH, FILE_HASH, REGISTRY_NAMESPACE, SCOPE } from './project';
 import { SAFE_RELATIVE_PATH } from './validate';
 import { VERSION } from './registry';
+import {
+  MAX_DESCRIPTION,
+  MAX_INDEX_ITEMS,
+  MAX_KEYWORD,
+  MAX_KEYWORDS,
+  REGISTRY_ITEM_NAME,
+} from './feature-registry';
 
 type Json = Record<string, unknown>;
 
@@ -23,6 +30,9 @@ const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
 const str = (pattern?: RegExp): Json =>
   pattern ? { type: 'string', pattern: pattern.source } : { type: 'string' };
 const strings = (pattern?: RegExp): Json => ({ type: 'array', items: str(pattern) });
+/** https, or plain http on a loopback host; `registryTemplateProblem` is the full check. */
+const REGISTRY_URL =
+  /^(?:https:\/\/|http:\/\/(?:127\.0\.0\.1|localhost|\[::1\])(?:[:/?#])).*\{name\}/;
 const literal: Json = { type: ['string', 'number', 'boolean', 'null'] };
 const literalMap: Json = { type: 'object', additionalProperties: literal };
 const url: Json = { type: 'string', format: 'uri', pattern: '^https?://' };
@@ -154,7 +164,7 @@ const item = (properties: Json, required: string[]): Json => ({
 });
 
 /**
- * Editor schemas for the five JSON documents mfeflow reads. They mirror the validators in this package; the
+ * Editor schemas for the six JSON documents mfeflow reads. They mirror the validators in this package; the
  * validators stay the authority (they also check things a schema cannot, like duplicate routes), so a document
  * can pass here and still fail `mfeflow validate`.
  */
@@ -221,7 +231,7 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
           pattern: REGISTRY_NAMESPACE.source,
           not: { const: '@mfeflow' },
         },
-        additionalProperties: { type: 'string', pattern: '^https://.*\\{name\\}' },
+        additionalProperties: { type: 'string', pattern: REGISTRY_URL.source },
       },
       local: str(CHECKOUT_PATH),
       budget: {
@@ -335,5 +345,28 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
       },
     },
     required: ['remotes'],
+  }),
+
+  featureRegistryIndex: root('featureRegistryIndex', 'feature registry index', {
+    properties: {
+      items: {
+        type: 'array',
+        maxItems: MAX_INDEX_ITEMS,
+        items: item(
+          {
+            name: str(REGISTRY_ITEM_NAME),
+            version: str(),
+            description: { type: 'string', maxLength: MAX_DESCRIPTION },
+            keywords: {
+              type: 'array',
+              maxItems: MAX_KEYWORDS,
+              items: { type: 'string', maxLength: MAX_KEYWORD },
+            },
+          },
+          ['name', 'version', 'description'],
+        ),
+      },
+    },
+    required: ['items'],
   }),
 };
