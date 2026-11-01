@@ -4,14 +4,23 @@ import { assertKnownFlags, GLOBAL_ARGS, readGlobals } from '../args';
 import { finding, type Finding } from '../findings';
 import type { ProjectView } from '../inspect';
 import type { StatusEnv, StatusRemote, StatusResult } from '../output';
-import { currentIndex, envOf, onHost, openSession, positionals, type Session } from '../publish';
+import {
+  currentIndex,
+  envOf,
+  hostEnvs,
+  onHost,
+  openSession,
+  positionals,
+  type Session,
+} from '../publish';
 import type { Runtime } from '../runtime';
 import type { RegistryIndex, RegistryIndexRemote } from '@mfeflow/contracts';
 
 export const STATUS_ARGS = {
   env: {
     type: 'string',
-    description: 'Only this environment (default: every folder in registry/envs except dev)',
+    description:
+      'Only this environment (default: every env on the host, and every folder in registry/envs but dev)',
     valueHint: 'env',
   },
   host: {
@@ -42,6 +51,11 @@ function mentioned(indexes: readonly RegistryIndex[], name: string): Set<string>
   return out;
 }
 
+function compareVersions(a: string, b: string): number {
+  if (semver.valid(a) !== null && semver.valid(b) !== null) return semver.compareBuild(a, b);
+  return a.localeCompare(b);
+}
+
 /** Is `version` a candidate waiting to be deployed: newer than what is served? Older ones were left behind on purpose (a rollback, then a fix). */
 function pendingOver(served: string | undefined, version: string): boolean {
   if (served === undefined || semver.valid(version) === null || semver.valid(served) === null)
@@ -64,7 +78,9 @@ async function unreferenced(
     const segment = key.split('/')[1];
     if (segment !== undefined && segment !== '') found.add(decodeVersion(segment));
   }
-  return [...found].filter((v) => !tracked.has(v) && pendingOver(served, v)).toSorted();
+  return [...found]
+    .filter((v) => !tracked.has(v) && pendingOver(served, v))
+    .toSorted(compareVersions);
 }
 
 function driftOf(
@@ -157,11 +173,15 @@ export async function runStatus(
   const globals = readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive);
   positionals(args, 0, 'mfeflow status [--env <env>]');
   const s = await openSession(rt, args, globals);
-  const envs = args.env === undefined ? s.view.envDirs.filter((e) => e !== 'dev') : [envOf(args)];
+  const onTheHost = await hostEnvs(s);
+  const envs =
+    args.env === undefined
+      ? [...new Set([...onTheHost, ...s.view.envDirs.filter((e) => e !== 'dev')])].toSorted()
+      : [envOf(args)];
   const findings: Finding[] = [];
   const out: StatusEnv[] = [];
   const all = new Map<string, RegistryIndex>();
-  for (const env of new Set([...envs, ...s.view.envDirs])) {
+  for (const env of new Set([...envs, ...onTheHost, ...s.view.envDirs])) {
     // oxlint-disable-next-line no-await-in-loop -- a few envs
     const { index } = await currentIndex(s, env);
     if (index !== undefined) all.set(env, index);

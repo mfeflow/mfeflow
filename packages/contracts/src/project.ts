@@ -1,6 +1,6 @@
 import { Checker, isObj, isSafeRelativePath, isUrl, type Issue } from './validate';
 import { MFE_NAME } from './mfe-manifest';
-import { registryTemplateProblem } from './feature-registry';
+import { isRegistryProtocol, registryTemplateProblem } from './feature-registry';
 
 /** `mfeflow.json`: the CLI's record of a project. */
 export interface MfeflowProject {
@@ -169,7 +169,10 @@ export function validateMfeflowProject(value: unknown): Issue[] {
     });
     const baseUrl = c.string(registry, 'baseUrl', 'registry', { required: false });
     if (baseUrl !== undefined && !(isUrl(baseUrl) && validBaseUrl(baseUrl))) {
-      c.add('registry.baseUrl', 'must be an http(s) URL without credentials or a trailing slash');
+      c.add(
+        'registry.baseUrl',
+        'must be an https URL (http only on localhost) without credentials, a query, a fragment or a trailing slash',
+      );
     }
   }
   return c.issues;
@@ -177,7 +180,13 @@ export function validateMfeflowProject(value: unknown): Issue[] {
 
 function validBaseUrl(value: string): boolean {
   const url = new URL(value);
-  return url.username === '' && url.password === '' && !value.endsWith('/') && url.search === '';
+  return (
+    isRegistryProtocol(url) &&
+    url.username === '' &&
+    url.password === '' &&
+    !/[?#]/.test(value) &&
+    !value.endsWith('/')
+  );
 }
 
 export function isMfeflowProject(value: unknown): value is MfeflowProject {

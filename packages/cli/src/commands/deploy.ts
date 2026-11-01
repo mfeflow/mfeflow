@@ -2,12 +2,19 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
   remoteDistFiles,
+  ROUTE_OVERLAP,
+  validateRegistryIndex,
   type MfeManifest,
   type RegistryIndex,
   type RegistryIndexRemote,
 } from '@mfeflow/contracts';
 import { hasErrno, MfeflowError } from '@mfeflow/core';
-import { artifactPrefix, planDeploy } from '@mfeflow/registry/static';
+import {
+  artifactPrefix,
+  INDEX_CACHE_CONTROL,
+  planDeploy,
+  type Upload,
+} from '@mfeflow/registry/static';
 import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals, text } from '../args';
 import { Cancelled } from '../exit';
@@ -84,6 +91,11 @@ export const ROLLBACK_ARGS = {
     type: 'string',
     description: 'Version to go back to (default: the previous one)',
     valueHint: 'v',
+  },
+  force: {
+    type: 'boolean',
+    description:
+      'Roll back even if the schema, route or compatibility checks fail (the files must still exist)',
   },
   ...HOST_ARGS,
   ...GLOBAL_ARGS,
@@ -281,12 +293,8 @@ export async function runDeploy(
   return result;
 }
 
-/** Files of a published version that must exist before the index points at it. */
-async function versionFiles(
-  s: Session,
-  name: string,
-  version: string,
-): Promise<{ manifest: unknown; files: Record<string, Uint8Array> }> {
+/** Reads the version's manifest from the host and checks, with HEAD, that its entry and expose files exist. */
+async function versionManifest(s: Session, name: string, version: string): Promise<unknown> {
   const prefix = artifactPrefix(name, version);
   const missing = (what: string): MfeflowError =>
     new MfeflowError('E509', `${name}@${version}: ${what} (${prefix}/)`);
@@ -301,25 +309,29 @@ async function versionFiles(
   const dist = remoteDistFiles(manifest);
   if (dist === undefined) throw missing('mf-manifest.json has no usable remote entry');
   const wanted = [...new Set([dist.entry, ...Object.values(dist.exposes).flat()])];
-  const files: Record<string, Uint8Array> = {};
   const gone: string[] = [];
   for (const file of wanted) {
     // oxlint-disable-next-line no-await-in-loop -- a handful of files
-    const body = await s.host.get(`${prefix}/${file}`);
-    if (body === undefined) gone.push(file);
-    else files[file] = body.body;
+    if ((await s.host.head(`${prefix}/${file}`)) === undefined) gone.push(file);
   }
   if (gone.length > 0)
     throw missing(
       `${gone.slice(0, 5).join(', ')}${gone.length > 5 ? ' and more' : ''} not on the host`,
     );
-  return { manifest, files };
+  return manifest;
+}
+
+interface MoveOptions {
+  /** Looks at the remote as the freshly read index has it, and returns the entry to take routes and owner from. */
+  guard?: (fresh: RegistryIndexRemote | undefined) => RegistryIndexRemote;
+  /** Write the index although the schema, route or compatibility gates fail. Never skips the files check. */
+  force?: boolean;
 }
 
 /**
- * Points `env` at a version already on the host. The version's entry and expose files are read to
- * prove they exist, but nothing is uploaded: only the index moves. Its first-load budget was judged
- * when it was deployed, so it is not judged again.
+ * Points `env` at a version already on the host. The version's files are checked to exist, but
+ * nothing is uploaded: only the index moves. Its first-load size was judged when it was deployed,
+ * so it is not judged again.
  */
 async function movePlan(
   s: Session,
@@ -328,9 +340,11 @@ async function movePlan(
   env: string,
   source: RegistryIndexRemote,
   shellFile: string | undefined,
+  options: MoveOptions = {},
 ): Promise<Planned> {
   const { index, etag } = await currentIndex(s, env);
   const before = index?.remotes.find((r) => r.name === app.name);
+  const origin = options.guard?.(before) ?? source;
   if (before?.version === version)
     return {
       plan: {
@@ -344,29 +358,51 @@ async function movePlan(
       warnings: [],
       noop: true,
     };
-  const { manifest, files } = await versionFiles(s, app.name, version);
+  const manifest = await versionManifest(s, app.name, version);
   const shell = await readShellManifest(s, env, shellFile);
   const mfe: MfeManifest = {
     ...app.mfe,
-    routes: source.routes ?? app.mfe.routes,
-    owner: source.owner ?? app.mfe.owner,
-    budgets: { ...app.mfe.budgets, initialJsKb: Number.MAX_SAFE_INTEGER },
+    routes: origin.routes ?? app.mfe.routes,
+    owner: origin.owner ?? app.mfe.owner,
   };
   const plan = planDeploy({
     remote: mfe,
     version,
     manifest,
-    files,
+    files: {},
     env,
-    baseUrl: baseUrlFor(s, { remotes: [source, ...(index?.remotes ?? [])] }),
+    baseUrl: baseUrlFor(s, { remotes: [origin, ...(index?.remotes ?? [])] }),
     ...(index === undefined || etag === undefined
       ? {}
       : { currentIndex: index, currentIndexEtag: etag }),
     ...(shell.manifest === undefined ? {} : { shellManifest: shell.manifest }),
     workspaceVersions: await shellVersions(s.view, mfe),
   });
-  const indexOnly = { ...plan, uploads: plan.uploads.filter((u) => u.key === plan.indexKey) };
-  return { plan: indexOnly, before, warnings: [...shell.warnings, ...plan.warnings] };
+  const warnings = [...shell.warnings, ...plan.warnings];
+  // Size is not measured here (no files were read), so that gate's failure is not a verdict.
+  const gates = plan.failures.filter((f) => f.code !== 'budget');
+  const forced = options.force === true ? gates : [];
+  const blocking = gates.filter((f) => !forced.includes(f));
+  if (blocking.length > 0) return { plan: { ...plan, failures: blocking }, before, warnings };
+  if (forced.length > 0) {
+    const invalid = validateRegistryIndex(plan.index).filter((i) => i.code !== ROUTE_OVERLAP);
+    if (invalid.length > 0)
+      throw new MfeflowError(
+        'E501',
+        `even --force cannot write an invalid index: ${invalid.map((i) => `${i.path} ${i.message}`).join('; ')}`,
+      );
+    warnings.push(
+      `FORCED: --force skipped ${String(forced.length)} failed check(s); ${version} may not work with the shell that is deployed: ${forced.map((f) => f.message).join(' | ')}`,
+    );
+  }
+  const indexUpload: Upload = {
+    key: plan.indexKey,
+    body: `${JSON.stringify(plan.index, null, 2)}\n`,
+    contentType: 'application/json',
+    cacheControl: INDEX_CACHE_CONTROL,
+    ...(etag === undefined ? { ifNoneMatch: '*' as const } : { ifMatch: etag }),
+  };
+  return { plan: { ...plan, failures: [], uploads: [indexUpload] }, before, warnings };
 }
 
 function inEnv(index: RegistryIndex | undefined, name: string, env: string): RegistryIndexRemote {
@@ -430,20 +466,25 @@ export async function runRollback(
   const env = envOf(args);
   const s = await openSession(rt, args, globals);
   const app = remoteApp(s.view, name);
-  const current = inEnv((await currentIndex(s, env)).index, app.name, env);
-  const known = [...new Set([current.previous, ...(current.history ?? [])])].filter(
-    (v): v is string => v !== undefined,
-  );
-  const to = text(args, 'to') ?? current.previous;
-  if (to === undefined)
-    throw new MfeflowError('E508', `${app.name} in ${env} has no previous version to go back to`);
-  if (to === current.version)
-    throw new MfeflowError('E508', `${env} already serves ${app.name}@${to}`);
-  if (!known.includes(to))
-    throw new MfeflowError(
-      'E508',
-      `${app.name}@${to} is not in the history of ${env} (${known.length === 0 ? 'empty' : known.join(', ')})`,
+  const explicit = text(args, 'to');
+  const target = (remote: RegistryIndexRemote): string => {
+    const known = [...new Set([remote.previous, ...(remote.history ?? [])])].filter(
+      (v): v is string => v !== undefined,
     );
+    const to = explicit ?? remote.previous;
+    if (to === undefined)
+      throw new MfeflowError('E508', `${app.name} in ${env} has no previous version to go back to`);
+    if (to === remote.version)
+      throw new MfeflowError('E508', `${env} already serves ${app.name}@${to}`);
+    if (!known.includes(to))
+      throw new MfeflowError(
+        'E508',
+        `${app.name}@${to} is not in the history of ${env} (${known.length === 0 ? 'empty' : known.join(', ')})`,
+      );
+    return to;
+  };
+  const current = inEnv((await currentIndex(s, env)).index, app.name, env);
+  const to = target(current);
   await confirm(
     s,
     `Roll ${env} back from ${app.name}@${current.version ?? ''} to ${to} on ${s.hostLabel}?`,
@@ -461,6 +502,24 @@ export async function runRollback(
         env,
         current,
         text(args, 'shell-manifest'),
+        {
+          force: args.force === true,
+          // A second pass runs on the index another writer just left: the intent is checked against it, not replayed.
+          guard: (fresh) => {
+            const now = inEnv(
+              fresh === undefined ? undefined : { remotes: [fresh] },
+              app.name,
+              env,
+            );
+            if (explicit === undefined && now.version !== current.version)
+              throw new MfeflowError(
+                'E510',
+                `${env} now serves ${app.name}@${String(now.version)}, not ${String(current.version)} as when this rollback started; check \`mfeflow status\` and run it again`,
+              );
+            target(now);
+            return now;
+          },
+        },
       ),
   });
   const result = await finish(s, { command: 'rollback', env, remote: app.name, version: to }, done);

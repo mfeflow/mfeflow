@@ -1,3 +1,4 @@
+import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { main } from '.';
@@ -34,6 +35,21 @@ describe('parseHostSpec', () => {
     expect(describeHost(parseHostSpec('file:/srv/reg', '/work'))).toBe(
       `file:${path.resolve('/srv/reg')}`,
     );
+  });
+
+  it('expands ~ to the home folder', () => {
+    expect(parseHostSpec('file:~/site', '/w')).toEqual({
+      kind: 'file',
+      dir: path.resolve(os.homedir(), 'site'),
+    });
+    expect(parseHostSpec('file:~', '/w')).toEqual({
+      kind: 'file',
+      dir: path.resolve(os.homedir()),
+    });
+    expect(parseHostSpec('file:~x/site', '/w')).toEqual({
+      kind: 'file',
+      dir: path.resolve('/w/~x/site'),
+    });
   });
 
   it('reads a bucket and a prefix', () => {
@@ -74,12 +90,14 @@ describe('credentials', () => {
     expect(redact(`x ${SECRET} y ${TOKEN}`, secretsOf(ENV))).toBe('x *** y ***');
   });
 
-  it('names the missing variables, never a value', () => {
+  it('names the missing variables, never a value', async () => {
     const spec = parseHostSpec('s3://b-ucket', '/w');
-    expect(() => openHost(spec, { env: { AWS_ACCESS_KEY_ID: ACCESS } })).toThrow(
+    await expect(openHost(spec, { env: { AWS_ACCESS_KEY_ID: ACCESS } })).rejects.toThrow(
       /AWS_SECRET_ACCESS_KEY, MFEFLOW_S3_REGION/,
     );
-    expect(() => openHost(spec, { env: {} })).toThrow(/AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY/);
+    await expect(openHost(spec, { env: {} })).rejects.toThrow(
+      /AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY/,
+    );
   });
 });
 

@@ -99,17 +99,18 @@ mfeflow status --env prod
 
 A walk-through with output is in [Deploy and roll back a remote](./deploying).
 
-| Flag                         | Commands                  | Does                                                                                |
-| ---------------------------- | ------------------------- | ----------------------------------------------------------------------------------- |
-| `--env <env>`                | deploy, rollback, status  | The environment. `status` defaults to every folder in `registry/envs` but `dev`     |
-| `--from <env>`, `--to <env>` | promote                   | Copy the pointer from one environment to another                                    |
-| `--to <version>`             | rollback                  | Go back to this version, which must be in the history. Default: the previous one    |
-| `--version <v>`              | deploy                    | Default: the remote's `package.json` version                                        |
-| `--dist <dir>`               | deploy                    | Build folder inside the remote. Default `dist`                                      |
-| `--no-publish`               | deploy                    | Upload the files, leave the index where it is. `status` then shows drift            |
-| `--host <spec>`              | all                       | `file:<dir>` or `s3://<bucket>[/prefix]`. Default `registry.host` in `mfeflow.json` |
-| `--base-url <url>`           | deploy, promote, rollback | Where the host's files are served from. Default `registry.baseUrl`                  |
-| `--shell-manifest <file>`    | deploy, promote, rollback | The shell's deployed `mf-manifest.json`. Default `envs/<env>/shell/` on the host    |
+| Flag                         | Commands                  | Does                                                                                                      |
+| ---------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `--env <env>`                | deploy, rollback, status  | The environment. `status` defaults to every env on the host and every folder in `registry/envs` but `dev` |
+| `--from <env>`, `--to <env>` | promote                   | Copy the pointer from one environment to another                                                          |
+| `--to <version>`             | rollback                  | Go back to this version, which must be in the history. Default: the previous one                          |
+| `--version <v>`              | deploy                    | Default: the remote's `package.json` version                                                              |
+| `--dist <dir>`               | deploy                    | Build folder inside the remote. Default `dist`                                                            |
+| `--force`                    | rollback                  | Roll back although the schema, route or compat checks fail. The files must still exist                    |
+| `--no-publish`               | deploy                    | Upload the files, leave the index where it is. `status` then shows drift                                  |
+| `--host <spec>`              | all                       | `file:<dir>` or `s3://<bucket>[/prefix]`. Default `registry.host` in `mfeflow.json`                       |
+| `--base-url <url>`           | deploy, promote, rollback | Where the host's files are served from. Default `registry.baseUrl`                                        |
+| `--shell-manifest <file>`    | deploy, promote, rollback | The shell's deployed `mf-manifest.json`. Default `envs/<env>/shell/` on the host                          |
 
 S3 settings come from `MFEFLOW_S3_ENDPOINT`, `MFEFLOW_S3_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and
 `AWS_SESSION_TOKEN`, and are never printed. `--dry-run` prints the plan as data and writes nothing. Without `--yes`, a

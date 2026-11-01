@@ -1,6 +1,6 @@
+import os from 'node:os';
 import path from 'node:path';
 import { MfeflowError } from '@mfeflow/core';
-import { s3Host } from '@mfeflow/registry/s3';
 import { localHost, type RegistryHost } from '@mfeflow/registry/static';
 
 export type HostSpec =
@@ -13,6 +13,8 @@ export function parseHostSpec(spec: string, cwd: string): HostSpec {
   if (spec.startsWith('file:')) {
     const dir = spec.slice('file:'.length);
     if (dir === '') throw new MfeflowError('E506', `${USAGE}; "${spec}" names no folder`);
+    const home = /^~(?:[/\\](.*))?$/.exec(dir);
+    if (home) return { kind: 'file', dir: path.resolve(os.homedir(), home[1] ?? '') };
     return { kind: 'file', dir: path.resolve(cwd, dir) };
   }
   if (spec.startsWith('s3://')) {
@@ -77,8 +79,9 @@ export interface OpenOptions {
 }
 
 /** Opens the host. S3 settings and credentials come from the environment only. */
-export function openHost(spec: HostSpec, options: OpenOptions): RegistryHost {
+export async function openHost(spec: HostSpec, options: OpenOptions): Promise<RegistryHost> {
   if (spec.kind === 'file') return localHost(spec.dir);
+  const { s3Host } = await import('@mfeflow/registry/s3');
   const { env } = options;
   const accessKeyId = present(env, 'AWS_ACCESS_KEY_ID');
   const secretAccessKey = present(env, 'AWS_SECRET_ACCESS_KEY');

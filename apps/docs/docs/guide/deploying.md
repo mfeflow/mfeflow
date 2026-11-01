@@ -215,6 +215,8 @@ Two deploys can race on one index. The second one reads the index again and retr
 
 Promote and rollback skip the size gate. The size was checked when the version first deployed, and a rollback must work even if today's budget is tighter.
 
+In an incident, `rollback --force` also skips the schema, route and compatibility checks and prints a warning. It never skips the check that the version's files are on the host.
+
 ## What you built
 
 A registry you can host anywhere that serves files. It keeps every version, moves one pointer per environment, and goes back by changing that pointer.

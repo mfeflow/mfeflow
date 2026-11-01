@@ -247,7 +247,10 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
         type: 'object',
         properties: {
           host: str(REGISTRY_HOST),
-          baseUrl: { type: 'string', pattern: String.raw`^https?://[^@\s?]*[^/@\s?]$` },
+          baseUrl: {
+            type: 'string',
+            pattern: String.raw`^(?:https://[^@\s?#]*[^/@\s?#]|http://(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?(?:/[^@\s?#]*[^/@\s?#])?)$`,
+          },
         },
       },
     },

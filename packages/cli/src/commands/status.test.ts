@@ -183,6 +183,29 @@ describe('mfeflow status', () => {
     expect(statusOf(rt.io.out.join('')).envs[0]?.remotes[0]?.unreferenced).toBeNull();
   });
 
+  it('lists the envs on the host on a fresh clone with no registry/envs folders', async () => {
+    const f = await project();
+    await deploy(f, '1.0.0');
+    await f.run('promote', 'catalog', '--from', 'prod', '--to', 'staging');
+    await fs.rm(path.join(f.root, 'registry/envs'), { recursive: true });
+    const { result } = await f.status();
+    expect(result.envs.map((e) => [e.env, e.published])).toEqual([
+      ['prod', true],
+      ['staging', true],
+    ]);
+    expect(result.envs[0]?.remotes[0]).toMatchObject({ version: '1.0.0', unreferenced: [] });
+  });
+
+  it('sorts the waiting versions by semver, not as text', async () => {
+    const f = await project();
+    await deploy(f, '1.0.0');
+    await deploy(f, '1.0.10', '--no-publish');
+    await deploy(f, '1.0.9', '--no-publish');
+    await deploy(f, '1.0.2', '--no-publish');
+    const { result } = await f.status('--env', 'prod');
+    expect(prod(result)?.remotes[0]?.unreferenced).toEqual(['1.0.2', '1.0.9', '1.0.10']);
+  });
+
   it('prints a readable table without --json', async () => {
     const f = await project();
     await deploy(f, '1.0.0');

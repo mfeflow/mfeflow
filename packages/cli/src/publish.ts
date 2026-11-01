@@ -6,6 +6,7 @@ import type {
   RegistryIndex,
   RegistryIndexRemote,
 } from '@mfeflow/contracts';
+import { isLoopbackHttp } from '@mfeflow/contracts';
 import { findProjectRoot, messageOf, MfeflowError, type ErrorCode } from '@mfeflow/core';
 import {
   applyPlan,
@@ -77,7 +78,7 @@ export async function openSession(
   const secrets = secretsOf(rt.io.env);
   let host: RegistryHost;
   try {
-    host = openHost(parsed, {
+    host = await openHost(parsed, {
       env: rt.io.env,
       ...(rt.hostFetch === undefined ? {} : { fetch: rt.hostFetch }),
     });
@@ -85,8 +86,12 @@ export async function openSession(
     throw hostFailure(error, secrets);
   }
   const flagUrl = text(args, 'base-url');
-  if (flagUrl !== undefined) assertBaseUrl(flagUrl);
-  const baseUrl = flagUrl ?? view.project.registry?.baseUrl;
+  const baseUrl =
+    flagUrl === undefined
+      ? view.project.registry?.baseUrl === undefined
+        ? undefined
+        : normalizeBaseUrl(view.project.registry.baseUrl, 'registry.baseUrl')
+      : normalizeBaseUrl(flagUrl, '--base-url');
   return {
     rt,
     globals: raw,
@@ -94,30 +99,28 @@ export async function openSession(
     host: rt.wrapHost === undefined ? host : rt.wrapHost(host),
     hostLabel: describeHost(parsed),
     secrets,
-    baseUrl: baseUrl?.replace(/\/+$/, ''),
+    baseUrl,
   };
 }
 
-/** A base URL ends up in a public index, so it must be a plain http(s) URL: no credentials, no query. */
-export function assertBaseUrl(value: string): void {
+/**
+ * A base URL ends up in a public index, so it must be an https URL (http only on localhost) with no
+ * credentials, query or fragment. Returns the normalised form without a trailing slash.
+ */
+export function normalizeBaseUrl(value: string, label: string): string {
+  const bad = (why: string): MfeflowError => new MfeflowError('E506', `${label} ${why}`);
+  if (/[?#]/.test(value)) throw bad('must not contain a query or a fragment');
   let url: URL;
   try {
     url = new URL(value);
   } catch {
-    throw new MfeflowError(
-      'E506',
-      '--base-url must be an http(s) URL such as https://cdn.example.com',
-    );
+    throw bad('must be a URL such as https://cdn.example.com');
   }
-  const plain =
-    (url.protocol === 'https:' || url.protocol === 'http:') &&
-    url.username === '' &&
-    url.password === '';
-  if (!plain || url.search !== '' || url.hash !== '')
-    throw new MfeflowError(
-      'E506',
-      '--base-url must be an http(s) URL without credentials, a query or a fragment',
-    );
+  if (url.username !== '' || url.password !== '') throw bad('must not contain credentials');
+  if (url.protocol === 'http:' && !isLoopbackHttp(url))
+    throw bad('uses http, which is allowed only on localhost; use https');
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw bad('must be an https URL');
+  return url.href.replace(/\/+$/, '');
 }
 
 /** A failure from the host or the files around it as the catalogue error that names it. Secrets never reach the message. */
@@ -201,10 +204,21 @@ export async function readShellManifest(
     if (error instanceof MfeflowError) throw error;
     return {
       warnings: [
-        `the shell manifest could not be read (${messageOf(error)}); compat used workspace versions`,
+        'the shell manifest could not be read or is not valid JSON; compat used workspace versions',
       ],
     };
   }
+}
+
+/** Environments that have an index on the host. Empty when the host cannot list. */
+export async function hostEnvs(s: Session): Promise<string[]> {
+  if (s.host.list === undefined) return [];
+  const keys = await onHost(s, () => s.host.list?.('envs/') ?? Promise.resolve([]));
+  const envs = keys.flatMap((key) => {
+    const match = /^envs\/([a-z][a-z0-9-]*)\/index\.json$/.exec(key);
+    return match?.[1] === undefined ? [] : [match[1]];
+  });
+  return [...new Set(envs)].toSorted();
 }
 
 export async function currentIndex(

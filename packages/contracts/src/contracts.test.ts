@@ -417,7 +417,7 @@ describe('mfeflow.json', () => {
       's3://my-bucket/a/b',
     ])
       expect(
-        validateMfeflowProject(withRegistry({ host, baseUrl: 'https://cdn.example.com/x' })),
+        validateMfeflowProject(withRegistry({ host, baseUrl: 'http://localhost:4300' })),
       ).toEqual([]);
     for (const host of [
       './site',
@@ -434,6 +434,9 @@ describe('mfeflow.json', () => {
       'https://u:p@cdn.test',
       'https://cdn.test?x=1',
       'ftp://x.test',
+      'https://cdn.test#',
+      'https://cdn.test/a#frag',
+      'http://cdn.test',
     ])
       expect(paths(validateMfeflowProject(withRegistry({ baseUrl })))).toEqual([
         'registry.baseUrl',
@@ -455,6 +458,20 @@ describe('mfeflow.json', () => {
     expect(new RegExp(baseUrl.pattern).test('https://cdn.example.com')).toBe(true);
     expect(new RegExp(baseUrl.pattern).test('https://cdn.example.com/')).toBe(false);
     expect(new RegExp(baseUrl.pattern).test('https://u:p@cdn.test')).toBe(false);
+    for (const ok of [
+      'http://localhost',
+      'http://localhost:4300',
+      'http://127.0.0.1/x',
+      'http://[::1]:80',
+    ])
+      expect(new RegExp(baseUrl.pattern).test(ok), ok).toBe(true);
+    for (const bad of [
+      'http://cdn.test',
+      'https://cdn.test#',
+      'https://cdn.test?a=1',
+      'http://localhost.evil.test',
+    ])
+      expect(new RegExp(baseUrl.pattern).test(bad), bad).toBe(false);
   });
 
   it('publishes schema URLs', () => {
