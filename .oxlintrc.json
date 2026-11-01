@@ -44,6 +44,7 @@
       "files": [
         "examples/storefront/e2e/**",
         "e2e/matrix/run.ts",
+        "e2e/matrix/registry.ts",
         "e2e/matrix/ui-checks.ts",
         "bench/time-to-running.ts"
       ],
