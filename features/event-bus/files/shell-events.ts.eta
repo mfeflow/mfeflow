@@ -1,0 +1,13 @@
+import type { Events } from '<%= it.scope %>/contracts/events';
+
+// Importing the bus here makes the shell the one that provides it: remotes share this copy.
+import '@mfeflow/event-bus';
+
+// The platform's event map is the contracts package's. This one declaration merges it in.
+declare module '@mfeflow/event-bus' {
+  // oxlint-disable-next-line typescript/no-empty-interface -- merges the contracts into the platform map
+  interface EventMap extends Events {}
+}
+
+// Events that carry state rather than something that happened can replay their last payload to
+// remotes that mount late:  configureEvent('session.changed.v1', { replay: true });

@@ -13,7 +13,7 @@ beforeEach(async () => {
   cwd = await tempDir();
   project = path.join(cwd, 'app');
   const code = await main(
-    ['init', 'app', '--yes', '--no-install', '--features=lint-oxlint', '--cwd', cwd],
+    ['init', 'app', '--yes', '--no-install', '--features=lint-oxlint,url-factory', '--cwd', cwd],
     testRuntime(),
   );
   expect(code).toBe(0);
@@ -36,43 +36,52 @@ async function forget(feature: string): Promise<void> {
   await fs.writeFile(path.join(project, 'mfeflow.json'), serializeProject({ ...saved, features }));
 }
 
-describe.each(['env-t3', 'testing', 'ci-github', 'analytics-gtm', 'telemetry-otel'])(
-  'mfeflow add %s',
-  (feature) => {
-    it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
-      expect(await add(feature)).toBe(0);
-      const once = await readTree(project);
-      expect(parseProject(once['mfeflow.json'] ?? '').features).toHaveProperty(feature);
-      await forget(feature);
-      expect(await add(feature)).toBe(0);
-      expect(await readTree(project)).toEqual(once);
-    });
+describe.each([
+  'env-t3',
+  'testing',
+  'ci-github',
+  'analytics-gtm',
+  'telemetry-otel',
+  'event-bus',
+  'route-factory',
+  'http',
+])('mfeflow add %s', (feature) => {
+  it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
+    expect(await add(feature)).toBe(0);
+    const once = await readTree(project);
+    expect(parseProject(once['mfeflow.json'] ?? '').features).toHaveProperty(feature);
+    await forget(feature);
+    expect(await add(feature)).toBe(0);
+    expect(await readTree(project)).toEqual(once);
+  });
 
-    it('with --dry-run prints the diff and writes nothing', async () => {
-      const before = await readTree(project);
-      const rt = testRuntime();
-      expect(await main(['add', feature, '--dry-run', '--cwd', project], rt)).toBe(0);
-      expect(await readTree(project)).toEqual(before);
-      expect(rt.io.out.join('\n')).toContain('Dry run: nothing was written.');
-    });
+  it('with --dry-run prints the diff and writes nothing', async () => {
+    const before = await readTree(project);
+    const rt = testRuntime();
+    expect(await main(['add', feature, '--dry-run', '--cwd', project], rt)).toBe(0);
+    expect(await readTree(project)).toEqual(before);
+    expect(rt.io.out.join('\n')).toContain('Dry run: nothing was written.');
+  });
 
-    it('gives a remote added later the same per-app files', async () => {
-      expect(await add(feature)).toBe(0);
-      expect(
-        await main(['add', 'remote', 'checkout', '--no-install', '--cwd', project], testRuntime()),
-      ).toBe(0);
-      const tree = await readTree(project);
-      const perApp = {
-        'env-t3': ['env.ts', '.env.example'],
-        testing: ['vitest.config.ts', 'src/test/setup.ts', 'src/exposed/App.test.tsx'],
-        'ci-github': [],
-        'analytics-gtm': ['src/analytics.ts'],
-        'telemetry-otel': ['src/telemetry.ts'],
-      }[feature];
-      for (const file of perApp ?? []) expect(tree, file).toHaveProperty([`apps/checkout/${file}`]);
-    });
-  },
-);
+  it('gives a remote added later the same per-app files', async () => {
+    expect(await add(feature)).toBe(0);
+    expect(
+      await main(['add', 'remote', 'checkout', '--no-install', '--cwd', project], testRuntime()),
+    ).toBe(0);
+    const tree = await readTree(project);
+    const perApp = {
+      'env-t3': ['env.ts', '.env.example'],
+      testing: ['vitest.config.ts', 'src/test/setup.ts', 'src/exposed/App.test.tsx'],
+      'ci-github': [],
+      'analytics-gtm': ['src/analytics.ts'],
+      'telemetry-otel': ['src/telemetry.ts'],
+      'event-bus': ['src/events.ts'],
+      'route-factory': ['src/routes.ts'],
+      http: ['src/api/client.ts'],
+    }[feature];
+    for (const file of perApp ?? []) expect(tree, file).toHaveProperty([`apps/checkout/${file}`]);
+  });
+});
 
 describe('env-t3', () => {
   it.each([
@@ -461,6 +470,199 @@ describe('telemetry-otel', () => {
     expect(await read('apps/shell/src/config/schema.ts')).toContain('otlpEndpoint:');
     expect(await runtimeKeys('apps/shell/public/config/runtime-config.prod.json')).toContain(
       'traceSampleRatio',
+    );
+  });
+});
+
+describe('event-bus', () => {
+  it('creates the contracts package under the project scope, with the events as types only', async () => {
+    await add('event-bus');
+    const pkg = (await json('packages/contracts/package.json')) as unknown as Record<
+      string,
+      unknown
+    >;
+    expect(pkg.name).toBe(`${parseProject(await read('mfeflow.json')).scope}/contracts`);
+    expect(pkg.exports).toEqual({
+      './events': './src/events/index.ts',
+      './routes/*': './src/routes/*.ts',
+    });
+    const events = await read('packages/contracts/src/events/index.ts');
+    expect(events).toContain("'mfe.ready.v1': { mfe: string }");
+    expect(events).not.toMatch(/^import /m);
+  });
+
+  it('wires every app to the contracts package and the bus', async () => {
+    await add('event-bus');
+    const scope = parseProject(await read('mfeflow.json')).scope;
+    for (const app of ['shell', 'cart']) {
+      const dependencies = (await json(`apps/${app}/package.json`)).dependencies;
+      expect(dependencies, app).toHaveProperty([`${scope}/contracts`], 'workspace:*');
+      expect(dependencies, app).toHaveProperty(['@mfeflow/event-bus']);
+    }
+  });
+
+  it('merges the contracts into the bus in each app, and the shell imports the bus at boot', async () => {
+    await add('event-bus');
+    const remote = await read('apps/cart/src/events.ts');
+    expect(remote).toContain("declare module '@mfeflow/event-bus'");
+    expect(remote).toContain('interface EventMap extends Events {}');
+    expect(remote).toContain("publish('mfe.ready.v1', { mfe: 'cart' })");
+    expect(await read('apps/shell/src/events.ts')).toContain("import '@mfeflow/event-bus';");
+    expect(await read('apps/shell/src/bootstrap.tsx')).toContain("import './events';");
+  });
+
+  it('writes a unit test for the shell and each remote when testing is installed', async () => {
+    await add('testing');
+    await add('event-bus');
+    const tree = await readTree(project);
+    expect(tree['apps/cart/src/events.test.ts']).toContain('onOtherRemoteReady');
+    expect(tree['apps/shell/src/events.test.ts']).toContain("subscribe('mfe.ready.v1'");
+  });
+
+  it('gives a remote added later its own events and the dependency', async () => {
+    await add('event-bus');
+    expect(
+      await main(['add', 'remote', 'checkout', '--no-install', '--cwd', project], testRuntime()),
+    ).toBe(0);
+    const scope = parseProject(await read('mfeflow.json')).scope;
+    expect((await json('apps/checkout/package.json')).dependencies).toHaveProperty([
+      `${scope}/contracts`,
+    ]);
+    expect(await read('apps/checkout/src/events.ts')).toContain("mfe: 'checkout'");
+  });
+});
+
+describe('route-factory', () => {
+  it('without the contracts package keeps each remote’s routes in the remote', async () => {
+    await add('route-factory');
+    const routes = await read('apps/cart/src/routes.ts');
+    expect(routes).toContain("defineRoutes('/cart', {");
+    expect(routes).toContain('createLinks({ cart: routes })');
+    expect(await readTree(project)).not.toHaveProperty(['packages/contracts/package.json']);
+  });
+
+  it('with event-bus puts each remote’s paths in the contracts package', async () => {
+    await add('event-bus', 'route-factory');
+    const scope = parseProject(await read('mfeflow.json')).scope;
+    expect(await read('packages/contracts/src/routes/cart.ts')).toContain('home: ');
+    expect(await read('apps/cart/src/routes.ts')).toContain(
+      `from '${scope}/contracts/routes/cart'`,
+    );
+    expect(await read('apps/cart/src/routes.ts')).toContain("defineRoutes('/cart', contract)");
+  });
+
+  it('does the same when event-bus was added first, and when the remote comes later', async () => {
+    await add('event-bus');
+    await add('route-factory');
+    expect(
+      await main(['add', 'remote', 'checkout', '--no-install', '--cwd', project], testRuntime()),
+    ).toBe(0);
+    const tree = await readTree(project);
+    expect(tree).toHaveProperty(['packages/contracts/src/routes/cart.ts']);
+    expect(tree).toHaveProperty(['packages/contracts/src/routes/checkout.ts']);
+    expect(tree['apps/checkout/src/routes.ts']).toContain("defineRoutes('/checkout', contract)");
+  });
+
+  it('is not undone or duplicated by adding event-bus afterwards', async () => {
+    await add('route-factory');
+    const before = await read('apps/cart/src/routes.ts');
+    expect(await add('event-bus')).toBe(0);
+    expect(await read('apps/cart/src/routes.ts')).toBe(before);
+  });
+
+  it('writes a unit test for each remote when testing is installed', async () => {
+    await add('testing');
+    await add('route-factory');
+    expect((await readTree(project))['apps/cart/src/routes.test.ts']).toContain(
+      "links.href('cart.home')",
+    );
+  });
+});
+
+describe('http', () => {
+  it('needs url-factory first (E206)', async () => {
+    const fresh = await tempDir();
+    try {
+      expect(
+        await main(
+          ['init', 'bare', '--yes', '--no-install', '--features=lint-oxlint', '--cwd', fresh],
+          testRuntime(),
+        ),
+      ).toBe(0);
+      expect(
+        await main(
+          ['add', 'http', '--no-install', '--cwd', path.join(fresh, 'bare')],
+          testRuntime(),
+        ),
+      ).toBe(4);
+    } finally {
+      await removeDir(fresh);
+    }
+  });
+
+  it('writes a client over the url-factory endpoints in every app', async () => {
+    await add('http');
+    for (const app of ['shell', 'cart']) {
+      const client = await read(`apps/${app}/src/api/client.ts`);
+      expect(client, app).toContain("from './endpoints'");
+      expect(client, app).toContain('createHttpClient<typeof endpoints, Responses>');
+      expect((await json(`apps/${app}/package.json`)).dependencies, app).toHaveProperty([
+        '@mfeflow/http',
+      ]);
+    }
+  });
+
+  it('reads the API base from apiUrl in the runtime config, with the old default as a fallback', async () => {
+    await add('http');
+    const endpoints = await read('apps/cart/src/api/endpoints.ts');
+    expect(endpoints).toContain('`${service}Url`');
+    expect(endpoints).toContain("api: '/api'");
+  });
+
+  it('without env-t3 puts apiUrl in public/config/runtime-config.json', async () => {
+    await add('http');
+    expect(await json('apps/shell/public/config/runtime-config.json')).toEqual({ apiUrl: '/api' });
+  });
+
+  it.each(['zod', 'valibot', 'arktype'])(
+    'with env-t3 (%s) adds apiUrl to the schema and every environment file',
+    async (validator) => {
+      await add('env-t3', '--option', `env-t3.validator=${validator}`);
+      await add('http');
+      expect(await read('apps/shell/src/config/schema.ts')).toContain('apiUrl:');
+      for (const env of ['dev', 'staging', 'prod']) {
+        expect(await runtimeKeys(`apps/shell/public/config/runtime-config.${env}.json`)).toEqual([
+          'environment',
+          'apiUrl',
+        ]);
+      }
+    },
+  );
+
+  it('ends up the same whichever of env-t3 and http is added first', async () => {
+    await add('http');
+    await add('env-t3');
+    expect((await read('apps/shell/src/config/schema.ts')).match(/apiUrl:/g)).toHaveLength(1);
+    expect(await runtimeKeys('apps/shell/public/config/runtime-config.prod.json')).toEqual([
+      'environment',
+      'apiUrl',
+    ]);
+  });
+
+  it('adds the key once when both are added in one command', async () => {
+    expect(await add('http', 'env-t3')).toBe(0);
+    expect((await read('apps/shell/src/config/schema.ts')).match(/apiUrl:/g)).toHaveLength(1);
+    expect(await runtimeKeys('apps/shell/public/config/runtime-config.prod.json')).toEqual([
+      'environment',
+      'apiUrl',
+    ]);
+  });
+
+  it('writes a unit test for the client when testing is installed', async () => {
+    await add('testing');
+    await add('http');
+    expect((await readTree(project))['apps/cart/src/api/client.test.ts']).toContain(
+      "api.get('health')",
     );
   });
 });

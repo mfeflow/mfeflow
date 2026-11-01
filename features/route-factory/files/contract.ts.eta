@@ -1,0 +1,7 @@
+/**
+ * <%= it.app.name %>'s public paths, as plain data: no imports, so any remote can read them.
+ * `:id` is a path param; `?q&page?` after the path names search params (q is required).
+ */
+export const routes = {
+  home: '/',
+} as const;

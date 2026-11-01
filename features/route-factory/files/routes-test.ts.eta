@@ -1,0 +1,9 @@
+import { describe, expect, it } from 'vitest';
+import { links, routes } from './routes';
+
+describe('the <%= it.app.name %> routes', () => {
+  it('are served under /<%= it.app.name %>', () => {
+    expect(routes.mount).toBe('/<%= it.app.name %>');
+    expect(links.href('<%= it.app.name %>.home')).toBe('/<%= it.app.name %>');
+  });
+});

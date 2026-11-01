@@ -1,0 +1,84 @@
+{
+  "name": "event-bus",
+  "version": "0.1.0",
+  "description": "Typed events between remotes (@mfeflow/event-bus) and the contracts package that holds their types: packages/contracts/src/events, merged into the bus in every app, with a sample event.",
+  "requires": ["core", "tsconfig"],
+  "files": [
+    {
+      "to": "packages/contracts/package.json",
+      "target": "root",
+      "from": "files/contracts-package.json.eta",
+      "template": true
+    },
+    {
+      "to": "packages/contracts/src/events/index.ts",
+      "target": "root",
+      "from": "files/contracts-events.ts"
+    },
+    {
+      "to": "packages/contracts/README.md",
+      "target": "root",
+      "from": "files/contracts-readme.md"
+    },
+    {
+      "to": "src/events.ts",
+      "target": "shell",
+      "from": "files/shell-events.ts.eta",
+      "template": true
+    },
+    {
+      "to": "src/events.test.ts",
+      "target": "shell",
+      "from": "files/shell-events-test.ts.eta",
+      "template": true,
+      "when": {
+        "feature:testing": true
+      }
+    },
+    {
+      "to": "src/events.ts",
+      "target": "remotes",
+      "from": "files/events.ts.eta",
+      "template": true
+    },
+    {
+      "to": "src/events.test.ts",
+      "target": "remotes",
+      "from": "files/events-test.ts.eta",
+      "template": true,
+      "when": {
+        "feature:testing": true
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@mfeflow/event-bus",
+      "range": "latest",
+      "target": "shell"
+    },
+    {
+      "name": "@mfeflow/event-bus",
+      "range": "latest",
+      "target": "remotes"
+    },
+    {
+      "name": "{{scope}}/contracts",
+      "range": "workspace:*",
+      "target": "shell"
+    },
+    {
+      "name": "{{scope}}/contracts",
+      "range": "workspace:*",
+      "target": "remotes"
+    }
+  ],
+  "transforms": [
+    {
+      "op": "add-import",
+      "file": "src/bootstrap.tsx",
+      "target": "shell",
+      "from": "./events"
+    }
+  ]
+}

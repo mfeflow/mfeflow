@@ -1,0 +1,60 @@
+{
+  "name": "route-factory",
+  "version": "0.1.0",
+  "description": "Typed links between remotes (@mfeflow/route-factory): src/routes.ts in every remote. With event-bus the paths live in the contracts package, so remotes link to each other without importing each other.",
+  "requires": ["core", "tsconfig"],
+  "files": [
+    {
+      "to": "src/routes.ts",
+      "target": "remotes",
+      "from": "files/routes.ts.eta",
+      "template": true,
+      "when": {
+        "feature:event-bus": false
+      }
+    },
+    {
+      "to": "src/routes.ts",
+      "target": "remotes",
+      "from": "files/routes-contract.ts.eta",
+      "template": true,
+      "when": {
+        "feature:event-bus": true
+      }
+    },
+    {
+      "to": "packages/contracts/src/routes/{{app.name}}.ts",
+      "target": "remotes",
+      "atRoot": true,
+      "from": "files/contract.ts.eta",
+      "template": true,
+      "when": {
+        "feature:event-bus": true
+      }
+    },
+    {
+      "to": "src/routes.test.ts",
+      "target": "remotes",
+      "from": "files/routes-test.ts.eta",
+      "template": true,
+      "when": {
+        "feature:testing": true
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@mfeflow/route-factory",
+      "range": "latest",
+      "target": "remotes"
+    },
+    {
+      "name": "{{scope}}/contracts",
+      "range": "workspace:*",
+      "target": "remotes",
+      "when": {
+        "feature:event-bus": true
+      }
+    }
+  ]
+}

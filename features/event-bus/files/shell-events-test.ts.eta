@@ -1,0 +1,14 @@
+import { publish, resetEventBusForTests, subscribe } from '@mfeflow/event-bus';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import './events';
+
+afterEach(resetEventBusForTests);
+
+describe('the shell event bus', () => {
+  it('carries the contracts events between remotes', () => {
+    const heard = vi.fn();
+    subscribe('mfe.ready.v1', heard);
+    publish('mfe.ready.v1', { mfe: 'cart' });
+    expect(heard).toHaveBeenCalledExactlyOnceWith({ mfe: 'cart' });
+  });
+});

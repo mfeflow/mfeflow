@@ -65,6 +65,9 @@ describe('mfeflow features', () => {
       testing: true,
       'analytics-gtm': false,
       'telemetry-otel': false,
+      'event-bus': false,
+      'route-factory': false,
+      http: false,
       'ci-github': false,
       'git-hooks': false,
     });

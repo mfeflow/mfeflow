@@ -1,0 +1,18 @@
+import { publish, resetEventBusForTests } from '@mfeflow/event-bus';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { announceReady, onOtherRemoteReady } from './events';
+
+afterEach(resetEventBusForTests);
+
+describe('the <%= it.app.name %> events', () => {
+  it('hears another remote and not itself', () => {
+    const heard = vi.fn();
+    const stop = onOtherRemoteReady(heard);
+    announceReady();
+    publish('mfe.ready.v1', { mfe: 'somewhere-else' });
+    expect(heard).toHaveBeenCalledExactlyOnceWith('somewhere-else');
+    stop();
+    publish('mfe.ready.v1', { mfe: 'later' });
+    expect(heard).toHaveBeenCalledOnce();
+  });
+});
