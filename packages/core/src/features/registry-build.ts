@@ -68,7 +68,7 @@ export async function buildRegistry(dir: string, ops: FsOps = realFs): Promise<R
       const bare = manifest.name.slice(slash + 1);
       const own = (problem: string) => problems.push(`${label}: ${problem}`);
       if (bare === 'index') own('"index" is taken by the registry index; pick another name');
-      if (valid(manifest.version) === null) {
+      if (valid(manifest.version) !== manifest.version) {
         own(`version "${manifest.version}" must be a semver version like 1.0.0`);
       }
       if ((manifest.description ?? '') === '') {

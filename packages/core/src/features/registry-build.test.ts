@@ -112,6 +112,7 @@ describe('buildRegistry', () => {
 
   it('needs a semver version and a description, and keeps "index" free', async () => {
     await put('a', feature({ name: '@test/a', version: 'latest' }));
+    await put('c', feature({ name: '@test/c', version: 'v1.0.0' }));
     await put('b', feature({ name: '@test/b', description: undefined }));
     await put('index', feature({ name: '@test/index' }));
     const message = await messageOf();

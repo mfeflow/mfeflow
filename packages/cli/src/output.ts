@@ -48,6 +48,9 @@ export interface AddResult extends WriteReport {
 }
 
 export interface FeatureInfo {
+  /** `mfeflow` for the features that ship with the CLI, otherwise the registry's namespace, like `@test`. */
+  source: string;
+  /** What you pass to `mfeflow add`: `lint-oxlint`, or `@test/hello` for a registry's. */
   name: string;
   version: string;
   description: string;
@@ -56,11 +59,50 @@ export interface FeatureInfo {
   installed: boolean;
 }
 
+export interface RegistryStatus {
+  namespace: string;
+  /** The index.json asked for. */
+  index: string;
+  /** How many items it lists. */
+  items: number;
+  /** Why it could not be read; the other registries are listed regardless. */
+  error: ErrorReport | null;
+}
+
 export interface FeaturesResult {
   ok: true;
   command: 'features';
   search: string | null;
   features: FeatureInfo[];
+  registries: RegistryStatus[];
+}
+
+export interface RegistryEntryInfo {
+  namespace: string;
+  /** The URL template from mfeflow.json. */
+  url: string;
+  /** Where its index.json is. */
+  index: string;
+}
+
+export interface RegistryResult {
+  ok: true;
+  command: 'registry';
+  action: 'add' | 'remove' | 'list' | 'build';
+  dryRun: boolean;
+  /** The project folder; null for `build`, which needs none. */
+  root: string | null;
+  /** Whether mfeflow.json changed (or would have, for a dry run). */
+  changed: boolean;
+  /** The registries of the project after the action. */
+  registries: RegistryEntryInfo[];
+  build: {
+    namespace: string;
+    out: string;
+    features: { name: string; version: string }[];
+    /** Relative to `out`. */
+    files: string[];
+  } | null;
 }
 
 /** What `doctor`, `validate` and `check-compat` print with `--json`. `ok` is false when any finding is an error. */
@@ -145,7 +187,14 @@ export interface FailureResult {
 }
 
 export type CliResult =
-  InitResult | AddResult | FeaturesResult | ReportResult | BudgetResult | DevResult | FailureResult;
+  | InitResult
+  | AddResult
+  | FeaturesResult
+  | RegistryResult
+  | ReportResult
+  | BudgetResult
+  | DevResult
+  | FailureResult;
 
 /** The plan as plain data for `--json`, without file contents. Features are listed once. */
 export function planReport(plan: Plan): PlanReport {
@@ -341,9 +390,40 @@ export function validateResult(value: unknown): Issue[] {
         c.add('search', 'must be text or null');
       }
       c.objects(value, 'features', '', (f, p) => {
-        for (const key of ['name', 'version', 'description']) c.string(f, key, p);
+        for (const key of ['source', 'name', 'version', 'description']) c.string(f, key, p);
         for (const key of ['always', 'default', 'installed']) c.boolean(f, key, p);
       });
+      c.objects(value, 'registries', '', (r, p) => {
+        for (const key of ['namespace', 'index']) c.string(r, key, p);
+        if (typeof r.items !== 'number') c.add(`${p}items`, 'must be a number');
+        if (r.error !== null) {
+          if (!isObj(r.error)) c.add(`${p}error`, 'must be an object or null');
+          else
+            for (const key of ['code', 'message', 'fix', 'docs'])
+              c.string(r.error, key, `${p}error.`);
+        }
+      });
+      break;
+    case 'registry':
+      if (!['add', 'remove', 'list', 'build'].includes(String(value.action))) {
+        c.add('action', 'must be add, remove, list or build');
+      }
+      c.boolean(value, 'dryRun', '');
+      c.boolean(value, 'changed', '');
+      if (value.root !== null) c.string(value, 'root', '');
+      c.objects(value, 'registries', '', (r, p) => {
+        for (const key of ['namespace', 'url', 'index']) c.string(r, key, p);
+      });
+      if (value.build !== null) {
+        if (!isObj(value.build)) c.add('build', 'must be an object or null');
+        else {
+          for (const key of ['namespace', 'out']) c.string(value.build, key, 'build.');
+          c.texts(value.build, 'files', 'build.');
+          c.objects(value.build, 'features', 'build.', (f, p) => {
+            for (const key of ['name', 'version']) c.string(f, key, p);
+          });
+        }
+      }
       break;
     case 'doctor':
     case 'validate':
@@ -370,7 +450,7 @@ export function validateResult(value: unknown): Issue[] {
     default:
       c.add(
         'command',
-        'must be init, add, features, doctor, validate, check-compat, budget or dev',
+        'must be init, add, features, registry, doctor, validate, check-compat, budget or dev',
       );
   }
   return c.issues;
