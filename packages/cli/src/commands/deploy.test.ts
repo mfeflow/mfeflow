@@ -445,6 +445,39 @@ describe('mfeflow promote', () => {
 });
 
 describe('where the registry lives', () => {
+  it('does not write registry/envs/dev, which mfeflow dev reads', async () => {
+    const f = await project();
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    const before = await f.localTree();
+    const { code, result } = await f.run('deploy', 'catalog', '--env', 'dev');
+    expect(code).toBe(0);
+    expect(result).toMatchObject({ published: true, localEntry: null });
+    expect(result.warnings.join(' ')).toContain('registry/envs/dev was not written');
+    expect((await f.served('dev'))?.version).toBe('1.0.0');
+    expect(await f.localTree()).toEqual(before);
+  });
+
+  it('refuses a --base-url that would put credentials or a query in the index', async () => {
+    const f = await project();
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    const flags = ['deploy', 'catalog', '--env', 'prod', '--host', `file:${f.site}`];
+    for (const url of [
+      'https://user:pass@cdn.test',
+      'https://cdn.test?token=1',
+      'ftp://cdn.test',
+      'cdn.test',
+    ]) {
+      const rt = testRuntime();
+      // oxlint-disable-next-line no-await-in-loop -- a few URLs
+      const code = await main([...flags, '--base-url', url, '--json', '--cwd', f.root], rt);
+      const out = rt.io.out.join('');
+      expect(code, url).toBe(7);
+      expect(failureOf(out).error.code).toBe('MFEFLOW_E506');
+      expect(out).not.toContain('pass');
+    }
+    expect(await f.hostTree()).toEqual({});
+  });
+
   it('uses registry.host and registry.baseUrl from mfeflow.json', async () => {
     const f = await fixture({ configure: true });
     open.push(f);

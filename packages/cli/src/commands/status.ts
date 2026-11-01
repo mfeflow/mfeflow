@@ -1,4 +1,4 @@
-import { HISTORY_LIMIT } from '@mfeflow/registry/static';
+import semver from 'semver';
 import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals } from '../args';
 import { finding, type Finding } from '../findings';
@@ -42,10 +42,18 @@ function mentioned(indexes: readonly RegistryIndex[], name: string): Set<string>
   return out;
 }
 
-/** Versions on the host under `<name>/` that no index points at. Null when the host cannot list. */
+/** Is `version` a candidate waiting to be deployed: newer than what is served? Older ones were left behind on purpose (a rollback, then a fix). */
+function pendingOver(served: string | undefined, version: string): boolean {
+  if (served === undefined || semver.valid(version) === null || semver.valid(served) === null)
+    return true;
+  return semver.compareBuild(version, served) > 0;
+}
+
+/** Versions on the host under `<name>/` that no index points at and that are newer than `served`. Null when the host cannot list. */
 async function unreferenced(
   s: Session,
   name: string,
+  served: string | undefined,
   indexes: readonly RegistryIndex[],
 ): Promise<string[] | null> {
   if (s.host.list === undefined) return null;
@@ -56,7 +64,7 @@ async function unreferenced(
     const segment = key.split('/')[1];
     if (segment !== undefined && segment !== '') found.add(decodeVersion(segment));
   }
-  return [...found].filter((v) => !tracked.has(v)).toSorted();
+  return [...found].filter((v) => !tracked.has(v) && pendingOver(served, v)).toSorted();
 }
 
 function driftOf(
@@ -79,9 +87,7 @@ function driftOf(
     else if (entry.value.manifestUrl !== remote.entry)
       drift.push(`${file} points at ${entry.value.manifestUrl}, the host at ${remote.entry}`);
   }
-  // Past the history limit, older versions age out of the index on purpose, so they are not drift.
-  const full = (remote.history ?? []).length >= HISTORY_LIMIT;
-  if (extra !== null && extra.length > 0 && !full)
+  if (extra !== null && extra.length > 0)
     drift.push(
       `uploaded but not pointed at: ${extra.join(', ')} (deploy it, or it was uploaded with --no-publish)`,
     );
@@ -99,7 +105,7 @@ async function envStatus(
   const remotes: StatusRemote[] = [];
   for (const remote of index.remotes) {
     // oxlint-disable-next-line no-await-in-loop -- a few remotes
-    const extra = await unreferenced(s, remote.name, [...all.values()]);
+    const extra = await unreferenced(s, remote.name, remote.version, [...all.values()]);
     const { local, drift } = driftOf(s.view, env, remote, extra);
     for (const message of drift)
       findings.push(

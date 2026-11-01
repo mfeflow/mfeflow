@@ -185,7 +185,7 @@ mfeflow deploy catalog --env prod --host s3://my-registry/mfe --base-url https:/
 
 Leave `MFEFLOW_S3_ENDPOINT` out for AWS. Set `AWS_SESSION_TOKEN` if your credentials are temporary. Credentials are never printed, not in errors and not with `--json`.
 
-The key needs `s3:GetObject`, `s3:PutObject` and `s3:ListBucket` on the bucket. Without `ListBucket`, S3 answers 403 for a missing key and the command stops.
+The key needs permission to get and put objects, and to list the bucket. Without the list permission, S3 answers 403 for a missing key and the command stops.
 
 ## If something fails
 

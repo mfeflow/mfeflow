@@ -228,7 +228,7 @@ export interface StatusRemote {
   rolledBackFrom: string | null;
   /** The version in `registry/envs/<env>/<name>.json`; null when there is no such file. */
   local: string | null;
-  /** Versions on the host that no index points at; null when the host cannot list. */
+  /** Versions on the host newer than `version` that no environment points at; null when the host cannot list. */
   unreferenced: string[] | null;
   drift: string[];
 }
