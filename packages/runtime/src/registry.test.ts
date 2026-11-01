@@ -2,6 +2,7 @@ import { assetsFromManifest, validateRegistryIndex } from '@mfeflow/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { reportRemoteError } from './report';
+import { RUNTIME_CONFIG_KEY, resetRuntimeConfigForTests } from './runtime-config';
 
 const registerRemotes = vi.fn();
 vi.mock('@module-federation/enhanced/runtime', () => ({ registerRemotes }));
@@ -16,6 +17,7 @@ const {
   REGISTRY_GLOBAL,
   registerRemotesFromIndex,
   registeredRemotes,
+  registrySources,
   registrySourcesFromConfig,
 } = await import('./registry');
 
@@ -482,6 +484,83 @@ describe('registrySourcesFromConfig', () => {
       urls: ['https://cdn.example.com/index.json'],
       allowedOrigins: ['https://cdn.example.com'],
     });
+  });
+
+  it('drops origins that are not http(s), which would be the opaque "null" origin', () => {
+    const config = {
+      registryOrigins: ['data:,x', 'blob:https://a.test/1', 'javascript:x', 'https://ok.test'],
+    };
+    expect(registrySourcesFromConfig(config).allowedOrigins).toEqual(['https://ok.test']);
+  });
+});
+
+describe('registrySources', () => {
+  afterEach(() => {
+    resetRuntimeConfigForTests();
+    Reflect.deleteProperty(globalThis, REGISTRY_GLOBAL);
+    vi.useRealTimers();
+  });
+
+  it('uses an inlined runtime config without fetching', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    Reflect.set(globalThis, RUNTIME_CONFIG_KEY, { registryOrigins: ['https://cdn.test'] });
+    await expect(registrySources()).resolves.toEqual({
+      urls: [DEFAULT_REGISTRY_URL],
+      allowedOrigins: ['https://cdn.test'],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('fetches nothing when the index is inlined', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    Reflect.set(globalThis, REGISTRY_GLOBAL, index);
+    await expect(registrySources()).resolves.toEqual({
+      urls: [DEFAULT_REGISTRY_URL],
+      allowedOrigins: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('reads the config file when it answers in time', async () => {
+    const config = {
+      registryUrls: ['https://cdn.test/index.json'],
+      registryOrigins: ['https://cdn.test'],
+    };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(config)));
+    await expect(registrySources()).resolves.toEqual({
+      urls: ['https://cdn.test/index.json'],
+      allowedOrigins: ['https://cdn.test'],
+    });
+  });
+
+  it('stops waiting for a config file that hangs, and for one that fails', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise<Response>(() => undefined));
+    const hung = registrySources(1500);
+    await vi.advanceTimersByTimeAsync(1500);
+    await expect(hung).resolves.toEqual({ urls: [DEFAULT_REGISTRY_URL], allowedOrigins: [] });
+    vi.useRealTimers();
+    resetRuntimeConfigForTests();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 404 }));
+    await expect(registrySources()).resolves.toEqual({
+      urls: [DEFAULT_REGISTRY_URL],
+      allowedOrigins: [],
+    });
+  });
+});
+
+describe('a redirected registry index', () => {
+  it('is refused when the redirect lands on an origin that is not allowed', async () => {
+    const res = new Response(JSON.stringify(index));
+    Object.defineProperty(res, 'redirected', { value: true });
+    Object.defineProperty(res, 'url', { value: 'https://evil.test/index.json' });
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(
+      loadRegistryIndex('https://cdn.example.com/index.json', {
+        fetch: () => Promise.resolve(res),
+        allowedOrigins: ['https://cdn.example.com'],
+      }),
+    ).rejects.toThrow(/redirected to https:\/\/evil\.test\/index\.json/);
   });
 });
 

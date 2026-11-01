@@ -4,12 +4,10 @@ import { initI18n } from '@mfeflow/i18n';
 import {
   applyDevOverrides,
   assertRequested,
-  fetchRuntimeConfig,
   loadRegistryIndex,
   registerRemotesFromIndex,
-  registrySourcesFromConfig,
+  registrySources,
   reportRemoteError,
-  type RuntimeConfigValues,
 } from '@mfeflow/runtime';
 import { App } from './App';
 import { configureShellEvents } from './events';
@@ -29,9 +27,9 @@ export async function main(): Promise<void> {
   try {
     // Overrides need the manifest loader, which production builds leave out:
     // ?mfe-override=cart@http://localhost:4312/mf-manifest.json
-    // runtime-config.json can set registryUrls (primary, then fallback) and registryOrigins for a CDN-hosted registry.
-    const config = await fetchRuntimeConfig().catch((): RuntimeConfigValues => ({}));
-    const { urls, allowedOrigins: cdnOrigins } = registrySourcesFromConfig(config);
+    // runtime-config.json can set registryUrls (primary, then fallback) and registryOrigins for a CDN-hosted registry;
+    // it never holds up boot for more than 1.5 s, and is not fetched at all when the index is inlined.
+    const { urls, allowedOrigins: cdnOrigins } = await registrySources();
     const index = applyDevOverrides(await loadRegistryIndex(urls, { allowedOrigins: cdnOrigins }), {
       enabled: DEV,
     });

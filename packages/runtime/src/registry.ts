@@ -7,7 +7,7 @@ import {
 } from '@mfeflow/contracts/entry';
 import { registerRemotes } from '@module-federation/enhanced/runtime';
 import { rememberRemoteVersions, reportRemoteError } from './report';
-import type { RuntimeConfigValues } from './runtime-config';
+import { fetchRuntimeConfig, RUNTIME_CONFIG_KEY, type RuntimeConfigValues } from './runtime-config';
 
 export type RegistryRemote = RegistryIndexRemote;
 export type { RegistryIndex };
@@ -130,6 +130,8 @@ async function fetchIndex(
       { cause: error },
     );
   }
+  if (res.redirected && !originAllowed(res.url, options))
+    throw new Error(`registry index ${url}: redirected to ${res.url}, which is not allowed`);
   if (!res.ok) throw new Error(`registry index ${url}: HTTP ${String(res.status)}`);
   let body: unknown;
   try {
@@ -200,15 +202,37 @@ const strings = (value: unknown): string[] =>
  * `registryUrls` (primary first) and `registryOrigins`. Without them it is the
  * default same-origin URL and no extra origins.
  */
-export function registrySourcesFromConfig(config: RuntimeConfigValues): {
+export function registrySourcesFromConfig(config: RuntimeConfigValues): RegistrySources {
+  const urls = strings(config.registryUrls);
+  const allowedOrigins = strings(config.registryOrigins).flatMap((o) => {
+    const url = URL.canParse(o) ? new URL(o) : undefined;
+    return url?.protocol === 'https:' || url?.protocol === 'http:' ? url.origin : [];
+  });
+  return { urls: urls.length > 0 ? urls : [DEFAULT_REGISTRY_URL], allowedOrigins };
+}
+
+export interface RegistrySources {
   urls: string[];
   allowedOrigins: string[];
-} {
-  const urls = strings(config.registryUrls);
-  const allowedOrigins = strings(config.registryOrigins).flatMap((o) =>
-    URL.canParse(o) ? new URL(o).origin : [],
-  );
-  return { urls: urls.length > 0 ? urls : [DEFAULT_REGISTRY_URL], allowedOrigins };
+}
+
+/**
+ * Where the shell loads the registry from, without holding up boot. An inlined runtime config is
+ * used as is. When the index is inlined nothing is fetched (inline the runtime config too if its
+ * remotes live on another origin). Otherwise the config file is used if it answers within
+ * `waitMs`; past that, or when it fails, the same-origin default.
+ */
+export async function registrySources(waitMs = 1500): Promise<RegistrySources> {
+  const configInlined = Reflect.has(globalThis, RUNTIME_CONFIG_KEY);
+  if (!configInlined && isRegistryIndex(Reflect.get(globalThis, REGISTRY_GLOBAL)))
+    return registrySourcesFromConfig({});
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<RuntimeConfigValues>((resolve) => {
+    timer = setTimeout(() => resolve({}), waitMs);
+  });
+  const config = await Promise.race([fetchRuntimeConfig().catch(() => ({})), late]);
+  clearTimeout(timer);
+  return registrySourcesFromConfig(config);
 }
 
 function toMfRemote(r: RegistryRemote) {
