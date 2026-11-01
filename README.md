@@ -22,80 +22,247 @@
   <a href="packages/cli/CHANGELOG.md">Changelog</a>
 </p>
 
-`create-module-federation` gives you a host and a remote. mfeflow gives you
-the platform around them: pick features à la carte, self-host a registry
-designed for rollback by pointer (the rollback command lands in Phase 05), and
-keep many teams on one React, one tag manager and one tracer.
+mfeflow generates a React micro-frontend platform: one shell, any number of remotes, and the checks that keep them working together. It is built on Module Federation 2.0 and Rsbuild. You add features one at a time, and the CLI can show you the diff before it writes anything.
 
-## Status
+## Why mfeflow
 
-0.3.0 is on npm; every public package is versioned together (see [versioning and releases](docs/versioning.md) for the version policy and the release flow). Phase 04 (features) is built, with three things still open: there is no `mfeflow remove`, so "adds and removes cleanly" is tested for adding only; the dev overlay is not built; and the generated GitHub Actions workflow has not yet been run on a fresh GitHub repository.
+Splitting an app into micro-frontends is easy on day one. The trouble starts a few months later, when several teams ship on their own schedule. These are the problems mfeflow is built around.
 
-What works today, from the repo:
+| What goes wrong                               | What mfeflow does                                                            |
+| --------------------------------------------- | ---------------------------------------------------------------------------- |
+| Two copies of React load and hooks break      | React is shared once, and checked at build time and in the browser           |
+| Every remote loads its own tag manager        | Analytics and tracing start once, in the shell. Remotes only use them        |
+| Remotes drift onto different library versions | A compatibility check compares each remote with its shell, locally and in CI |
+| Nobody knows who owns a route                 | Each app has an ownership file, and the CLI validates it                     |
+| Bundles creep up unnoticed                    | A size budget flags the shell or a remote when it grows too much             |
+| Rolling back means rebuilding                 | The registry is built for rollback by pointer. The command is in progress    |
 
-- `@mfeflow/contracts`: types and validators for `mfe.json`, `mfeflow.json`, `feature.json` and the registry, and the cost model.
-- `@mfeflow/runtime`, `@mfeflow/rsbuild`, `@mfeflow/storage`, `@mfeflow/theme`, `@mfeflow/i18n`, `@mfeflow/url-factory`: the runtime and build packages, exercised by the storefront example.
-- `@mfeflow/tsconfig`, `@mfeflow/oxlint-config`, `@mfeflow/testing`: shared config and test helpers.
-- `@mfeflow/analytics` and `@mfeflow/telemetry`: singleton packages behind provider interfaces, started by the shell only. Google Tag Manager with Consent Mode v2, and OpenTelemetry for the browser loaded after first render. The `analytics-gtm` and `telemetry-otel` features wire them into a project.
-- `@mfeflow/event-bus`, `@mfeflow/route-factory` and `@mfeflow/http`: typed events between remotes (a shared singleton, with replay for late subscribers), typed links between remotes from a contracts package, and a fetch client over the url-factory endpoints with retries for idempotent requests. The `event-bus`, `route-factory` and `http` features wire them into a project.
-- The react-scale features, built on `@mfeflow/theme`, `@mfeflow/i18n` and `@mfeflow/analytics`: `theming`, `i18n`, `tailwind` (reset in the shell, a class prefix per app), `ui-shadcn`, `forms`, `data-react-query`, `storybook` (composed in the shell), `analytics-clarity` (after consent) and `commit-prompt`. See the feature pages in the docs.
-- `@mfeflow/core`: the engine behind the CLI. It loads and saves `mfeflow.json`, plans a change as data with a unified diff, applies it atomically with rollback, edits files with seven built-in transform ops, and resolves features from a local folder or a namespaced registry. Third-party features are declarative only and never run code.
-- Third-party registries: `mfeflow registry add @ns <url>` adds one, `mfeflow features` searches it next to the first-party features, `mfeflow add @ns/name` installs from it, and `mfeflow registry build <dir>` checks and writes a registry to host on any static host (GitHub Pages works). The [`e2e/registry-fixture`](e2e/registry-fixture/README.md) registry is served from `127.0.0.1` in the tests and in the matrix. See [Third-party features](apps/docs/docs/features/third-party.md).
-- `mfeflow` and `create-mfeflow`: `init`, `add remote|shell|<feature>`, `features` and `registry`; the first features (`tsconfig`, `lint-oxlint`, `url-factory`, `git-hooks`); `--local` to run a generated project from a checkout.
-- `mfeflow dev` (one command for the shell and every remote, a dev registry that follows `add remote`, `--remote name=url` overrides), `mfeflow doctor` (with `--fix` and `--json`), `validate`, `check-compat` and `budget` for CI.
+mfeflow is not for a single team with one app. A plain Rsbuild or Vite project is simpler there.
 
-Checked in CI: unit tests with coverage, the storefront e2e, a smoke job that generates a project and runs `mfeflow dev`, the
-[feature matrix](.github/workflows/matrix.yml) (every combination of the first-party features, on every pull request that
-touches the CLI, the engine, the features or the templates; nightly on macOS and Windows too, pnpm only) and the
-[cost-model perf job](.github/workflows/perf.yml) (LCP at most +300 ms, the shell at most +32 KB of JS and each remote on a
-route at most +10 KB, against the same pages built as one app).
-
-Time to a running platform, measured by [`bench/`](bench/README.md) on 2026-10-31 (warm pnpm store, median of 5, arm64 laptop with 8 cores):
-about 5 s from `create-mfeflow` to a shell and two remotes answering on `pnpm dev`.
-
-Next: Phase 05, the remote registry with `deploy`, `promote`, `rollback` and `status`; then `upgrade`, `adopt` and polyrepo (Phase 06).
-
-## What it will do
+## Quickstart
 
 ```bash
-npm create mfeflow@latest my-platform     # pick topology, remotes and features
-mfeflow add telemetry-otel analytics-gtm  # add what you need later
-mfeflow add event-bus route-factory http
-mfeflow add theming i18n tailwind     # shell-owned theme and language, Tailwind with a prefix per remote
-mfeflow deploy catalog --env prod        # Phase 05, not built yet
-mfeflow rollback catalog --env prod      # Phase 05: a pointer flip, no rebuild
+npm create mfeflow@latest my-platform
+cd my-platform
+pnpm mfeflow dev
 ```
 
-- **Module Federation 2.0 on Rsbuild**, with React and other stateful
-  libraries shared as singletons and checked at build and run time.
-- **Features à la carte**: typed API URLs, Google Tag Manager with Consent
-  Mode v2, OpenTelemetry, typed cross-app events, oxlint and tsconfig
-  presets, tests and CI. Code you own is copied into your project; logic that
-  needs fixes is installed and upgraded with migrations.
-- **A self-hosted registry** (Phase 05, in progress): versioned remotes on any
-  static host, or a small server with percentage rollouts and a kill switch.
-  Promote and roll back without rebuilding.
-- **Built for many teams**: monorepo, polyrepo or hybrid layouts, ownership
-  manifests, compatibility and bundle-budget checks.
+The first command asks which remotes and features you want. Add `--yes` to take the defaults. Once the third one is running, you see this:
 
-## Repos
+```text
+mfeflow: running shell, catalog, cart. Ctrl+C stops everything.
+shell   |   ➜  Local:    http://localhost:4300/
+cart    |   ➜  Local:    http://localhost:4312/
+catalog |   ➜  Local:    http://localhost:4311/
+shell   | ready   built in 0.28s
+```
 
-| Repo                                                    | What                                                   |
-| ------------------------------------------------------- | ------------------------------------------------------ |
-| [mfeflow/mfeflow](https://github.com/mfeflow/mfeflow)   | this monorepo: packages, CLI, features, docs           |
-| [mfeflow/starter](https://github.com/mfeflow/starter)   | a ready-to-use project, generated by the CLI           |
-| [mfeflow/examples](https://github.com/mfeflow/examples) | real-world examples (ecommerce, dashboard, multi-repo) |
+Open http://localhost:4300. The shell links to each remote, and each remote loads on its own route.
 
-## Development
+To grow the project later, add a remote or a feature. Put `--dry-run` on either to see the diff first.
+
+```bash
+pnpm mfeflow add remote checkout
+pnpm mfeflow add theming i18n
+```
+
+A new remote starts without restarting `mfeflow dev`, and the shell gets its route.
+
+## What you get
+
+This is what `create-mfeflow` writes for the default project, with tests, mocks and small config files left out.
+
+```text
+my-platform/
+├── mfeflow.json                  # what the CLI created; "add" reads and updates it
+├── package.json                  # scripts: dev, build, doctor, validate, check-compat, budget
+├── pnpm-workspace.yaml           # one pnpm workspace, versions pinned in a catalog
+├── apps/
+│   ├── shell/                    # the host app
+│   │   ├── mfe.json              # ownership: who owns this app
+│   │   ├── rsbuild.config.ts     # shell preset, port 4300
+│   │   ├── public/config/        # runtime config for dev, staging and prod
+│   │   └── src/
+│   │       ├── bootstrap.tsx     # reads the registry, then registers the remotes
+│   │       ├── App.tsx           # layout, navigation, dev overlay (Alt+Shift+M)
+│   │       └── remotes/
+│   │           └── route-table.tsx   # one route per remote
+│   ├── catalog/                  # a remote, port 4311
+│   │   ├── mfe.json              # ownership for this remote
+│   │   ├── rsbuild.config.ts     # remote preset
+│   │   └── src/exposed/App.tsx   # the component the shell loads
+│   └── cart/                     # a second remote, port 4312
+├── registry/
+│   └── envs/{dev,staging,prod}/  # one JSON file per remote: where its build lives
+├── e2e/smoke.spec.ts             # Playwright: open the shell, check each remote renders
+└── scripts/check-runtime-config.ts   # checks the runtime config before you deploy
+```
+
+## How it works
+
+The shell learns which remotes exist from a registry index. A remote loads only when someone visits its route.
+
+```mermaid
+flowchart TD
+    B[Browser] --> S[Shell]
+    S --> Q{Registry index inlined in the HTML?}
+    Q -- yes --> R[Use the inlined index]
+    Q -- no --> F[Fetch /registry/index.json from the same origin]
+    F -- ok --> R
+    F -- fails or times out --> E[Report the error, shell keeps running]
+    R --> V[Skip invalid remotes, register the rest]
+    V --> N[User opens a route, for example /cart]
+    N --> L[RemoteBoundary loads that remote]
+    L -- ok --> OK[Remote renders inside the shell]
+    L -- slow or broken --> FB[Fallback on that route only]
+    S -.-> C[Singleton check for React and other shared libraries, in dev or with ?mfeflow-assert]
+```
+
+A remote that fails does not take the shell down. The user sees a fallback on that route, and the error is reported.
+
+The path from a new project to CI is short.
+
+```mermaid
+flowchart LR
+    A[create] --> B[add features and remotes]
+    B --> C[dev]
+    C --> D[pull request]
+    D --> E[doctor]
+    D --> F[validate]
+    D --> G[check-compat]
+    D --> H[budget]
+```
+
+The four checks are ordinary commands. The ci-github feature adds a workflow that runs them on every pull request, next to lint, typecheck and tests.
+
+## Features
+
+There are 21 first-party features. Each lives in `features/` and can be added on its own.
+
+**Foundation**
+
+| Feature                                                                   | What it does                                              |
+| ------------------------------------------------------------------------- | --------------------------------------------------------- |
+| tsconfig                                                                  | Strict TypeScript 7 presets                               |
+| lint-oxlint                                                               | Type-aware oxlint and Prettier                            |
+| [testing](https://mfeflow.github.io/mfeflow/features/testing)             | Vitest, Testing Library, MSW and a Playwright smoke test  |
+| [env-t3](https://mfeflow.github.io/mfeflow/features/env-t3)               | Typed env that fails the build when a variable is missing |
+| git-hooks                                                                 | Commit message and typecheck hooks with lefthook          |
+| [commit-prompt](https://mfeflow.github.io/mfeflow/features/commit-prompt) | An interactive Conventional Commits prompt                |
+| [ci-github](https://mfeflow.github.io/mfeflow/features/ci-github)         | A pull request workflow that runs every check             |
+
+**Data and contracts**
+
+| Feature                                                                         | What it does                                               |
+| ------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| url-factory                                                                     | Typed API endpoints and URLs                               |
+| [http](https://mfeflow.github.io/mfeflow/features/http)                         | A fetch client with timeouts and retries for safe requests |
+| [event-bus](https://mfeflow.github.io/mfeflow/features/event-bus)               | Typed events between remotes                               |
+| [route-factory](https://mfeflow.github.io/mfeflow/features/route-factory)       | Typed links between remotes                                |
+| [data-react-query](https://mfeflow.github.io/mfeflow/features/data-react-query) | One TanStack Query cache owned by the shell                |
+| [forms](https://mfeflow.github.io/mfeflow/features/forms)                       | react-hook-form with schema validation                     |
+
+**Observability and UI**
+
+| Feature                                                                           | What it does                                             |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| [analytics-gtm](https://mfeflow.github.io/mfeflow/features/analytics-gtm)         | Google Tag Manager with Consent Mode v2                  |
+| [analytics-clarity](https://mfeflow.github.io/mfeflow/features/analytics-clarity) | Microsoft Clarity, loaded only after consent             |
+| [telemetry-otel](https://mfeflow.github.io/mfeflow/features/telemetry-otel)       | OpenTelemetry in the browser, tagged per remote          |
+| [theming](https://mfeflow.github.io/mfeflow/features/theming)                     | Light and dark themes owned by the shell                 |
+| [i18n](https://mfeflow.github.io/mfeflow/features/i18n)                           | One i18next instance, messages shipped with each remote  |
+| [tailwind](https://mfeflow.github.io/mfeflow/features/tailwind)                   | Tailwind 4 with a class prefix per app                   |
+| [ui-shadcn](https://mfeflow.github.io/mfeflow/features/ui-shadcn)                 | shadcn/ui components copied into each remote             |
+| [storybook](https://mfeflow.github.io/mfeflow/features/storybook)                 | Storybook per remote, all shown in the shell's Storybook |
+
+Third-party features are plain data, never code, and install from any static host. See the [third-party guide](https://mfeflow.github.io/mfeflow/features/third-party).
+
+## Commands
+
+| Command                                  | What it does                                                                     |
+| ---------------------------------------- | -------------------------------------------------------------------------------- |
+| `mfeflow init` (or `npm create mfeflow`) | Create a project: a shell and remotes                                            |
+| `mfeflow add`                            | Add a remote, a shell, a feature or a typed env key                              |
+| `mfeflow features`                       | List and search features, including ones from your registries                    |
+| `mfeflow dev`                            | Run the shell and every remote, with a dev registry that follows the project     |
+| `mfeflow doctor`                         | Check singletons, compatibility, config and drift. `--fix` repairs the safe ones |
+| `mfeflow validate`                       | Check the project file, every ownership file and every registry entry            |
+| `mfeflow check-compat`                   | Compare each remote's shared version ranges with its shell                       |
+| `mfeflow budget`                         | Measure built JavaScript against the size budget                                 |
+| `mfeflow registry`                       | Add or remove a feature registry, or build one to host                           |
+
+Every command takes `--dry-run` and `--json`. Run any command with `--help` for the rest.
+
+## Packages
+
+All 18 are on npm and versioned together, so one version number tells you what works with what. The [versioning guide](docs/versioning.md) covers the release flow.
+
+| Package                                          | Role                                                                |
+| ------------------------------------------------ | ------------------------------------------------------------------- |
+| [mfeflow](packages/cli)                          | The CLI                                                             |
+| [create-mfeflow](packages/create-mfeflow)        | The `npm create` entry point                                        |
+| [@mfeflow/core](packages/core)                   | The engine behind the CLI: change plans, diffs, atomic apply        |
+| [@mfeflow/contracts](packages/contracts)         | Types and validators for the project, ownership and registry files  |
+| [@mfeflow/runtime](packages/runtime)             | Registry loading, remote boundaries with fallback, singleton checks |
+| [@mfeflow/rsbuild](packages/rsbuild)             | Rsbuild presets for the shell and remotes                           |
+| [@mfeflow/storage](packages/storage)             | Browser storage namespaced per remote                               |
+| [@mfeflow/theme](packages/theme)                 | Theme tokens as CSS variables                                       |
+| [@mfeflow/i18n](packages/i18n)                   | One i18next instance with per-remote messages                       |
+| [@mfeflow/url-factory](packages/url-factory)     | Typed API URLs                                                      |
+| [@mfeflow/http](packages/http)                   | A small fetch client over typed endpoints                           |
+| [@mfeflow/event-bus](packages/event-bus)         | A typed event bus with replay for late subscribers                  |
+| [@mfeflow/route-factory](packages/route-factory) | Typed links between remotes                                         |
+| [@mfeflow/analytics](packages/analytics)         | Analytics behind one provider interface                             |
+| [@mfeflow/telemetry](packages/telemetry)         | Telemetry behind one provider interface                             |
+| [@mfeflow/testing](packages/testing)             | Test helpers that wrap components in the shell's providers          |
+| [@mfeflow/tsconfig](packages/tsconfig)           | Strict TypeScript presets                                           |
+| [@mfeflow/oxlint-config](packages/oxlint-config) | Type-aware oxlint rules                                             |
+
+## Numbers
+
+These are measured, and each links to its raw data.
+
+| Measure                                   | Result                                                                   | Source                                                         |
+| ----------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| Create to a shell and two remotes running | About 5 s (median of 5 runs, warm pnpm store, arm64 laptop)              | [bench/results/2026-10-31.json](bench/results/2026-10-31.json) |
+| Largest contentful paint, against one app | +160 ms on the catalog page (Lighthouse mobile, simulated, median of 10) | [perf-summary.json](examples/storefront/e2e/perf-summary.json) |
+
+The same run measured 46 KB more gzipped JavaScript on that page than the one-app build, which is over the target. The size work is not finished.
+
+The budgets that the budget command and CI enforce:
+
+| Budget                          | Limit   |
+| ------------------------------- | ------- |
+| LCP against a one-app build     | +300 ms |
+| JavaScript added by the shell   | +32 KB  |
+| JavaScript added by each remote | +10 KB  |
+
+## Status and roadmap
+
+Version 0.4.0 is on npm, and the feature set (Phase 04) is built.
+
+| Phase | What                                               | State       |
+| ----- | -------------------------------------------------- | ----------- |
+| 05    | Registry with deploy, promote, rollback and status | In progress |
+| 06    | Upgrade, adopt an existing app, polyrepo layouts   | Planned     |
+| Later | More docs, an MCP server                           | Planned     |
+
+What is still open:
+
+- There is no `mfeflow remove`. Adding a feature is tested. Removing one is not supported.
+- The generated GitHub Actions workflow has not yet run on a fresh GitHub repository.
+- Deploy, rollback, upgrade and the MCP server do not exist yet. Nothing above depends on them.
+
+This section is the status board. Update it in the same pull request that starts or finishes a phase.
+
+## Contributing, security, license
+
+To work on the repo:
 
 ```bash
 corepack enable
 pnpm install
-pnpm ci        # format, lint, typecheck, test, build
+pnpm ci
 ```
 
-See [CONTRIBUTING](https://github.com/mfeflow/.github/blob/main/CONTRIBUTING.md).
-
-## Licence
-
-[MIT](LICENSE)
+Read [CONTRIBUTING](https://github.com/mfeflow/.github/blob/main/CONTRIBUTING.md) before opening a pull request. Report vulnerabilities as described in [SECURITY](https://github.com/mfeflow/.github/blob/main/SECURITY.md). mfeflow is released under the [MIT license](LICENSE).
