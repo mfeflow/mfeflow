@@ -1,5 +1,12 @@
 # @mfeflow/runtime
 
+## 0.4.0
+
+### Patch Changes
+
+- Updated dependencies [[`8e84838`](https://github.com/mfeflow/mfeflow/commit/8e84838a66a726ed790e5cd4ced7c2ab42ce3033)]:
+  - @mfeflow/contracts@0.4.0
+
 ## 0.3.0
 
 ### Patch Changes

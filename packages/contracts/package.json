@@ -1,6 +1,6 @@
 {
   "name": "@mfeflow/contracts",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Types, validators and JSON Schemas for mfeflow: mfe.json ownership manifests, mfeflow.json project state, and the remote registry (entries and index).",
   "keywords": [
     "micro-frontend",
