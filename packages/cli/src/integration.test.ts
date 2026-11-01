@@ -150,6 +150,14 @@ describe('mfeflow init --local --yes --no-install', () => {
     expect(workspace).not.toContain('link:');
   });
 
+  it('links the CLI and defines the check scripts at the root', async () => {
+    const root = JSON.parse(
+      await fs.readFile(path.join(await cwd, 'my-platform', 'package.json'), 'utf8'),
+    ) as { devDependencies: Record<string, string>; scripts: Record<string, string> };
+    expect(root.devDependencies.mfeflow).toMatch(/^link:.*\/packages\/cli$/);
+    expect(root.scripts.doctor).toBe('mfeflow doctor');
+  });
+
   it('writes relative imports without file extensions, like the rest of the codebase', async () => {
     const tree = await readTree(path.join(await cwd, 'my-platform'));
     for (const [file, content] of Object.entries(tree)) {

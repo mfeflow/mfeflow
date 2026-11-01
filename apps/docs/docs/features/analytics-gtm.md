@@ -3,7 +3,7 @@
 Google Tag Manager with Consent Mode v2 behind `@mfeflow/analytics`. Off by default.
 
 ```sh
-mfeflow add analytics-gtm
+pnpm mfeflow add analytics-gtm
 ```
 
 Set the container in the runtime config and the shell does the rest:
@@ -129,4 +129,4 @@ The value must be empty or match `GTM-` followed by letters and digits; `pnpm ch
 
 Adding `env-t3` to a project that already has `analytics-gtm` writes the key into the schema and the environment
 files too. Delete `apps/shell/public/config/runtime-config.json` then: the per-environment files replace it, and
-`mfeflow doctor` reports it as missing `environment` until it is gone.
+`pnpm mfeflow doctor` reports it as missing `environment` until it is gone.

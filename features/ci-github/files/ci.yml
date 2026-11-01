@@ -39,13 +39,13 @@ jobs:
         run: pnpm run --if-present test
       - run: pnpm build
       - name: mfeflow doctor
-        run: pnpm exec mfeflow doctor
+        run: pnpm mfeflow doctor
       - name: mfeflow validate
-        run: pnpm exec mfeflow validate
+        run: pnpm mfeflow validate
       - name: mfeflow check-compat
-        run: pnpm exec mfeflow check-compat
+        run: pnpm mfeflow check-compat
       - name: mfeflow budget
-        run: pnpm exec mfeflow budget
+        run: pnpm mfeflow budget
       - name: Check runtime config
         run: pnpm run --if-present check:runtime-config
       - name: Install Playwright browser

@@ -4,8 +4,8 @@ Typed environment variables with [t3-env](https://env.t3.gg), without baking an 
 On by default in new projects.
 
 ```sh
-mfeflow add env-t3                                   # zod
-mfeflow add env-t3 --option env-t3.validator=valibot # or arktype
+pnpm mfeflow add env-t3                                   # zod
+pnpm mfeflow add env-t3 --option env-t3.validator=valibot # or arktype
 mfeflow init my-app --option env-t3.validator=arktype --yes
 ```
 
@@ -58,8 +58,8 @@ There is no `runtime-config.json` in the project; each environment picks its own
 ## Add a key
 
 ```sh
-mfeflow add env-key API_ORIGIN --scope server --schema "z.url()" --value https://api.example.com
-mfeflow add env-key GTM_ID --scope runtime --schema "z.string().min(1)" --value GTM-XXXX
+pnpm mfeflow add env-key API_ORIGIN --scope server --schema "z.url()" --value https://api.example.com
+pnpm mfeflow add env-key GTM_ID --scope runtime --schema "z.string().min(1)" --value GTM-XXXX
 ```
 
 The schema is written in the validator you chose: `v.pipe(v.string(), v.url())` for valibot, `type('string.url')`
@@ -81,11 +81,11 @@ per-environment files: delete it.
 ## `PUBLIC_*` variables
 
 Rsbuild inlines every `PUBLIC_*` variable at build time. Use them only for values that are the same everywhere
-(`PUBLIC_APP_NAME`, `PUBLIC_BUILD_VERSION`). Anything else belongs in runtime config; `mfeflow doctor` warns (E120).
+(`PUBLIC_APP_NAME`, `PUBLIC_BUILD_VERSION`). Anything else belongs in runtime config; `pnpm mfeflow doctor` warns (E120).
 
 ## Doctor checks
 
-With the feature installed, `mfeflow doctor` also runs:
+With the feature installed, `pnpm mfeflow doctor` also runs:
 
 | Check                | Code                 | Finds                                                                                        |
 | -------------------- | -------------------- | -------------------------------------------------------------------------------------------- |
