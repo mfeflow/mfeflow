@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { hasErrno, MfeflowError, messageOf } from './errors';
-import { readIfExists, realFs, tempSibling, type FsOps } from './fs';
+import { readIfExists, realFs, symlinkedPrefix, tempSibling, type FsOps } from './fs';
 import { assertWritable } from './features/write-policy';
 import { hashContent } from './hash';
 import { resolveInRoot } from './paths';
@@ -221,19 +221,11 @@ async function assertContained(
 async function assertTrustedRoute(ops: FsOps, root: string, change: FileChange): Promise<void> {
   if (change.trust !== 'third-party') return;
   assertWritable(change.path);
-  const parts = change.path.split('/');
-  const prefixes = parts.map((_, i) => parts.slice(0, i + 1).join('/'));
-  const linked = await Promise.all(
-    prefixes.map(async (prefix) => ({
-      prefix,
-      link: await ops.isSymlink(path.join(root, ...prefix.split('/'))),
-    })),
-  );
-  const hit = linked.find((entry) => entry.link);
+  const hit = await symlinkedPrefix(ops, root, change.path);
   if (hit) {
     throw new MfeflowError(
       'E203',
-      `"${change.path}" goes through a symlink at "${hit.prefix}", which third-party features may not write through`,
+      `"${change.path}" goes through a symlink at "${hit}", which third-party features may not write through`,
     );
   }
 }

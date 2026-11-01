@@ -715,6 +715,62 @@ describe('trust, symlinks and unchanged templates', () => {
     expect(trust['README.md']).toBe('first-party');
   });
 
+  describe('a file a third-party feature touches', () => {
+    const acme = (extra: Partial<FeatureManifest>): LoadedFeature => ({
+      manifest: { name: '@acme/hello', version: '1.0.0', ...extra },
+      trust: 'third-party',
+    });
+    const addImport = {
+      op: 'add-import' as const,
+      file: 'src/main.ts',
+      target: 'root',
+      from: 'left-pad',
+      named: ['pad'],
+    };
+    const MAIN = 'export const main = 1;\n';
+    const disk = { ...OLD, 'src/main.ts': MAIN };
+    const run = (third: LoadedFeature) =>
+      planUpgrade(projectOf(disk), {
+        ...input(disk),
+        features: [
+          newCore({}, undefined),
+          feature('base', '1.0.0', { 'src/main.ts': MAIN }),
+          third,
+        ],
+      });
+    const trustOf = (up: Awaited<ReturnType<typeof run>>, file: string) =>
+      up.plan.changes.find((c) => c.path === file)?.trust;
+
+    it('keeps third-party trust on a first-party file the feature patched', async () => {
+      const up = await run(acme({ transforms: [addImport] }));
+      expect(up.plan.changes.find((c) => c.path === 'src/main.ts')?.after).toContain('left-pad');
+      expect(trustOf(up, 'src/main.ts')).toBe('third-party');
+    });
+
+    it('keeps it on a file both a first-party and a third-party feature write to', async () => {
+      const up = await run(
+        acme({
+          dependencies: [{ name: 'left-pad', range: '^1.0.0', target: 'root' }],
+        }),
+      );
+      expect(trustOf(up, 'package.json')).toBe('third-party');
+      expect(trustOf(up, 'README.md')).toBe('first-party');
+    });
+
+    it('marks the dependencies it declared as third-party, and no other', async () => {
+      const up = await run(
+        acme({ dependencies: [{ name: 'left-pad', range: '^1.0.0', target: 'root' }] }),
+      );
+      const flags = Object.fromEntries(
+        up.plan.dependencies.map((d) => [d.name, d.thirdParty === true]),
+      );
+      expect(flags['left-pad']).toBe(true);
+      expect(Object.entries(flags).filter(([name]) => name !== 'left-pad')).toSatisfy(
+        (rest: [string, boolean][]) => rest.every(([, third]) => !third),
+      );
+    });
+  });
+
   it('never offers a symlink for writing, edited or not, even with accept all', async () => {
     const disk = { ...OLD, 'README.md': 'my readme\n' };
     const up = await planUpgrade(projectOf(OLD), {
@@ -738,14 +794,40 @@ describe('trust, symlinks and unchanged templates', () => {
     expect(up.plan.changes.map((c) => c.path)).not.toContain('src/config.ts');
   });
 
-  it('counts a key whose value you changed as one the replacement would lose', async () => {
+  describe('a key whose value differs from the new version', () => {
     const withValue = (schema: string) => envTs(['A']).replace('A: z.string()', `A: ${schema}`);
-    const disk = withValue('z.string().min(3)');
-    const up = await planUpgrade(projectOf({ 'env.ts': disk }, { cli: '0.1.0' }), {
-      ...input({ 'env.ts': disk, 'apps/shell/package.json': OLD['apps/shell/package.json'] ?? '' }),
-      features: [feature('core', '0.2.0', { 'env.ts': withValue('z.string().min(1)') })],
+    const shell = { 'apps/shell/package.json': OLD['apps/shell/package.json'] ?? '' };
+    const plan = (disk: string, recorded: string) =>
+      planUpgrade(projectOf({ 'env.ts': recorded }, { cli: '0.1.0' }), {
+        ...input({ 'env.ts': disk, ...shell }),
+        features: [feature('core', '0.2.0', { 'env.ts': withValue('z.string().min(1)') })],
+      });
+
+    it('is counted as lost when you changed the file', async () => {
+      const disk = withValue('z.string().min(3)');
+      const up = await plan(disk, envTs(['A']));
+      expect(up.diverged[0]).toMatchObject({
+        reason: 'edited',
+        lostKeys: ['A'],
+        changedValues: ['A'],
+      });
     });
-    expect(up.diverged[0]).toMatchObject({ reason: 'edited-by-cli', lostKeys: ['A'] });
+
+    it('takes the new template when the file is untouched since it was written', async () => {
+      const disk = withValue('z.string().min(3)');
+      const up = await plan(disk, disk);
+      expect(up.diverged).toEqual([]);
+      expect(up.plan.changes.find((c) => c.path === 'env.ts')?.after).toBe(
+        withValue('z.string().min(1)'),
+      );
+    });
+
+    it('still protects a key you added to an untouched-looking file, and names it a key, not a value', async () => {
+      const disk = envTs(['A', 'MINE']);
+      const up = await plan(disk, disk);
+      expect(up.diverged[0]).toMatchObject({ reason: 'edited-by-cli', lostKeys: ['MINE'] });
+      expect(up.diverged[0]?.changedValues).toBeUndefined();
+    });
   });
 });
 

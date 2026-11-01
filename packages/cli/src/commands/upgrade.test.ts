@@ -1,4 +1,6 @@
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -23,6 +25,19 @@ import fixture from '../../test-fixtures/project-0.1.0.json';
 
 const HOME = 'apps/shell/src/pages/Home.tsx';
 const running = readPackageJson().version;
+
+/** Whether this machine lets a test create a symlink (Windows without developer mode does not). */
+const canSymlink = (() => {
+  const dir = fsSync.mkdtempSync(path.join(os.tmpdir(), 'mfeflow-can-link-'));
+  try {
+    fsSync.symlinkSync(dir, path.join(dir, 'link'));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    fsSync.rmSync(dir, { recursive: true, force: true });
+  }
+})();
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -201,6 +216,32 @@ describe('mfeflow upgrade on the 0.1.0 fixture', () => {
       expect(await fs.readFile(outside, 'utf8')).toBe('kept elsewhere\n');
     }
   });
+
+  it.skipIf(!canSymlink)(
+    'reports a file under a symlinked folder and never writes through the link',
+    async () => {
+      const root = await oldProject();
+      const pages = path.join(root, 'apps', 'shell', 'src', 'pages');
+      const elsewhere = path.join(root, 'elsewhere');
+      await fs.rename(pages, elsewhere);
+      await fs.symlink(elsewhere, pages);
+      await fs.writeFile(path.join(elsewhere, 'Home.tsx'), 'my own home page\n');
+      const before = await readTree(elsewhere);
+      for (const args of [['--yes'], ['--yes', '--accept', 'all']]) {
+        // oxlint-disable-next-line no-await-in-loop -- the second run starts from the first
+        const { code, rt } = await upgrade(root, [...args, '--json']);
+        expect(code).toBe(EXIT.ok);
+        expect(json(rt).diverged.find((d) => d.path === HOME)).toMatchObject({
+          reason: 'symlink',
+          decision: 'undecided',
+        });
+        // oxlint-disable-next-line no-await-in-loop -- see above
+        expect(await readTree(elsewhere)).toEqual(before);
+        // oxlint-disable-next-line no-await-in-loop -- see above
+        expect((await fs.lstat(pages)).isSymbolicLink()).toBe(true);
+      }
+    },
+  );
 
   it('names the keys you would lose in an env file the CLI added to, and keeps them with --keep', async () => {
     const root = await withEnvKey();
@@ -418,6 +459,82 @@ describe('mfeflow upgrade with a registry feature', () => {
       parseProject((await readTree(root))['mfeflow.json'] ?? '').features['@acme/hello'],
     ).toMatchObject({
       integrity: integrityOf(JSON.stringify(changed)),
+    });
+  });
+
+  it('shows a feature with no recorded hash as first-seen, then verifies it on the next run', async () => {
+    const project = parseProject(fixture.files['mfeflow.json']);
+    project.registries = { '@acme': 'https://acme.dev/{name}.json' };
+    project.features['@acme/hello'] = { version: '1.0.0' };
+    const root = await oldProject({ 'mfeflow.json': serializeProject(project) });
+    const dry = testRuntime({ trust: ['@acme'], fetch: serving(manifest) });
+    const first = await upgrade(root, ['--dry-run', '--json'], dry);
+    expect(json(first.rt).integrity).toEqual({ '@acme/hello': 'first-seen' });
+    expect(validateResult(json(first.rt))).toEqual([]);
+
+    const text = testRuntime({ trust: ['@acme'], fetch: serving(manifest) });
+    await upgrade(root, ['--dry-run'], text);
+    expect(text.io.out.join('\n')).toContain('Registry feature @acme/hello: no hash was recorded');
+
+    const rt = testRuntime({ trust: ['@acme'], fetch: serving(manifest) });
+    expect((await upgrade(root, ['--yes'], rt)).code).toBe(EXIT.ok);
+    const again = await upgrade(
+      root,
+      ['--json'],
+      testRuntime({ trust: ['@acme'], fetch: serving(manifest) }),
+    );
+    expect(json(again.rt).integrity).toEqual({ '@acme/hello': 'verified' });
+  });
+
+  describe('--accept-changed-content', () => {
+    const changed = { ...manifest, files: [{ ...manifest.files[0], content: 'evil();\n' }] };
+    const recorded = async (root: string) =>
+      parseProject((await readTree(root))['mfeflow.json'] ?? '').features['@acme/hello']?.integrity;
+
+    it('takes only the features it names', async () => {
+      const root = await withRegistryFeature();
+      const other = testRuntime({ trust: ['@acme'], fetch: serving(changed) });
+      expect((await upgrade(root, ['--yes', '--accept-changed-content', 'core'], other)).code).toBe(
+        6,
+      );
+      expect(other.io.err.join('\n')).toContain('MFEFLOW_E406');
+
+      const named = testRuntime({ trust: ['@acme'], fetch: serving(changed) });
+      const args = ['--yes', '--accept-changed-content', '@acme/hello'];
+      expect((await upgrade(root, args, named)).code).toBe(EXIT.ok);
+      expect(await recorded(root)).toBe(integrityOf(JSON.stringify(changed)));
+    });
+
+    it('accepts the = form, and refuses a name that is not installed', async () => {
+      const root = await withRegistryFeature();
+      const rt = testRuntime({ trust: ['@acme'], fetch: serving(changed) });
+      const bad = await upgrade(root, ['--yes', '--accept-changed-content=@acme/nope'], rt);
+      expect(bad.code).toBe(EXIT.usage);
+      expect(rt.io.err.join('\n')).toContain('@acme/nope');
+      const ok = testRuntime({ trust: ['@acme'], fetch: serving(changed) });
+      expect(
+        (await upgrade(root, ['--yes', '--accept-changed-content=@acme/hello'], ok)).code,
+      ).toBe(EXIT.ok);
+    });
+
+    it('saves the new hash even when nothing else needs writing, so E406 does not come back', async () => {
+      const root = await withRegistryFeature();
+      const served = testRuntime({ trust: ['@acme'], fetch: serving(manifest) });
+      expect((await upgrade(root, ['--yes'], served)).code).toBe(EXIT.ok);
+      const files = await readTree(root);
+
+      const reworded = { ...manifest, description: 'same files, new words' };
+      const accepted = testRuntime({ trust: ['@acme'], fetch: serving(reworded) });
+      const { code } = await upgrade(root, ['--yes', '--accept-changed-content'], accepted);
+      expect(code).toBe(EXIT.ok);
+      expect(await recorded(root)).toBe(integrityOf(JSON.stringify(reworded)));
+      const after = await readTree(root);
+      expect(Object.keys(after).filter((file) => after[file] !== files[file])).toEqual([
+        'mfeflow.json',
+      ]);
+
+      const next = testRuntime({ trust: ['@acme'], fetch: serving(reworded) });
+      expect((await upgrade(root, ['--yes'], next)).code).toBe(EXIT.ok);
     });
   });
 

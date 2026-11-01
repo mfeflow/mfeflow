@@ -142,25 +142,27 @@ The build action lists every problem and writes nothing if there is one (E404).
 Moves the project to the version of mfeflow you run. It never asks npm for a newer one. The tutorial is in [Versions and upgrades](/guide/upgrading).
 
 ```bash
-mfeflow upgrade [--to <version>] [--dry-run] [--json] [--yes] [--accept <path|all>] [--keep <path|all>]
+mfeflow upgrade [--to <version>] [--dry-run] [--json] [--yes] [--accept <path|all>] [--keep <path|all>] [--accept-changed-content [features]]
 ```
 
-| Flag                       | Meaning                                                                                                      |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `--dry-run`                | Print the summary and every diff, write nothing                                                              |
-| `--accept <path\|all>`     | Replace a file you changed with the new version. A path, a comma list, or `all`. Symlinks are never replaced |
-| `--keep <path\|all>`       | Keep your file. It is raised again only when the new version of it changes                                   |
-| `--yes`                    | Never ask. A changed file still needs `--accept` or `--keep`, and a registry feature is applied              |
-| `--accept-changed-content` | Take a registry feature whose content differs from the recorded hash                                         |
-| `--to <version>`           | Must be the version that runs, because the files come from it. Anything else is E107                         |
+| Flag                                  | Meaning                                                                                                                                   |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `--dry-run`                           | Print the summary and every diff, write nothing                                                                                           |
+| `--accept <path\|all>`                | Replace a file you changed with the new version. A path, a comma list, or `all`. Symlinks are never replaced                              |
+| `--keep <path\|all>`                  | Keep your file. It is raised again only when the new version of it changes                                                                |
+| `--yes`                               | Never ask. A changed file still needs `--accept` or `--keep`, and a registry feature is applied                                           |
+| `--accept-changed-content [features]` | Take registry content that differs from the recorded hash. Alone it takes every feature; with a comma list (`@acme/a,@acme/b`) only those |
+| `--to <version>`                      | Must be the version that runs, because the files come from it. Anything else is E107                                                      |
 
 A generated file you did not edit is replaced and a new file is created. `package.json`, `pnpm-workspace.yaml` and `turbo.json` only get small edits. Files the new version no longer makes, and files you deleted, are listed and left alone. A file you changed is offered only when the new version generates something different from the old one. It is never written unless you accept it.
 
-Without a terminal there is nobody to ask. A changed file with no decision stops the run before anything is written, with E604 and exit code 8, even with `--yes`. A `--dry-run` never fails that way: it prints everything and exits 0. A symlink is reported and never written over, with or without `--accept all`. It needs no decision and never blocks a run.
+Without a terminal there is nobody to ask. A changed file with no decision stops the run before anything is written, with E604 and exit code 8, even with `--yes`. A `--dry-run` never fails that way: it prints everything and exits 0. A symlink is reported and never written over, with or without `--accept all`. So is a file under a symlinked folder: every part of the path from the project root down is checked. A symlink needs no decision and never blocks a run.
 
-A feature from a registry is applied only after you confirm in a terminal, or pass `--yes` without one. The content of each registry feature is compared with the hash in `mfeflow.json`. If the registry now serves other bytes for the same version, the run stops with E406. Pass `--accept-changed-content` to take them. The files are written all or nothing, and the install runs in the same step.
+A feature from a registry is applied only after you confirm in a terminal, or pass `--yes` without one. The content of each registry feature is compared with the hash in `mfeflow.json`. If the registry now serves other bytes for the same version, the run stops with E406. Pass `--accept-changed-content` to take them, or name the features, as in `--accept-changed-content @acme/hello`. A name that is not an installed feature is E107. The new hash is saved even when no file changes. A feature with no recorded hash is shown as first seen and its hash is recorded. The files are written all or nothing, and the install runs in the same step.
 
-`--json` prints `{ ok, command: "upgrade", dryRun, root, from, fromSource, to, upToDate, replaced, created, edited, diverged: [{ path, reason, decision, lostKeys, diff }], missing, removed, migrations, plan, written, installed, diff }`.
+`integrity` maps each registry feature to `verified`, `first-seen` or `accepted-changed`. `changedValues` is the part of `lostKeys` that the new version has with another value.
+
+`--json` prints `{ ok, command: "upgrade", dryRun, root, from, fromSource, to, upToDate, replaced, created, edited, diverged: [{ path, reason, decision, lostKeys, changedValues, diff }], integrity, missing, removed, migrations, plan, written, installed, diff }`.
 
 ## doctor, validate and check-compat
 

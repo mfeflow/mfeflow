@@ -125,12 +125,25 @@ Add `--accept` or `--keep` and run it again. `--yes` does not skip this: it only
 - `package.json`, `pnpm-workspace.yaml` and `turbo.json` only get small edits. The `@mfeflow/*` ranges move, and new scripts, dependencies and tasks are added.
 - Files the new version no longer makes, and files you deleted, are listed. They are never deleted and never brought back.
 - A file that `add env-key` added keys to is replaced only if every key in it is still in the new version. Otherwise it is listed with your keys. Accepting it drops them, so add them back with `mfeflow add env-key`.
+- If you edited such a file, a key whose value differs from the new version counts as lost too. If you did not edit it, a new value from the new version simply replaces the old one.
 - A symlink is reported and never written over, even with `--accept all`. It needs no decision and never blocks a run.
+- A file inside a symlinked folder counts the same way. If `apps/shell/src` points somewhere else, nothing under it is written, because the write would land outside the place the plan shows.
 - A file you edited is offered only when the new version generates something different from the old one.
 - A feature from a registry is applied only after you confirm, or with `--yes` when there is no terminal. If the registry now serves other bytes for the same version, the run stops with E406 until you pass `--accept-changed-content`.
+- A registry feature with no hash in `mfeflow.json` cannot be checked. The plan lists it as first seen, and the hash the registry serves now is recorded, so the next run can check it.
 - Files are written all or nothing, and the install runs in the same step. If it fails, every file is put back.
 
 `mfeflow.json` records a hash for each copied file, and a `kept` entry for each file you kept. The flags are in the [CLI reference](/reference/cli#upgrade).
+
+## What if a registry feature changed?
+
+If the registry serves other bytes for a feature at the version you installed, the upgrade stops with E406. Look at what changed before you go on. Then take the new content for the feature you trust:
+
+```bash
+pnpm dlx mfeflow@latest upgrade --accept-changed-content @acme/hello
+```
+
+You should see the upgrade run, and `mfeflow.json` now holds the new hash. Without a name the flag takes every changed feature, so name the ones you checked. A feature you did not name still stops the run. The new hash is saved even when the files themselves did not change, so the next run does not stop again.
 
 ## How are releases made?
 

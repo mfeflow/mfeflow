@@ -75,6 +75,8 @@ export interface DivergedUpgrade {
   decision?: 'accept' | 'keep';
   /** For files the CLI adds keys to: keys in your file that the new version lacks, which accepting drops. */
   lostKeys?: string[];
+  /** The part of `lostKeys` that is in the new file with another value; the rest are not in it at all. */
+  changedValues?: string[];
 }
 
 export interface UpgradePlan {
@@ -217,9 +219,13 @@ interface Replay {
   tracked: Set<string>;
   /** Files a third-party feature wrote or edited. They keep that trust all the way to the write. */
   thirdParty: Set<string>;
+  /** Dependencies a third-party feature declared, as `<file>\0<name>`. */
+  thirdPartyDeps: Set<string>;
   features: PlanFeature[];
   warnings: string[];
 }
+
+const depKey = (file: string, name: string) => `${file}\0${name}`;
 
 /** Applies the skeleton, every recorded feature and the glue to an empty tree, as `init` did. */
 async function replay(project: MfeflowProject, input: UpgradeInput): Promise<Replay> {
@@ -260,11 +266,15 @@ async function replay(project: MfeflowProject, input: UpgradeInput): Promise<Rep
     files.set(change.path, change.after);
     if (change.track) tracked.add(change.path);
   }
+  const thirdPartyDeps = new Set(
+    built.dependencies.filter((d) => d.thirdParty === true).map((d) => depKey(d.file, d.name)),
+  );
   const byName = new Map(built.features.map((f) => [f.name, f]));
   return {
     files,
     tracked,
     thirdParty,
+    thirdPartyDeps,
     features: [...byName.values()],
     warnings,
   };
@@ -316,16 +326,29 @@ function entriesOf(file: string, source: string): Map<string, string> | undefine
   }
 }
 
+/** What replacing an env-style file would drop: your keys the new version lacks, and values you changed. */
+interface Lost {
+  /** Keys in your file that the new version does not have. */
+  missing: string[];
+  /** Keys in both whose value differs. Only counted for a file you edited: otherwise the new value is upstream's. */
+  changed: string[];
+}
+
 /**
- * The keys `add env-key` put in a file that the new version does not generate, and the keys whose
- * value you changed from the new version's. Replacing the file would drop both. Undefined when the
- * file cannot be read that way.
+ * The keys `add env-key` put in a file that the new version does not generate and, for a file you
+ * edited, the keys whose value you changed. Undefined when the file cannot be read that way.
  */
-function lostKeys(file: string, disk: string, incoming: string): string[] | undefined {
+function lostKeys(file: string, disk: string, incoming: string, edited: boolean): Lost | undefined {
   const yours = entriesOf(file, disk);
   const wanted = entriesOf(file, incoming);
   if (yours === undefined || wanted === undefined) return undefined;
-  return [...yours].filter(([key, value]) => wanted.get(key) !== value).map(([key]) => key);
+  const missing = [...yours].filter(([key]) => !wanted.has(key)).map(([key]) => key);
+  const changed = edited
+    ? [...yours]
+        .filter(([key, value]) => wanted.has(key) && wanted.get(key) !== value)
+        .map(([key]) => key)
+    : [];
+  return { missing, changed };
 }
 
 /** Verdicts that end in a write, or in an offer to write, over whatever is at the path. */
@@ -356,8 +379,8 @@ function judge(
   if (recorded === undefined) return 'untracked';
   if (recorded !== hashContent(disk)) return 'edited';
   if (ENV_KEY_FILES.test(file)) {
-    const lost = lostKeys(file, disk, incoming);
-    if (lost === undefined || lost.length > 0) return 'edited-by-cli';
+    const lost = lostKeys(file, disk, incoming, false);
+    if (lost === undefined || lost.missing.length > 0) return 'edited-by-cli';
   }
   return anySkipped ? 'skipped-feature' : 'replace';
 }
@@ -422,8 +445,14 @@ function diverge(
     incoming,
     diff: unifiedDiff(file, yours, incoming),
   };
-  const lost = ENV_KEY_FILES.test(file) ? lostKeys(file, yours, incoming) : undefined;
-  if (lost !== undefined && lost.length > 0) entry.lostKeys = lost;
+  const lost = ENV_KEY_FILES.test(file)
+    ? lostKeys(file, yours, incoming, reason === 'edited' || reason === 'untracked')
+    : undefined;
+  if (lost !== undefined && lost.missing.length + lost.changed.length > 0) {
+    const all = new Set([...lost.missing, ...lost.changed]);
+    entry.lostKeys = [...(entriesOf(file, yours)?.keys() ?? [])].filter((key) => all.has(key));
+    if (lost.changed.length > 0) entry.changedValues = lost.changed;
+  }
   return entry;
 }
 
@@ -711,6 +740,10 @@ export async function planUpgrade(
       const kept = keepLineEndings(change);
       kept.trust = fresh.thirdParty.has(kept.path) ? 'third-party' : kept.trust;
       return kept;
+    }),
+    dependencies: built.dependencies.map((dep) => {
+      if (fresh.thirdPartyDeps.has(depKey(dep.file, dep.name))) dep.thirdParty = true;
+      return dep;
     }),
     features: fresh.features,
     warnings: [

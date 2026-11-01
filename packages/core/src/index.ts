@@ -17,7 +17,7 @@ export {
 } from './errors';
 export { hashContent } from './hash';
 export { inOrder } from './sequence';
-export { realFs, writeFileAtomic, type FsOps } from './fs';
+export { realFs, symlinkedPrefix, writeFileAtomic, type FsOps } from './fs';
 export {
   findDiverged,
   findProjectRoot,
