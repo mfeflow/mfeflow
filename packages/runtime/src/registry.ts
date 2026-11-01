@@ -22,9 +22,9 @@ function builtWithSnapshot(): boolean {
   return typeof __MFEFLOW_SNAPSHOT__ === 'boolean' ? __MFEFLOW_SNAPSHOT__ : true;
 }
 
-/** The first field of a registry remote that is wrong, or undefined when it is valid. */
+/** The first field of a registry remote that is wrong, or undefined when it is valid. The shell never reads `exposes`. */
 function remoteProblem(value: unknown): string | undefined {
-  const [first] = registryRemoteIssues(value);
+  const first = registryRemoteIssues(value).find((issue) => !issue.path.startsWith('exposes'));
   if (first === undefined) return undefined;
   return first.path === '' ? 'not an object' : (first.path.split(/[.[]/)[0] ?? first.path);
 }

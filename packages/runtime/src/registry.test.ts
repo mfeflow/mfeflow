@@ -154,6 +154,17 @@ describe('a bad remote in the index', () => {
     expect(globalThis.mfeflowReports?.[0]?.message).toContain('type');
   });
 
+  it('keeps a remote whose exposes are malformed, since the shell never reads them', async () => {
+    const remote = { name: 'cart', entry: U, exposes: { './App': ['not-a-url'] } };
+    const fetchFn = vi.fn(() =>
+      Promise.resolve(new Response(JSON.stringify({ remotes: [remote] }))),
+    );
+    await expect(loadRegistryIndex('/r.json', { fetch: fetchFn })).resolves.toEqual({
+      remotes: [remote],
+    });
+    expect(reported() ?? []).toEqual([]);
+  });
+
   it('is skipped and reported from the inlined index', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     Reflect.set(globalThis, REGISTRY_GLOBAL, mixed);
@@ -247,7 +258,7 @@ describe('registerRemotesFromIndex', () => {
     }
   });
 
-  it('registers the same remotes from the inlined index and from the fetched one', () => {
+  it('keeps exposes only on the fetched index, which the inlined HTML leaves out', () => {
     const remote = {
       name: 'cart',
       entry: 'https://cdn.example.com/cart/m.json',

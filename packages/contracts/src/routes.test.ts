@@ -27,6 +27,10 @@ describe('routesOverlap', () => {
     ['/:section/new', '/cart/*'],
     ['/:a/b', '/x/:c'],
     ['/a/b*', '/a/bc/d'],
+    ['/:rest*', '/foo'],
+    ['/:rest*', '/'],
+    ['/a/*/c', '/a/b/c'],
+    ['/a/x*/c', '/a/xy/c'],
   ])('%s and %s overlap', (a, b) => {
     expect(routesOverlap(a, b)).toBe(true);
     expect(routesOverlap(b, a)).toBe(true);
@@ -34,6 +38,9 @@ describe('routesOverlap', () => {
 
   it.each([
     ['/cart', '/catalog'],
+    ['/a/*/c', '/a/b/d'],
+    ['/a/*/c', '/a/b/c/d'],
+    ['/a/x*/c', '/a/y/c'],
     ['/cart', '/cart/pay'],
     ['/cart/', '/cart/pay'],
     ['/', '/cart'],

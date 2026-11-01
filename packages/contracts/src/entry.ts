@@ -30,6 +30,12 @@ export const ENTRY_TYPES: readonly string[] = [
  */
 export const GLOBAL_NAME = /^[A-Za-z_$][\w$-]*$/;
 
+const RESERVED_NAMES = new Set(['__proto__', 'constructor', 'prototype']);
+
+/** A Module Federation name that is also safe as a plain object key. */
+export const isRemoteName = (value: string): boolean =>
+  GLOBAL_NAME.test(value) && !RESERVED_NAMES.has(value);
+
 export const ROUTE = /^\/[A-Za-z0-9/_:*.-]*$/;
 export const EXPOSE = /^\.\/[A-Za-z0-9_/-]+$/;
 
@@ -133,7 +139,7 @@ export function registryRemoteIssues(value: unknown): RegistryIssue[] {
     value,
     'name',
     out,
-    { test: (v) => GLOBAL_NAME.test(v), hint: 'must be a Module Federation name' },
+    { test: isRemoteName, hint: 'must be a Module Federation name' },
     true,
   );
   stringField(value, 'entry', out, URL_CHECK, true);

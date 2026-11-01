@@ -47,6 +47,9 @@ const rejected: [string, unknown][] = [
   ['routes not an array', { name: 'cart', entry: U, routes: '/cart' }],
   ['route not a string', { name: 'cart', entry: U, routes: [1] }],
   ['route without a slash', { name: 'cart', entry: U, routes: ['cart'] }],
+];
+
+const badExposes: [string, unknown][] = [
   ['exposes not an object', { name: 'cart', entry: U, exposes: [E] }],
   ['expose key', { name: 'cart', entry: U, exposes: { App: [E] } }],
   ['expose files not an array', { name: 'cart', entry: U, exposes: { './App': E } }],
@@ -74,5 +77,11 @@ describe('one registry remote shape', () => {
     expect(registryRemoteIssues(remote).length).toBeGreaterThan(0);
     expect(validateRegistryIndex({ remotes: [remote] }).length).toBeGreaterThan(0);
     expect((await load(remote)).remotes).toHaveLength(0);
+  });
+
+  it.each(badExposes)('contracts reject, the shell keeps the remote: %s', async (_name, remote) => {
+    expect(isRegistryIndexRemote(remote)).toBe(false);
+    expect(validateRegistryIndex({ remotes: [remote] }).length).toBeGreaterThan(0);
+    expect((await load(remote)).remotes).toHaveLength(1);
   });
 });

@@ -1,10 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { ENTRY_TYPES, GLOBAL_NAME, pickRegistryFields, REGISTRY_REMOTE_FIELDS } from './entry';
+import {
+  ENTRY_TYPES,
+  GLOBAL_NAME,
+  isRemoteName,
+  pickRegistryFields,
+  REGISTRY_REMOTE_FIELDS,
+} from './entry';
 
 describe('entry constants', () => {
   it('has a global name pattern that takes MF names and refuses code', () => {
     for (const ok of ['cart', 'my-app', '$shell', 'a_1']) expect(GLOBAL_NAME.test(ok)).toBe(true);
     for (const bad of ['', '1a', 'a b', 'x";', 'a.b']) expect(GLOBAL_NAME.test(bad)).toBe(false);
+  });
+
+  it('refuses remote names that are object prototype keys', () => {
+    for (const bad of ['__proto__', 'constructor', 'prototype'])
+      expect(isRemoteName(bad)).toBe(false);
+    expect(isRemoteName('cart')).toBe(true);
   });
 
   it('lists each entry type once', () => {

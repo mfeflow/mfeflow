@@ -1,5 +1,5 @@
 import {
-  GLOBAL_NAME,
+  isRemoteName,
   isRegistryIndexRemote,
   remoteFileIssues,
   registryRemoteIssues,
@@ -86,7 +86,7 @@ export function validateRegistryIndex(value: unknown): Issue[] {
     }
     addIssues(c, registryRemoteIssues(remote), at);
     const { name } = remote;
-    if (typeof name !== 'string' || !GLOBAL_NAME.test(name)) return;
+    if (typeof name !== 'string' || !isRemoteName(name)) return;
     if (names.has(name)) c.add(`${at}.name`, `duplicate remote "${name}"`);
     names.add(name);
     const routes = Array.isArray(remote.routes)
