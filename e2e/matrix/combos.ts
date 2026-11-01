@@ -89,8 +89,8 @@ function make(flags: Flags, remotes: 1 | 3): Combo {
  * telemetry-otel: the full set with both (the one that runs the browser test), each alone on the
  * default set, both without env-t3 (their runtime keys go to public/config/runtime-config.json),
  * and both on the other two validators (their schema keys are written per validator). Then
- * event-bus, route-factory and http: all three together with analytics and telemetry on three
- * remotes, each alone on the default set, all three without env-t3 (http's runtime key goes to
+ * event-bus, route-factory and http: all three together with everything else on three remotes
+ * (the second one that runs the browser test), each alone on the default set, all three without env-t3 (http's runtime key goes to
  * public/config/runtime-config.json), and all three on the other two validators.
  */
 export function combinations(): Combo[] {
@@ -119,7 +119,7 @@ export function combinations(): Combo[] {
     out.push(make({ ...base, gtm: true, otel: true, validator }, 1));
   }
   const platform = { bus: true, routes: true, http: true };
-  out.push(make({ ...base, gtm: true, otel: true, ...platform }, 3));
+  out.push(make({ ...base, ci: true, gtm: true, otel: true, ...platform }, 3));
   out.push(make({ ...base, bus: true }, 1));
   out.push(make({ ...base, routes: true }, 1));
   out.push(make({ ...base, http: true }, 1));

@@ -23,7 +23,7 @@ describe('combinations', () => {
       'lint-url-env-testing-gtm-r1',
       'lint-url-env-testing-otel-r1',
       'lint-url-testing-gtm-otel-r1',
-      'lint-url-env-testing-gtm-otel-bus-routes-http-r3',
+      'lint-url-env-testing-ci-gtm-otel-bus-routes-http-r3',
       'lint-url-env-testing-bus-r1',
       'lint-url-env-testing-routes-r1',
       'lint-url-env-testing-http-r1',
@@ -36,9 +36,12 @@ describe('combinations', () => {
     expect(all.filter((c) => c.validator !== 'zod').every((c) => c.env)).toBe(true);
   });
 
-  it('runs the browser test on the full set with both analytics and telemetry, and no other new one', () => {
+  it('runs the browser test on the full set with analytics and telemetry, with and without the platform features, and no other new one', () => {
     const both = combinations().filter((c) => c.gtm && c.otel);
-    expect(both.filter(runsE2e).map((c) => c.id)).toEqual(['lint-url-env-testing-ci-gtm-otel-r3']);
+    expect(both.filter(runsE2e).map((c) => c.id)).toEqual([
+      'lint-url-env-testing-ci-gtm-otel-r3',
+      'lint-url-env-testing-ci-gtm-otel-bus-routes-http-r3',
+    ]);
     expect(both.some((c) => !c.env)).toBe(true);
   });
 });
@@ -99,7 +102,7 @@ describe('what a combination generates', () => {
   });
 
   it('adds event-bus before route-factory, which looks for the contracts package, and http last', () => {
-    const c = find(['lint-url-env-testing-gtm-otel-bus-routes-http-r3'])[0]!;
+    const c = find(['lint-url-env-testing-ci-gtm-otel-bus-routes-http-r3'])[0]!;
     expect(featuresOf(c)).toEqual([
       'lint-oxlint',
       'url-factory',
@@ -110,6 +113,7 @@ describe('what a combination generates', () => {
       'event-bus',
       'route-factory',
       'http',
+      'ci-github',
     ]);
   });
 
