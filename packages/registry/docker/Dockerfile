@@ -1,6 +1,9 @@
 # The registry server as an image. It installs @mfeflow/registry exactly as a lockfile says, so the
 # build context must hold a package.json and a package-lock.json. The base image is pinned by
-# digest; Dependabot moves it. The build stops if the lock is missing.
+# digest of the multi-arch index (amd64 and arm64), never a single platform's manifest, so the same
+# line builds natively on Intel, Apple Silicon and Graviton. Dependabot moves it. The dependencies
+# are pure JavaScript, so the lock installs the same on both architectures.
+# The build stops if the lock is missing.
 #
 # The release workflow makes both files for the version it just published. For a local build, make
 # them in this folder first.

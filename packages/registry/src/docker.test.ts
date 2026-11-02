@@ -107,6 +107,12 @@ describe('the image job in the release workflow', () => {
     expect(image).toMatch(/sbom: true/);
   });
 
+  it('builds for amd64 and arm64, with QEMU set up before buildx', () => {
+    expect(image).toMatch(/^ {6}- uses: docker\/setup-qemu-action@[0-9a-f]{40} # v\d/m);
+    expect(image.indexOf('setup-qemu-action')).toBeLessThan(image.indexOf('setup-buildx-action'));
+    expect(image).toMatch(/platforms: linux\/amd64,linux\/arm64$/m);
+  });
+
   it('builds only when the plan says @mfeflow/registry is being released', () => {
     expect(image).toContain('@mfeflow/registry');
     expect(image).toMatch(/if: /);
