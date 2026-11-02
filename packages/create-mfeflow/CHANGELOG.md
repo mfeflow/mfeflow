@@ -1,5 +1,24 @@
 # create-mfeflow
 
+## 0.6.0
+
+### Minor Changes
+
+- [#65](https://github.com/mfeflow/mfeflow/pull/65) [`2fc1be2`](https://github.com/mfeflow/mfeflow/commit/2fc1be21fd211e04e5301d04deb218832b0fbab5) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - You can now give each team its own repo. `mfeflow init my-org --topology polyrepo --remotes catalog,cart` creates a folder with a platform repo, a shell repo and a repo for each remote. Each one is a separate git repo with its own `mfeflow.json`.
+  
+  The platform repo holds two shared packages, published with Changesets, a reusable GitHub Actions workflow that every other repo calls, and a Renovate preset. The shell and the remotes install those packages from `link:` paths, so a first run needs no registry. The docs list the options for publishing them (npm, GitHub Packages, a private registry). mfeflow writes the repos on your machine and never calls GitHub; creating them there is your job.
+  
+  `mfeflow add team-repo checkout`, run in the shell repo, adds one more remote repo next to the others and registers it in the shell. The shell finds its remotes in `devRemotes` in `public/config/runtime-config.dev.json`, so `mfeflow dev` in the shell repo works with remotes that run from other repos. `mfeflow validate` and `doctor` know which repo they are in, and a platform repo may have no shell in `mfeflow.json`.
+  
+  `--org` sets the GitHub owner the generated CI and Renovate files point at; it defaults to the scope without the `@`. If `git init` cannot run in a repo, `init` warns and names it instead of failing.
+  
+  The `core` template moved to 0.5.0 because the shell's `rsbuild.config.ts` reads its dev remotes from config in a polyrepo. A monorepo gets the same file as before. `ci-github` and `env-t3` cannot be used in a polyrepo yet. `hybrid` is still not available.
+
+### Patch Changes
+
+- Updated dependencies [[`0debd97`](https://github.com/mfeflow/mfeflow/commit/0debd9770ec669475f6160b828e0c6bc437aecba), [`fedc8c5`](https://github.com/mfeflow/mfeflow/commit/fedc8c5f79a0b0e66d32728b18a561f995efa651), [`ee68b81`](https://github.com/mfeflow/mfeflow/commit/ee68b81d8b6324df99c06654b2a29382b0b0e6a4), [`2fc1be2`](https://github.com/mfeflow/mfeflow/commit/2fc1be21fd211e04e5301d04deb218832b0fbab5), [`dd290f1`](https://github.com/mfeflow/mfeflow/commit/dd290f11ebef6dc53bac930954cecab59ec148bf), [`315720e`](https://github.com/mfeflow/mfeflow/commit/315720e8c7688c64ac3d541cb9f6cf9df9fc801c), [`e7a9ede`](https://github.com/mfeflow/mfeflow/commit/e7a9edeacac7ad3f55edc9abca14519a4ce15665), [`938c7fb`](https://github.com/mfeflow/mfeflow/commit/938c7fb2ec537d18ef2263ff319268a5323956dd), [`642910b`](https://github.com/mfeflow/mfeflow/commit/642910bdb3ed5ecbed9829ffcac02196f2f485f5)]:
+  - mfeflow@0.6.0
+
 ## 0.5.0
 
 ### Patch Changes

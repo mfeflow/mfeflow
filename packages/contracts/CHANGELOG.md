@@ -1,5 +1,27 @@
 # @mfeflow/contracts
 
+## 0.6.0
+
+### Minor Changes
+
+- [#62](https://github.com/mfeflow/mfeflow/pull/62) [`fedc8c5`](https://github.com/mfeflow/mfeflow/commit/fedc8c5f79a0b0e66d32728b18a561f995efa651) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - Each app now keeps its owner, routes and budgets in `mfeflow.app.json`, next to the project's `mfeflow.json`. The old name `mfe.json` still works: mfeflow reads it and prints one notice per command asking you to rename it. If an app has both files, mfeflow stops with the new error E122, because it cannot tell which one you meant.
+  
+  New projects and the templates use the new name. The schema is published at `/schema/mfeflow-app.json`, and the old `/schema/mfe.json` address keeps working, so existing `$schema` lines still resolve. `mfeflow upgrade` renames the file for you.
+
+- [#65](https://github.com/mfeflow/mfeflow/pull/65) [`2fc1be2`](https://github.com/mfeflow/mfeflow/commit/2fc1be21fd211e04e5301d04deb218832b0fbab5) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - You can now give each team its own repo. `mfeflow init my-org --topology polyrepo --remotes catalog,cart` creates a folder with a platform repo, a shell repo and a repo for each remote. Each one is a separate git repo with its own `mfeflow.json`.
+  
+  The platform repo holds two shared packages, published with Changesets, a reusable GitHub Actions workflow that every other repo calls, and a Renovate preset. The shell and the remotes install those packages from `link:` paths, so a first run needs no registry. The docs list the options for publishing them (npm, GitHub Packages, a private registry). mfeflow writes the repos on your machine and never calls GitHub; creating them there is your job.
+  
+  `mfeflow add team-repo checkout`, run in the shell repo, adds one more remote repo next to the others and registers it in the shell. The shell finds its remotes in `devRemotes` in `public/config/runtime-config.dev.json`, so `mfeflow dev` in the shell repo works with remotes that run from other repos. `mfeflow validate` and `doctor` know which repo they are in, and a platform repo may have no shell in `mfeflow.json`.
+  
+  `--org` sets the GitHub owner the generated CI and Renovate files point at; it defaults to the scope without the `@`. If `git init` cannot run in a repo, `init` warns and names it instead of failing.
+  
+  The `core` template moved to 0.5.0 because the shell's `rsbuild.config.ts` reads its dev remotes from config in a polyrepo. A monorepo gets the same file as before. `ci-github` and `env-t3` cannot be used in a polyrepo yet. `hybrid` is still not available.
+
+- [#56](https://github.com/mfeflow/mfeflow/pull/56) [`e7a9ede`](https://github.com/mfeflow/mfeflow/commit/e7a9edeacac7ad3f55edc9abca14519a4ce15665) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - `mfeflow upgrade` is here. It moves a project to the version of mfeflow you are running, so `pnpm dlx mfeflow@latest upgrade` is the whole command and nothing asks npm for a newer version. It prints what it replaced, created and edited, which files you changed, which you deleted, and which migrations ran. `--dry-run` shows every diff and writes nothing. A file you changed is never overwritten unless you pass `--accept <path|all>`; `--keep <path|all>` leaves your version and stops asking until the new version of that file changes again, which `mfeflow.json` now records in a new `kept` field. In a terminal it asks once before writing. Without one, a file you changed and did not decide on stops the run with the new error E604, before anything is written. Files are written all or nothing, with the install inside the same step, so a failed install puts every file back.
+  
+  Files that `add env-key` adds keys to (`env.ts`, the config schema, `.env.example`, the runtime-config files) are now replaced when every key in them is still in the new version. When you have keys of your own, the file is listed with those keys, and accepting it drops them. Exit code 8 is for upgrade problems and E604. Exit code 7 is now named deploy, and E601 to E603 exit with 8 instead of 1. `--json` gains an `upgrade` result.
+
 ## 0.5.0
 
 ### Minor Changes

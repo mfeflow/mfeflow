@@ -1,6 +1,6 @@
 {
   "name": "@mfeflow/theme",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Design tokens as CSS variables for micro-frontends: the shell sets the theme once, every remote inherits it. ThemeProvider, useTheme, persisted choice, no-flash script.",
   "keywords": [
     "micro-frontend",
