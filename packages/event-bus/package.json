@@ -1,6 +1,6 @@
 {
   "name": "@mfeflow/event-bus",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "A typed event bus for micro-frontends on one page: versioned event names, payload types merged by each remote, optional validation, replay for late subscribers, and a React hook.",
   "keywords": [
     "micro-frontend",

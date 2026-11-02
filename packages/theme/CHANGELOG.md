@@ -1,5 +1,12 @@
 # @mfeflow/theme
 
+## 0.6.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @mfeflow/storage@0.6.0
+
 ## 0.5.0
 
 ### Patch Changes

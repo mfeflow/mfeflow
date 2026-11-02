@@ -1,6 +1,6 @@
 {
   "name": "@mfeflow/tsconfig",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Strict TypeScript 7 presets for mfeflow micro-frontends: base, react-app, react-library and node.",
   "keywords": [
     "micro-frontend",
