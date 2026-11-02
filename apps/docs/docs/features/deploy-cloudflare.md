@@ -91,6 +91,7 @@ The workflow builds once, uploads the `dist` folders, and deploys each app and e
 - The workflow needs the secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` on the GitHub environments `cloudflare-staging` and `cloudflare-prod`.
 - `_headers` does not apply to responses a Worker makes. The R2 proxy sets its own `Cache-Control`.
 - New projects list `workerd: false` under `allowBuilds` in `pnpm-workspace.yaml`. In an older project, add that line before you install wrangler, or pnpm 11 stops with `ERR_PNPM_IGNORED_BUILDS`. Wrangler deploys without that install script.
+- Each environment has one shell address, because a remote sends a single `Access-Control-Allow-Origin`.
 - A remote's build must keep `public/_headers`. The script stops if the staged remote has none, because the shell could not load it.
 - Adding a remote means adding its address to each environment in `deploy/cloudflare.json`. The script says so when it is missing.
 - Remove the feature by deleting these files and running `pnpm remove wrangler`.

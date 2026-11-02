@@ -108,4 +108,4 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           packageManager: pnpm
-          command: deploy --config apps/${{ matrix.target.app }}/wrangler.jsonc --env ${{ matrix.target.env }}
+          command: deploy --config ${{ matrix.target.config }} --env ${{ matrix.target.env }}

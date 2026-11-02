@@ -5,7 +5,7 @@
   // config, then runs `wrangler deploy --env <name>`. A bare `wrangler deploy` would publish the top level.
   "name": "<%= it.scope.slice(1) %>-<%= it.app.name %>",
 <% if (it.options.r2Proxy) { %>  "main": "worker/registry-proxy.ts",
-<% } %>  "compatibility_date": "2026-11-01",
+<% } %>  "compatibility_date": "2026-10-28",
   // `wrangler dev` and the top level serve the build as is. The environments serve the staged copies.
   "assets": {
     "directory": "./dist",

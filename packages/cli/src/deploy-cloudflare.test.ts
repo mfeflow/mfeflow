@@ -101,7 +101,7 @@ describe('deploy-cloudflare files', () => {
     expect(await add('deploy-cloudflare')).toBe(0);
     const shell = parseJsonc(await read('apps/shell/wrangler.jsonc'));
     expect(shell.name).toBe('app-shell');
-    expect(shell.compatibility_date).toBe('2026-11-01');
+    expect(shell.compatibility_date).toBe('2026-10-28');
     expect(obj(shell.assets)).toEqual({
       directory: './dist',
       not_found_handling: 'single-page-application',
@@ -239,6 +239,8 @@ describe('deploy-cloudflare with ci-github', () => {
     expect(text).toContain('apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}');
     expect(text).toContain('accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}');
     expect(text).toContain('environment: cloudflare-${{ matrix.target.env }}');
+    expect(text).toContain('--config ${{ matrix.target.config }} --env ${{ matrix.target.env }}');
+    expect(text).not.toContain('/wrangler.jsonc');
   });
 
   it('builds once and deploys a matrix of apps and environments', async () => {
@@ -310,9 +312,11 @@ describe('deploy-cloudflare with the R2 proxy', () => {
       const file = (key) => key in objects
         ? { body: objects[key], httpEtag: '"e"', writeHttpMetadata: () => undefined }
         : null;
+      const asked = [];
+      const take = (key) => { asked.push(key); return file(key); };
       const env = {
         MFE_ENV: 'prod',
-        REGISTRY: { get: async (key) => file(key), head: async (key) => file(key) },
+        REGISTRY: { get: async (key) => take(key), head: async (key) => take(key) },
       };
       const results = {};
       for (const [url, method] of [
@@ -322,11 +326,22 @@ describe('deploy-cloudflare with the R2 proxy', () => {
         ['/registry/missing/1.0.0/x.js', 'GET'],
         ['/registry/index.json', 'POST'],
         ['/registry/index.json', 'HEAD'],
+        ['/registry/%2e%2e/envs/prod/index.json', 'GET'],
+        ['/registry/a/%2e%2e/envs/prod/index.json', 'GET'],
+        ['/registry/a%2f..%2fenvs%2fprod%2findex.json', 'GET'],
+        ['/registry/a/b%2f..%2f..%2fenvs/prod/index.json', 'GET'],
+        ['/registry//envs/prod/index.json', 'GET'],
+        ['/registry/catalog//1.2.0/static/a.js', 'GET'],
+        ['/registry/catalog\\\\..\\\\envs/prod/index.json', 'GET'],
+        ['/registry/catalog/1.2.0/%2e/a.js', 'GET'],
+        ['/registry/%', 'GET'],
+        ['/registry/catalog/1.2.0/%zz', 'GET'],
+        ['/other/index.json', 'GET'],
       ]) {
         const res = await worker.fetch(new Request('https://shop.test' + url, { method }), env);
-        results[method + ' ' + url] = [res.status, res.headers.get('Cache-Control')];
+        results[method + ' ' + url] = [res.status, res.headers.get('Cache-Control'), res.headers.get('X-Content-Type-Options')];
       }
-      console.log(JSON.stringify(results));
+      console.log(JSON.stringify({ results, asked }));
     `;
     await fs.writeFile(path.join(project, 'proxy-driver.mjs'), driver);
     const run = spawnSync(process.execPath, ['--experimental-strip-types', 'proxy-driver.mjs'], {
@@ -335,14 +350,35 @@ describe('deploy-cloudflare with the R2 proxy', () => {
       encoding: 'utf8',
     });
     expect(run.status, run.stderr).toBe(0);
-    expect(JSON.parse(run.stdout)).toEqual({
-      'GET /registry/index.json': [200, 'no-cache'],
-      'GET /registry/catalog/1.2.0/static/a.js': [200, 'public, max-age=31536000, immutable'],
-      'GET /registry/envs/prod/index.json': [404, null],
-      'GET /registry/missing/1.0.0/x.js': [404, null],
-      'POST /registry/index.json': [405, null],
-      'HEAD /registry/index.json': [200, 'no-cache'],
-    });
+    const { results, asked } = JSON.parse(run.stdout) as {
+      results: Record<string, [number, string | null, string | null]>;
+      asked: string[];
+    };
+    expect(results['GET /registry/index.json']).toEqual([200, 'no-cache', 'nosniff']);
+    expect(results['GET /registry/catalog/1.2.0/static/a.js']).toEqual([
+      200,
+      'public, max-age=31536000, immutable',
+      'nosniff',
+    ]);
+    expect(results['HEAD /registry/index.json']).toEqual([200, 'no-cache', 'nosniff']);
+    expect(results['POST /registry/index.json']?.[0]).toBe(405);
+    expect(results['GET /registry/missing/1.0.0/x.js']?.[0]).toBe(404);
+    expect(results['GET /registry/envs/prod/index.json']?.[0]).toBe(404);
+    expect(results['GET /other/index.json']?.[0]).toBe(404);
+    for (const url of ['/registry/%', '/registry/catalog/1.2.0/%zz'])
+      expect(results[`GET ${url}`]?.[0], url).toBe(400);
+    for (const [name, [status, , sniff]] of Object.entries(results)) {
+      expect(sniff, name).toBe('nosniff');
+      if (/%2e|%2f|\/\/|\\|\/%2e\//.test(name)) expect(status, name).toBeGreaterThanOrEqual(400);
+    }
+    // Nothing reached envs/ except the prod index (asked for twice: GET and HEAD), and no key climbs or has an empty part.
+    expect(asked.filter((key) => key.startsWith('envs/'))).toEqual([
+      'envs/prod/index.json',
+      'envs/prod/index.json',
+    ]);
+    for (const key of asked) expect(key.split('/')).not.toContain('..');
+    for (const key of asked) expect(key.split('/')).not.toContain('');
+    expect(asked).not.toContain('envs/prod/index.json/x');
   });
 
   it('deploys only the shell and writes no registry index into it', async () => {
@@ -412,9 +448,7 @@ describe('scripts/deploy-cloudflare.ts', () => {
     await fakeBuild({ shell: 'https://shop.acme.dev' });
     const run = runScript(['prod', '--dry-run']);
     expect(run.status, run.stderr).toBe(0);
-    expect(run.stdout).toContain(
-      'pnpm exec wrangler deploy --config apps/shell/wrangler.jsonc --env prod',
-    );
+    expect(run.stdout).toContain('wrangler deploy --config apps/shell/wrangler.jsonc --env prod');
     expect(run.stdout).toContain('--config apps/cart/wrangler.jsonc --env prod');
 
     const shell = path.join(project, 'apps/shell/.mfeflow/cloudflare/prod');
@@ -464,12 +498,37 @@ describe('scripts/deploy-cloudflare.ts', () => {
     ['a placeholder', 'https://shop.example.com', 'placeholder'],
     ['plain http', 'http://shop.acme.dev', 'https'],
     ['a path', 'https://shop.acme.dev/app', 'without a path'],
+    ['null', 'null', 'https'],
+    ['another scheme on localhost', 'foo://localhost', 'https'],
+    ['a file address', 'file:///etc/passwd', 'https'],
+    ['with credentials', 'https://user:pass@shop.acme.dev', 'user name or password'],
+    ['with a newline', 'https://shop.acme.dev\nhttps://evil.test', 'control characters'],
+    ['with a space', 'https://shop.acme.dev x', 'control characters'],
+    ['plain http on localhost in prod', 'http://localhost:8787', 'https'],
   ])('refuses a shell address that is %s', async (_name, shell, message) => {
     await fakeBuild({ shell });
     const run = runScript(['prod', '--prepare-only']);
     expect(run.status).toBe(1);
     expect(run.stderr).toContain(message);
     expect(run.stderr).toContain('envs.prod.shell');
+  });
+
+  it('accepts http on localhost outside prod, to try a deploy on your own machine', async () => {
+    await fakeBuild({ shell: 'http://localhost:8787' });
+    const run = runScript(['staging', 'shell', '--prepare-only']);
+    expect(run.status, run.stderr).toBe(0);
+  });
+
+  it('puts the shell address into a remote literally, even with $ patterns in it', async () => {
+    await fakeBuild({ shell: 'https://shop.acme.dev' });
+    await fs.writeFile(
+      path.join(project, 'apps/cart/dist/_headers'),
+      '/*\n  Access-Control-Allow-Origin: __SHELL_ORIGIN__\n',
+    );
+    expect(runScript(['prod', 'cart', '--prepare-only']).status).toBe(0);
+    expect(await read('apps/cart/.mfeflow/cloudflare/prod/_headers')).toBe(
+      '/*\n  Access-Control-Allow-Origin: https://shop.acme.dev\n',
+    );
   });
 
   it('refuses a remote build that has no _headers, since the shell could not load it', async () => {
@@ -495,6 +554,8 @@ describe('scripts/deploy-cloudflare.ts', () => {
     await writeConfig({ prod: { shell: 'https://shop.acme.dev', remotes: {} } });
     expect(runScript(['prod', 'shell', '--prepare-only']).stderr).toContain('Run the build first');
     expect(runScript(['qa']).stderr).toContain('usage');
+    expect(runScript(['../prod']).stderr).toContain('usage');
+    expect(runScript(['prod/../../x']).status).toBe(1);
     expect(runScript(['prod', 'nope']).stderr).toContain('not an app this project deploys');
   });
 
@@ -503,7 +564,12 @@ describe('scripts/deploy-cloudflare.ts', () => {
     expect(run.status, run.stderr).toBe(0);
     const targets = JSON.parse(run.stdout) as { app: string; env: string }[];
     expect(targets).toHaveLength(6);
-    expect(targets).toContainEqual({ app: 'cart', env: 'prod' });
+    expect(targets).toContainEqual({
+      app: 'cart',
+      env: 'prod',
+      config: 'apps/cart/wrangler.jsonc',
+    });
     expect(runScript(['plan', 'qa']).status).toBe(1);
+    expect(runScript(['plan', 'staging,../x']).status).toBe(1);
   });
 });

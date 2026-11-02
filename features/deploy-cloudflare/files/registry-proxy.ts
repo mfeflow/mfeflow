@@ -20,8 +20,30 @@ interface Env {
 const INDEX_CACHE = 'no-cache';
 const VERSIONED_CACHE = 'public, max-age=31536000, immutable';
 
+const PREFIX = '/registry/';
+
+/** A plain response that also tells browsers not to guess the type. */
+function reply(
+  body: ReadableStream | string | null,
+  init: ResponseInit = {},
+  extra?: Headers,
+): Response {
+  const headers = new Headers(extra);
+  for (const [name, value] of new Headers(init.headers)) headers.set(name, value);
+  headers.set('X-Content-Type-Options', 'nosniff');
+  return new Response(body, { ...init, headers });
+}
+
+// The key is the decoded path. Anything that could climb out of /registry or into envs/ is not a key.
 function keyFor(pathname: string, env: Env): { key: string; cache: string } | undefined {
-  const rest = pathname.slice('/registry/'.length);
+  if (!pathname.startsWith(PREFIX)) return undefined;
+  const rest = decodeURIComponent(pathname.slice(PREFIX.length));
+  if (
+    rest.includes('\\') ||
+    rest.split('/').some((part) => part === '' || part === '.' || part === '..')
+  ) {
+    return undefined;
+  }
   if (rest === 'index.json') return { key: `envs/${env.MFE_ENV}/index.json`, cache: INDEX_CACHE };
   if (/^(?!envs\/)[^/]+\/[^/]+\/.+/.test(rest)) return { key: rest, cache: VERSIONED_CACHE };
   return undefined;
@@ -30,29 +52,29 @@ function keyFor(pathname: string, env: Env): { key: string; cache: string } | un
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
-      return new Response('Method not allowed', { status: 405, headers: { Allow: 'GET, HEAD' } });
+      return reply('Method not allowed', { status: 405, headers: { Allow: 'GET, HEAD' } });
     }
     let target: ReturnType<typeof keyFor>;
     try {
-      target = keyFor(decodeURIComponent(new URL(request.url).pathname), env);
+      target = keyFor(new URL(request.url).pathname, env);
     } catch {
-      return new Response('Bad request', { status: 400 });
+      return reply('Bad request', { status: 400 });
     }
-    if (target === undefined) return new Response('Not found', { status: 404 });
+    if (target === undefined) return reply('Not found', { status: 404 });
 
     const object =
       request.method === 'HEAD'
         ? await env.REGISTRY.head(target.key)
         : await env.REGISTRY.get(target.key, { onlyIf: request.headers });
-    if (object === null) return new Response('Not found', { status: 404 });
+    if (object === null) return reply('Not found', { status: 404 });
 
     const headers = new Headers();
     object.writeHttpMetadata(headers);
     headers.set('etag', object.httpEtag);
     headers.set('Cache-Control', target.cache);
-    if (request.method === 'HEAD') return new Response(null, { headers });
+    if (request.method === 'HEAD') return reply(null, {}, headers);
     // An object with no body means the If-None-Match or If-Modified-Since check matched.
-    if (object.body === undefined) return new Response(null, { status: 304, headers });
-    return new Response(object.body, { headers });
+    if (object.body === undefined) return reply(null, { status: 304 }, headers);
+    return reply(object.body, {}, headers);
   },
 };

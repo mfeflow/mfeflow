@@ -3,6 +3,7 @@
 # joined with a comma. Hashed files under /static never change.
 /*
   Access-Control-Allow-Origin: __SHELL_ORIGIN__
+  X-Content-Type-Options: nosniff
 /
   Cache-Control: no-cache
 /index.html

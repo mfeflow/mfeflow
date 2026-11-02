@@ -4,7 +4,7 @@
   // Deploy with `pnpm deploy:cloudflare <staging|prod>`. Remotes have no fallback page, so a mistyped path is a
   // 404 and not an HTML page where JavaScript was expected.
   "name": "<%= it.scope.slice(1) %>-<%= it.app.name %>",
-  "compatibility_date": "2026-11-01",
+  "compatibility_date": "2026-10-28",
   "assets": { "directory": "./dist", "not_found_handling": "none" },
   // The shell loads this remote from its own address, so give each environment a route or use its workers.dev name:
   // "routes": [{ "pattern": "<%= it.app.name %>.shop.example.com", "custom_domain": true }]

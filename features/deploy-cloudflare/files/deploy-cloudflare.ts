@@ -56,6 +56,14 @@ export function readProject(root: string): Project {
   const packageDirs: Record<string, string> = {};
   for (const [name, app] of Object.entries(apps)) {
     if (!isRecord(app) || typeof app.path !== 'string') continue;
+    // These end up in file paths and in the CI matrix, so keep to what mfeflow itself allows.
+    if (
+      !/^[a-z][a-z0-9_]*$/.test(name) ||
+      !/^[\w.-]+(\/[\w.-]+)*$/.test(app.path) ||
+      app.path.split('/').includes('..')
+    ) {
+      throw new Error(`${file}: app "${name}" has a name or path this script will not use`);
+    }
     packageDirs[name] = app.path;
     if (app.kind === 'shell') shell = name;
     if (app.kind === 'remote') remotes.push(name);
@@ -82,16 +90,30 @@ export function readConfig(root: string): Config {
   return { registry: json.registry === 'r2' ? 'r2' : 'assets', envs };
 }
 
-/** The origin (scheme and host) of an address, or an error saying which setting is wrong. */
-export function checkOrigin(value: string | undefined, label: string): string {
+/**
+ * The origin (scheme and host) of an address, or an error saying which setting is wrong. https only;
+ * http is accepted for localhost outside prod, for trying a deploy on your own machine.
+ */
+export function checkOrigin(value: string | undefined, label: string, env = 'staging'): string {
   if (value === undefined || value === '') {
     throw new Error(
       `${label} is empty. Set it in deploy/cloudflare.json to the address people will use.`,
     );
   }
+  // The URL parser drops tabs and newlines, so a value with one would pass as something else.
+  if (
+    /\s/.test(value) ||
+    Array.from(value, (c) => c.charCodeAt(0)).some((n) => n < 32 || n === 127)
+  ) {
+    throw new Error(`${label} must not contain spaces or control characters`);
+  }
   const url = URL.canParse(value) ? new URL(value) : undefined;
-  if (url === undefined || (url.protocol !== 'https:' && url.hostname !== 'localhost')) {
+  const local = url?.protocol === 'http:' && url.hostname === 'localhost' && env !== 'prod';
+  if (url === undefined || (url.protocol !== 'https:' && !local)) {
     throw new Error(`${label} must be an https address, got "${value}"`);
+  }
+  if (url.username !== '' || url.password !== '') {
+    throw new Error(`${label} must not contain a user name or password`);
   }
   if (/(^|\.)example\.(com|org|net)$/.test(url.hostname)) {
     throw new Error(
@@ -163,7 +185,7 @@ function prepareShell(
   env: string,
   out: string,
 ): void {
-  checkOrigin(envConfig.shell, `envs.${env}.shell`);
+  checkOrigin(envConfig.shell, `envs.${env}.shell`, env);
   const configDir = path.join(out, 'config');
   const chosen = path.join(configDir, `runtime-config.${env}.json`);
   if (!fs.existsSync(chosen)) throw new Error(`The build has no config/runtime-config.${env}.json`);
@@ -175,7 +197,7 @@ function prepareShell(
     for (const remote of project.remotes) {
       origins.set(
         remote,
-        checkOrigin(envConfig.remotes?.[remote], `envs.${env}.remotes.${remote}`),
+        checkOrigin(envConfig.remotes?.[remote], `envs.${env}.remotes.${remote}`, env),
       );
     }
     const known = Array.isArray(values.registryOrigins)
@@ -202,7 +224,7 @@ function prepareShell(
 }
 
 function prepareRemote(app: string, envConfig: EnvConfig, env: string, out: string): void {
-  const shellOrigin = checkOrigin(envConfig.shell, `envs.${env}.shell`);
+  const shellOrigin = checkOrigin(envConfig.shell, `envs.${env}.shell`, env);
   if (!fs.existsSync(path.join(out, 'mf-manifest.json')))
     throw new Error(`${out} has no mf-manifest.json. Is this a remote build?`);
   const headers = path.join(out, '_headers');
@@ -213,23 +235,46 @@ function prepareRemote(app: string, envConfig: EnvConfig, env: string, out: stri
   }
   fs.writeFileSync(
     headers,
-    fs.readFileSync(headers, 'utf8').replaceAll(SHELL_ORIGIN_TOKEN, shellOrigin),
+    fs.readFileSync(headers, 'utf8').replaceAll(SHELL_ORIGIN_TOKEN, () => shellOrigin),
   );
 }
 
+export interface Target {
+  app: string;
+  env: string;
+  /** The app's wrangler config, relative to the project root. */
+  config: string;
+}
+
 /** The CI matrix: one entry per app and environment. */
-export function plan(root: string, envs: string[]): { app: string; env: string }[] {
+export function plan(root: string, envs: string[]): Target[] {
   for (const env of envs) {
     if (!ENVS.includes(env)) throw new Error(`unknown environment "${env}" (${ENVS.join(', ')})`);
   }
   const project = readProject(root);
   const apps = selectApps(project, readConfig(root), []);
-  return envs.flatMap((env) => apps.map((app) => ({ app, env })));
+  return envs.flatMap((env) =>
+    apps.map((app) => ({
+      app,
+      env,
+      config: `${project.packageDirs[app] ?? `apps/${app}`}/wrangler.jsonc`,
+    })),
+  );
 }
 
-function wranglerArgs(project: Project, app: string, env: string): string[] {
+function wranglerArgs(app: string, env: string, project: Project): string[] {
   const dir = project.packageDirs[app] ?? `apps/${app}`;
-  return ['exec', 'wrangler', 'deploy', '--config', `${dir}/wrangler.jsonc`, '--env', env];
+  return ['deploy', '--config', `${dir}/wrangler.jsonc`, '--env', env];
+}
+
+/** Wrangler's own script, so it can run under node without a shell, which works on every OS. */
+function wranglerScript(root: string): string {
+  const manifest = path.join(root, 'node_modules/wrangler/package.json');
+  const json = readJson(manifest);
+  const bin = isRecord(json) && isRecord(json.bin) ? json.bin.wrangler : undefined;
+  if (typeof bin !== 'string')
+    throw new Error(`${manifest} names no wrangler script. Run pnpm install.`);
+  return path.join(path.dirname(manifest), bin);
 }
 
 export function main(argv: string[], root = process.cwd()): number {
@@ -250,15 +295,14 @@ export function main(argv: string[], root = process.cwd()): number {
       const out = prepareApp(root, app, first);
       console.log(`staged ${app} for ${first}: ${path.relative(root, out)}`);
       if (flags.has('--prepare-only')) continue;
-      const args = wranglerArgs(project, app, first);
+      const args = wranglerArgs(app, first, project);
       if (flags.has('--dry-run')) {
-        console.log(`pnpm ${args.join(' ')}`);
+        console.log(`wrangler ${args.join(' ')}`);
         continue;
       }
-      const run = spawnSync('pnpm', args, {
+      const run = spawnSync(process.execPath, [wranglerScript(root), ...args], {
         cwd: root,
         stdio: 'inherit',
-        shell: process.platform === 'win32',
       });
       if (run.status !== 0) throw new Error(`wrangler deploy failed for ${app}`);
     }

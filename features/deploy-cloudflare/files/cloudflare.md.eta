@@ -98,4 +98,7 @@ Add a required reviewer to `cloudflare-prod` to hold production until someone ap
 ## Gotchas
 
 - With the shell's single-page fallback, a mistyped path returns `index.html` with status 200. Remotes have no fallback, so a missing file is a 404.
-- pnpm 11 stops an install when a package has an install script nobody has approved. `workerd`, which wrangler pulls in, is set to `false` under `allowBuilds` in `pnpm-workspace.yaml` of new projects, and wrangler deploys without running that script. If your workspace file lacks the entry, add `workerd: false` there, or the install fails with `ERR_PNPM_IGNORED_BUILDS`.
+- pnpm 11 stops an install when a package has an install script nobody has approved. `workerd`, which wrangler pulls in, is set to `false` under `allowBuilds` in `pnpm-workspace.yaml` of new projects, and wrangler deploys without running that script, and `wrangler dev` starts and serves the build with it (tried with wrangler 4.156.0). If your workspace file lacks the entry, add `workerd: false` there, or the install fails with `ERR_PNPM_IGNORED_BUILDS`.
+- `compatibility_date` in `wrangler.jsonc` is `2026-10-28`. `wrangler dev` refuses a date newer than its bundled runtime knows, so raise the date together with wrangler.
+- Each environment has one shell address, because a remote sends a single `Access-Control-Allow-Origin`. Two shell addresses for the same remote need two environments, or a rule of your own in the remote's `_headers`.
+- The shell's `_headers` also sends `X-Content-Type-Options`, `Referrer-Policy` and `X-Frame-Options: SAMEORIGIN`. Remove the last one if another site must embed your shell in a frame.
