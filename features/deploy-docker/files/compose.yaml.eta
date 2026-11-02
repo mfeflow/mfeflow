@@ -1,0 +1,50 @@
+<% const used = new Set(it.apps.flatMap((a) => (a.port === undefined ? [] : [a.port])));
+let spare = 8080;
+const ports = Object.fromEntries(it.apps.map((a) => {
+  if (a.port !== undefined) return [a.name, a.port];
+  while (used.has(spare)) spare++;
+  used.add(spare);
+  return [a.name, spare];
+}));
+const shell = it.apps.find((a) => a.kind === 'shell');
+const shellPort = shell === undefined ? 4300 : ports[shell.name]; -%>
+# Runs the shell and every remote locally from one image build each, on the ports mfeflow.json gives
+# them. The image is the same one you would deploy: only the environment variables differ.
+#
+#   docker compose up --build
+#   MFE_ENV=staging docker compose up
+#
+# Ports bind to 127.0.0.1 only. An app with no port in mfeflow.json gets a spare one starting at
+# 8080; set a port for it in mfeflow.json if you want a fixed one.
+#
+# The shell may only load remotes from origins its runtime config allows. Add them to
+# apps/shell/public/config/runtime-config.<env>.json (and rebuild):
+#   "registryOrigins": [<%= it.apps.filter((a) => a.kind === 'remote').map((a) => '"http://localhost:' + ports[a.name] + '"').join(', ') %>]
+x-app: &app
+  read_only: true
+  tmpfs:
+    - /tmp
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  restart: unless-stopped
+
+services:
+<% for (const a of it.apps) { %>  <%= a.name %>:
+    <<: *app
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        APP: <%= a.name %>
+<% if (a.kind === 'shell') { %>    environment:
+      MFE_ENV: ${MFE_ENV:-dev}
+    volumes:
+      # The shell reads its registry index from its own origin. This one lists the remotes below.
+      - ./docker/compose-registry.json:/tmp/mfe-registry/index.json:ro
+<% } else { %>    environment:
+      SHELL_ORIGINS: http://localhost:<%= shellPort %>
+<% } %>    ports:
+      - '127.0.0.1:<%= ports[a.name] %>:8080'
+<% } %>

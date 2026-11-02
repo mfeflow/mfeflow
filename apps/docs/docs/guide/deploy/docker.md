@@ -9,6 +9,8 @@ This how-to builds one image and runs it as staging and as production. The image
 
 You need Docker, a built project, and the scripts from the overview and below. The image runs as a normal user and works with a read-only root filesystem.
 
+Prefer files over typing? Run `mfeflow add deploy-docker`. It writes a close variant of this setup into your project: one Dockerfile for every app (pick it with `--build-arg APP=`), a separate nginx config for the shell and for remotes, and a start script that works under `/tmp`. The steps below stay valid if you want a single image that holds the shell and all remotes. See [deploy-docker](/features/deploy-docker).
+
 ## Prepare the image contents
 
 Save this script next to `assemble-site.sh`. It lays out what the image needs. The public address stays a placeholder until the container starts:

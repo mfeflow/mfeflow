@@ -50,7 +50,7 @@ shell   | ready   built in 0.28s
 What you get:
 
 - A shell and remotes on Module Federation 2.0 and Rsbuild, with React shared once.
-- 24 features you add one at a time, each with a diff you can preview.
+- 25 features you add one at a time, each with a diff you can preview.
 - Checks for compatibility, ownership and bundle size that run in CI.
 - A static registry: `mfeflow deploy` and `mfeflow rollback` move a pointer, with no rebuild.
 - About 5 seconds from create to a running platform, measured.
@@ -152,7 +152,7 @@ The four checks are ordinary commands. The ci-github feature adds a workflow tha
 
 ## Features
 
-There are 24 first-party features. Each lives in `features/` and can be added on its own.
+There are 25 first-party features. Each lives in `features/` and can be added on its own.
 
 **Foundation**
 
@@ -166,6 +166,7 @@ There are 24 first-party features. Each lives in `features/` and can be added on
 | [ci-github](https://mfeflow.github.io/mfeflow/features/ci-github)             | A pull request workflow that runs every check            |
 | [registry-static](https://mfeflow.github.io/mfeflow/features/registry-static) | Deploy and roll back remotes on a folder or bucket       |
 | [release](https://mfeflow.github.io/mfeflow/features/release)                 | Changesets versions each remote, and deploy uses it      |
+| [deploy-docker](https://mfeflow.github.io/mfeflow/features/deploy-docker)     | A Dockerfile, nginx config and Kubernetes example        |
 
 **Data and contracts**
 

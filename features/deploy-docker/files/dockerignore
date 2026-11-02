@@ -1,0 +1,17 @@
+# Keep the build context small and keep local state out of the image.
+node_modules
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+.git
+.github
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+playwright-report
+test-results
+k8s
+compose.yaml

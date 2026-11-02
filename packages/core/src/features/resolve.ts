@@ -162,8 +162,15 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
   const options = resolveOptions(manifest, input.options);
   if (manifest.name === 'tailwind') assertUniqueTailwindPrefixes(Object.keys(project.apps));
 
+  const apps = Object.entries(project.apps).map(([name, app]) => ({
+    name,
+    kind: app.kind,
+    path: app.path,
+    port: app.port,
+  }));
   const dataFor = (place: Place): TemplateData => ({
     scope: project.scope,
+    apps,
     topology: project.topology,
     packageManager: project.packageManager,
     options,
