@@ -63,6 +63,7 @@ describe.each([
   'registry-static',
   'release',
   'registry-server',
+  'deploy-docker',
 ])('mfeflow add %s', (feature) => {
   it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
     await addRequired(feature);
@@ -108,6 +109,7 @@ describe.each([
       'analytics-clarity': [],
       'commit-prompt': [],
       'registry-server': [],
+      'deploy-docker': [],
       storybook: [
         '.storybook/main.ts',
         '.storybook/rsbuild.config.ts',

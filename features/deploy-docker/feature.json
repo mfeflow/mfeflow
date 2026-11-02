@@ -1,0 +1,22 @@
+{
+  "name": "deploy-docker",
+  "version": "0.1.0",
+  "description": "Package the shell and each remote as a non-root nginx image: a Dockerfile with an APP build argument, nginx cache and CORS rules, a start script that picks the runtime config from MFE_ENV, a Kubernetes example, a compose file and a .dockerignore. Opt-in code you own; nothing in mfeflow calls it.",
+  "requires": ["core"],
+  "files": [
+    { "to": "docker/Dockerfile", "target": "root", "from": "files/Dockerfile" },
+    { "to": "docker/nginx.shell.conf", "target": "root", "from": "files/nginx.shell.conf" },
+    { "to": "docker/nginx.remote.conf", "target": "root", "from": "files/nginx.remote.conf" },
+    { "to": "docker/40-mfe-config.sh", "target": "root", "from": "files/40-mfe-config.sh" },
+    {
+      "to": "docker/compose-registry.json",
+      "target": "root",
+      "from": "files/compose-registry.json.eta",
+      "template": true
+    },
+    { "to": "compose.yaml", "target": "root", "from": "files/compose.yaml.eta", "template": true },
+    { "to": "k8s/mfe.yaml", "target": "root", "from": "files/k8s.yaml" },
+    { "to": ".dockerignore", "target": "root", "from": "files/dockerignore" },
+    { "to": "docs/docker.md", "target": "root", "from": "files/docker.md" }
+  ]
+}

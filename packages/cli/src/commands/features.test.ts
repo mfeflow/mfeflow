@@ -86,6 +86,7 @@ describe('mfeflow features', () => {
       'git-hooks': false,
       'commit-prompt': false,
       'registry-server': false,
+      'deploy-docker': false,
       'registry-static': false,
       release: false,
     });

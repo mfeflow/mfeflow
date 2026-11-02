@@ -369,6 +369,24 @@ describe('resolveFeature', () => {
     expect(files['apps/catalog/port.txt']).toBe('catalog:none\n');
   });
 
+  it('gives a root template the list of apps, in project order, with kind and port', async () => {
+    const builder = new PlanBuilder(reader());
+    const feature = local(
+      {
+        name: 'app-list',
+        version: '1.0.0',
+        files: [{ to: 'apps.txt', target: 'root', from: 'apps.eta', template: true }],
+      },
+      {
+        'apps.eta':
+          '<% for (const a of it.apps) { %><%= a.name %>:<%= a.kind %>:<%= a.port ?? "none" %>\n<% } %>',
+      },
+    );
+    await resolveFeature({ feature, project: withPorts, builder });
+    const files = Object.fromEntries(builder.build().changes.map((c) => [c.path, c.after]));
+    expect(files['apps.txt']).toBe('shell:shell:none\ncatalog:remote:none\ncart:remote:4312\n');
+  });
+
   it('creates a missing .env.example, and fails clearly when a config file is missing', async () => {
     const files = { ...tree };
     delete files['apps/shell/.env.example'];

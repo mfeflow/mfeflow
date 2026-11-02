@@ -1,0 +1,10 @@
+{
+  "env": "local",
+  "remotes": [
+<% const remotes = it.apps.filter((a) => a.kind === 'remote'); remotes.forEach((a, i) => { %>    {
+      "name": "<%= a.name %>",
+      "entry": "http://localhost:<%= a.port ?? 8080 %>/mf-manifest.json",
+      "routes": ["/<%= a.name %>"]
+    }<%= i < remotes.length - 1 ? ',' : '' %>
+<% }) %>  ]
+}

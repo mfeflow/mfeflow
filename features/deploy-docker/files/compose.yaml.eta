@@ -1,0 +1,37 @@
+# Runs the shell and every remote locally from one image build each, on the ports mfeflow.json gives
+# them. The image is the same one you would deploy: only the environment variables differ.
+#
+#   docker compose up --build
+#   MFE_ENV=staging docker compose up
+#
+# The shell may only load remotes from origins its runtime config allows. Add them to
+# apps/shell/public/config/runtime-config.<env>.json (and rebuild):
+#   "registryOrigins": [<%= it.apps.filter((a) => a.kind === 'remote').map((a) => '"http://localhost:' + (a.port ?? 8080) + '"').join(', ') %>]
+x-app: &app
+  read_only: true
+  tmpfs:
+    - /tmp
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  restart: unless-stopped
+
+services:
+<% for (const a of it.apps) { %>  <%= a.name %>:
+    <<: *app
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        APP: <%= a.name %>
+<% if (a.kind === 'shell') { %>    environment:
+      MFE_ENV: ${MFE_ENV:-dev}
+    volumes:
+      # The shell reads its registry index from its own origin. This one lists the remotes below.
+      - ./docker/compose-registry.json:/tmp/mfe-registry/index.json:ro
+<% } else { %>    environment:
+      SHELL_ORIGINS: http://localhost:<%= it.apps.find((x) => x.kind === 'shell')?.port ?? 4300 %>
+<% } %>    ports:
+      - '<%= a.port ?? 8080 %>:8080'
+<% } %>
