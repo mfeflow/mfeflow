@@ -472,6 +472,15 @@ describe('scripts/deploy-cloudflare.ts', () => {
     expect(run.stderr).toContain('envs.prod.shell');
   });
 
+  it('refuses a remote build that has no _headers, since the shell could not load it', async () => {
+    await fakeBuild({ shell: 'https://shop.acme.dev' });
+    await fs.rm(path.join(project, 'apps/cart/dist/_headers'));
+    const run = runScript(['prod', 'cart', '--prepare-only']);
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain('has no _headers');
+    expect(run.stderr).toContain('apps/cart/public/_headers');
+  });
+
   it('says which remote has no address yet', async () => {
     await fakeBuild({ shell: 'https://shop.acme.dev' });
     await writeConfig({

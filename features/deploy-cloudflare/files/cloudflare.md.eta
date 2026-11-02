@@ -52,7 +52,17 @@ Create one bucket for each environment, named in `wrangler.jsonc` (`<%= it.scope
 pnpm wrangler r2 bucket create <%= it.scope.slice(1) %>-registry-prod
 ```
 
-Publish remotes with `mfeflow deploy` and the bucket's S3 endpoint (see the registry-static guide). The Worker answers `/registry/index.json` from `envs/<env>/index.json`, and `/registry/<name>/<version>/<file>` from the same key in the bucket. The index is checked on every load, and versioned files are cached for a year.
+Publish remotes with `mfeflow deploy`, using the bucket's S3 endpoint and the shell's address plus `/registry` as the base URL, so that the entries in the index point through the Worker:
+
+```sh
+export MFEFLOW_S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+export MFEFLOW_S3_REGION=auto
+mfeflow deploy catalog --env prod --host s3://<%= it.scope.slice(1) %>-registry-prod --base-url https://shop.acme.dev/registry
+```
+
+The access key and secret come from an R2 API token, in `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+
+The Worker answers `/registry/index.json` from `envs/<env>/index.json`, and `/registry/<name>/<version>/<file>` from the same key in the bucket. The index is checked on every load, and versioned files are cached for a year.
 
 Set `registryUrls` in the shell's runtime config only if you use another address. The default is `/registry/index.json`.
 
@@ -88,4 +98,4 @@ Add a required reviewer to `cloudflare-prod` to hold production until someone ap
 ## Gotchas
 
 - With the shell's single-page fallback, a mistyped path returns `index.html` with status 200. Remotes have no fallback, so a missing file is a 404.
-- pnpm may hold back the build scripts of `workerd` and `esbuild`. Deploying works without them. `wrangler dev` needs them, so approve them if you run it.
+- pnpm 11 stops an install when a package has an install script nobody has approved. `workerd`, which wrangler pulls in, is set to `false` under `allowBuilds` in `pnpm-workspace.yaml` of new projects, and wrangler deploys without running that script. If your workspace file lacks the entry, add `workerd: false` there, or the install fails with `ERR_PNPM_IGNORED_BUILDS`.

@@ -74,7 +74,7 @@
       "when": { "feature:ci-github": true }
     }
   ],
-  "dependencies": [{ "name": "wrangler", "range": "4.156.1", "target": "root", "dev": true }],
+  "dependencies": [{ "name": "wrangler", "range": "4.156.0", "target": "root", "dev": true }],
   "scripts": [
     {
       "name": "deploy:cloudflare",

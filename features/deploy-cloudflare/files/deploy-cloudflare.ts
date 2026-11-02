@@ -151,7 +151,7 @@ export function prepareApp(root: string, app: string, env: string): string {
   fs.cpSync(dist, out, { recursive: true });
 
   if (app === project.shell) prepareShell(root, project, config, envConfig, env, out);
-  else prepareRemote(envConfig, env, out);
+  else prepareRemote(app, envConfig, env, out);
   return out;
 }
 
@@ -201,12 +201,16 @@ function prepareShell(
   );
 }
 
-function prepareRemote(envConfig: EnvConfig, env: string, out: string): void {
+function prepareRemote(app: string, envConfig: EnvConfig, env: string, out: string): void {
   const shellOrigin = checkOrigin(envConfig.shell, `envs.${env}.shell`);
   if (!fs.existsSync(path.join(out, 'mf-manifest.json')))
     throw new Error(`${out} has no mf-manifest.json. Is this a remote build?`);
   const headers = path.join(out, '_headers');
-  if (!fs.existsSync(headers)) return;
+  if (!fs.existsSync(headers)) {
+    throw new Error(
+      `${out} has no _headers, so the shell could not load ${app} across origins. Keep apps/${app}/public/_headers and rebuild.`,
+    );
+  }
   fs.writeFileSync(
     headers,
     fs.readFileSync(headers, 'utf8').replaceAll(SHELL_ORIGIN_TOKEN, shellOrigin),
