@@ -14,3 +14,10 @@ export const workspaceAliases = [
   },
   { find: /^@mfeflow\/([a-z-]+)$/, replacement: path.join(root, 'packages/$1/src/index') },
 ];
+
+/**
+ * Windows CI runners start processes and fsync far slower than Linux or macOS, so tests that
+ * spawn git, run installs or write SQLite pass there only with more room. Elsewhere the default
+ * stays, so a real hang still fails fast.
+ */
+export const testTimeout = process.platform === 'win32' ? 20_000 : 5000;
