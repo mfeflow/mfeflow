@@ -210,6 +210,8 @@ A feature from a registry is applied only after you confirm in a terminal, or pa
 
 `doctor --fix` repairs a missing workspace version (E111) and missing registry entry files (E114). Add `--dry-run` to see the diff first.
 
+`doctor --against <url|file>` runs every check and takes the shell for the compatibility check from a deployed shell, as `check-compat --against` does (the list below says what it accepts). Use it in a remote repo whose shell lives elsewhere. With `--against`, the "shell is not in this repo" warning does not appear. Without it, a repo that has remotes but no shell prints `shell is not in this repo, run \`mfeflow doctor --against <url|file>\``. A source that cannot be read is E307. With `--json`, `against` holds the source you passed, with any token in a URL hidden.
+
 ### check-compat
 
 Checks each remote's shared ranges against the shell it runs in. By default it reads the shell's versions from `node_modules` in this repo.

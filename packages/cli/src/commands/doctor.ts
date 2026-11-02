@@ -4,7 +4,7 @@ import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals, type Globals } from '../args';
 import { loadShell } from '../against';
 import { DOCTOR_CHECKS, VALIDATE_CHECKS } from '../checks';
-import { compatCheck } from '../checks/compat';
+import { compat, compatCheck } from '../checks/compat';
 import type { Check, Finding } from '../findings';
 import { freePort, REMOTE_PORT, registryEntryFiles } from '../glue';
 import { inspectProject, type ProjectView } from '../inspect';
@@ -15,24 +15,26 @@ import { formatReport, runChecks, summarizeReport } from '../report';
 import type { Runtime } from '../runtime';
 import { writePlan } from '../write';
 
-export const DOCTOR_ARGS = {
-  fix: {
-    type: 'boolean',
-    description: 'Repair what is safe: missing workspace versions and registry entries',
-  },
-  ...GLOBAL_ARGS,
-} as const satisfies ArgsDef;
-
-export const VALIDATE_ARGS = { ...GLOBAL_ARGS } as const satisfies ArgsDef;
-export const COMPAT_ARGS = {
+const AGAINST_ARG = {
   against: {
     type: 'string',
     description:
       'Check against the shell a registry index or a deployed mf-manifest.json describes (file or https URL)',
     valueHint: 'url|file',
   },
+} as const satisfies ArgsDef;
+
+export const DOCTOR_ARGS = {
+  fix: {
+    type: 'boolean',
+    description: 'Repair what is safe: missing workspace versions and registry entries',
+  },
+  ...AGAINST_ARG,
   ...GLOBAL_ARGS,
 } as const satisfies ArgsDef;
+
+export const VALIDATE_ARGS = { ...GLOBAL_ARGS } as const satisfies ArgsDef;
+export const COMPAT_ARGS = { ...AGAINST_ARG, ...GLOBAL_ARGS } as const satisfies ArgsDef;
 
 const DEFAULT_VERSION = '0.0.0';
 
@@ -161,7 +163,23 @@ export function runDoctor(
   args: Record<string, unknown>,
   raw: readonly string[],
 ): Promise<ReportResult> {
-  return runGroup(rt, args, raw, DOCTOR_ARGS, 'doctor', DOCTOR_CHECKS, args.fix === true);
+  const against = typeof args.against === 'string' ? args.against : undefined;
+  return runGroup(
+    rt,
+    args,
+    raw,
+    DOCTOR_ARGS,
+    'doctor',
+    against === undefined
+      ? DOCTOR_CHECKS
+      : async (globals) => {
+          const shell = await loadShell(against, { cwd: globals.cwd, fetch: rt.fetch });
+          return DOCTOR_CHECKS.map((check) =>
+            check.id === compat.id ? compatCheck(shell, 'doctor') : check,
+          );
+        },
+    args.fix === true,
+  ).then((result) => (against === undefined ? result : { ...result, against: redactUrl(against) }));
 }
 
 export function runValidate(

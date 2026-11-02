@@ -696,15 +696,66 @@ ${keys}
 });
 
 describe('doctor when the shell is not in the repo', () => {
-  it('tells you to run check-compat --against', async () => {
+  it('tells you to run doctor --against', async () => {
     const root = await project();
     await fs.rm(path.join(root, 'apps/shell'), { recursive: true });
     const { result } = await run(root, 'doctor');
     const messages = result.findings.filter((f) => f.check === 'compat').map((f) => f.message);
     expect(messages).toHaveLength(1);
     expect(messages[0]).toContain(
-      'shell is not in this repo, run `mfeflow check-compat --against <url|file>`',
+      'shell is not in this repo, run `mfeflow doctor --against <url|file>`',
     );
+  });
+});
+
+describe('doctor --against', () => {
+  const shellManifest = (react: string) =>
+    JSON.stringify({ name: 'shell', shared: [{ name: 'react', version: react, singleton: true }] });
+
+  async function remoteRepo(): Promise<string> {
+    const root = await project();
+    await fs.rm(path.join(root, 'apps/shell'), { recursive: true });
+    for (const remote of ['cart', 'catalog'])
+      await install(path.join(root, 'apps', remote), 'react', '18.3.1');
+    return root;
+  }
+
+  it('drops the shell-absent hint and reports a skewed react as E302', async () => {
+    const root = await remoteRepo();
+    const file = path.join(root, 'shell.json');
+    await fs.writeFile(file, shellManifest('19.1.0'));
+    const { code, result } = await run(root, 'doctor', '--against', file);
+    expect(code).toBe(3);
+    expect(result.against).toBe(file);
+    const compat = result.findings.filter((f) => f.check === 'compat');
+    expect(compat.length).toBeGreaterThan(0);
+    expect(compat.every((f) => f.severity === 'error')).toBe(true);
+    expect(compat.map((f) => f.message).join('\n')).not.toContain('not in this repo');
+  });
+
+  it('passes the compat check when the shell agrees, and still runs the other checks', async () => {
+    const root = await remoteRepo();
+    await fs.writeFile(path.join(root, 'shell.json'), shellManifest('18.3.1'));
+    const { result } = await run(root, 'doctor', '--against', 'shell.json');
+    expect(result.findings.filter((f) => f.check === 'compat')).toEqual([]);
+    expect(result.checks.find((c) => c.id === 'compat')?.status).toBe('pass');
+    expect(result.checks.length).toBeGreaterThan(5);
+  });
+
+  it('fails with E307 for a source it cannot read', async () => {
+    const root = await remoteRepo();
+    const rt = testRuntime();
+    expect(
+      await main(['doctor', '--against', 'missing.json', '--json', '--cwd', root], rt),
+    ).not.toBe(0);
+    expect(rt.io.out.join('') + rt.io.err.join('')).toContain('MFEFLOW_E307');
+  });
+
+  it('leaves doctor without the flag as it was', async () => {
+    const root = await remoteRepo();
+    const { result } = await run(root, 'doctor');
+    expect(result.against).toBeUndefined();
+    expect(result.findings.some((f) => f.message.includes('doctor --against'))).toBe(true);
   });
 });
 

@@ -182,7 +182,7 @@ export interface ReportResult {
   summary: Summary;
   checks: CheckReport[];
   findings: Finding[];
-  /** `check-compat --against`: where the shell's versions came from. */
+  /** `doctor` and `check-compat --against`: where the shell's versions came from. */
   against?: string;
 }
 
