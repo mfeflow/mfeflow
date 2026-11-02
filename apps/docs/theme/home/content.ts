@@ -24,6 +24,7 @@ export const DOCUMENTED_FEATURES: readonly string[] = [
   'registry-static',
   'release',
   'registry-server',
+  'deploy-cloudflare',
   'route-factory',
   'storybook',
   'tailwind',
@@ -46,6 +47,7 @@ export const FEATURE_GROUPS = [
       'commit-prompt',
       'ci-github',
       'registry-server',
+      'deploy-cloudflare',
     ],
   },
   {
@@ -76,7 +78,7 @@ export const STATS = [
     label: 'LCP against the same pages built as one app',
     source: 'Lighthouse mobile, median of 10, budget 300 ms',
   },
-  { value: '24', label: 'features, each one command away', source: 'mfeflow add <feature>' },
+  { value: '25', label: 'features, each one command away', source: 'mfeflow add <feature>' },
   { value: '19', label: 'packages, versioned together', source: 'MIT, npm provenance' },
 ] as const;
 

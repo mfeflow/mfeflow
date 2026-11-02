@@ -1,0 +1,91 @@
+# Cloudflare
+
+This is one way to host the project on Cloudflare Workers. The files were added by `deploy-cloudflare`. They are
+yours: edit them, replace them, or delete them. Nothing else in the project depends on them.
+
+## What was added
+
+<% if (it.options.r2Proxy) { %>- `apps/shell/wrangler.jsonc`: the shell as a Worker with static assets, with a `staging` and a `prod` environment.
+- `apps/shell/worker/registry-proxy.ts`: a small Worker that serves `/registry/*` from an R2 bucket.
+- `deploy/r2-cors.json`: the CORS rules for the bucket, for the case where you serve it from its own domain.
+<% } else { %>- `apps/<app>/wrangler.jsonc` for the shell and for each remote: one Worker per app, each with a `staging` and a `prod` environment. A remote added later gets its own file.
+<% } %>- `apps/<app>/public/_headers`: the cache rules<% if (!it.options.r2Proxy) { %>, and on remotes the CORS header<% } %>.
+- `deploy/cloudflare.json`: the address each environment is served from.
+- `scripts/deploy-cloudflare.ts` and the script `pnpm deploy:cloudflare`.
+- `.github/workflows/deploy-cloudflare.yml`, only when `ci-github` is in the project.
+- `wrangler` as a dev dependency.
+
+## How it works
+
+<% if (it.options.r2Proxy) { %>The shell is one Worker. Remotes are published to an R2 bucket with `mfeflow deploy`, and the shell Worker serves the bucket's index and files under `/registry`. <% } else { %>The shell and each remote are separate Workers on their own addresses, so the shell loads remotes from another origin. <% } %>The build is made once. `pnpm deploy:cloudflare prod` then copies each `dist` into `apps/<app>/.mfeflow/cloudflare/prod`, and changes only that copy:
+
+- The shell gets `config/runtime-config.json` from `runtime-config.prod.json`. The other environments' files are left out.
+<% if (!it.options.r2Proxy) { %>- The shell gets `registry/index.json`, written from the remotes' versions and the addresses in `deploy/cloudflare.json`, and their origins are added to `registryOrigins` so the runtime accepts them.
+- Each remote's `_headers` gets the shell's address as its `Access-Control-Allow-Origin`.
+<% } %>
+Then it runs `wrangler deploy --env prod` for each app. Cloudflare makes one Worker per environment, named `<%= it.scope.slice(1) %>-<app>-prod`. Bindings and `vars` are not inherited by an environment, so they are repeated in each block.
+
+## Set it up
+
+1. Put the real addresses in `deploy/cloudflare.json`. The script stops on an empty or `example.com` address.
+2. Choose how each Worker is reached. Without a `routes` entry, Cloudflare uses a `workers.dev` address. For your own domain, add `"routes": [{ "pattern": "shop.example.com", "custom_domain": true }]` to the environment in `wrangler.jsonc`.
+3. Build and look at what would be deployed:
+
+```sh
+pnpm build
+pnpm deploy:cloudflare staging --dry-run
+```
+
+4. Deploy. Wrangler reads `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from the environment:
+
+```sh
+pnpm deploy:cloudflare staging
+```
+
+Pass app names to deploy only those: `pnpm deploy:cloudflare prod shell`.
+
+<% if (it.options.r2Proxy) { %>## The R2 bucket
+
+Create one bucket for each environment, named in `wrangler.jsonc` (`<%= it.scope.slice(1) %>-registry-staging` and `<%= it.scope.slice(1) %>-registry-prod`):
+
+```sh
+pnpm wrangler r2 bucket create <%= it.scope.slice(1) %>-registry-prod
+```
+
+Publish remotes with `mfeflow deploy` and the bucket's S3 endpoint (see the registry-static guide). The Worker answers `/registry/index.json` from `envs/<env>/index.json`, and `/registry/<name>/<version>/<file>` from the same key in the bucket. The index is checked on every load, and versioned files are cached for a year.
+
+Set `registryUrls` in the shell's runtime config only if you use another address. The default is `/registry/index.json`.
+
+If you would rather serve the bucket from its own domain, connect the domain in the dashboard and allow the shell's origin. Edit `deploy/r2-cors.json`, then:
+
+```sh
+pnpm wrangler r2 bucket cors set <%= it.scope.slice(1) %>-registry-prod --file deploy/r2-cors.json
+```
+
+<% } %>## In CI
+
+With `ci-github` in the project, `.github/workflows/deploy-cloudflare.yml` builds once and deploys each app with `cloudflare/wrangler-action`. A push to `main` deploys staging. Run it by hand to choose `prod`. Add these as secrets on the GitHub environments `cloudflare-staging` and `cloudflare-prod`:
+
+- `CLOUDFLARE_API_TOKEN`: an API token that may edit Workers
+- `CLOUDFLARE_ACCOUNT_ID`
+
+Add a required reviewer to `cloudflare-prod` to hold production until someone approves. The workflow starts with no permissions, gives each job `contents: read`, and pins every action to a commit SHA. The workflow is only written when `ci-github` is already in the project, so add `ci-github` first.
+
+## Cache rules
+
+`_headers` is read by Cloudflare for static assets. It is not applied to responses your own Worker code makes<% if (it.options.r2Proxy) { %>, which is why `registry-proxy.ts` sets its own `Cache-Control`<% } %>. Each path matches one rule, because a header set by two rules is joined with a comma. The file holds up to 100 rules.
+
+- `no-cache`: `/`, `/index.html`, `/mf-manifest.json`, `config/runtime-config*`<% if (!it.options.r2Proxy) { %>, `registry/index.json`<% } %>
+- `public, max-age=31536000, immutable`: `/static/*`, whose names carry a hash
+
+## Change or remove it
+
+- Rename a Worker or add a route: edit `wrangler.jsonc`.
+- Add a third environment: add a block to each `wrangler.jsonc`, to `deploy/cloudflare.json`, and the name to `ENVS` in the script.
+- Stop using it: delete the files above and `pnpm remove wrangler`. Run `pnpm mfeflow validate` afterwards.
+- Roll back: `pnpm wrangler rollback --env prod --config apps/<app>/wrangler.jsonc` makes the previous version of a Worker live again.
+
+## Gotchas
+
+- With the shell's single-page fallback, a mistyped path returns `index.html` with status 200. Remotes have no fallback, so a missing file is a 404.
+- pnpm may hold back the build scripts of `workerd` and `esbuild`. Deploying works without them. `wrangler dev` needs them, so approve them if you run it.

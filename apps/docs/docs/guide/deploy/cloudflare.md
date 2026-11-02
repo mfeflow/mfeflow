@@ -7,6 +7,8 @@ description: Host the shell and remotes on Cloudflare Workers static assets with
 
 This how-to puts an mfeflow site on Cloudflare Workers static assets. It is one option among several in the [Deploy overview](/guide/deploy/). The second half covers R2, for teams that want remotes and the index outside the shell.
 
+You can write the files below by hand, or run `mfeflow add deploy-cloudflare` and get a version of them to edit. See [deploy-cloudflare](/features/deploy-cloudflare) for what it adds. The steps here stay valid either way.
+
 You need a Cloudflare account, a domain on Cloudflare, and the `site` folder from the overview. Cloudflare's own docs cover each step in more depth: [static assets](https://developers.cloudflare.com/workers/static-assets/) and [R2](https://developers.cloudflare.com/r2/).
 
 ## Deploy the site folder

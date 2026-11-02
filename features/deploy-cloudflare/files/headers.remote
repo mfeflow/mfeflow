@@ -1,0 +1,13 @@
+# The shell's origin is filled in from deploy/cloudflare.json when the build is staged, so the shell can load
+# this remote with crossorigin. Each path matches one Cache-Control rule, because a header set by two rules is
+# joined with a comma. Hashed files under /static never change.
+/*
+  Access-Control-Allow-Origin: __SHELL_ORIGIN__
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/mf-manifest.json
+  Cache-Control: no-cache
+/static/*
+  Cache-Control: public, max-age=31536000, immutable

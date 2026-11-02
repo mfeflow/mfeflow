@@ -1,0 +1,85 @@
+{
+  "name": "deploy-cloudflare",
+  "version": "0.1.0",
+  "description": "One way to host the shell and remotes on Cloudflare Workers static assets: a wrangler.jsonc per app with staging and prod, _headers with the cache and CORS rules, a script that picks each environment's runtime config and registry index without rebuilding, an optional R2 proxy for /registry/*, and, when ci-github is present, a workflow. Opt-in; every file is yours to edit or delete.",
+  "keywords": ["cloudflare", "workers", "wrangler", "r2", "deploy"],
+  "requires": ["core"],
+  "prompts": [
+    {
+      "name": "r2Proxy",
+      "type": "boolean",
+      "message": "Serve /registry/* from an R2 bucket through a small Worker (the remotes are then published with mfeflow deploy)",
+      "default": false
+    }
+  ],
+  "files": [
+    {
+      "to": "wrangler.jsonc",
+      "target": "shell",
+      "from": "files/wrangler.shell.jsonc.eta",
+      "template": true
+    },
+    {
+      "to": "wrangler.jsonc",
+      "target": "remotes",
+      "from": "files/wrangler.remote.jsonc.eta",
+      "template": true,
+      "when": { "r2Proxy": false }
+    },
+    {
+      "to": "public/_headers",
+      "target": "shell",
+      "from": "files/headers.shell.eta",
+      "template": true
+    },
+    {
+      "to": "public/_headers",
+      "target": "remotes",
+      "from": "files/headers.remote",
+      "when": { "r2Proxy": false }
+    },
+    {
+      "to": "worker/registry-proxy.ts",
+      "target": "shell",
+      "from": "files/registry-proxy.ts",
+      "when": { "r2Proxy": true }
+    },
+    {
+      "to": "deploy/r2-cors.json",
+      "target": "root",
+      "from": "files/r2-cors.json",
+      "when": { "r2Proxy": true }
+    },
+    {
+      "to": "deploy/cloudflare.json",
+      "target": "root",
+      "from": "files/cloudflare.json.eta",
+      "template": true
+    },
+    {
+      "to": "scripts/deploy-cloudflare.ts",
+      "target": "root",
+      "from": "files/deploy-cloudflare.ts"
+    },
+    {
+      "to": "docs/cloudflare.md",
+      "target": "root",
+      "from": "files/cloudflare.md.eta",
+      "template": true
+    },
+    {
+      "to": ".github/workflows/deploy-cloudflare.yml",
+      "target": "root",
+      "from": "files/deploy-cloudflare.yml",
+      "when": { "feature:ci-github": true }
+    }
+  ],
+  "dependencies": [{ "name": "wrangler", "range": "4.156.1", "target": "root", "dev": true }],
+  "scripts": [
+    {
+      "name": "deploy:cloudflare",
+      "command": "node --experimental-strip-types scripts/deploy-cloudflare.ts",
+      "target": "root"
+    }
+  ]
+}
