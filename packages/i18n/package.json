@@ -1,6 +1,6 @@
 {
   "name": "@mfeflow/i18n",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "i18n for micro-frontends: one i18next instance owned by the shell, each remote lazy-loads its own namespace from its own deploy, RTL and persisted language.",
   "keywords": [
     "micro-frontend",

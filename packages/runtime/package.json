@@ -1,6 +1,6 @@
 {
   "name": "@mfeflow/runtime",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Runtime for mfeflow micro-frontends: remotes from a registry index, RemoteBoundary with timeout and fallback, error reporting, singleton checks, composeProviders.",
   "keywords": [
     "micro-frontend",

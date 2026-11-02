@@ -1,6 +1,6 @@
 {
   "name": "@mfeflow/rsbuild",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Rsbuild presets for Module Federation 2.0 micro-frontends: createShellConfig and createRemoteConfig with shared singletons, external runtime, manifests, types and error reporting set up.",
   "keywords": [
     "micro-frontend",
