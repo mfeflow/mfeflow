@@ -149,10 +149,33 @@ jobs:
           BASE: origin/${{ github.base_ref }}
         run: node scripts/check-feature-versions.mjs "$BASE"
 
+  # Builds and typechecks examples/adopt-existing on its own, with no mfeflow package, so the
+  # README's claim that it works without mfeflow stays true. No dev servers, to keep it fast.
+  example-adopt:
+    name: example (adopt-existing)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: examples/adopt-existing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm -r build
+      - run: pnpm -r exec tsc --noEmit
+
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [check, e2e, smoke, smoke-polyrepo, publish-check, feature-versions]
+    needs: [check, e2e, smoke, smoke-polyrepo, example-adopt, publish-check, feature-versions]
     runs-on: ubuntu-latest
     permissions: {}
     steps:
@@ -162,6 +185,7 @@ jobs:
           E2E: ${{ needs.e2e.result }}
           SMOKE: ${{ needs.smoke.result }}
           SMOKE_POLYREPO: ${{ needs.smoke-polyrepo.result }}
+          EXAMPLE_ADOPT: ${{ needs.example-adopt.result }}
           PUBLISH_CHECK: ${{ needs.publish-check.result }}
           FEATURE_VERSIONS: ${{ needs.feature-versions.result }}
-        run: test "$CHECK" = "success" && test "$E2E" = "success" && test "$SMOKE" = "success" && test "$SMOKE_POLYREPO" = "success" && test "$PUBLISH_CHECK" = "success" && { test "$FEATURE_VERSIONS" = "success" || test "$FEATURE_VERSIONS" = "skipped"; }
+        run: test "$CHECK" = "success" && test "$E2E" = "success" && test "$SMOKE" = "success" && test "$SMOKE_POLYREPO" = "success" && test "$EXAMPLE_ADOPT" = "success" && test "$PUBLISH_CHECK" = "success" && { test "$FEATURE_VERSIONS" = "success" || test "$FEATURE_VERSIONS" = "skipped"; }

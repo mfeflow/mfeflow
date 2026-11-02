@@ -6,7 +6,7 @@ pre-commit:
       run: pnpm prettier --check {staged_files}
     lint:
       glob: '*.{js,ts,tsx}'
-      run: pnpm oxlint --type-aware --deny-warnings {staged_files}
+      run: pnpm oxlint --type-aware --deny-warnings --no-error-on-unmatched-pattern {staged_files}
 
 commit-msg:
   commands:

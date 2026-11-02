@@ -115,6 +115,7 @@ An existing `mfeflow.app.json` or `mfe.json` is also kept as it is.
 
 ## Next steps
 
+- Try it first on the [adopt-existing example](https://github.com/mfeflow/mfeflow/tree/main/examples/adopt-existing), a plain app with one Rsbuild shell and two remotes.
 - Read how [the shell loads remotes](/guide/how-it-works) through the registry.
 - Learn the fields of the [app file](/reference/mfeflow-app-json) and the [project file](/reference/mfeflow-json).
 - Deploy a remote with [Deploy and roll back](/guide/deploy-and-rollback).
