@@ -27,11 +27,18 @@ const add = (feature: string) =>
   main(['add', feature, '--no-install', '--cwd', project], testRuntime());
 const read = (file: string) => fs.readFile(path.join(project, file), 'utf8');
 
-/** The environment without anything the VCS sets, so a child process cannot reach a real repository. */
+/**
+ * The environment without anything the VCS sets, cloud credentials or the registry token, so a
+ * child process cannot reach a real repository, bucket or server.
+ */
 const cleanEnv = (extra: Record<string, string> = {}): Record<string, string> => ({
   ...Object.fromEntries(
     Object.entries(process.env).filter(
-      (entry): entry is [string, string] => entry[1] !== undefined && !entry[0].startsWith('GIT_'),
+      (entry): entry is [string, string] =>
+        entry[1] !== undefined &&
+        !entry[0].startsWith('GIT_') &&
+        !entry[0].startsWith('AWS_') &&
+        entry[0] !== 'MFEFLOW_REGISTRY_TOKEN',
     ),
   ),
   ...extra,
