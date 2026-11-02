@@ -1,9 +1,10 @@
 import path from 'node:path';
-import type { AddEnvKeyOp, TransformOp } from '@mfeflow/contracts';
+import { ENV_KEY_NAME, type AddEnvKeyOp, type TransformOp } from '@mfeflow/contracts';
 import {
   findProjectRoot,
   loadProject,
   MfeflowError,
+  recordEnvKey,
   resolveFeature,
   runtimeConfigFiles,
   type MfeflowProject,
@@ -14,8 +15,6 @@ import { planReport, type AddResult } from '../output';
 import { createBuilder } from '../pipeline';
 import type { Runtime } from '../runtime';
 import { writePlan } from '../write';
-
-const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 const GROUPS = ['root', 'shell', 'remotes'] as const;
 type Group = (typeof GROUPS)[number];
@@ -128,7 +127,7 @@ export async function addEnvKey(
 ): Promise<AddResult> {
   const scope = text(args, 'scope');
   const schema = text(args, 'schema');
-  if (key === undefined || !KEY.test(key)) {
+  if (key === undefined || !ENV_KEY_NAME.test(key)) {
     throw new MfeflowError(
       'E107',
       'add env-key needs a key like API_ORIGIN: mfeflow add env-key <KEY>',
@@ -179,12 +178,17 @@ export async function addEnvKey(
     builder,
   });
   const plan = { ...builder.build(), features: [] };
+  const recorded = recordEnvKey(
+    project,
+    plan.changes.map((change) => change.path),
+    key,
+  );
   const outcome = await writePlan({
     rt,
     globals: { ...globals, install: false },
     root,
     plan,
-    project,
+    project: recorded,
   });
   const result: AddResult = {
     ok: true,

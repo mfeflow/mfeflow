@@ -786,7 +786,7 @@ export async function deployViaServer(
   defs: ArgsDef,
   client: ServerClient,
 ): Promise<DeployResult> {
-  return client.scrubAll(await deployInner(rt, args, raw, defs, client));
+  return client.guarded(rt, (guarded) => deployInner(guarded, args, raw, defs, client));
 }
 
 export async function promoteViaServer(
@@ -796,7 +796,7 @@ export async function promoteViaServer(
   defs: ArgsDef,
   client: ServerClient,
 ): Promise<DeployResult> {
-  return client.scrubAll(await promoteInner(rt, args, raw, defs, client));
+  return client.guarded(rt, (guarded) => promoteInner(guarded, args, raw, defs, client));
 }
 
 export async function rollbackViaServer(
@@ -806,7 +806,7 @@ export async function rollbackViaServer(
   defs: ArgsDef,
   client: ServerClient,
 ): Promise<DeployResult> {
-  return client.scrubAll(await rollbackInner(rt, args, raw, defs, client));
+  return client.guarded(rt, (guarded) => rollbackInner(guarded, args, raw, defs, client));
 }
 
 export async function statusViaServer(
@@ -816,7 +816,7 @@ export async function statusViaServer(
   defs: ArgsDef,
   client: ServerClient,
 ): Promise<StatusResult> {
-  return client.scrubAll(await statusInner(rt, args, raw, defs, client));
+  return client.guarded(rt, (guarded) => statusInner(guarded, args, raw, defs, client));
 }
 
 export async function runRolloutCommand(
@@ -825,8 +825,8 @@ export async function runRolloutCommand(
   raw: readonly string[],
   client: ServerClient | undefined,
 ): Promise<RolloutCommandResult> {
-  const result = await rolloutInner(rt, args, raw, client);
-  return client === undefined ? result : client.scrubAll(result);
+  if (client === undefined) return rolloutInner(rt, args, raw, client);
+  return client.guarded(rt, (guarded) => rolloutInner(guarded, args, raw, client));
 }
 
 export async function runKillCommand(
@@ -836,8 +836,8 @@ export async function runKillCommand(
   restore: boolean,
   client: ServerClient | undefined,
 ): Promise<KillCommandResult> {
-  const result = await killInner(rt, args, raw, restore, client);
-  return client === undefined ? result : client.scrubAll(result);
+  if (client === undefined) return killInner(rt, args, raw, restore, client);
+  return client.guarded(rt, (guarded) => killInner(guarded, args, raw, restore, client));
 }
 
 export function formatServerAction(result: RolloutCommandResult | KillCommandResult): string {
