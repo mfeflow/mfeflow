@@ -33,6 +33,7 @@ describe('first-party catalogue', () => {
       'registry-static',
       'release',
       'registry-server',
+      'deploy-cloudflare',
       'deploy-docker',
     ]);
     expect(DEFAULT_FEATURES).toEqual(['lint-oxlint', 'url-factory', 'env-t3', 'testing']);

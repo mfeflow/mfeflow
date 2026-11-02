@@ -2,8 +2,9 @@ packages:
   - apps/*
   - packages/*
 
-# Dependencies allowed to run install scripts. esbuild (pulled in by Storybook) works without its
-# script; listing it as false keeps pnpm from stopping the install to ask.
+# Dependencies allowed to run install scripts. esbuild (pulled in by Storybook) and workerd (pulled in
+# by wrangler) work without their script; listing them as false keeps pnpm from stopping the install to ask.
 allowBuilds:
   lefthook: true
   esbuild: false
+  workerd: false

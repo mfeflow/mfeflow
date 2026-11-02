@@ -44,6 +44,11 @@
     "label": "registry-server"
   },
   {
+    "type": "file",
+    "name": "deploy-cloudflare",
+    "label": "deploy-cloudflare"
+  },
+  {
     "type": "section-header",
     "label": "Data and contracts"
   },

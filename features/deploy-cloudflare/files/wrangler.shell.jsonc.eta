@@ -1,0 +1,40 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  // The shell as a Worker with static assets. This file is yours: change names, add routes, drop an environment.
+  // Deploy with `pnpm deploy:cloudflare <staging|prod>`. It stages the build with that environment's runtime
+  // config, then runs `wrangler deploy --env <name>`. A bare `wrangler deploy` would publish the top level.
+  "name": "<%= it.scope.slice(1) %>-<%= it.app.name %>",
+<% if (it.options.r2Proxy) { %>  "main": "worker/registry-proxy.ts",
+<% } %>  "compatibility_date": "2026-10-28",
+  // `wrangler dev` and the top level serve the build as is. The environments serve the staged copies.
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+<% if (it.options.r2Proxy) { %>    "run_worker_first": ["/registry/*"],
+<% } %>  },
+<% if (it.options.r2Proxy) { %>  "vars": { "MFE_ENV": "dev" },
+  "r2_buckets": [{ "binding": "REGISTRY", "bucket_name": "<%= it.scope.slice(1) %>-registry-dev" }],
+<% } %>  // To serve a domain, add to each environment: "routes": [{ "pattern": "shop.example.com", "custom_domain": true }]
+  "env": {
+    "staging": {
+      "name": "<%= it.scope.slice(1) %>-<%= it.app.name %>-staging",
+      "assets": {
+        "directory": "./.mfeflow/cloudflare/staging",
+        "not_found_handling": "single-page-application",
+<% if (it.options.r2Proxy) { %>        "run_worker_first": ["/registry/*"],
+<% } %>      },
+<% if (it.options.r2Proxy) { %>      "vars": { "MFE_ENV": "staging" },
+      "r2_buckets": [{ "binding": "REGISTRY", "bucket_name": "<%= it.scope.slice(1) %>-registry-staging" }],
+<% } %>    },
+    "prod": {
+      "name": "<%= it.scope.slice(1) %>-<%= it.app.name %>-prod",
+      "assets": {
+        "directory": "./.mfeflow/cloudflare/prod",
+        "not_found_handling": "single-page-application",
+<% if (it.options.r2Proxy) { %>        "run_worker_first": ["/registry/*"],
+<% } %>      },
+<% if (it.options.r2Proxy) { %>      "vars": { "MFE_ENV": "prod" },
+      "r2_buckets": [{ "binding": "REGISTRY", "bucket_name": "<%= it.scope.slice(1) %>-registry-prod" }],
+<% } %>    },
+  },
+}

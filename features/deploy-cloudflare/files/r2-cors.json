@@ -1,0 +1,10 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": ["https://shop.example.com"],
+        "methods": ["GET"]
+      }
+    }
+  ]
+}

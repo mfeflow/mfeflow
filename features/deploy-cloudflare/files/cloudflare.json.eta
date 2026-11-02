@@ -1,0 +1,13 @@
+{
+  "registry": "<%= it.options.r2Proxy ? 'r2' : 'assets' %>",
+  "envs": {
+    "staging": {
+      "shell": "",
+      "remotes": {}
+    },
+    "prod": {
+      "shell": "",
+      "remotes": {}
+    }
+  }
+}
