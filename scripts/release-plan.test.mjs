@@ -509,7 +509,8 @@ const makeTarball = (dir, file, manifest) => {
   return sha256(fs.readFileSync(path.join(dir, 'release', file)));
 };
 
-describe('the publish job shell', () => {
+// Runs bash and tar for real; Windows runners start them slowly.
+describe('the publish job shell', { timeout: 30_000 }, () => {
   const steps = code(readWorkflow('release.yml'))
     .split(/\n  tag:\n/)[0]
     .split(/\n  publish:\n/)[1]
