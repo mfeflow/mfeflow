@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { main } from '.';
 import { buildRemote, fixture, parseObject, type Fixture, BASE_URL } from './deploy-testing';
 import { validateResult } from './output';
-import { fakeIo, tempDir, removeDir, testRuntime } from './testing';
+import { fakeIo, tempDir, removeDir, scriptedPrompter, testRuntime } from './testing';
 
 const supported = sqliteSupport(process.versions.node).ok;
 
@@ -544,7 +544,14 @@ describe('a server that echoes the token back', () => {
       if (route.startsWith('/v1/index/'))
         return send(200, {
           env: 'prod',
-          remotes: [{ name: 'catalog', version: '1.0.0', entry: `https://cdn.test/${echoed}` }],
+          remotes: [
+            {
+              name: 'catalog',
+              version: route === '/v1/index/a' ? `1.0.0-${echoed}` : '1.0.0',
+              entry: `https://cdn.test/${echoed}`,
+              history: [`0.8.0-${echoed}`],
+            },
+          ],
         });
       if (route.startsWith('/v1/rollout?'))
         return send(200, {
@@ -618,5 +625,44 @@ describe('a server that echoes the token back', () => {
     mode = 'gates';
     await ran('promote', 'catalog', '--from', 'a', '--to', 'b');
     await ran('rollback', 'catalog', '--env', 'prod', '--to', '0.9.0');
+  });
+
+  it('never prints it from the rollback dry-run error, which quotes the server history', async () => {
+    const rt = testRuntime();
+    rt.io = fakeIo({ env: { MFEFLOW_REGISTRY_URL: url, MFEFLOW_REGISTRY_TOKEN: secret } });
+    const cwd = await tempDir();
+    try {
+      const code = await main(
+        ['rollback', 'catalog', '--env', 'prod', '--to', '0.9.0', '--dry-run', '--cwd', cwd],
+        rt,
+      );
+      const all = rt.io.out.join('\n') + rt.io.err.join('\n');
+      expect(code).not.toBe(0);
+      expect(all).toContain('is not in the history');
+      expect(all).toContain('0.8.0-');
+      expect(all).not.toContain(secret);
+    } finally {
+      await removeDir(cwd);
+    }
+  });
+
+  it('never puts it in the confirm prompt', async () => {
+    const prompter = scriptedPrompter([true, true]);
+    const rt = testRuntime({ prompter });
+    rt.io = fakeIo({
+      env: { MFEFLOW_REGISTRY_URL: url, MFEFLOW_REGISTRY_TOKEN: secret },
+      interactive: true,
+    });
+    const cwd = await tempDir();
+    try {
+      await main(['promote', 'catalog', '--from', 'a', '--to', 'b', '--cwd', cwd], rt);
+      await main(['rollback', 'catalog', '--env', 'prod', '--cwd', cwd], rt);
+      expect(prompter.asked.length).toBeGreaterThan(0);
+      for (const message of prompter.asked) expect(message).not.toContain(secret);
+      expect(prompter.asked[0]).toContain('catalog@1.0.0');
+      expect(rt.io.out.join('\n') + rt.io.err.join('\n')).not.toContain(secret);
+    } finally {
+      await removeDir(cwd);
+    }
   });
 });

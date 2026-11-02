@@ -2,6 +2,7 @@ import { isLoopbackHttp, type RegistryIndex } from '@mfeflow/contracts';
 import { messageOf, MfeflowError, type ErrorCode } from '@mfeflow/core';
 import { text } from './args';
 import { redact } from './hosts';
+import type { Prompter } from './prompter';
 import type { Runtime } from './runtime';
 
 export const URL_ENV = 'MFEFLOW_REGISTRY_URL';
@@ -146,6 +147,31 @@ export class ServerClient {
   scrubAll<T>(value: T): T {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a JSON round trip keeps the shape
     return JSON.parse(this.scrub(JSON.stringify(value))) as T;
+  }
+
+  /** The same error with the token taken out of its message, stack and fix, for errors thrown outside `run`. */
+  scrubError(error: unknown): unknown {
+    if (!(error instanceof Error)) return error;
+    error.message = this.scrub(error.message);
+    if (error.stack !== undefined) error.stack = this.scrub(error.stack);
+    if (error instanceof MfeflowError)
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `fix` is readonly only for callers
+      (error as { fix: string }).fix = this.scrub(error.fix);
+    return error;
+  }
+
+  /** Runs a whole server-mode command: whatever it prints, prompts or throws is scrubbed. */
+  async guarded<T>(rt: Runtime, work: (rt: Runtime) => Promise<T>): Promise<T> {
+    const prompter: Prompter = {
+      ...rt.prompter,
+      confirm: (options) =>
+        rt.prompter.confirm({ ...options, message: this.scrub(options.message) }),
+    };
+    try {
+      return this.scrubAll(await work({ ...rt, prompter }));
+    } catch (error) {
+      throw this.scrubError(error);
+    }
   }
 
   get hasToken(): boolean {
