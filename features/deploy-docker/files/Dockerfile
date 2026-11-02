@@ -19,13 +19,14 @@ RUN corepack enable
 WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile
+RUN case "${APP}" in ''|*[!a-z0-9-]*) echo "APP must be an app name from mfeflow.json" >&2; exit 1;; esac
 RUN pnpm --filter "./apps/${APP}" build
 RUN set -eu; \
-    case "${APP}" in ''|*[!a-z0-9-]*) echo "APP must be an app name from mfeflow.json" >&2; exit 1;; esac; \
     kind="$(node -p "require('./mfeflow.json').apps['${APP}'].kind")"; \
     version="$(node -p "require('./apps/${APP}/package.json').version")"; \
     case "${version}" in ''|*[!0-9A-Za-z.+-]*) echo "unusable version: ${version}" >&2; exit 1;; esac; \
     mkdir -p /out/html /out/configs; \
+    echo "${kind}" > /out/kind; \
     cp -R "apps/${APP}/dist/." /out/html/; \
     if [ "${kind}" = shell ]; then \
       if [ -d /out/html/config ]; then mv /out/html/config/runtime-config*.json /out/configs/; rm -r /out/html/config; fi; \
@@ -37,6 +38,7 @@ RUN set -eu; \
 FROM ${NGINX_IMAGE}
 COPY --from=build /out/html /usr/share/nginx/html
 COPY --from=build /out/configs /opt/mfe/configs
+COPY --from=build /out/kind /opt/mfe/kind
 COPY --from=build /out/default.conf /etc/nginx/conf.d/default.conf
 COPY --chmod=755 docker/40-mfe-config.sh /docker-entrypoint.d/40-mfe-config.sh
 # The base image already runs as user 101 (nginx). The start script writes to /tmp/mfe-runtime.

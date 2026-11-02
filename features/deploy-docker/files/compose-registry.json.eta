@@ -1,9 +1,18 @@
+<% const used = new Set(it.apps.flatMap((a) => (a.port === undefined ? [] : [a.port])));
+let spare = 8080;
+const ports = Object.fromEntries(it.apps.map((a) => {
+  if (a.port !== undefined) return [a.name, a.port];
+  while (used.has(spare)) spare++;
+  used.add(spare);
+  return [a.name, spare];
+}));
+-%>
 {
   "env": "local",
   "remotes": [
 <% const remotes = it.apps.filter((a) => a.kind === 'remote'); remotes.forEach((a, i) => { %>    {
       "name": "<%= a.name %>",
-      "entry": "http://localhost:<%= a.port ?? 8080 %>/mf-manifest.json",
+      "entry": "http://localhost:<%= ports[a.name] %>/mf-manifest.json",
       "routes": ["/<%= a.name %>"]
     }<%= i < remotes.length - 1 ? ',' : '' %>
 <% }) %>  ]

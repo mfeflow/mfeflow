@@ -100,6 +100,10 @@ describe.skipIf(!dockerUp)('the generated images, built and run with Docker', ()
       expect(config.headers.get('cache-control')).toBe('no-cache');
       expect(await config.json()).toEqual({ environment: 'staging' });
       expect((await fetch(`${shellUrl}/config/runtime-config.prod.json`)).status).toBe(404);
+      expect((await fetch(`${shellUrl}/.env`)).status).toBe(404);
+      expect(index.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(index.headers.get('referrer-policy')).toBe('strict-origin-when-cross-origin');
+      expect(index.headers.get('x-frame-options')).toBe('SAMEORIGIN');
       const missing = await fetch(`${shellUrl}/static/js/nope.js`);
       expect(missing.status).toBe(404);
       expect(missing.headers.get('cache-control')).toBeNull();
@@ -111,6 +115,9 @@ describe.skipIf(!dockerUp)('the generated images, built and run with Docker', ()
       expect(manifest.status).toBe(200);
       expect(manifest.headers.get('cache-control')).toBe('no-cache');
       expect(manifest.headers.get('access-control-allow-origin')).toBe('http://localhost:4300');
+      expect(manifest.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(manifest.headers.get('x-frame-options')).toBeNull();
+      expect((await fetch(`${remoteUrl}/.env`)).status).toBe(404);
       const other = await fetch(`${remoteUrl}/mf-manifest.json`, {
         headers: { Origin: 'https://evil.example' },
       });

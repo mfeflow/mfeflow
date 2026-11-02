@@ -15,7 +15,9 @@ const source = (name: string): string => fs.readFileSync(path.join(FILES, name),
 const cleanEnv = (extra: Record<string, string> = {}): Record<string, string> => ({
   ...Object.fromEntries(
     Object.entries(process.env).flatMap(([k, v]) =>
-      v === undefined || k.startsWith('GIT_') ? [] : [[k, v]],
+      v === undefined || k.startsWith('GIT_') || k.startsWith('MFE_') || k === 'SHELL_ORIGINS'
+        ? []
+        : [[k, v]],
     ),
   ),
   ...extra,
@@ -135,6 +137,12 @@ describe('the Dockerfile', () => {
     expect(check).not.toContain('curl');
   });
 
+  it('checks APP before it builds anything', () => {
+    expect(dockerfile.indexOf('APP must be an app name')).toBeLessThan(
+      dockerfile.indexOf('pnpm --filter'),
+    );
+  });
+
   it('refuses an APP that is not a plain app name', () => {
     expect(dockerfile).toContain('case "${APP}" in \'\'|*[!a-z0-9-]*)');
   });
@@ -169,6 +177,27 @@ describe('the nginx configs', () => {
   it('falls back to index.html in the shell only', () => {
     expect(shell).toContain('try_files $uri /index.html;');
     expect(remote).not.toContain('index.html');
+  });
+
+  it('sets security headers beside every Cache-Control, and a frame header on the shell only', () => {
+    for (const conf of [shell, remote]) {
+      const blocks = [...conf.matchAll(/location [^{]+\{([^}]*)\}/g)].map((m) => m[1] ?? '');
+      const cached = blocks.filter((b) => b.includes('Cache-Control'));
+      expect(cached.length).toBeGreaterThanOrEqual(3);
+      for (const block of cached) {
+        expect(block).toContain('X-Content-Type-Options "nosniff" always;');
+        expect(block).toContain('Referrer-Policy "strict-origin-when-cross-origin" always;');
+      }
+    }
+    expect(shell.match(/X-Frame-Options "SAMEORIGIN" always;/g)).toHaveLength(5);
+    expect(remote).not.toContain('X-Frame-Options');
+  });
+
+  it('answers 404 for dotfiles before the extension rule can serve them', () => {
+    for (const conf of [shell, remote]) {
+      expect(conf).toContain('location ~ /\\.(?!well-known) { return 404; }');
+    }
+    expect(shell.indexOf('well-known')).toBeLessThan(shell.indexOf('\\.[A-Za-z0-9]+$'));
   });
 
   it('sends CORS headers wherever a remote sets Cache-Control, and none from the shell', () => {
@@ -281,7 +310,8 @@ describe('the start script', () => {
       const { run } = setup(['runtime-config.prod.json']);
       const result = run({});
       expect(result.status).toBe(1);
-      expect(result.stderr).toContain('set MFE_ENV');
+      expect(result.stderr).toContain('Set MFE_ENV');
+      expect(result.stderr).toContain('runtime-config.prod.json');
     });
 
     it('uses the only runtime-config.json when MFE_ENV is not set', () => {
@@ -318,12 +348,38 @@ describe('the start script', () => {
       'https://shop.example.com/app',
       'https://a b',
       'https://a";x',
-    ])('refuses SHELL_ORIGINS entry %s', (origin) => {
+      'https://a.com\nhttps://b.com',
+      'https://a$b.com',
+      'https://a`id`.com',
+      'https://{a}.com',
+      'https://a.com#x',
+      'http://',
+      'https://',
+    ])('refuses SHELL_ORIGINS entry %j and writes nothing', (origin) => {
       const { run, runtime } = setup([]);
       const result = run({ SHELL_ORIGINS: origin });
       expect(result.status).toBe(1);
       expect(result.stderr).toContain('SHELL_ORIGINS');
-      expect(fs.readFileSync(path.join(runtime, 'cors-origins.map'), 'utf8')).not.toContain('x');
+      expect(fs.existsSync(runtime)).toBe(false);
+    });
+
+    it.each(['../x', 'x/y', 'a b', '', '..', 'a..b', '$(id)'])(
+      'refuses MFE_ENV=%j and copies nothing',
+      (env) => {
+        const { run, runtime } = setup(['runtime-config.prod.json', 'runtime-config.x.json']);
+        const result = run({ MFE_ENV: env });
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('MFE_ENV');
+        expect(fs.existsSync(path.join(runtime, 'runtime-config.json'))).toBe(false);
+      },
+    );
+
+    it('fails on a shell with nothing configured and lists the files it has', () => {
+      const { root, run } = setup([]);
+      fs.writeFileSync(path.join(root, 'kind'), 'shell\n');
+      const result = run({ MFE_KIND_FILE: path.join(root, 'kind') });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('Set MFE_ENV');
     });
   });
 });
@@ -375,6 +431,12 @@ describe('the Kubernetes example', () => {
     expect(items.map((d) => d.kind)).toEqual(['ConfigMap', 'ConfigMap', 'Deployment', 'Service']);
   });
 
+  it('does not mount a service account token and names the user and group', () => {
+    expect(pod).toMatchObject({ automountServiceAccountToken: false });
+    expect(pod?.securityContext).toMatchObject({ runAsUser: 101, runAsGroup: 101 });
+    expect(container?.securityContext).toMatchObject({ runAsUser: 101, runAsGroup: 101 });
+  });
+
   it('mounts the config as directories and never with subPath', () => {
     expect(code(text)).not.toMatch(/subPath/);
     expect(text).toMatch(/subPath never receives later changes/);
@@ -420,9 +482,9 @@ describe('the compose file', () => {
     };
     expect(Object.keys(compose.services)).toEqual(['shell', 'catalog', 'cart']);
     const { shell, catalog, cart } = compose.services;
-    expect(shell?.ports).toEqual(['4300:8080']);
-    expect(catalog?.ports).toEqual(['4311:8080']);
-    expect(cart?.ports).toEqual(['4312:8080']);
+    expect(shell?.ports).toEqual(['127.0.0.1:4300:8080']);
+    expect(catalog?.ports).toEqual(['127.0.0.1:4311:8080']);
+    expect(cart?.ports).toEqual(['127.0.0.1:4312:8080']);
     expect(shell?.environment.MFE_ENV).toBe('${MFE_ENV:-dev}');
     expect(catalog?.environment.SHELL_ORIGINS).toBe('http://localhost:4300');
     expect(cart?.build.args.APP).toBe('cart');
@@ -434,6 +496,25 @@ describe('the compose file', () => {
       'http://localhost:4311/mf-manifest.json',
       'http://localhost:4312/mf-manifest.json',
     ]);
+  });
+});
+
+describe('the compose file for apps without a port', () => {
+  it('gives each a distinct local port and points the remotes at the shell', async () => {
+    const file = path.join(project, 'mfeflow.json');
+    const saved = JSON.parse(await fsp.readFile(file, 'utf8')) as {
+      apps: Record<string, { port?: number }>;
+    };
+    for (const app of Object.values(saved.apps)) delete app.port;
+    await fsp.writeFile(file, JSON.stringify(saved, null, 2));
+    await add();
+    const compose = parse(await read('compose.yaml'), { merge: true }) as {
+      services: Record<string, { ports: string[]; environment: Record<string, string> }>;
+    };
+    const ports = Object.values(compose.services).flatMap((s) => s.ports);
+    expect(ports).toEqual(['127.0.0.1:8080:8080', '127.0.0.1:8081:8080', '127.0.0.1:8082:8080']);
+    expect(compose.services.catalog?.environment.SHELL_ORIGINS).toBe('http://localhost:8080');
+    expect(await read('compose.yaml')).toContain('gets a spare one starting at');
   });
 });
 

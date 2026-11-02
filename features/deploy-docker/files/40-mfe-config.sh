@@ -17,19 +17,26 @@ fail() {
 }
 
 write_cors() {
-  mkdir -p "$runtime"
-  out="$runtime/cors-origins.map"
-  : > "$out" || fail "cannot write $out; make /tmp writable"
+  case "$1" in
+    *'
+'*) fail "SHELL_ORIGINS must not contain a newline" ;;
+  esac
+  lines=""
   for origin in $(echo "$1" | tr ',' ' '); do
     case "$origin" in
+      http:// | https://) fail "SHELL_ORIGINS entry '$origin' has no host" ;;
       http://* | https://*) ;;
       *) fail "SHELL_ORIGINS entry '$origin' is not an origin like https://shop.example.com" ;;
     esac
     case "$origin" in
       *[!A-Za-z0-9.:/_-]* | */*/*/*) fail "SHELL_ORIGINS entry '$origin' is not a plain origin (no path, no spaces)" ;;
     esac
-    printf '"%s" "%s";\n' "$origin" "$origin" >> "$out"
+    lines="$lines\"$origin\" \"$origin\";
+"
   done
+  mkdir -p "$runtime"
+  out="$runtime/cors-origins.map"
+  printf '%s' "$lines" > "$out" || fail "cannot write $out; make /tmp writable"
   echo "mfe: CORS allowed for $(echo "$1" | tr ',' ' ')"
 }
 
@@ -38,7 +45,10 @@ pick_runtime_config() {
     echo "mfe: using the runtime-config.json already in $runtime"
     return
   fi
-  if [ -n "${MFE_ENV:-}" ]; then
+  if [ -n "${MFE_ENV+set}" ]; then
+    case "$MFE_ENV" in
+      '' | *[!A-Za-z0-9._-]* | *..*) fail "MFE_ENV='$MFE_ENV' is not a plain environment name (letters, digits, . _ -)" ;;
+    esac
     chosen="$configs/runtime-config.$MFE_ENV.json"
     if [ ! -f "$chosen" ]; then
       echo "mfe: no runtime config for MFE_ENV=$MFE_ENV. Available:" >&2
@@ -48,14 +58,18 @@ pick_runtime_config() {
   elif [ -f "$configs/runtime-config.json" ]; then
     chosen="$configs/runtime-config.json"
   else
-    fail "set MFE_ENV to pick a runtime config, or mount runtime-config.json in $runtime"
+    echo "mfe: no runtime config. Set MFE_ENV, or mount runtime-config.json in $runtime. Available in $configs:" >&2
+    ls "$configs" >&2 || true
+    exit 1
   fi
   mkdir -p "$runtime"
   cp "$chosen" "$runtime/runtime-config.json" || fail "cannot write $runtime; make /tmp writable"
   echo "mfe: runtime config from $chosen"
 }
 
-if [ -d "$configs" ] && [ -n "$(ls "$configs" 2>/dev/null)" ]; then
+kind_file="${MFE_KIND_FILE:-/opt/mfe/kind}"
+if [ -f "$kind_file" ] && [ "$(cat "$kind_file")" = shell ] ||
+  { [ -d "$configs" ] && [ -n "$(ls "$configs" 2>/dev/null)" ]; }; then
   pick_runtime_config
 elif [ -n "${SHELL_ORIGINS:-}" ]; then
   write_cors "$SHELL_ORIGINS"

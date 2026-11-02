@@ -38,6 +38,7 @@ spec:
       labels:
         app: mfe-shell
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 101
@@ -51,6 +52,9 @@ spec:
             - name: http
               containerPort: 8080
           securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
