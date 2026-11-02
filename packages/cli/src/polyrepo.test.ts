@@ -8,6 +8,7 @@ import {
   fakeSystem,
   git,
   gitSystem,
+  posixPath,
   readTree,
   removeDir,
   scriptedPrompter,
@@ -184,7 +185,9 @@ describe('mfeflow init --topology polyrepo', () => {
   it('runs git init in each repo, so each is a repo of its own', async () => {
     const real = await fs.realpath(org);
     for (const dir of ['platform', 'shell', ...REMOTES]) {
-      expect(git(path.join(org, dir), 'rev-parse', '--show-toplevel')).toBe(path.join(real, dir));
+      expect(posixPath(git(path.join(org, dir), 'rev-parse', '--show-toplevel'))).toBe(
+        posixPath(path.join(real, dir)),
+      );
     }
     expect(() => git(org, 'rev-parse', '--show-toplevel')).toThrow();
   });

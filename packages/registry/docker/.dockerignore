@@ -1,0 +1,4 @@
+*
+!*.tgz
+!package.json
+!package-lock.json

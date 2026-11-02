@@ -22,7 +22,7 @@ import { planReport, type UpgradeFileReport, type UpgradeResult } from '../outpu
 import { withProjectChange } from '../pipeline';
 import type { Runtime } from '../runtime';
 import { trustedIn } from '../trust';
-import { planProjectUpgrade } from '../upgrade';
+import { planProjectUpgrade, type IntegrityState, type ProjectUpgrade } from '../upgrade';
 import { readPackageJson } from '../version';
 import { writePlan, type WriteOutcome } from '../write';
 
@@ -42,10 +42,11 @@ export const UPGRADE_ARGS = {
     description: 'Keep your version of a file you changed: a path, a list, or all',
     valueHint: 'path|all',
   },
+  // A boolean for the parser, so a bare flag does not swallow the next one; the names are read from the raw arguments.
   'accept-changed-content': {
     type: 'boolean',
     description:
-      'Take a registry feature whose content differs from the hash recorded in mfeflow.json',
+      'Take registry content that differs from the hash recorded in mfeflow.json: every feature, or only those named after the flag (a,b)',
   },
   ...GLOBAL_ARGS,
 } as const satisfies ArgsDef;
@@ -68,6 +69,54 @@ function pathsOf(raw: readonly string[], flag: string): ReadonlySet<string> | 'a
   if (values.length === 0) return undefined;
   if (values.includes('all')) return 'all';
   return new Set(values.map((v) => v.replaceAll('\\', '/').replace(/^\.\//, '')));
+}
+
+const ACCEPT_CHANGED = 'accept-changed-content';
+
+/**
+ * `--accept-changed-content` alone takes every changed feature; `--accept-changed-content a,b`
+ * (or `=a,b`) only those. A repeated flag adds its names to the others. Undefined when absent.
+ */
+function acceptChangedOf(raw: readonly string[]): true | ReadonlySet<string> | undefined {
+  const flag = `--${ACCEPT_CHANGED}`;
+  const stop = raw.indexOf('--');
+  const tokens = stop === -1 ? raw : raw.slice(0, stop);
+  const names = new Set<string>();
+  let seen = false;
+  let all = false;
+  for (const [at, token] of tokens.entries()) {
+    if (token !== flag && !token.startsWith(`${flag}=`)) continue;
+    seen = true;
+    const next = tokens[at + 1];
+    const equals = token.includes('=');
+    const given = equals
+      ? token.slice(flag.length + 1)
+      : next?.startsWith('-') === false
+        ? next
+        : '';
+    const listed = splitList(given) ?? [];
+    if (equals && listed.length === 0) {
+      throw new MfeflowError('E107', `${flag}= needs feature names; leave out the = to take all`);
+    }
+    if (listed.length === 0 || listed.includes('all')) all = true;
+    for (const name of listed) names.add(name);
+  }
+  if (!seen) return undefined;
+  return all ? true : names;
+}
+
+function assertAcceptChanged(
+  accept: true | ReadonlySet<string> | undefined,
+  features: Record<string, unknown>,
+): void {
+  if (!(accept instanceof Set)) return;
+  const unknown = [...accept].filter((name: string) => !Object.hasOwn(features, name));
+  if (unknown.length > 0) {
+    throw new MfeflowError(
+      'E107',
+      `--${ACCEPT_CHANGED} ${unknown.join(', ')} is not a feature installed in this project`,
+    );
+  }
 }
 
 function assertDecisions(
@@ -167,6 +216,7 @@ function divergedReport(entry: DivergedUpgrade): UpgradeFileReport {
     reason: entry.reason,
     decision: decisionOf(entry),
     lostKeys: entry.lostKeys ?? [],
+    changedValues: entry.changedValues ?? [],
     diff: entry.diff,
   };
 }
@@ -182,6 +232,21 @@ function list(title: string, items: readonly string[], limit = SHOWN): string[] 
   ];
 }
 
+/** What accepting the new file drops: keys it lacks, and values it changes. */
+function lostMessage(entry: DivergedUpgrade): string {
+  const changed = new Set(entry.changedValues ?? []);
+  const gone = (entry.lostKeys ?? []).filter((key) => !changed.has(key));
+  const parts = [
+    ...(gone.length > 0 ? [`your keys ${gone.join(', ')} are not in the new file`] : []),
+    ...(changed.size > 0
+      ? [`your values for ${[...changed].join(', ')} differ from the new file`]
+      : []),
+  ];
+  const fix =
+    gone.length > 0 ? 'add the keys back with mfeflow add env-key' : 'set the values again';
+  return `${parts.join(' and ')}; --accept drops them, ${fix} afterwards`;
+}
+
 function divergedLines(entries: readonly DivergedUpgrade[]): string[] {
   const lines = [`Files you changed (${String(entries.length)}):`];
   for (const entry of entries) {
@@ -195,9 +260,7 @@ function divergedLines(entries: readonly DivergedUpgrade[]): string[] {
             : 'needs a decision';
     lines.push(`  ${entry.path}  ${REASONS[entry.reason]}; ${state}`);
     if (entry.lostKeys !== undefined && entry.decision !== 'keep') {
-      lines.push(
-        `    your keys or values for ${entry.lostKeys.join(', ')} are not in the new file; --accept drops them, add them back with mfeflow add env-key`,
-      );
+      lines.push(`    ${lostMessage(entry)}`);
     }
   }
   return lines;
@@ -219,7 +282,7 @@ function sortChanges(up: UpgradePlan): Sorted {
   return out;
 }
 
-function summaryText(up: UpgradePlan, sorted: Sorted): string {
+function summaryText(up: ProjectUpgrade, sorted: Sorted): string {
   const lines = [
     `Upgrading ${up.from} to ${up.to} (${up.from} read from ${up.fromSource})`,
     '',
@@ -234,6 +297,7 @@ function summaryText(up: UpgradePlan, sorted: Sorted): string {
         ]
       : []),
     ...(up.diverged.length > 0 ? divergedLines(up.diverged) : []),
+    ...integrityLines(up.integrity),
     ...list('Missing, you deleted them and they stay deleted', up.missing),
     ...list('No longer generated, left where they are', up.removed),
     ...list(
@@ -243,6 +307,21 @@ function summaryText(up: UpgradePlan, sorted: Sorted): string {
     ...up.plan.warnings.map((w) => `Warning: ${w}`),
   ];
   return lines.join('\n').replaceAll(/\n{3,}/g, '\n\n');
+}
+
+const INTEGRITY_NOTES: Record<IntegrityState, string | undefined> = {
+  verified: undefined,
+  'first-seen':
+    'no hash was recorded for it, so what the registry served could not be checked; it is recorded now',
+  'accepted-changed':
+    'the registry serves other content than was recorded; taken with --accept-changed-content',
+};
+
+function integrityLines(integrity: ProjectUpgrade['integrity']): string[] {
+  return Object.entries(integrity).flatMap(([name, state]) => {
+    const note = INTEGRITY_NOTES[state];
+    return note === undefined ? [] : [`Registry feature ${name}: ${note}`];
+  });
 }
 
 /** Files that wait for a decision. A symlink never does: it is reported and left alone. */
@@ -309,7 +388,7 @@ function assertMayWrite(
 function printPlan(
   rt: Runtime,
   globals: Globals,
-  up: UpgradePlan,
+  up: ProjectUpgrade,
   sorted: Sorted,
   upToDate: boolean,
 ): void {
@@ -366,13 +445,15 @@ export async function runUpgrade(
 
   const root = await findProjectRoot(globals.cwd);
   const project = await loadProject(root);
+  const acceptChanged = acceptChangedOf(raw);
+  assertAcceptChanged(acceptChanged, project.features);
   const trusted = await trustedIn(rt, project.registries);
   assertTrusted(project.features, project.registries, trusted.fetch);
   const context = {
     roots: rt.roots,
     fetch: rt.fetch,
     trusted: trusted.privateOk,
-    acceptChanged: args['accept-changed-content'] === true,
+    ...(acceptChanged === undefined ? {} : { acceptChanged }),
   };
   const up = await planProjectUpgrade(context, root, project, to, {
     ...(accept === undefined ? {} : { accept }),
@@ -397,6 +478,7 @@ export async function runUpgrade(
         project: up.project,
         install: up.plan.changes.some((c) => MANIFESTS.test(c.path)),
         exactProject: true,
+        refuseSymlinks: true,
         quiet: true,
       });
   if (!globals.json) printOutcome(rt, root, up, outcome, upToDate);
@@ -413,6 +495,7 @@ export async function runUpgrade(
     created: sorted.created,
     edited: sorted.structured.map((c) => c.path),
     diverged: up.diverged.map(divergedReport),
+    integrity: up.integrity,
     missing: up.missing,
     removed: up.removed,
     migrations: up.migrations,

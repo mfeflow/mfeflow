@@ -405,8 +405,15 @@ describe('the workflows', () => {
       expect(text).not.toMatch(/\b\d+ public packages/);
   });
 
-  it('has the version, plan, pack, publish and tag jobs', () => {
-    expect(Object.keys(release)).toEqual(['version', 'plan', 'pack', 'publish', 'tag']);
+  it('has the version, plan, pack, publish, image and tag jobs', () => {
+    expect(Object.keys(release)).toEqual(['version', 'plan', 'pack', 'publish', 'image', 'tag']);
+  });
+
+  it('gives only the image job packages: write, after the publish, on ubuntu', () => {
+    for (const [name, chunk] of Object.entries(release))
+      expect(/packages: write/.test(chunk), name).toBe(name === 'image');
+    expect(release.image).toMatch(/needs: \[plan, publish\]/);
+    expect(release.image).toMatch(/runs-on: ubuntu-latest/);
   });
 
   it('gives only the publish job id-token and holds no npm token anywhere', () => {
@@ -502,7 +509,8 @@ const makeTarball = (dir, file, manifest) => {
   return sha256(fs.readFileSync(path.join(dir, 'release', file)));
 };
 
-describe('the publish job shell', () => {
+// Runs bash and tar for real; Windows runners start them slowly.
+describe('the publish job shell', { timeout: 30_000 }, () => {
   const steps = code(readWorkflow('release.yml'))
     .split(/\n  tag:\n/)[0]
     .split(/\n  publish:\n/)[1]

@@ -219,18 +219,19 @@ describe('sqlite storage', () => {
       updatedAt: '2026-11-01T00:00:00.000Z',
     };
     await storage.commit(change('1.0.0', 1, { versions: [], rollout: { set: rollout } }));
-    for (let i = 0; i < 40; i += 1)
+    // Each report is its own transaction; keep the count small for slow Windows disks.
+    for (let i = 0; i < 12; i += 1)
       await storage.addRolloutReport('cnt1', '2.0.0', `c${String(i)}`, i % 4 === 0, 1000);
     const { DatabaseSync } = await import('node:sqlite');
     const db = new DatabaseSync(file, { readOnly: true });
     expect(db.prepare('SELECT version, clients, errors FROM rollout_side_counts').all()).toEqual([
-      { version: '2.0.0', clients: 40, errors: 10 },
+      { version: '2.0.0', clients: 12, errors: 3 },
     ]);
     db.close();
     expect((await storage.rolloutCounts('cnt1'))['2.0.0']).toEqual({
-      loads: 40,
-      errors: 10,
-      clients: 40,
+      loads: 12,
+      errors: 3,
+      clients: 12,
     });
   });
 

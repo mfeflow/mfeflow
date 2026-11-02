@@ -23,6 +23,7 @@ export const DOCUMENTED_FEATURES: readonly string[] = [
   'lint-oxlint',
   'registry-static',
   'release',
+  'registry-server',
   'route-factory',
   'storybook',
   'tailwind',
@@ -37,7 +38,15 @@ export const DOCUMENTED_FEATURES: readonly string[] = [
 export const FEATURE_GROUPS = [
   {
     title: 'Foundation',
-    features: ['tsconfig', 'lint-oxlint', 'testing', 'git-hooks', 'commit-prompt', 'ci-github'],
+    features: [
+      'tsconfig',
+      'lint-oxlint',
+      'testing',
+      'git-hooks',
+      'commit-prompt',
+      'ci-github',
+      'registry-server',
+    ],
   },
   {
     title: 'Data and contracts',
@@ -67,7 +76,7 @@ export const STATS = [
     label: 'LCP against the same pages built as one app',
     source: 'Lighthouse mobile, median of 10, budget 300 ms',
   },
-  { value: '23', label: 'features, each one command away', source: 'mfeflow add <feature>' },
+  { value: '24', label: 'features, each one command away', source: 'mfeflow add <feature>' },
   { value: '19', label: 'packages, versioned together', source: 'MIT, npm provenance' },
 ] as const;
 

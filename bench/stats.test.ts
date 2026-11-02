@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   indexServes,
   median,
+  percentile,
   remoteEntryOf,
   resultName,
   rollbackResultName,
@@ -96,5 +97,19 @@ describe('remoteEntryOf', () => {
     expect(remoteEntryOf(index, 'missing')).toBeUndefined();
     expect(remoteEntryOf({ remotes: 3 }, 'catalog')).toBeUndefined();
     expect(remoteEntryOf(null, 'catalog')).toBeUndefined();
+  });
+});
+
+describe('percentile', () => {
+  it('takes the nearest rank and does not reorder its input', () => {
+    const values = [30, 10, 20, 40, 50];
+    expect(percentile(values, 50)).toBe(30);
+    expect(percentile(values, 95)).toBe(50);
+    expect(percentile(values, 0)).toBe(10);
+    expect(values).toEqual([30, 10, 20, 40, 50]);
+  });
+
+  it('refuses an empty list', () => {
+    expect(() => percentile([], 95)).toThrow('nothing');
   });
 });

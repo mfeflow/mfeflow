@@ -6,6 +6,7 @@ import { findDiverged, loadProject } from '@mfeflow/core';
 import { main, validateResult, type AddResult } from '..';
 import {
   git,
+  posixPath,
   gitSystem,
   readTree,
   removeDir,
@@ -71,8 +72,8 @@ describe('mfeflow add team-repo', () => {
         'mfeflow.json',
       ]),
     );
-    expect(git(repo, 'rev-parse', '--show-toplevel')).toBe(
-      path.join(await fs.realpath(org), 'checkout'),
+    expect(posixPath(git(repo, 'rev-parse', '--show-toplevel'))).toBe(
+      posixPath(path.join(await fs.realpath(org), 'checkout')),
     );
 
     const shellFiles = await files(shell);

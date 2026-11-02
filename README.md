@@ -50,7 +50,7 @@ shell   | ready   built in 0.28s
 What you get:
 
 - A shell and remotes on Module Federation 2.0 and Rsbuild, with React shared once.
-- 23 features you add one at a time, each with a diff you can preview.
+- 24 features you add one at a time, each with a diff you can preview.
 - Checks for compatibility, ownership and bundle size that run in CI.
 - A static registry: `mfeflow deploy` and `mfeflow rollback` move a pointer, with no rebuild.
 - About 5 seconds from create to a running platform, measured.
@@ -152,7 +152,7 @@ The four checks are ordinary commands. The ci-github feature adds a workflow tha
 
 ## Features
 
-There are 23 first-party features. Each lives in `features/` and can be added on its own.
+There are 24 first-party features. Each lives in `features/` and can be added on its own.
 
 **Foundation**
 
@@ -279,7 +279,7 @@ Version 0.5.0 is on npm. The feature set (Phase 04) is built.
 
 | Phase | What                                               | State                   |
 | ----- | -------------------------------------------------- | ----------------------- |
-| 05    | Registry with deploy, promote, rollback and status | In progress             |
+| 05    | Registry with deploy, promote, rollback and status | Built, not released yet |
 | 06    | Upgrade, adopt an existing app, polyrepo layouts   | Built, not released yet |
 | Later | More docs, an MCP server                           | Planned                 |
 
@@ -295,7 +295,8 @@ What is still open:
 
 - There is no `mfeflow remove`. Adding a feature is tested. Removing one is not supported.
 - The generated GitHub Actions workflow has not yet run on a fresh GitHub repository.
-- The MCP server does not exist yet. The registry server and percentage rollouts are on `main`. The CLI's server mode and the Docker image are still open in #66.
+- The MCP server does not exist yet.
+- The registry server's Docker image is built by the release workflow, which has not run for it yet, so there is no image on GHCR until the next release.
 - `upgrade` does not work inside a polyrepo yet. It also merges two ways (hash, diff, prompt); a three-way merge is planned.
 - `adopt` reads only literal configs. A config built by a function or read from the environment is listed as not carried over. It supports pnpm and npm projects, not yarn or bun. A folder with only a remote and no shell is refused.
 - The `hybrid` layout, a platform monorepo with team repos next to it, is not built. `ci-github` and `env-t3` cannot be added to a polyrepo yet.

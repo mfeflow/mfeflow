@@ -1,0 +1,52 @@
+# Registry server
+
+This project can publish its remotes through a self-hosted mfeflow registry server. The server keeps the pointer
+(which version each environment serves) in SQLite, checks every deploy, and takes tokens with narrow scopes. The
+build files still live on a static host or bucket; the server only moves the pointer.
+
+## Configuration
+
+- `serverUrl`: <%= it.options.serverUrl === '' ? 'not set yet' : '`' + it.options.serverUrl + '`' %>
+
+This is the address `registry-server` was added with. Commands read it from `MFEFLOW_REGISTRY_URL`, or `--registry-url`.
+The token is read only from `MFEFLOW_REGISTRY_TOKEN`; there is no flag for it, so it never lands in your shell history.
+Plain http works only for localhost.
+
+## Point the shell at the server
+
+In `public/config/runtime-config.prod.json`, set the index address and the origins it may be on:
+
+```json
+{
+  "registryUrls": ["https://registry.example.com/v1/index/prod", "/registry/index.json"],
+  "registryOrigins": ["https://registry.example.com"],
+  "registryBeacon": true
+}
+```
+
+The second URL is the static fallback the server republishes, so shells still boot if the server is down. Then use
+`src/registry-sources.ts` in `src/bootstrap.tsx`: replace `registrySources()` with the one from `./registry-sources`.
+`registryBeacon: true` lets browsers report load errors, which is how the server halts a bad percentage rollout.
+
+## Commands
+
+```sh
+export MFEFLOW_REGISTRY_URL=https://registry.example.com
+export MFEFLOW_REGISTRY_TOKEN=...            # from `mfeflow-registry token create` on the server
+pnpm server:deploy catalog --env prod        # upload the build, ask the server to point prod at it
+pnpm server:status --env prod                # what the server serves
+pnpm server:rollback catalog --env prod      # back to the previous version
+pnpm mfeflow kill catalog --env prod         # out of the index at once
+pnpm mfeflow deploy catalog --env prod --percent 10 --steps 50,100
+pnpm mfeflow rollout status catalog --env prod
+```
+
+`deploy` uploads the build to the artifact host first (`--host`, or `registry.host` in `mfeflow.json`), so the host
+credentials are the same as for the static registry. Then it asks the server, which reads the files back and runs its
+own checks.
+
+## In CI
+
+With `ci-github` in the project, `.github/workflows/deploy-server.yml` deploys every remote when `main` changes. Add
+`MFEFLOW_REGISTRY_TOKEN` and the artifact host credentials as secrets of the `registry` environment, and
+`MFEFLOW_REGISTRY_URL` as a variable. Give the token only `read` and `deploy` for the environment it deploys to.

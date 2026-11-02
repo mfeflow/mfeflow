@@ -1,0 +1,128 @@
+{
+  "name": "registry-server",
+  "version": "0.1.0",
+  "description": "Wire the project to a self-hosted mfeflow registry server: the shell reads its index from the server (with the browser beacon for percentage rollouts), a CI workflow deploys every remote with a token from the environment, and a guide covers the day-to-day commands. Opt-in; the static registry works without it.",
+  "requires": ["core"],
+  "prompts": [
+    {
+      "name": "serverUrl",
+      "type": "string",
+      "message": "Registry server address (https://registry.example.com), empty to set it later",
+      "default": ""
+    }
+  ],
+  "files": [
+    {
+      "to": "src/registry-sources.ts",
+      "target": "shell",
+      "from": "files/registry-sources.ts"
+    },
+    {
+      "to": "docs/registry-server.md",
+      "target": "root",
+      "from": "files/registry-server.md.eta",
+      "template": true
+    },
+    {
+      "to": ".github/workflows/deploy-server.yml",
+      "target": "root",
+      "from": "files/deploy-server.yml",
+      "when": {
+        "feature:ci-github": true
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "mfeflow",
+      "range": "latest",
+      "target": "root",
+      "dev": true
+    }
+  ],
+  "scripts": [
+    {
+      "name": "server:deploy",
+      "command": "mfeflow deploy",
+      "target": "root"
+    },
+    {
+      "name": "server:rollback",
+      "command": "mfeflow rollback",
+      "target": "root"
+    },
+    {
+      "name": "server:status",
+      "command": "mfeflow status",
+      "target": "root"
+    }
+  ],
+  "transforms": [
+    {
+      "op": "add-env-key",
+      "file": "src/config/schema.ts",
+      "target": "shell",
+      "key": "registryUrls",
+      "scope": "runtime",
+      "schema": {
+        "zod": "z.array(z.string())",
+        "valibot": "v.array(v.string())",
+        "arktype": "'string[]'"
+      },
+      "value": [],
+      "configFiles": [
+        "public/config/runtime-config.dev.json",
+        "public/config/runtime-config.staging.json",
+        "public/config/runtime-config.prod.json"
+      ],
+      "when": {
+        "feature:env-t3": true
+      }
+    },
+    {
+      "op": "add-env-key",
+      "file": "src/config/schema.ts",
+      "target": "shell",
+      "key": "registryBeacon",
+      "scope": "runtime",
+      "schema": {
+        "zod": "z.boolean()",
+        "valibot": "v.boolean()",
+        "arktype": "'boolean'"
+      },
+      "value": false,
+      "configFiles": [
+        "public/config/runtime-config.dev.json",
+        "public/config/runtime-config.staging.json",
+        "public/config/runtime-config.prod.json"
+      ],
+      "when": {
+        "feature:env-t3": true
+      }
+    },
+    {
+      "op": "add-env-key",
+      "file": "public/config/runtime-config.json",
+      "target": "shell",
+      "key": "registryUrls",
+      "scope": "runtime",
+      "schema": "z.array(z.string())",
+      "value": [],
+      "when": {
+        "feature:env-t3": false
+      }
+    },
+    {
+      "op": "add-env-key",
+      "file": "public/config/runtime-config.json",
+      "target": "shell",
+      "key": "registryBeacon",
+      "scope": "runtime",
+      "schema": "z.boolean()",
+      "value": false,
+      "when": {
+        "feature:env-t3": false
+      }
+    }
+  ]
+}
