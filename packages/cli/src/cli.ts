@@ -150,6 +150,7 @@ export const COMMANDS: readonly Command[] = [
       'mfeflow doctor --fix',
       'mfeflow doctor --json',
       'mfeflow doctor --fix --dry-run',
+      'mfeflow doctor --against https://cdn.example.com/envs/prod/index.json',
     ],
     run: runDoctor,
   },

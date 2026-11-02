@@ -194,7 +194,7 @@ The platform workflow installs, then runs typecheck, lint and test when the repo
 A remote repo cannot see the shell, so `mfeflow doctor` there ends with this warning:
 
 ```text
-warning MFEFLOW_E302 A remote is not compatible with its shell: shell is not in this repo, run `mfeflow check-compat --against <url|file>`
+warning MFEFLOW_E302 A remote is not compatible with its shell: shell is not in this repo, run `mfeflow doctor --against <url|file>`
 ```
 
 Point `check-compat` at the shell you deploy. This is the check that catches a remote built on React 19 when the shell serves React 18. A small file stands in for the shell's `mf-manifest.json`. It lists the React version the shell shares:
@@ -203,7 +203,7 @@ Point `check-compat` at the shell you deploy. This is the check that catches a r
 { "name": "shell", "shared": [{ "name": "react", "version": "19.3.1", "singleton": true }] }
 ```
 
-Save it as `shell-manifest.json` in the org folder. Then run the check in a remote repo:
+Save it as `shell-manifest.json` in the org folder. Then run the check in a remote repo (`mfeflow doctor --against` takes the same file and runs every doctor check with it):
 
 ```bash
 pnpm mfeflow check-compat --against ../shell-manifest.json

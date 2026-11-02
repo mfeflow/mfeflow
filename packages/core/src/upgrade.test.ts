@@ -10,7 +10,13 @@ import { parseJsonObject } from './json';
 import type { PlanBuilder } from './plan';
 import type { MfeflowProject } from './project';
 import { rejection } from './testing';
-import { detectBaseline, planUpgrade, type UpgradeInput } from './upgrade';
+import {
+  detectBaseline,
+  planUpgrade,
+  recordEnvKey,
+  type UpgradeDecisions,
+  type UpgradeInput,
+} from './upgrade';
 
 const parse = (text: string | null | undefined) => parseJsonObject('test', text ?? '{}');
 const isStructuredPath = (file: string) =>
@@ -843,6 +849,87 @@ describe('trust, symlinks and unchanged templates', () => {
       });
     });
 
+    describe('when add env-key recorded it', () => {
+      const disk = withValue('z.string().min(3)');
+      const recordedPlan = (
+        decisions: UpgradeDecisions = {},
+        envKeys: Record<string, string[]> = { 'env.ts': ['A'] },
+      ) =>
+        planUpgrade(projectOf({ 'env.ts': disk }, { cli: '0.1.0', envKeys }), {
+          ...input({ 'env.ts': disk, ...shell }),
+          features: [feature('core', '0.2.0', { 'env.ts': withValue('z.string().min(1)') })],
+          decisions,
+        });
+      const envPlan = (up: Awaited<ReturnType<typeof recordedPlan>>) =>
+        up.plan.changes.find((c) => c.path === 'env.ts')?.after;
+
+      it('asks instead of warning', async () => {
+        const up = await recordedPlan();
+        expect(up.diverged[0]).toMatchObject({
+          path: 'env.ts',
+          reason: 'edited-by-cli',
+          changedValues: ['A'],
+        });
+        expect(envPlan(up)).toBeUndefined();
+        expect(up.plan.warnings).toEqual([]);
+      });
+
+      it('takes the new value with accept', async () => {
+        const up = await recordedPlan({ accept: new Set(['env.ts']) });
+        expect(up.diverged[0]?.decision).toBe('accept');
+        expect(envPlan(up)).toBe(withValue('z.string().min(1)'));
+      });
+
+      it('keeps yours with keep, and stays quiet on the next run', async () => {
+        const up = await recordedPlan({ keep: new Set(['env.ts']) });
+        expect(up.diverged[0]?.decision).toBe('keep');
+        expect(envPlan(up)).toBeUndefined();
+        const again = await planUpgrade(up.project, {
+          ...input({ 'env.ts': disk, ...shell }),
+          features: [feature('core', '0.2.0', { 'env.ts': withValue('z.string().min(1)') })],
+        });
+        expect(again.diverged).toEqual([]);
+      });
+
+      it('does not ask about a key it did not record', async () => {
+        const up = await recordedPlan({}, { 'env.ts': ['OTHER'] });
+        expect(up.diverged).toEqual([]);
+        expect(up.plan.warnings).toEqual([
+          expect.stringContaining('env.ts: the values of A change to the new version'),
+        ]);
+      });
+
+      it('ignores keys recorded for another file', async () => {
+        const up = await recordedPlan({}, { 'apps/other/env.ts': ['A'] });
+        expect(up.diverged).toEqual([]);
+      });
+    });
+
+    it('an .env.example holding X=foo from add env-key, against a template that ships X=bar', async () => {
+      const example = (value: string) => `X=${value}\n`;
+      const run = (envKeys?: Record<string, string[]>, decisions: UpgradeDecisions = {}) =>
+        planUpgrade(
+          projectOf(
+            { '.env.example': example('foo') },
+            { cli: '0.1.0', ...(envKeys === undefined ? {} : { envKeys }) },
+          ),
+          {
+            ...input({ '.env.example': example('foo'), ...shell }),
+            features: [feature('core', '0.2.0', { '.env.example': example('bar') })],
+            decisions,
+          },
+        );
+      const asked = await run({ '.env.example': ['X'] });
+      expect(asked.diverged[0]).toMatchObject({ reason: 'edited-by-cli', changedValues: ['X'] });
+      const accepted = await run({ '.env.example': ['X'] }, { accept: 'all' });
+      expect(accepted.plan.changes.find((c) => c.path === '.env.example')?.after).toBe('X=bar\n');
+      const kept = await run({ '.env.example': ['X'] }, { keep: 'all' });
+      expect(kept.plan.changes.map((c) => c.path)).not.toContain('.env.example');
+      const older = await run();
+      expect(older.diverged).toEqual([]);
+      expect(older.plan.warnings).toEqual([expect.stringContaining('the values of X change')]);
+    });
+
     it('still protects a key you added to an untouched-looking file, and names it a key, not a value', async () => {
       const disk = withValue('z.string().min(1)').replace(
         '  },\n  runtimeEnv',
@@ -852,6 +939,21 @@ describe('trust, symlinks and unchanged templates', () => {
       expect(up.diverged[0]).toMatchObject({ reason: 'edited-by-cli', lostKeys: ['MINE'] });
       expect(up.diverged[0]?.changedValues).toBeUndefined();
     });
+  });
+});
+
+describe('recordEnvKey', () => {
+  const base = projectOf({});
+
+  it('records the key under each env file that changed, sorted and without repeats', () => {
+    const once = recordEnvKey(base, ['env.ts', '.env.example', 'package.json', 'turbo.json'], 'B');
+    expect(once.envKeys).toEqual({ 'env.ts': ['B'], '.env.example': ['B'] });
+    const twice = recordEnvKey(recordEnvKey(once, ['env.ts'], 'A'), ['env.ts'], 'A');
+    expect(twice.envKeys?.['env.ts']).toEqual(['A', 'B']);
+  });
+
+  it('leaves the project alone when no env file changed', () => {
+    expect(recordEnvKey(base, ['package.json'], 'A')).toBe(base);
   });
 });
 

@@ -56,6 +56,16 @@ describe('parseProject / serializeProject', () => {
     });
   });
 
+  it('sorts envKeys by file and by key', () => {
+    const text = serializeProject({
+      ...project,
+      envKeys: { 'b/env.ts': ['Z', 'A'], 'a/env.ts': ['M'] },
+    });
+    expect(text.indexOf('a/env.ts')).toBeLessThan(text.indexOf('b/env.ts'));
+    expect(parseProject(text).envKeys?.['b/env.ts']).toEqual(['A', 'Z']);
+    expect(text.indexOf('"A"')).toBeLessThan(text.indexOf('"Z"'));
+  });
+
   it('reports bad JSON as E103 and schema problems as E104 with the paths', () => {
     expect(thrown(() => parseProject('{')).code).toBe('MFEFLOW_E103');
     const bad = thrown(() => parseProject('{"version":2}'));

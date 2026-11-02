@@ -400,6 +400,30 @@ describe('mfeflow.json', () => {
     ).toEqual(['kept.../env.ts', 'kept.a.ts']);
   });
 
+  it('checks the keys recorded for env files', () => {
+    expect(validateMfeflowProject({ ...project, envKeys: { 'env.ts': ['A', 'B'] } })).toEqual([]);
+    expect(
+      paths(
+        validateMfeflowProject({
+          ...project,
+          envKeys: {
+            '../env.ts': ['A'],
+            'a.ts': 'A',
+            'b.ts': [''],
+            'c.ts': [1],
+            'd.ts': ['1BAD', 'a-b', 'A B'],
+          },
+        }),
+      ),
+    ).toEqual([
+      'envKeys.../env.ts',
+      'envKeys.a.ts',
+      'envKeys.b.ts',
+      'envKeys.c.ts',
+      'envKeys.d.ts',
+    ]);
+  });
+
   it('checks the local checkout path', () => {
     const withLocal = (local: unknown) => ({ ...project, local });
     for (const ok of [

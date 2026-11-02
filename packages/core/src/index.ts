@@ -62,7 +62,9 @@ export {
 } from './apply';
 export {
   detectBaseline,
+  isEnvKeyFile,
   planUpgrade,
+  recordEnvKey,
   type DivergedUpgrade,
   type DivergeReason,
   type Migration,

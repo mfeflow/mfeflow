@@ -106,9 +106,29 @@ const OWN_CLI = 'mfeflow';
 const PLACEHOLDER_RANGE = 'latest';
 /** Registry entries hold deployed versions; they are the project's data, not generated code. */
 const USER_DATA = /^registry\/envs\//;
-/** Files `mfeflow add env-key` adds keys to after they are generated, and records nowhere. */
+/** Files `mfeflow add env-key` adds keys to after they are generated. */
 const ENV_KEY_FILES =
   /(^|\/)(env\.ts|src\/config\/schema\.ts|runtime-config(\.[^/]+)?\.json|\.env[^/]*)$/;
+
+/** Whether `mfeflow add env-key` may have edited this file. */
+export const isEnvKeyFile = (file: string): boolean => ENV_KEY_FILES.test(file);
+
+/**
+ * `project` with `key` recorded under each of `files` that `add env-key` edits, so `upgrade` can
+ * ask before a new template changes its value. Files that are not env files are ignored.
+ */
+export function recordEnvKey(
+  project: MfeflowProject,
+  files: readonly string[],
+  key: string,
+): MfeflowProject {
+  const touched = files.filter(isEnvKeyFile);
+  if (touched.length === 0) return project;
+  const envKeys = { ...project.envKeys };
+  for (const file of touched)
+    envKeys[file] = [...new Set([...(envKeys[file] ?? []), key])].toSorted(byCodePoint);
+  return { ...project, envKeys };
+}
 const KEEP_RANGE = /^(workspace|link|file|portal):/;
 
 /** Path order that is the same on every machine. */
@@ -362,9 +382,9 @@ function judge(
   file: string,
   disk: string | undefined,
   incoming: string,
-  state: { recorded?: string; kept?: string; anySkipped: boolean },
+  state: { recorded?: string; kept?: string; anySkipped: boolean; envKeys?: readonly string[] },
 ): Verdict {
-  const { recorded, kept, anySkipped } = state;
+  const { recorded, kept, anySkipped, envKeys = [] } = state;
   if (disk === undefined) {
     if (recorded !== undefined) return 'missing';
     return USER_DATA.test(file) ? 'leave' : 'create';
@@ -381,6 +401,7 @@ function judge(
   if (ENV_KEY_FILES.test(file)) {
     const lost = lostKeys(file, disk, incoming);
     if (lost === undefined || lost.missing.length > 0) return 'edited-by-cli';
+    if (lost.changed.some((key) => envKeys.includes(key))) return 'edited-by-cli';
   }
   return anySkipped ? 'skipped-feature' : 'replace';
 }
@@ -407,6 +428,7 @@ async function compareFiles(
       ...(project.files?.[file] === undefined ? {} : { recorded: project.files[file] }),
       ...(project.kept?.[file] === undefined ? {} : { kept: project.kept[file] }),
       anySkipped: options.anySkipped,
+      ...(project.envKeys?.[file] === undefined ? {} : { envKeys: project.envKeys[file] }),
     });
     // oxlint-disable-next-line no-await-in-loop -- only asked for a file that would be written
     if (writes(verdict) && (await options.isSymlink?.(file))) verdict = 'symlink';
