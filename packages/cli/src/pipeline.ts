@@ -24,11 +24,19 @@ export function projectReader(root: string): (file: string) => Promise<string | 
   };
 }
 
-/** A plan builder that reads `root`, keeps dependency versions in the catalog and resolves `@mfeflow/*` ranges. */
-export function createBuilder(root: string, checkout: string | undefined): PlanBuilder {
+/**
+ * A plan builder that reads `root`, keeps dependency versions in the catalog and resolves `@mfeflow/*` ranges.
+ * `links` maps a package name to the `link:` path it is installed from instead of a registry range.
+ */
+export function createBuilder(
+  root: string,
+  checkout: string | undefined,
+  links: Readonly<Record<string, string>> = {},
+): PlanBuilder {
+  const own = createRangeRewriter(readPackageJson().version, checkout);
   return new PlanBuilder(projectReader(root), {
     catalog: true,
-    rewriteRange: createRangeRewriter(readPackageJson().version, checkout),
+    rewriteRange: (name, range) => links[name] ?? own(name, range),
   });
 }
 

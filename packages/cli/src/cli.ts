@@ -55,13 +55,14 @@ interface Command extends CommandHelp {
 export const COMMANDS: readonly Command[] = [
   {
     name: 'init',
-    summary: 'create a new project: a shell and remotes',
+    summary: 'create a new project: a shell and remotes, in one repo or one repo per team',
     usage: 'mfeflow init [dir] [options]',
     args: INIT_ARGS,
     examples: [
       'mfeflow init my-app',
       'mfeflow init my-app --yes',
       'mfeflow init my-app --scope @acme --remotes catalog,cart,checkout --features lint-oxlint,git-hooks',
+      'mfeflow init my-org --topology polyrepo --remotes catalog,cart   # platform, shell and a repo per remote',
       'mfeflow init my-app --dry-run          # print the diff, write nothing',
       'mfeflow init my-app --yes --local ~/code/mfeflow   # link a local checkout',
     ],
@@ -83,14 +84,15 @@ export const COMMANDS: readonly Command[] = [
   },
   {
     name: 'add',
-    summary: 'add a remote, a shell, features or a typed env key to this project',
+    summary: 'add a remote, a shell, a team repo, features or a typed env key to this project',
     usage:
-      'mfeflow add remote <name> | mfeflow add shell <name> | mfeflow add <feature...> | mfeflow add env-key <KEY> --scope server|runtime --schema <expr>',
+      'mfeflow add remote <name> | mfeflow add shell <name> | mfeflow add team-repo <name> | mfeflow add <feature...> | mfeflow add env-key <KEY> --scope server|runtime --schema <expr>',
     args: ADD_ARGS,
     examples: [
       'mfeflow add remote checkout',
       'mfeflow add remote checkout --port 4320',
       'mfeflow add shell admin',
+      'mfeflow add team-repo checkout          # in the shell repo of a polyrepo: ../checkout, registered here',
       'mfeflow add git-hooks',
       'mfeflow add @someone/analytics-segment --yes',
       'mfeflow add url-factory --dry-run',

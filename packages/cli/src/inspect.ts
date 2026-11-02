@@ -17,6 +17,7 @@ import {
   type MfeflowProject,
 } from '@mfeflow/core';
 import { parse as parseYaml } from 'yaml';
+import { DEV_CONFIG_IN_APP, readDevRemotes } from './devremotes';
 import type { Io } from './io';
 import { SINGLETON_PACKAGES } from './singletons';
 
@@ -59,6 +60,8 @@ export interface ProjectView {
   project: MfeflowProject;
   apps: AppView[];
   workspace: WorkspacePackage[];
+  /** A polyrepo shell only: remote name → manifest URL of its dev server, from the shell's dev config. */
+  devRemotes?: Record<string, string>;
   /** env → remote name → entry. Only remotes with a file in that env are listed. */
   registry: Record<string, Record<string, Read<RegistryEntry>>>;
   /** Folders under registry/envs that exist. */
@@ -297,7 +300,28 @@ export async function inspectProject(root: string, io?: Pick<Io, 'stderr'>): Pro
       }),
     )
   ).filter((p) => p !== undefined);
-  return { root, project, apps, workspace, legacyAppFiles, ...(await readRegistry(root)) };
+  const devRemotes = project.topology === 'polyrepo' ? await readShellDevRemotes(apps) : undefined;
+  return {
+    root,
+    project,
+    apps,
+    workspace,
+    legacyAppFiles,
+    ...(devRemotes === undefined ? {} : { devRemotes }),
+    ...(await readRegistry(root)),
+  };
+}
+
+/** The remotes the shell apps list in their dev config, which live in repos of their own. */
+async function readShellDevRemotes(apps: readonly AppView[]): Promise<Record<string, string>> {
+  const found = await Promise.all(
+    apps
+      .filter((app) => app.kind === 'shell')
+      .map(async (app) =>
+        readDevRemotes(await readText(path.join(app.dir, ...DEV_CONFIG_IN_APP.split('/')))),
+      ),
+  );
+  return Object.fromEntries(found.flatMap((remotes) => Object.entries(remotes)));
 }
 
 /**

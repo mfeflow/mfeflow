@@ -1,0 +1,12 @@
+name: ci
+
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  ci:
+    permissions:
+      contents: read
+    uses: <%= it.options.org || it.scope.slice(1) %>/platform/.github/workflows/reusable-ci.yml@main

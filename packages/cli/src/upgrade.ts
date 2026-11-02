@@ -2,6 +2,7 @@ import {
   checkIntegrity,
   isMfeflowError,
   messageOf,
+  MfeflowError,
   realFs,
   planUpgrade,
   symlinkedPrefix,
@@ -11,8 +12,7 @@ import {
   type UpgradePlan,
 } from '@mfeflow/core';
 import type { AssetRoots } from './assets';
-import { inCatalogueOrder } from './commands/add';
-import { loadAny } from './catalog';
+import { inCatalogueOrder, loadAny } from './catalog';
 import { remoteGlue } from './glue';
 import { projectReader } from './pipeline';
 import { readPackageJson } from './version';
@@ -59,6 +59,11 @@ export async function planProjectUpgrade(
   toVersion: string = readPackageJson().version,
   decisions: UpgradeDecisions = {},
 ): Promise<ProjectUpgrade> {
+  if (project.topology === 'polyrepo') {
+    throw new MfeflowError('E107', 'upgrade does not work in the repos of a polyrepo yet', {
+      fix: 'Nothing was changed. Update the mfeflow packages in each repo by hand for now.',
+    });
+  }
   const integrity: Record<string, IntegrityState> = {};
   const features: LoadedFeature[] = [];
   const skipped: { name: string; reason: string }[] = [];

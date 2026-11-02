@@ -1,4 +1,6 @@
+import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,7 +10,7 @@ import type { Io } from './io';
 import type { DevHost, DevProcess, DevSpec, WaitPolicy } from './proc';
 import type { Prompter } from './prompter';
 import type { Runtime } from './runtime';
-import type { System } from './system';
+import { createSystem, type Run, type System } from './system';
 
 /** The checkout this package lives in; `--local` tests point at it. */
 export const REPO = path.resolve(import.meta.dirname, '../../..');
@@ -55,6 +57,7 @@ export function scriptedPrompter(answers: readonly unknown[] = []): Prompter & {
 export interface SystemCalls {
   installs: { root: string; packageManager: string; verbose: boolean }[];
   gitInits: string[];
+  repoInits: string[];
 }
 
 export function fakeSystem(
@@ -62,15 +65,21 @@ export function fakeSystem(
 ): System & SystemCalls {
   const installs: SystemCalls['installs'] = [];
   const gitInits: string[] = [];
+  const repoInits: string[] = [];
   return {
     installs,
     gitInits,
+    repoInits,
     install: (root, packageManager, verbose) => {
       installs.push({ root, packageManager, verbose });
       return options.installError ? Promise.reject(options.installError) : Promise.resolve();
     },
     gitInit: (root) => {
       gitInits.push(root);
+      return Promise.resolve(options.gitInit ?? true);
+    },
+    initRepo: (root) => {
+      repoInits.push(root);
       return Promise.resolve(options.gitInit ?? true);
     },
   };
@@ -223,4 +232,64 @@ export function thrown(fn: () => unknown): MfeflowError {
     throw error;
   }
   throw new Error('expected the call to throw');
+}
+
+const GIT_LOCATIONS = [
+  'C:\\Program Files\\Git\\cmd\\git.exe',
+  'C:\\Program Files (x86)\\Git\\cmd\\git.exe',
+  '/usr/bin/git',
+  '/usr/local/bin/git',
+  '/opt/homebrew/bin/git',
+];
+
+/** Where git is installed, from a fixed list of system folders, never from a PATH search. */
+export function gitBinary(): string {
+  const found = GIT_LOCATIONS.find((file) => existsSync(file));
+  if (found === undefined) throw new Error(`git is not in ${GIT_LOCATIONS.join(', ')}`);
+  return found;
+}
+
+/**
+ * The environment git runs in: no `GIT_*` variable, so git works on the folder it is run in and
+ * nothing else, and a PATH of git's own folder only.
+ */
+export function cleanGitEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const kept = Object.entries(env).filter(
+    ([key]) => !key.startsWith('GIT_') && key.toUpperCase() !== 'PATH',
+  );
+  return { ...Object.fromEntries(kept), PATH: path.dirname(gitBinary()) };
+}
+
+/** Runs git with a clean environment in `cwd`; returns what it printed. */
+export function git(cwd: string, ...args: string[]): string {
+  const result = spawnSync(gitBinary(), args, { cwd, env: cleanGitEnv(), encoding: 'utf8' });
+  if (result.status !== 0) throw new Error(`git ${args.join(' ')}: ${result.stderr}`);
+  return result.stdout.trim();
+}
+
+/** A `Run` that runs git by its fixed path in a clean environment, and refuses any other program. */
+export const gitRunner: Run = (command, args, options) => {
+  if (command !== 'git')
+    return Promise.reject(new Error(`gitRunner only runs git, not ${command}`));
+  const result = spawnSync(gitBinary(), args, {
+    cwd: options.cwd,
+    env: cleanGitEnv(),
+    encoding: 'utf8',
+  });
+  return Promise.resolve({
+    code: result.status ?? 1,
+    output: `${result.stdout}${result.stderr}`,
+  });
+};
+
+/** A system that runs the real `git init` (with a clean environment) and no install. */
+export function gitSystem(): System & SystemCalls {
+  const fake = fakeSystem();
+  const real = createSystem(fakeIo(), gitRunner);
+  return { ...fake, initRepo: (root) => real.initRepo(root) };
+}
+
+/** `file` with forward slashes, the way git prints a path on every OS. */
+export function posixPath(file: string): string {
+  return path.resolve(file).replaceAll('\\', '/');
 }

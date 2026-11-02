@@ -1,0 +1,23 @@
+{
+  "name": "<%= it.scope %>/tokens",
+  "version": "0.1.0",
+  "description": "Colors and spacing every team uses.",
+  "type": "module",
+  "files": ["dist"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+}

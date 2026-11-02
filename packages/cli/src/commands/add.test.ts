@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { addTrusted, integrityOf, parseProject } from '@mfeflow/core';
 import type { FetchLike } from '@mfeflow/core';
-import { inCatalogueOrder } from './add';
+import { inCatalogueOrder } from '../catalog';
 import { main, validateResult, type AddResult } from '..';
 import { REPO, readTree, removeDir, scriptedPrompter, tempDir, testRuntime } from '../testing';
 import { readPackageJson } from '../version';

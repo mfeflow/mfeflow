@@ -585,3 +585,26 @@ describe('mfeflow upgrade with a registry feature', () => {
     expect(rt.io.err.join('\n')).toContain('MFEFLOW_E405');
   });
 });
+
+describe('mfeflow upgrade in a polyrepo', () => {
+  it('stops before writing anything, in every repo', async () => {
+    const parent = await tempDir('mfeflow-upgrade-poly-');
+    dirs.push(parent);
+    const init = await main(
+      ['init', 'acme', '--topology', 'polyrepo', '--yes', '--no-install', '--cwd', parent],
+      testRuntime(),
+    );
+    expect(init).toBe(0);
+    const org = path.join(parent, 'acme');
+    const before = await readTree(org);
+    for (const repo of ['platform', 'shell', 'catalog']) {
+      const rt = testRuntime();
+      const { code } = await upgrade(path.join(org, repo), ['--yes'], rt);
+      expect(code, repo).toBe(2);
+      expect(rt.io.err.join('\n'), repo).toContain(
+        'upgrade does not work in the repos of a polyrepo yet',
+      );
+    }
+    expect(await readTree(org)).toEqual(before);
+  });
+});

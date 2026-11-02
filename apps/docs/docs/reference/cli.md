@@ -15,10 +15,11 @@ Run the command with `--help` for the options and examples of one command.
 
 | Command                                          | Does                                                                              |
 | ------------------------------------------------ | --------------------------------------------------------------------------------- |
-| `init [dir]`                                     | Create a project: a shell and remotes                                             |
+| `init [dir]`                                     | Create a project: a shell and remotes, in one repo or one repo per team           |
 | `adopt`                                          | Set up mfeflow in an existing Module Federation project; never edits build config |
 | `add remote <name>`                              | Add a remote, its registry entries and a shell route                              |
 | `add shell <name>`                               | Add a shell that routes to every remote                                           |
+| `add team-repo <name>`                           | In a polyrepo shell repo: add a remote in a new repo next to the others           |
 | `add <feature...>`                               | Add features, or `@namespace/feature` from a registry                             |
 | `add env-key <KEY>`                              | Add a typed env key                                                               |
 | `upgrade`                                        | Move the project to the version of mfeflow you run, keeping your edits            |
@@ -64,19 +65,26 @@ Creates a project.
 mfeflow init [dir] [options]
 ```
 
-| Flag                     | Type       | Default                                           | Meaning                                  |
-| ------------------------ | ---------- | ------------------------------------------------- | ---------------------------------------- |
-| `--scope <@scope>`       | text       | from the folder name                              | npm scope for the project packages       |
-| `--remotes <a,b>`        | list       | `catalog,cart`                                    | Remotes to create                        |
-| `--features <a,b>`       | list       | `lint-oxlint`, `url-factory`, `env-t3`, `testing` | Optional features to turn on             |
-| `--package-manager <pm>` | text       | `pnpm`                                            | Only `pnpm` in this release              |
-| `--topology <name>`      | text       | `monorepo`                                        | Only `monorepo` in this release          |
-| `--option <f.k=v>`       | repeatable | none                                              | A feature option, as `feature.key=value` |
+| Flag                     | Type       | Default                                           | Meaning                                                   |
+| ------------------------ | ---------- | ------------------------------------------------- | --------------------------------------------------------- |
+| `--scope <@scope>`       | text       | from the folder name                              | npm scope for the project packages                        |
+| `--remotes <a,b>`        | list       | `catalog,cart`                                    | Remotes to create                                         |
+| `--features <a,b>`       | list       | `lint-oxlint`, `url-factory`, `env-t3`, `testing` | Optional features to turn on                              |
+| `--package-manager <pm>` | text       | `pnpm`                                            | Only `pnpm` in this release                               |
+| `--topology <name>`      | text       | `monorepo`                                        | `monorepo` or `polyrepo`                                  |
+| `--org <owner>`          | text       | the scope without `@`                             | polyrepo: GitHub owner the CI and Renovate files point at |
+| `--option <f.k=v>`       | repeatable | none                                              | A feature option, as `feature.key=value`                  |
 
 Feature names accepted by `--features`: lint-oxlint, url-factory, env-t3, testing, analytics-gtm, telemetry-otel, event-bus, route-factory, http, theming, i18n, tailwind, ui-shadcn, forms, data-react-query, analytics-clarity, storybook, ci-github, git-hooks, commit-prompt.
 
 ```bash
 mfeflow init my-app --scope @acme --remotes catalog,cart,checkout --features lint-oxlint,git-hooks
+```
+
+With `--topology polyrepo`, `dir` is a folder that holds one git repo per `platform`, `shell` and remote. `--features` goes to the shell and the remote repos. `ci-github` and `env-t3` are refused, and no feature is on by default. The result lists each repo under `repos`. See [One repo per team](/guide/polyrepo).
+
+```bash
+mfeflow init my-org --topology polyrepo --remotes catalog,cart
 ```
 
 ## adopt
@@ -103,24 +111,27 @@ If `mfeflow.json` already exists the command stops with E123. A folder with no s
 
 ## add
 
-Adds an app, features or an env key. Four forms:
+Adds an app, a team repo, features or an env key. Five forms:
 
 ```bash
 mfeflow add remote <name>
 mfeflow add shell <name>
+mfeflow add team-repo <name>
 mfeflow add <feature...>
 mfeflow add env-key <KEY> --scope server|runtime --schema <expr>
 ```
 
-| Flag                             | Applies to    | Meaning                                                                                |
-| -------------------------------- | ------------- | -------------------------------------------------------------------------------------- |
-| `--port <n>`                     | remote, shell | Dev server port. Default: the next free one                                            |
-| `--option <f.k=v>`               | features      | A feature option, repeatable                                                           |
-| `--scope <server\|runtime>`      | env-key       | `server` writes `env.ts` and `.env.example`. `runtime` writes the runtime config files |
-| `--schema <expr>`                | env-key       | The validator expression, such as `z.url()`                                            |
-| `--value <text>`                 | env-key       | Placeholder written to the example or config files                                     |
-| `--app <name>`                   | env-key       | Only this app. Default: every app, or every shell for `runtime`                        |
-| `--group <root\|shell\|remotes>` | env-key       | Root, every shell or every remote, instead of `--app`                                  |
+| Flag                             | Applies to               | Meaning                                                                                |
+| -------------------------------- | ------------------------ | -------------------------------------------------------------------------------------- |
+| `--port <n>`                     | remote, shell, team-repo | Dev server port. Default: the next free one                                            |
+| `--option <f.k=v>`               | features                 | A feature option, repeatable                                                           |
+| `--scope <server\|runtime>`      | env-key                  | `server` writes `env.ts` and `.env.example`. `runtime` writes the runtime config files |
+| `--schema <expr>`                | env-key                  | The validator expression, such as `z.url()`                                            |
+| `--value <text>`                 | env-key                  | Placeholder written to the example or config files                                     |
+| `--app <name>`                   | env-key                  | Only this app. Default: every app, or every shell for `runtime`                        |
+| `--group <root\|shell\|remotes>` | env-key                  | Root, every shell or every remote, instead of `--app`                                  |
+
+`add team-repo` runs in the shell repo of a polyrepo. It creates `../<name>` as a git repo with the first-party features the shell has, then adds a route, staging and prod registry entries and a dev server entry to the shell. It writes the new repo first, so a failure leaves no folder. Run it elsewhere and it exits with code 2 (E107).
 
 A feature from a registry is written only after a yes at the prompt, or with `--yes`. Without a terminal, `--yes` is required.
 
@@ -164,7 +175,7 @@ The build action lists every problem and writes nothing if there is one (E404).
 
 ## upgrade
 
-Moves the project to the version of mfeflow you run. It never asks npm for a newer one. The tutorial is in [Versions and upgrades](/guide/upgrading).
+Moves the project to the version of mfeflow you run. It never asks npm for a newer one. The tutorial is in [Versions and upgrades](/guide/upgrading). It does not work in the repos of a polyrepo yet and exits with code 2 (E107) without writing.
 
 ```bash
 mfeflow upgrade [--to <version>] [--dry-run] [--json] [--yes] [--accept <path|all>] [--keep <path|all>] [--accept-changed-content [features]]
@@ -243,7 +254,7 @@ See [CI and budgets](/guide/ci-and-budgets) for what it checks and [The cost mod
 
 ## dev
 
-Runs the shell and every remote with a dev registry that follows the project.
+Runs the shell and every remote with a dev registry that follows the project. In the shell repo of a polyrepo it runs the shell only, and the registry lists the remotes in `devRemotes` of `public/config/runtime-config.dev.json`.
 
 | Flag                      | Meaning                                                                                        |
 | ------------------------- | ---------------------------------------------------------------------------------------------- |

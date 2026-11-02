@@ -60,17 +60,27 @@ export const DEFAULT_FEATURES: readonly string[] = FIRST_PARTY.filter(
   (f) => !f.always && f.default,
 ).map((f) => f.name);
 
+/** The features that live in a `templates/` folder, by the folder that holds them. */
+const TEMPLATE_FEATURES: Readonly<Record<string, string>> = {
+  core: 'monorepo',
+  polyrepo: 'polyrepo',
+};
+
+/** `polyrepo` is applied by `init --topology polyrepo`; it is not offered by `add` or listed by `features`. */
+export const POLYREPO_FEATURE = 'polyrepo';
+
 async function loadFirstParty(name: string, roots: AssetRoots): Promise<LoadedFeature> {
-  if (name !== 'core') return loadFeature(name, { featuresDir: roots.features });
-  const dir = path.join(roots.templates, 'monorepo');
+  const folder = TEMPLATE_FEATURES[name];
+  if (folder === undefined) return loadFeature(name, { featuresDir: roots.features });
+  const dir = path.join(roots.templates, folder);
   let text: string;
   try {
     text = await realFs.readFile(path.join(dir, 'feature.json'));
   } catch (error) {
-    throw new MfeflowError('E201', `core (looked in ${dir})`, { cause: error });
+    throw new MfeflowError('E201', `${name} (looked in ${dir})`, { cause: error });
   }
   return {
-    manifest: parseFeature(text, 'first-party', 'core/feature.json'),
+    manifest: parseFeature(text, 'first-party', `${name}/feature.json`),
     trust: 'first-party',
     dir,
     readAsset: async (relative) => {
@@ -94,7 +104,7 @@ export interface FeatureSource {
 
 /** A first-party feature by name, or `@namespace/name` from a configured registry. */
 export function loadAny(name: string, source: FeatureSource): Promise<LoadedFeature> {
-  if (isFirstParty(name)) return loadFirstParty(name, source.roots);
+  if (isFirstParty(name) || name === POLYREPO_FEATURE) return loadFirstParty(name, source.roots);
   return loadFeature(name, {
     featuresDir: source.roots.features,
     ...(source.registries ? { registries: source.registries } : {}),
@@ -103,4 +113,12 @@ export function loadAny(name: string, source: FeatureSource): Promise<LoadedFeat
     trusted: source.trusted?.has(name.slice(0, name.indexOf('/'))) === true,
     ...(source.checkIndex === true ? { checkIndex: true } : {}),
   });
+}
+
+const rank = (name: string) => OPTIONAL_FEATURES.indexOf(name);
+
+/** First-party features in the order `init` applies them, then the rest as typed: a feature may edit another's files. */
+export function inCatalogueOrder(names: readonly string[]): string[] {
+  const known = names.filter((n) => rank(n) !== -1).toSorted((a, b) => rank(a) - rank(b));
+  return [...known, ...names.filter((n) => rank(n) === -1)];
 }

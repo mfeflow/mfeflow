@@ -32,20 +32,21 @@ The JSON Schema is published at `https://mfeflow.github.io/mfeflow/schema/mfeflo
 
 ## Fields
 
-| Field            | Type                             | Required | Meaning                                                                                    |
-| ---------------- | -------------------------------- | -------- | ------------------------------------------------------------------------------------------ |
-| `$schema`        | text                             | No       | Schema URL for editors                                                                     |
-| `version`        | `1`                              | Yes      | Format version. Must be 1                                                                  |
-| `topology`       | `monorepo`, `polyrepo`, `hybrid` | Yes      | Repository layout. The CLI creates only `monorepo` in this release                         |
-| `packageManager` | `pnpm`, `npm`                    | Yes      | The CLI supports only `pnpm` in this release                                               |
-| `scope`          | text                             | Yes      | npm scope for the project's packages, such as `@shopco`. Pattern `^@[a-z0-9][a-z0-9-._]*$` |
-| `apps`           | object                           | Yes      | One entry per app, keyed by name. Needs at least one shell                                 |
-| `features`       | object                           | Yes      | Installed features, keyed by name                                                          |
-| `files`          | object                           | No       | Hash of each copied file, keyed by relative path                                           |
-| `kept`           | object                           | No       | Files `upgrade --keep` left alone, keyed by relative path                                  |
-| `registries`     | object                           | No       | Third-party feature registries, keyed by namespace                                         |
-| `local`          | text                             | No       | Path to a built mfeflow checkout. Set by `--local` only                                    |
-| `budget`         | object                           | No       | Overrides of the cost-model limits                                                         |
+| Field            | Type                             | Required | Meaning                                                                                          |
+| ---------------- | -------------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| `$schema`        | text                             | No       | Schema URL for editors                                                                           |
+| `version`        | `1`                              | Yes      | Format version. Must be 1                                                                        |
+| `topology`       | `monorepo`, `polyrepo`, `hybrid` | Yes      | Repository layout. The CLI creates `monorepo` and `polyrepo`, not `hybrid`, in this release      |
+| `repo`           | `platform`, `shell`, `remote`    | No       | Which repo of a polyrepo this is. Absent in a monorepo. A platform or remote repo needs no shell |
+| `packageManager` | `pnpm`, `npm`                    | Yes      | The CLI supports only `pnpm` in this release                                                     |
+| `scope`          | text                             | Yes      | npm scope for the project's packages, such as `@shopco`. Pattern `^@[a-z0-9][a-z0-9-._]*$`       |
+| `apps`           | object                           | Yes      | One entry per app, keyed by name. Needs at least one shell, except in a platform or remote repo  |
+| `features`       | object                           | Yes      | Installed features, keyed by name                                                                |
+| `files`          | object                           | No       | Hash of each copied file, keyed by relative path                                                 |
+| `kept`           | object                           | No       | Files `upgrade --keep` left alone, keyed by relative path                                        |
+| `registries`     | object                           | No       | Third-party feature registries, keyed by namespace                                               |
+| `local`          | text                             | No       | Path to a built mfeflow checkout. Set by `--local` only                                          |
+| `budget`         | object                           | No       | Overrides of the cost-model limits                                                               |
 
 ## apps
 

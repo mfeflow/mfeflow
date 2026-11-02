@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createSystem, isolatedEnv, run, type Run } from './system';
+import { gitRunner } from './testing';
 
 const quiet = { stderr: () => undefined };
 
@@ -152,6 +153,36 @@ describe('isolatedEnv', () => {
       expect(git(project, 'rev-parse', '--is-inside-work-tree')).toBe('true');
     } finally {
       await fs.rm(base, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('initRepo', () => {
+  it('makes a repo of its own inside a folder that is already inside another work tree', async () => {
+    const outer = await fs.mkdtemp(path.join(os.tmpdir(), 'mfeflow-outer-'));
+    try {
+      const system = createSystem(quiet, gitRunner);
+      expect(await system.gitInit(outer)).toBe(true);
+      const inner = path.join(outer, 'inner');
+      await fs.mkdir(inner);
+      expect(await system.gitInit(inner)).toBe(false);
+      expect(await system.initRepo(inner)).toBe(true);
+      await fs.access(path.join(inner, '.git'));
+      expect(await system.initRepo(inner)).toBe(false);
+    } finally {
+      await fs.rm(outer, { recursive: true, force: true });
+    }
+  });
+
+  it('is false when git cannot run', async () => {
+    const broken: Run = () => Promise.reject(new Error('no git'));
+    expect(await createSystem(quiet, broken).initRepo(os.tmpdir())).toBe(false);
+    const failing: Run = () => Promise.resolve({ code: 1, output: '' });
+    const empty = await fs.mkdtemp(path.join(os.tmpdir(), 'mfeflow-empty-'));
+    try {
+      expect(await createSystem(quiet, failing).initRepo(empty)).toBe(false);
+    } finally {
+      await fs.rm(empty, { recursive: true, force: true });
     }
   });
 });

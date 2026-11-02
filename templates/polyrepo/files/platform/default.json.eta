@@ -1,0 +1,27 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate preset for every <%= it.options.org || it.scope.slice(1) %> repo. Each repo extends it with github><%= it.options.org || it.scope.slice(1) %>/platform.",
+  "extends": ["config:recommended"],
+  "packageRules": [
+    {
+      "description": "Singletons the shell and every remote must share move in one pull request per repo.",
+      "matchPackageNames": ["react", "react-dom", "@types/react", "@types/react-dom"],
+      "groupName": "react"
+    },
+    {
+      "description": "Module Federation and Rsbuild have to stay on versions that work together.",
+      "matchPackageNames": ["@module-federation/**", "@rsbuild/**"],
+      "groupName": "module federation and rsbuild"
+    },
+    {
+      "description": "mfeflow packages are released together.",
+      "matchPackageNames": ["mfeflow", "@mfeflow/**"],
+      "groupName": "mfeflow"
+    },
+    {
+      "description": "The packages this org publishes from its platform repo.",
+      "matchPackageNames": ["<%= it.scope %>/**"],
+      "groupName": "platform packages"
+    }
+  ]
+}

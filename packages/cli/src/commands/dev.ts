@@ -235,10 +235,10 @@ export async function runDev(
       `--only ${unknown.join(', ')}: no such app (apps: ${known.join(', ')})`,
     );
   }
-  const overrides = parseOverrides(
-    repeated(raw, 'remote'),
-    view.apps.filter((a) => a.kind === 'remote').map((a) => a.name),
-  );
+  const overrides = parseOverrides(repeated(raw, 'remote'), [
+    ...view.apps.filter((a) => a.kind === 'remote').map((a) => a.name),
+    ...Object.keys(view.devRemotes ?? {}),
+  ]);
   assertAllowed(overrides, repeated(raw, 'allow-origin'));
 
   const wanted = (v: ProjectView): AppView[] =>
@@ -384,6 +384,9 @@ export async function runDev(
       path.join(root, 'mfeflow.json'),
       path.join(root, 'registry', 'envs', 'dev'),
       path.join(root, 'pnpm-lock.yaml'),
+      ...first
+        .filter((app) => app.kind === 'shell' && view.devRemotes !== undefined)
+        .map((app) => path.join(app.dir, 'public', 'config')),
     ],
     () => reload(),
   );
