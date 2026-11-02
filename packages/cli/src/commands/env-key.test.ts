@@ -37,6 +37,29 @@ describe('mfeflow add env-key --scope server', () => {
     expect(rt.system.installs).toEqual([]);
   });
 
+  it('records the key under each env file it edited, so upgrade can ask about it later', async () => {
+    await envKey(['API_ORIGIN', ...SERVER, '--value', 'https://api.test']);
+    const recorded = parseProject(await read('mfeflow.json')).envKeys ?? {};
+    expect(Object.keys(recorded).toSorted()).toEqual([
+      'apps/cart/.env.example',
+      'apps/cart/env.ts',
+      'apps/catalog/.env.example',
+      'apps/catalog/env.ts',
+      'apps/shell/.env.example',
+      'apps/shell/env.ts',
+    ]);
+    expect(Object.values(recorded).every((keys) => keys.join() === 'API_ORIGIN')).toBe(true);
+  });
+
+  it('records nothing on a dry run, and nothing for a key that was already there', async () => {
+    await envKey(['A_KEY', ...SERVER, '--dry-run']);
+    expect(parseProject(await read('mfeflow.json')).envKeys).toBeUndefined();
+    await envKey(['A_KEY', ...SERVER]);
+    const once = await read('mfeflow.json');
+    await envKey(['A_KEY', ...SERVER]);
+    expect(await read('mfeflow.json')).toBe(once);
+  });
+
   it('keeps mfeflow.json free of drift, and the feature list as it was', async () => {
     await envKey(['API_ORIGIN', ...SERVER]);
     const rt = testRuntime();

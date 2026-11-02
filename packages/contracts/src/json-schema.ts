@@ -242,6 +242,11 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
         propertyNames: relativePath,
         additionalProperties: str(FILE_HASH),
       },
+      envKeys: {
+        type: 'object',
+        propertyNames: relativePath,
+        additionalProperties: { type: 'array', items: str() },
+      },
       registries: {
         type: 'object',
         propertyNames: {

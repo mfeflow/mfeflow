@@ -4,6 +4,7 @@ import {
   findProjectRoot,
   loadProject,
   MfeflowError,
+  recordEnvKey,
   resolveFeature,
   runtimeConfigFiles,
   type MfeflowProject,
@@ -179,12 +180,17 @@ export async function addEnvKey(
     builder,
   });
   const plan = { ...builder.build(), features: [] };
+  const recorded = recordEnvKey(
+    project,
+    plan.changes.map((change) => change.path),
+    key,
+  );
   const outcome = await writePlan({
     rt,
     globals: { ...globals, install: false },
     root,
     plan,
-    project,
+    project: recorded,
   });
   const result: AddResult = {
     ok: true,

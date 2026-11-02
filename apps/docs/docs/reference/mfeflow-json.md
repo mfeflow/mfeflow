@@ -44,6 +44,7 @@ The JSON Schema is published at `https://mfeflow.github.io/mfeflow/schema/mfeflo
 | `features`       | object                           | Yes      | Installed features, keyed by name                                                                |
 | `files`          | object                           | No       | Hash of each copied file, keyed by relative path                                                 |
 | `kept`           | object                           | No       | Files `upgrade --keep` left alone, keyed by relative path                                        |
+| `envKeys`        | object                           | No       | Keys `add env-key` wrote, keyed by the file they are in                                          |
 | `registries`     | object                           | No       | Third-party feature registries, keyed by namespace                                               |
 | `local`          | text                             | No       | Path to a built mfeflow checkout. Set by `--local` only                                          |
 | `budget`         | object                           | No       | Overrides of the cost-model limits                                                               |
@@ -74,6 +75,10 @@ Each key is a relative path with forward slashes. Each value is `sha256-` follow
 ## kept
 
 Written by `mfeflow upgrade --keep`. Each value is the hash of the new version the file was kept against. While the new version is that one, `upgrade` leaves the file out of its report. When the new version changes, the file is raised again. Do not edit it.
+
+## envKeys
+
+Written by `mfeflow add env-key`. Each key is a file path and each value lists the env keys that command added to it, such as `{ "env.ts": ["API_ORIGIN"] }`. When a new version of mfeflow ships another value for one of these keys, `upgrade` asks what to do instead of only warning. Projects made before this was recorded do not have it, and `upgrade` keeps warning for them. Do not edit it.
 
 ## registries
 
