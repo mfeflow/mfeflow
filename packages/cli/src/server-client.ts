@@ -149,14 +149,31 @@ export class ServerClient {
     return JSON.parse(this.scrub(JSON.stringify(value))) as T;
   }
 
-  /** The same error with the token taken out of its message, stack and fix, for errors thrown outside `run`. */
-  scrubError(error: unknown): unknown {
-    if (!(error instanceof Error)) return error;
+  /**
+   * Whatever was thrown, with the token taken out for errors raised outside `run`: message, stack,
+   * `fix`, the `cause` chain and the errors of an AggregateError. Strings and plain objects are
+   * scrubbed too.
+   */
+  scrubError(error: unknown, seen = new WeakSet<object>()): unknown {
+    if (typeof error === 'string') return this.scrub(error);
+    if (typeof error !== 'object' || error === null) return error;
+    if (seen.has(error)) return error;
+    seen.add(error);
+    if (!(error instanceof Error)) {
+      try {
+        return this.scrubAll(error);
+      } catch {
+        return this.scrub(Object.prototype.toString.call(error));
+      }
+    }
     error.message = this.scrub(error.message);
     if (error.stack !== undefined) error.stack = this.scrub(error.stack);
     if (error instanceof MfeflowError)
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `fix` is readonly only for callers
       (error as { fix: string }).fix = this.scrub(error.fix);
+    if (error.cause !== undefined) error.cause = this.scrubError(error.cause, seen);
+    if (error instanceof AggregateError)
+      error.errors = error.errors.map((inner: unknown) => this.scrubError(inner, seen));
     return error;
   }
 

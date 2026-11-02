@@ -40,7 +40,7 @@ describe('mfeflow add env-key --scope server', () => {
   it('records the key under each env file it edited, so upgrade can ask about it later', async () => {
     await envKey(['API_ORIGIN', ...SERVER, '--value', 'https://api.test']);
     const recorded = parseProject(await read('mfeflow.json')).envKeys ?? {};
-    expect(Object.keys(recorded).toSorted()).toEqual([
+    expect(Object.keys(recorded).toSorted((a, b) => a.localeCompare(b))).toEqual([
       'apps/cart/.env.example',
       'apps/cart/env.ts',
       'apps/catalog/.env.example',

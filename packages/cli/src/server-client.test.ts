@@ -1,4 +1,6 @@
+import { MfeflowError } from '@mfeflow/core';
 import { describe, expect, it } from 'vitest';
+import { testRuntime } from './testing';
 import {
   errorCodeFor,
   normalizeServerUrl,
@@ -96,6 +98,51 @@ describe('ServerClient', () => {
       doFetch,
       token === null ? [] : [token],
     );
+
+  describe('scrubError and guarded', () => {
+    const c = client(() => Promise.reject(new Error('unused')));
+    const rt = testRuntime();
+    const thrown = async (value: unknown): Promise<unknown> => {
+      try {
+        await c.guarded(rt, () => Promise.reject(value));
+      } catch (error) {
+        return error;
+      }
+      throw new Error('expected a rejection');
+    };
+
+    it('scrubs the message, stack and fix of a catalogue error', async () => {
+      const error = new MfeflowError('E508', `history ${TOKEN}`, { fix: `use ${TOKEN}` });
+      error.stack = `stack ${TOKEN}`;
+      const out = (await thrown(error)) as MfeflowError;
+      expect([out.message, out.stack, out.fix].join('\n')).not.toContain(TOKEN);
+    });
+
+    it('scrubs the whole cause chain, and survives a cycle', async () => {
+      const inner = new Error(`inner ${TOKEN}`);
+      const outer = new Error('outer', { cause: new Error(`middle ${TOKEN}`, { cause: inner }) });
+      inner.cause = outer;
+      const out = (await thrown(outer)) as Error;
+      const middle = out.cause as Error;
+      expect(middle.message).not.toContain(TOKEN);
+      expect((middle.cause as Error).message).not.toContain(TOKEN);
+    });
+
+    it('scrubs the errors inside an AggregateError', async () => {
+      const aggregate = new AggregateError(
+        [new Error(`a ${TOKEN}`), `b ${TOKEN}`],
+        `many ${TOKEN}`,
+      );
+      const out = (await thrown(aggregate)) as AggregateError;
+      expect(JSON.stringify([out.message, out.errors.map(String)])).not.toContain(TOKEN);
+    });
+
+    it('scrubs a thrown string and a thrown object', async () => {
+      expect(await thrown(`plain ${TOKEN}`)).not.toContain(TOKEN);
+      expect(JSON.stringify(await thrown({ detail: `obj ${TOKEN}` }))).not.toContain(TOKEN);
+      expect(await thrown(42)).toBe(42);
+    });
+  });
 
   it('sends the token as a bearer header only', async () => {
     let seen: RequestInit | undefined;

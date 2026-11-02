@@ -715,6 +715,16 @@ describe('doctor --against', () => {
   async function remoteRepo(): Promise<string> {
     const root = await project();
     await fs.rm(path.join(root, 'apps/shell'), { recursive: true });
+    const file = path.join(root, 'mfeflow.json');
+    const doc = JSON.parse(await fs.readFile(file, 'utf8')) as {
+      apps: Record<string, unknown>;
+      files?: Record<string, string>;
+    };
+    delete doc.apps.shell;
+    doc.files = Object.fromEntries(
+      Object.entries(doc.files ?? {}).filter(([name]) => !name.startsWith('apps/shell/')),
+    );
+    await fs.writeFile(file, JSON.stringify({ ...doc, repo: 'remote' }, null, 2));
     for (const remote of ['cart', 'catalog'])
       await install(path.join(root, 'apps', remote), 'react', '18.3.1');
     return root;
@@ -725,7 +735,11 @@ describe('doctor --against', () => {
     const file = path.join(root, 'shell.json');
     await fs.writeFile(file, shellManifest('19.1.0'));
     const { code, result } = await run(root, 'doctor', '--against', file);
-    expect(code).toBe(3);
+    expect(result.findings.filter((f) => f.severity === 'error').map((f) => f.code)).toEqual([
+      'MFEFLOW_E302',
+      'MFEFLOW_E302',
+    ]);
+    expect(code).toBe(5);
     expect(result.against).toBe(file);
     const compat = result.findings.filter((f) => f.check === 'compat');
     expect(compat.length).toBeGreaterThan(0);
@@ -745,9 +759,9 @@ describe('doctor --against', () => {
   it('fails with E307 for a source it cannot read', async () => {
     const root = await remoteRepo();
     const rt = testRuntime();
-    expect(
-      await main(['doctor', '--against', 'missing.json', '--json', '--cwd', root], rt),
-    ).not.toBe(0);
+    expect(await main(['doctor', '--against', 'missing.json', '--json', '--cwd', root], rt)).toBe(
+      5,
+    );
     expect(rt.io.out.join('') + rt.io.err.join('')).toContain('MFEFLOW_E307');
   });
 

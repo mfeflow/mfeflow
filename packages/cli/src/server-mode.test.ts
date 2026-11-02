@@ -632,15 +632,30 @@ describe('a server that echoes the token back', () => {
     rt.io = fakeIo({ env: { MFEFLOW_REGISTRY_URL: url, MFEFLOW_REGISTRY_TOKEN: secret } });
     const cwd = await tempDir();
     try {
-      const code = await main(
-        ['rollback', 'catalog', '--env', 'prod', '--to', '0.9.0', '--dry-run', '--cwd', cwd],
-        rt,
-      );
-      const all = rt.io.out.join('\n') + rt.io.err.join('\n');
-      expect(code).not.toBe(0);
-      expect(all).toContain('is not in the history');
-      expect(all).toContain('0.8.0-');
-      expect(all).not.toContain(secret);
+      for (const extra of [[], ['--json'], ['--verbose'], ['--json', '--verbose']]) {
+        rt.io.out.length = 0;
+        rt.io.err.length = 0;
+        const code = await main(
+          [
+            'rollback',
+            'catalog',
+            '--env',
+            'prod',
+            '--to',
+            '0.9.0',
+            '--dry-run',
+            ...extra,
+            '--cwd',
+            cwd,
+          ],
+          rt,
+        );
+        const all = rt.io.out.join('\n') + rt.io.err.join('\n');
+        expect(code, extra.join(' ')).not.toBe(0);
+        expect(all).toContain('is not in the history');
+        expect(all).toContain('0.8.0-');
+        expect(all).not.toContain(secret);
+      }
     } finally {
       await removeDir(cwd);
     }

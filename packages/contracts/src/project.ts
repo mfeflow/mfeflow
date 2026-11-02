@@ -71,6 +71,8 @@ export const CHECKOUT_PATH = new RegExp(
   `^(?:(?![A-Za-z]:)(?:\\.\\.(?:/\\.\\.)*(?:/${SEGMENT})*|${SEGMENT}(?:/${SEGMENT})*)|(?:/|[A-Za-z]:/)${SEGMENT}(?:/${SEGMENT})*)$`,
 );
 
+/** An env key name, as `mfeflow add env-key` accepts it. */
+export const ENV_KEY_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 export const FILE_HASH = /^sha256-[0-9a-f]{64}$/;
 export const REGISTRY_NAMESPACE = /^@[a-z0-9][a-z0-9-]*$/;
 
@@ -190,8 +192,11 @@ export function validateMfeflowProject(value: unknown): Issue[] {
     for (const [file, keys] of Object.entries(envKeys)) {
       const at = `envKeys.${file}`;
       if (!isSafeRelativePath(file)) c.add(at, 'must be a relative path with forward slashes');
-      if (!Array.isArray(keys) || keys.some((key) => typeof key !== 'string' || key === ''))
-        c.add(at, 'must be a list of key names');
+      if (
+        !Array.isArray(keys) ||
+        keys.some((key) => typeof key !== 'string' || !ENV_KEY_NAME.test(key))
+      )
+        c.add(at, 'must be a list of key names like "API_ORIGIN"');
     }
   }
   const registries = c.object(value, 'registries', '', false);

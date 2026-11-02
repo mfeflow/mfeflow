@@ -126,7 +126,7 @@ export function recordEnvKey(
   if (touched.length === 0) return project;
   const envKeys = { ...project.envKeys };
   for (const file of touched)
-    envKeys[file] = [...new Set([...(envKeys[file] ?? []), key])].toSorted();
+    envKeys[file] = [...new Set([...(envKeys[file] ?? []), key])].toSorted(byCodePoint);
   return { ...project, envKeys };
 }
 const KEEP_RANGE = /^(workspace|link|file|portal):/;

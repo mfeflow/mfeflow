@@ -406,10 +406,22 @@ describe('mfeflow.json', () => {
       paths(
         validateMfeflowProject({
           ...project,
-          envKeys: { '../env.ts': ['A'], 'a.ts': 'A', 'b.ts': [''], 'c.ts': [1] },
+          envKeys: {
+            '../env.ts': ['A'],
+            'a.ts': 'A',
+            'b.ts': [''],
+            'c.ts': [1],
+            'd.ts': ['1BAD', 'a-b', 'A B'],
+          },
         }),
       ),
-    ).toEqual(['envKeys.../env.ts', 'envKeys.a.ts', 'envKeys.b.ts', 'envKeys.c.ts']);
+    ).toEqual([
+      'envKeys.../env.ts',
+      'envKeys.a.ts',
+      'envKeys.b.ts',
+      'envKeys.c.ts',
+      'envKeys.d.ts',
+    ]);
   });
 
   it('checks the local checkout path', () => {
