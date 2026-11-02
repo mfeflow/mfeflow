@@ -1,6 +1,6 @@
 {
   "name": "@mfeflow/http",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "A small fetch client over @mfeflow/url-factory endpoints: async bearer tokens, timeouts, retries with backoff for idempotent methods only, typed JSON, and errors that carry the status and body but no URL.",
   "keywords": [
     "micro-frontend",

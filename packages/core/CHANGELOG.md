@@ -1,5 +1,18 @@
 # @mfeflow/core
 
+## 0.7.0
+
+### Minor Changes
+
+- [#73](https://github.com/mfeflow/mfeflow/pull/73) [`e5aa337`](https://github.com/mfeflow/mfeflow/commit/e5aa3372e72ec44db15ea62320ccf5fdc765d2f5) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - New optional feature, `mfeflow add deploy-docker`. It writes a Dockerfile you can build for the shell or any remote (`--build-arg APP=<name>`), nginx configs with the cache and CORS rules, a start script that picks `runtime-config.$MFE_ENV.json` so one image runs in every environment, a Kubernetes example, a compose file and a `.dockerignore`. Both base images are pinned by digest and the image runs as a non-root user on a read-only filesystem. The files are yours to edit or delete; nothing in mfeflow builds or runs them. To write `compose.yaml`, feature templates can now read the list of apps as `it.apps`.
+
+- [#71](https://github.com/mfeflow/mfeflow/pull/71) [`3533f50`](https://github.com/mfeflow/mfeflow/commit/3533f50aba4932f4d20b3320c1b502c03f170b72) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - `mfeflow add env-key` now records the keys it adds in `envKeys` in `mfeflow.json`. When a newer mfeflow ships another value for one of those keys, `mfeflow upgrade` stops and asks instead of only warning: `--accept` takes the new value and `--keep` keeps yours. Projects made before this keep the warning. The new field is optional, so existing `mfeflow.json` files stay valid.
+
+### Patch Changes
+
+- Updated dependencies [[`3533f50`](https://github.com/mfeflow/mfeflow/commit/3533f50aba4932f4d20b3320c1b502c03f170b72)]:
+  - @mfeflow/contracts@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes

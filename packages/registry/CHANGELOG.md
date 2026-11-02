@@ -1,5 +1,13 @@
 # @mfeflow/registry
 
+## 0.7.0
+
+### Patch Changes
+
+- [#71](https://github.com/mfeflow/mfeflow/pull/71) [`3533f50`](https://github.com/mfeflow/mfeflow/commit/3533f50aba4932f4d20b3320c1b502c03f170b72) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - The registry server image on GHCR is now built for linux/amd64 and linux/arm64, so it runs natively on Apple Silicon and Graviton. The base image is pinned by its multi-arch digest.
+- Updated dependencies [[`3533f50`](https://github.com/mfeflow/mfeflow/commit/3533f50aba4932f4d20b3320c1b502c03f170b72)]:
+  - @mfeflow/contracts@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes

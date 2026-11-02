@@ -1,5 +1,25 @@
 # mfeflow
 
+## 0.7.0
+
+### Minor Changes
+
+- [#72](https://github.com/mfeflow/mfeflow/pull/72) [`11b32ad`](https://github.com/mfeflow/mfeflow/commit/11b32adb1a1628b2658cf528dc951dcaefadff07) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - New optional feature, `deploy-cloudflare`: `mfeflow add deploy-cloudflare` writes a `wrangler.jsonc` for the shell and each remote with staging and prod environments, a `_headers` file with the cache and CORS rules, and a script that picks each environment's runtime config and registry index from one build. An R2 option serves `/registry/*` from a bucket, and with `ci-github` it adds a workflow that deploys with `cloudflare/wrangler-action`. It is one way to host on Cloudflare, not a requirement, and every file it writes is yours to change. New projects also list `workerd: false` in `allowBuilds`, so installing wrangler does not stop pnpm.
+
+- [#73](https://github.com/mfeflow/mfeflow/pull/73) [`e5aa337`](https://github.com/mfeflow/mfeflow/commit/e5aa3372e72ec44db15ea62320ccf5fdc765d2f5) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - New optional feature, `mfeflow add deploy-docker`. It writes a Dockerfile you can build for the shell or any remote (`--build-arg APP=<name>`), nginx configs with the cache and CORS rules, a start script that picks `runtime-config.$MFE_ENV.json` so one image runs in every environment, a Kubernetes example, a compose file and a `.dockerignore`. Both base images are pinned by digest and the image runs as a non-root user on a read-only filesystem. The files are yours to edit or delete; nothing in mfeflow builds or runs them. To write `compose.yaml`, feature templates can now read the list of apps as `it.apps`.
+
+- [#71](https://github.com/mfeflow/mfeflow/pull/71) [`3533f50`](https://github.com/mfeflow/mfeflow/commit/3533f50aba4932f4d20b3320c1b502c03f170b72) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - `mfeflow doctor --against <url|file>` runs every doctor check and reads the shell for the compatibility check from a deployed shell, the same way `check-compat --against` does. Use it in a remote repo whose shell lives elsewhere.
+
+- [#71](https://github.com/mfeflow/mfeflow/pull/71) [`3533f50`](https://github.com/mfeflow/mfeflow/commit/3533f50aba4932f4d20b3320c1b502c03f170b72) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - `mfeflow add env-key` now records the keys it adds in `envKeys` in `mfeflow.json`. When a newer mfeflow ships another value for one of those keys, `mfeflow upgrade` stops and asks instead of only warning: `--accept` takes the new value and `--keep` keeps yours. Projects made before this keep the warning. The new field is optional, so existing `mfeflow.json` files stay valid.
+
+### Patch Changes
+
+- [#71](https://github.com/mfeflow/mfeflow/pull/71) [`3533f50`](https://github.com/mfeflow/mfeflow/commit/3533f50aba4932f4d20b3320c1b502c03f170b72) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - Registry server mode now takes the token out of everything it prints, not only the results. Error messages such as the rollback history, and the text of the confirm prompt, are scrubbed too, so a server that echoes the token back cannot leak it.
+- Updated dependencies [[`e5aa337`](https://github.com/mfeflow/mfeflow/commit/e5aa3372e72ec44db15ea62320ccf5fdc765d2f5), [`3533f50`](https://github.com/mfeflow/mfeflow/commit/3533f50aba4932f4d20b3320c1b502c03f170b72), [`3533f50`](https://github.com/mfeflow/mfeflow/commit/3533f50aba4932f4d20b3320c1b502c03f170b72)]:
+  - @mfeflow/core@0.7.0
+  - @mfeflow/contracts@0.7.0
+  - @mfeflow/registry@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes

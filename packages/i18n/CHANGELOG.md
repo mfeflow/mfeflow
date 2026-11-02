@@ -1,5 +1,12 @@
 # @mfeflow/i18n
 
+## 0.7.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @mfeflow/storage@0.7.0
+
 ## 0.6.0
 
 ### Patch Changes

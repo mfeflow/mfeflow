@@ -1,5 +1,12 @@
 # @mfeflow/route-factory
 
+## 0.7.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @mfeflow/url-factory@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes

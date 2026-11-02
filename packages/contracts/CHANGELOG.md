@@ -1,5 +1,11 @@
 # @mfeflow/contracts
 
+## 0.7.0
+
+### Minor Changes
+
+- [#71](https://github.com/mfeflow/mfeflow/pull/71) [`3533f50`](https://github.com/mfeflow/mfeflow/commit/3533f50aba4932f4d20b3320c1b502c03f170b72) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - `mfeflow add env-key` now records the keys it adds in `envKeys` in `mfeflow.json`. When a newer mfeflow ships another value for one of those keys, `mfeflow upgrade` stops and asks instead of only warning: `--accept` takes the new value and `--keep` keeps yours. Projects made before this keep the warning. The new field is optional, so existing `mfeflow.json` files stay valid.
+
 ## 0.6.0
 
 ### Minor Changes
