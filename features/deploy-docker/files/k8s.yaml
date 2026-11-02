@@ -1,0 +1,114 @@
+# The shell on Kubernetes. Parsed as YAML in mfeflow's tests, not applied to a cluster. Change the
+# image, names and config to yours. A remote has the same shape: copy the Deployment and Service,
+# use its image, drop the ConfigMap and set SHELL_ORIGINS.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mfe-shell-runtime
+data:
+  runtime-config.json: |
+    {
+      "environment": "prod"
+    }
+---
+# The registry index. Leave this out (and its mount below) if runtime-config.json points
+# registryUrls at a registry you host elsewhere.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mfe-shell-registry
+data:
+  index.json: |
+    {
+      "env": "prod",
+      "remotes": []
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mfe-shell
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mfe-shell
+  template:
+    metadata:
+      labels:
+        app: mfe-shell
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: shell
+          image: registry.example.com/mfe-shell:1.0.0
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ['ALL']
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            # nginx writes its pid file and temp files here, and the start script its config.
+            - name: tmp
+              mountPath: /tmp
+            # The ConfigMap is mounted as a whole directory on purpose. A file mounted with
+            # subPath never receives later changes to the ConfigMap; a directory mount does.
+            # The start script finds runtime-config.json here and leaves it alone, so MFE_ENV is
+            # not needed. To use the files baked into the image instead, set MFE_ENV and drop
+            # this mount.
+            - name: runtime
+              mountPath: /tmp/mfe-runtime
+              readOnly: true
+            - name: registry
+              mountPath: /tmp/mfe-registry
+              readOnly: true
+      volumes:
+        - name: runtime
+          configMap:
+            name: mfe-shell-runtime
+        - name: registry
+          configMap:
+            name: mfe-shell-registry
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mfe-shell
+spec:
+  selector:
+    app: mfe-shell
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

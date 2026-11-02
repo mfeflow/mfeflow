@@ -40,11 +40,19 @@ export function serializeProject(project: MfeflowProject): string {
   const { $schema, ...rest } = project;
   const files = rest.files && Object.fromEntries(Object.entries(rest.files).toSorted(byKey));
   const kept = rest.kept && Object.fromEntries(Object.entries(rest.kept).toSorted(byKey));
+  const envKeys =
+    rest.envKeys &&
+    Object.fromEntries(
+      Object.entries(rest.envKeys)
+        .toSorted(byKey)
+        .map(([file, keys]) => [file, keys.toSorted((a, b) => (a < b ? -1 : a > b ? 1 : 0))]),
+    );
   const ordered = {
     $schema: $schema ?? SCHEMA_URLS.project,
     ...rest,
     ...(files ? { files } : {}),
     ...(kept ? { kept } : {}),
+    ...(envKeys ? { envKeys } : {}),
   };
   return `${JSON.stringify(ordered, null, 2)}\n`;
 }

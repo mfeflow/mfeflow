@@ -34,6 +34,7 @@ describe('first-party catalogue', () => {
       'release',
       'registry-server',
       'deploy-cloudflare',
+      'deploy-docker',
     ]);
     expect(DEFAULT_FEATURES).toEqual(['lint-oxlint', 'url-factory', 'env-t3', 'testing']);
     expect(isFirstParty('git-hooks')).toBe(true);

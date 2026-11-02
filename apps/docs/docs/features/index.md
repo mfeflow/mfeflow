@@ -48,6 +48,7 @@ The Package column is the library that runs in the browser or at build time. The
 | [commit-prompt](/features/commit-prompt)         | Opt in    | An interactive Conventional Commits prompt                 | czg                      | Script and config                     |
 | [registry-static](/features/registry-static)     | Opt in    | Deploy and roll back remotes on a folder or bucket         | none                     | Scripts, guide, deploy workflow       |
 | [release](/features/release)                     | Opt in    | Changesets versions each remote, and deploy uses it        | Changesets               | `.changeset/`, releasing guide        |
+| [deploy-docker](/features/deploy-docker)         | Opt in    | A Dockerfile, nginx config and Kubernetes example          | none                     | `docker/`, `compose.yaml`, `k8s/`     |
 
 The always-on `core` feature is the shell, the remotes and the registry files. It has no page of its own. See [Project structure](/guide/project-structure).
 

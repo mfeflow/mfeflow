@@ -11,8 +11,7 @@ export interface AgainstShell {
 }
 
 export const ABSENT_SHELL_WARNING = 'shell is not in this repo, pass --against <url|file>';
-const ABSENT_UNDER_DOCTOR =
-  'shell is not in this repo, run `mfeflow check-compat --against <url|file>`';
+const ABSENT_UNDER_DOCTOR = 'shell is not in this repo, run `mfeflow doctor --against <url|file>`';
 
 async function versionsOf(app: AppView, names: readonly string[], root: string) {
   const found = await Promise.all(

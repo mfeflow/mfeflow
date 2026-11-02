@@ -48,6 +48,7 @@ export {
   type FeatureRegistryItem,
 } from './feature-registry';
 export {
+  ENV_KEY_NAME,
   FILE_HASH,
   PROJECT_REPOS,
   REGISTRY_HOST,

@@ -14,6 +14,7 @@ import {
 import { ANALYTICS_EVENT, EVENT_NAME, EXPOSE, MFE_NAME, ROUTE } from './mfe-manifest';
 import {
   CHECKOUT_PATH,
+  ENV_KEY_NAME,
   FILE_HASH,
   PROJECT_REPOS,
   REGISTRY_HOST,
@@ -241,6 +242,11 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
         type: 'object',
         propertyNames: relativePath,
         additionalProperties: str(FILE_HASH),
+      },
+      envKeys: {
+        type: 'object',
+        propertyNames: relativePath,
+        additionalProperties: strings(ENV_KEY_NAME),
       },
       registries: {
         type: 'object',

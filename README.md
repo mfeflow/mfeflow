@@ -50,7 +50,7 @@ shell   | ready   built in 0.28s
 What you get:
 
 - A shell and remotes on Module Federation 2.0 and Rsbuild, with React shared once.
-- 25 features you add one at a time, each with a diff you can preview.
+- 26 features you add one at a time, each with a diff you can preview.
 - Checks for compatibility, ownership and bundle size that run in CI.
 - A static registry: `mfeflow deploy` and `mfeflow rollback` move a pointer, with no rebuild.
 - About 5 seconds from create to a running platform, measured.
@@ -152,7 +152,7 @@ The four checks are ordinary commands. The ci-github feature adds a workflow tha
 
 ## Features
 
-There are 25 first-party features. Each lives in `features/` and can be added on its own.
+There are 26 first-party features. Each lives in `features/` and can be added on its own.
 
 **Foundation**
 
@@ -166,6 +166,7 @@ There are 25 first-party features. Each lives in `features/` and can be added on
 | [ci-github](https://mfeflow.github.io/mfeflow/features/ci-github)                 | A pull request workflow that runs every check              |
 | [registry-static](https://mfeflow.github.io/mfeflow/features/registry-static)     | Deploy and roll back remotes on a folder or bucket         |
 | [release](https://mfeflow.github.io/mfeflow/features/release)                     | Changesets versions each remote, and deploy uses it        |
+| [deploy-docker](https://mfeflow.github.io/mfeflow/features/deploy-docker)         | A Dockerfile, nginx config and Kubernetes example          |
 | [deploy-cloudflare](https://mfeflow.github.io/mfeflow/features/deploy-cloudflare) | One way to host on Cloudflare Workers, with wrangler files |
 
 **Data and contracts**
@@ -289,7 +290,7 @@ Phase 06 adds these. They are tested, and none is on npm yet:
 - `mfeflow upgrade` moves a project to the version you run. It replaces files you did not edit, diffs the ones you did, and never overwrites them without `--accept`. It does not ask npm for a newer version.
 - `mfeflow adopt` sets up mfeflow in a Module Federation app you already have. It reads Rsbuild, `module-federation.config` and literal webpack or Rspack configs as text, and never edits a build config. What it cannot read is listed, not guessed.
 - `mfeflow init --topology polyrepo` and `mfeflow add team-repo` make one git repo per team. mfeflow writes the repos on your machine and never calls GitHub.
-- `mfeflow check-compat --against <url|file>` checks a remote against a shell that lives in another repo, and warns when it has no shell to compare with.
+- `mfeflow check-compat --against <url|file>` checks a remote against a shell that lives in another repo, and warns when it has no shell to compare with. `mfeflow doctor --against <url|file>` runs every doctor check with that shell.
 - The app file is now `mfeflow.app.json`. `mfe.json` is still read, with a notice, and `upgrade` renames it.
 
 What is still open:
@@ -297,7 +298,7 @@ What is still open:
 - There is no `mfeflow remove`. Adding a feature is tested. Removing one is not supported.
 - The generated GitHub Actions workflow has not yet run on a fresh GitHub repository.
 - The MCP server does not exist yet.
-- The registry server's Docker image is built by the release workflow, which has not run for it yet, so there is no image on GHCR until the next release.
+- The registry server's Docker image (linux/amd64 and linux/arm64) is built by the release workflow, which has not run for it yet, so there is no image on GHCR until the next release.
 - `upgrade` does not work inside a polyrepo yet. It also merges two ways (hash, diff, prompt); a three-way merge is planned.
 - `adopt` reads only literal configs. A config built by a function or read from the environment is listed as not carried over. It supports pnpm and npm projects, not yarn or bun. A folder with only a remote and no shell is refused.
 - The `hybrid` layout, a platform monorepo with team repos next to it, is not built. `ci-github` and `env-t3` cannot be added to a polyrepo yet.

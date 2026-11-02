@@ -121,6 +121,11 @@
     "label": "release"
   },
   {
+    "type": "file",
+    "name": "deploy-docker",
+    "label": "deploy-docker"
+  },
+  {
     "type": "section-header",
     "label": "UI"
   },

@@ -64,6 +64,7 @@ describe.each([
   'release',
   'registry-server',
   'deploy-cloudflare',
+  'deploy-docker',
 ])('mfeflow add %s', (feature) => {
   it('adds the feature, and adding it again after forgetting it changes only mfeflow.json', async () => {
     await addRequired(feature);
@@ -110,6 +111,7 @@ describe.each([
       'commit-prompt': [],
       'registry-server': [],
       'deploy-cloudflare': ['wrangler.jsonc', 'public/_headers'],
+      'deploy-docker': [],
       storybook: [
         '.storybook/main.ts',
         '.storybook/rsbuild.config.ts',

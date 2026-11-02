@@ -25,6 +25,7 @@ export const DOCUMENTED_FEATURES: readonly string[] = [
   'release',
   'registry-server',
   'deploy-cloudflare',
+  'deploy-docker',
   'route-factory',
   'storybook',
   'tailwind',
@@ -47,7 +48,6 @@ export const FEATURE_GROUPS = [
       'commit-prompt',
       'ci-github',
       'registry-server',
-      'deploy-cloudflare',
     ],
   },
   {
@@ -63,7 +63,10 @@ export const FEATURE_GROUPS = [
     ],
   },
   { title: 'Observability', features: ['analytics-gtm', 'analytics-clarity', 'telemetry-otel'] },
-  { title: 'Delivery', features: ['registry-static', 'release'] },
+  {
+    title: 'Delivery',
+    features: ['registry-static', 'release', 'deploy-docker', 'deploy-cloudflare'],
+  },
   { title: 'UI', features: ['theming', 'i18n', 'tailwind', 'ui-shadcn', 'storybook'] },
 ] as const;
 
@@ -78,7 +81,7 @@ export const STATS = [
     label: 'LCP against the same pages built as one app',
     source: 'Lighthouse mobile, median of 10, budget 300 ms',
   },
-  { value: '25', label: 'features, each one command away', source: 'mfeflow add <feature>' },
+  { value: '26', label: 'features, each one command away', source: 'mfeflow add <feature>' },
   { value: '19', label: 'packages, versioned together', source: 'MIT, npm provenance' },
 ] as const;
 
