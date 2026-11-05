@@ -188,8 +188,6 @@ For shared config that other repos depend on, make a repo with no shell and no r
 mfeflow init acme-tooling --kind tooling --scope @acme --features lint-oxlint,git-hooks,commit-prompt
 ```
 
-You get the packages `@acme/contracts`, `@acme/tokens`, `@acme/tsconfig` and `@acme/oxlint-config`, a Renovate preset other repos can extend, a CI workflow, Changesets for versions, and the features you picked. Without `--features` it starts with `lint-oxlint` and `git-hooks`.
-
 ```text
 Created /work/acme-tooling, a repo for shared tooling with no apps.
 Next:
@@ -198,57 +196,14 @@ Next:
   pnpm build
 ```
 
-### Config packages in your scope
-
-`--packages` makes one package in your scope for each name, in `packages/<name>/`. `@acme/tsconfig` and `@acme/oxlint-config` are made unless you say otherwise; the others are listed below. Each depends on our package of the same name, so app repos depend on `@acme/...` and never on `@mfeflow/...` directly.
-
-```bash
-mfeflow init acme-tooling --kind tooling --scope @acme --packages tsconfig,oxlint-config
-```
-
-`@acme/tsconfig` has `base.json`, `react-app.json`, `react-library.json` and `node.json`, each extending the matching preset of `@mfeflow/tsconfig`. In an app repo that installs it:
-
-```json
-{ "extends": "@acme/tsconfig/react-app.json", "include": ["src"] }
-```
-
-`@acme/oxlint-config` holds your rules on top of ours, in `overrides.json`. `pnpm build` in the tooling repo writes `dist/oxlintrc.json` from both. oxlint reads `extends` as a file path and does not look up a package name (tried with oxlint 1.90.0: `"extends": ["@t/cfg/oxlintrc.json"]` fails with "No such file or directory"), so an app repo writes the path out:
-
-```json
-{ "extends": ["./node_modules/@acme/oxlint-config/dist/oxlintrc.json"] }
-```
-
-The other packages are thin wrappers: each depends on our package of the same name, re-exports its API, and adds the company's defaults and one helper that applies them.
-
-- `analytics`: consent denied until granted and a Tag Manager container id per environment (`dev`, `staging`, `prod`, empty for you to fill in), and `createAnalytics(env)`.
-- `telemetry`: the collector address per environment, a service name prefix, and `telemetryOptions(env, service, version)`.
-- `http`: base URLs per environment, one place for token handling, and `createHttp(endpoints, env)`. Adds `url-factory`.
-- `theme`: your light and dark tokens in one file, and `createThemes()`. Adds `storage`.
-- `i18n`: your languages, the default language and the list of namespaces, `startI18n()` and `loadCompanyNamespace()`. Adds `storage`.
-- `event-bus`: the events every app shares, declared in one file, and `configureCompanyEvents()`.
-- `route-factory`: your routes, one set per remote, and `createCompanyLinks()`. Adds `url-factory`.
-- `url-factory`, `storage`: our package under your scope and nothing else.
-- `runtime` (for micro-frontends): the registry addresses per environment, `registryOptions(env)` and `loadRegistry(env)`. It loads remotes from a registry, so leave it out if your apps do not run a shell.
-- `testing` (for micro-frontends): your list of providers and `renderWithCompany()`. It wraps components in the providers of the shell. Adds `runtime`.
-
-`contracts` and `tokens` are not in the list because every tooling repo already has them as `packages/contracts` and `packages/tokens`.
-
-```bash
-mfeflow init acme-tooling --kind tooling --scope @acme --packages tsconfig,oxlint-config,analytics,telemetry,http,theme
-```
-
-A wrapper holds settings and functions that build things, never state. `analytics`, `telemetry`, `theme`, `i18n`, `event-bus` and `runtime` are shared between the shell and the remotes by package name, and a package in your scope is not in that list, so each remote gets its own copy of the wrapper. Each wrapper's README says so.
-
-Build the tooling repo once before an app repo that links to it runs `tsc` or `oxlint`. The files in `packages/` are yours to edit.
-
-`pnpm lint`, `pnpm typecheck`, `pnpm build` and `pnpm validate` all run. Commands that are about apps print one line and succeed:
+You get `@acme/contracts`, `@acme/tokens`, `@acme/tsconfig` and `@acme/oxlint-config`, a Renovate preset other repos can extend, a CI workflow, Changesets for versions, and the features you picked. `--packages` adds more packages in your scope, such as `analytics`, `theme` and `http`. Commands that are about apps print one line and succeed:
 
 ```text
 $ mfeflow dev
 This project has no apps, so there is nothing to run.
 ```
 
-Only features that write at the root of the repo fit: `lint-oxlint`, `git-hooks`, `commit-prompt` and `release`. Anything else is refused (E107) with the feature's name. `release` is accepted but adds nothing, since the repo already versions and publishes its packages with Changesets. `mfeflow upgrade` does nothing here yet; update the `mfeflow` packages in `package.json` by hand.
+The packages, how an app repo uses them (a micro-frontend needs one more dependency), and what is not supported yet are in [A repo for shared tooling](/guide/tooling-repo).
 
 ## What you built
 

@@ -99,6 +99,10 @@ Yes. `mfeflow init --topology polyrepo` creates a platform repo, a shell repo an
 
 The `hybrid` layout in the project file is not available yet.
 
+## Can I have a repo with no apps?
+
+Yes. `mfeflow init acme-tooling --kind tooling` makes a repo with no shell and no remotes. It holds shared config, git hooks, release and thin packages in your scope that other repos depend on. Features that need an app are refused with [E216](/errors/E216). See [A repo for shared tooling](/guide/tooling-repo).
+
 ## Is there a command to remove a feature?
 
 No. Delete its files and dependencies by hand. See [Add features](/guide/adding-features).

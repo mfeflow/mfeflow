@@ -11,6 +11,7 @@
   { "type": "file", "name": "adding-features", "label": "Add features" },
   { "type": "file", "name": "development", "label": "Develop locally" },
   { "type": "file", "name": "polyrepo", "label": "One repo per team" },
+  { "type": "file", "name": "tooling-repo", "label": "A repo for shared tooling" },
   { "type": "section-header", "label": "Ship" },
   { "type": "file", "name": "ci-and-budgets", "label": "CI and budgets" },
   { "type": "dir", "name": "deploy", "label": "Deploy", "collapsible": true, "collapsed": false },
