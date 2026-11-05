@@ -30,6 +30,18 @@ export const TOOLING_PACKAGES: readonly ToolingPackage[] = [
   { name: 'http', needs: ['url-factory'] },
   { name: 'storage' },
   { name: 'theme', needs: ['storage'] },
+  { name: 'i18n', needs: ['storage'] },
+  { name: 'event-bus' },
+  { name: 'route-factory', needs: ['url-factory'] },
+  {
+    name: 'runtime',
+    note: 'for micro-frontends: it loads remotes from a registry. Leave it out if your apps do not run a shell',
+  },
+  {
+    name: 'testing',
+    needs: ['runtime'],
+    note: 'for micro-frontends: it wraps components in the providers of the shell. Leave it out if your apps do not run a shell',
+  },
 ];
 
 export const DEFAULT_TOOLING_PACKAGES: readonly string[] = ['tsconfig', 'oxlint-config'];

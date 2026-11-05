@@ -1,0 +1,37 @@
+{
+  "name": "tooling-event-bus",
+  "version": "0.1.0",
+  "description": "A tooling repo's event-bus package: the company's shared events on top of @mfeflow/event-bus, with configureCompanyEvents.",
+  "files": [
+    {
+      "to": "packages/event-bus/package.json",
+      "from": "files/package.json.eta",
+      "template": true
+    },
+    {
+      "to": "packages/event-bus/README.md",
+      "from": "files/README.md.eta",
+      "template": true
+    },
+    {
+      "to": "packages/event-bus/tsconfig.json",
+      "from": "files/tsconfig.json"
+    },
+    {
+      "to": "packages/event-bus/src/events.ts",
+      "from": "files/src/events.ts"
+    },
+    {
+      "to": "packages/event-bus/src/index.ts",
+      "from": "files/src/index.ts"
+    },
+    {
+      "to": "packages/event-bus/src/react.ts",
+      "from": "files/src/react.ts"
+    },
+    {
+      "to": "packages/event-bus/src/standard-schema.ts",
+      "from": "files/src/standard-schema.ts"
+    }
+  ]
+}

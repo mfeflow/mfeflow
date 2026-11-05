@@ -1,0 +1,33 @@
+{
+  "name": "tooling-i18n",
+  "version": "0.1.0",
+  "description": "A tooling repo's i18n package: the company's languages and namespaces on top of @mfeflow/i18n, with i18nOptions and startI18n.",
+  "files": [
+    {
+      "to": "packages/i18n/package.json",
+      "from": "files/package.json.eta",
+      "template": true
+    },
+    {
+      "to": "packages/i18n/README.md",
+      "from": "files/README.md.eta",
+      "template": true
+    },
+    {
+      "to": "packages/i18n/tsconfig.json",
+      "from": "files/tsconfig.json"
+    },
+    {
+      "to": "packages/i18n/src/defaults.ts",
+      "from": "files/src/defaults.ts"
+    },
+    {
+      "to": "packages/i18n/src/index.ts",
+      "from": "files/src/index.ts"
+    },
+    {
+      "to": "packages/i18n/src/react.ts",
+      "from": "files/src/react.ts"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+# <%= it.scope %>/event-bus
+
+The event bus every app here uses: everything in
+[`@mfeflow/event-bus`](https://www.npmjs.com/package/@mfeflow/event-bus), plus the events of this company. `/react`
+and `/standard-schema` are re-exported too.
+
+## What to fill in
+
+`src/events.ts` declares the events and their payloads in `CompanyEvents`, which the bus's `EventMap` extends. The
+name is `<domain>.<event>.v<major>`, like `cart.item-added.v1`. `session.expired.v1` is a placeholder.
+
+`configureCompanyEvents()` in `src/index.ts` sets how each event behaves (for example, `replay` gives a late
+subscriber the last payload). Add a `configureEvent` line for each event that needs one.
+
+Declare the events here rather than in each app. The apps import them from `<%= it.scope %>/event-bus`, so the types
+arrive with the package; an app that declared them itself would have to import `@mfeflow/event-bus`, which it does
+not depend on.
+
+```ts
+import { configureCompanyEvents, publish, subscribe } from '<%= it.scope %>/event-bus';
+
+configureCompanyEvents();
+subscribe('session.expired.v1', () => signOut());
+publish('session.expired.v1');
+```
+
+## Settings only, no state
+
+`@mfeflow/event-bus` keeps the subscribers and shares them across copies on the page. `<%= it.scope %>/event-bus` is
+not a Module Federation singleton, so every remote gets its own copy of this package, which is fine while it holds
+only types and a function that configures the bus. Keep it that way: no subscriber, queue or flag at module level
+here. State belongs in `@mfeflow/event-bus`.

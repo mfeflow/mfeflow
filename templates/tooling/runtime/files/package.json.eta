@@ -1,0 +1,46 @@
+{
+  "name": "<%= it.scope %>/runtime",
+  "version": "0.0.0",
+  "description": "The shell's runtime with the company's registry addresses.",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./providers": {
+      "types": "./dist/providers.d.ts",
+      "import": "./dist/providers.js"
+    },
+    "./beacon": {
+      "types": "./dist/beacon.d.ts",
+      "import": "./dist/beacon.js"
+    },
+    "./plugins/report": {
+      "types": "./dist/plugins/report.d.ts",
+      "import": "./dist/plugins/report.js"
+    },
+    "./plugins/entry-retry": {
+      "types": "./dist/plugins/entry-retry.d.ts",
+      "import": "./dist/plugins/entry-retry.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@module-federation/enhanced": "^2.9.0",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "tooling-route-factory",
+  "version": "0.1.0",
+  "description": "A tooling repo's route-factory package: the company's route definitions on top of @mfeflow/route-factory, with createCompanyLinks.",
+  "files": [
+    {
+      "to": "packages/route-factory/package.json",
+      "from": "files/package.json.eta",
+      "template": true
+    },
+    {
+      "to": "packages/route-factory/README.md",
+      "from": "files/README.md.eta",
+      "template": true
+    },
+    {
+      "to": "packages/route-factory/tsconfig.json",
+      "from": "files/tsconfig.json"
+    },
+    {
+      "to": "packages/route-factory/src/index.ts",
+      "from": "files/src/index.ts"
+    },
+    {
+      "to": "packages/route-factory/src/react.ts",
+      "from": "files/src/react.ts"
+    },
+    {
+      "to": "packages/route-factory/src/routes.ts",
+      "from": "files/src/routes.ts"
+    }
+  ]
+}

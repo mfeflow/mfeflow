@@ -224,13 +224,20 @@ The other packages are thin wrappers: each depends on our package of the same na
 - `telemetry`: the collector address per environment, a service name prefix, and `telemetryOptions(env, service, version)`.
 - `http`: base URLs per environment, one place for token handling, and `createHttp(endpoints, env)`. Adds `url-factory`.
 - `theme`: your light and dark tokens in one file, and `createThemes()`. Adds `storage`.
+- `i18n`: your languages, the default language and the list of namespaces, `startI18n()` and `loadCompanyNamespace()`. Adds `storage`.
+- `event-bus`: the events every app shares, declared in one file, and `configureCompanyEvents()`.
+- `route-factory`: your routes, one set per remote, and `createCompanyLinks()`. Adds `url-factory`.
 - `url-factory`, `storage`: our package under your scope and nothing else.
+- `runtime` (for micro-frontends): the registry addresses per environment, `registryOptions(env)` and `loadRegistry(env)`. It loads remotes from a registry, so leave it out if your apps do not run a shell.
+- `testing` (for micro-frontends): your list of providers and `renderWithCompany()`. It wraps components in the providers of the shell. Adds `runtime`.
+
+`contracts` and `tokens` are not in the list because every tooling repo already has them as `packages/contracts` and `packages/tokens`.
 
 ```bash
 mfeflow init acme-tooling --kind tooling --scope @acme --packages tsconfig,oxlint-config,analytics,telemetry,http,theme
 ```
 
-A wrapper holds settings and functions that build things, never state. `analytics`, `telemetry` and `theme` are shared between the shell and the remotes by package name, and a package in your scope is not in that list, so each remote gets its own copy of the wrapper. Each wrapper's README says so.
+A wrapper holds settings and functions that build things, never state. `analytics`, `telemetry`, `theme`, `i18n`, `event-bus` and `runtime` are shared between the shell and the remotes by package name, and a package in your scope is not in that list, so each remote gets its own copy of the wrapper. Each wrapper's README says so.
 
 Build the tooling repo once before an app repo that links to it runs `tsc` or `oxlint`. The files in `packages/` are yours to edit.
 

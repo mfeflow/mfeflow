@@ -1,0 +1,35 @@
+# <%= it.scope %>/i18n
+
+Translations for every app here: everything in [`@mfeflow/i18n`](https://www.npmjs.com/package/@mfeflow/i18n),
+plus the company's languages and namespaces and two helpers that apply them. `/react` is re-exported too.
+[`<%= it.scope %>/storage`](../storage) is installed with it: the chosen language is kept in storage, so the two
+are released together. `i18next` and `react-i18next` are peer dependencies; the app that installs this package
+installs them.
+
+## What to fill in
+
+`src/defaults.ts` holds the settings:
+
+- `languages`: the languages the apps are translated into, as `{ code, label }`. English and Spanish are
+  placeholders.
+- `defaultLanguage`: the one to fall back to. It must be in `languages`, or `startI18n` rejects.
+- `namespaces`: the names an app may load: `common` for shared text, then one per remote.
+
+`i18nOptions(overrides?)` returns the options for `initI18n`, and `startI18n(overrides?)` calls it. A remote loads
+its own messages with `loadCompanyNamespace(instance, 'catalog', loader)`, which is `loadNamespace` with the
+namespace checked against the list.
+
+In the shell:
+
+```ts
+import { startI18n } from '<%= it.scope %>/i18n';
+
+const i18n = await startI18n(); // or startI18n({ detect: false })
+```
+
+## Settings only, no state
+
+`@mfeflow/i18n` is a Module Federation singleton, shared by package name. `<%= it.scope %>/i18n` is not in that
+list, so every remote gets its own copy of this package while the one underneath stays shared. That is fine while
+this package holds only settings and functions that build things. Keep it that way: no instance, language or flag
+at module level here. State belongs in `@mfeflow/i18n` or in the shell.
