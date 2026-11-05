@@ -65,16 +65,17 @@ Creates a project.
 mfeflow init [dir] [options]
 ```
 
-| Flag                     | Type       | Default                                           | Meaning                                                              |
-| ------------------------ | ---------- | ------------------------------------------------- | -------------------------------------------------------------------- |
-| `--scope <@scope>`       | text       | from the folder name                              | npm scope for the project packages                                   |
-| `--kind <name>`          | text       | `app`                                             | `app`, or `tooling` for a repo with no apps                          |
-| `--remotes <a,b>`        | list       | `catalog,cart`                                    | Remotes to create; `none` or `""` makes only a shell                 |
-| `--features <a,b>`       | list       | `lint-oxlint`, `url-factory`, `env-t3`, `testing` | Optional features to turn on                                         |
-| `--package-manager <pm>` | text       | `pnpm`                                            | Only `pnpm` in this release                                          |
-| `--topology <name>`      | text       | `monorepo`                                        | `monorepo` or `polyrepo`                                             |
-| `--org <owner>`          | text       | the scope without `@`                             | polyrepo or tooling: GitHub owner the CI and Renovate files point at |
-| `--option <f.k=v>`       | repeatable | none                                              | A feature option, as `feature.key=value`                             |
+| Flag                     | Type       | Default                                           | Meaning                                                                              |
+| ------------------------ | ---------- | ------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `--scope <@scope>`       | text       | from the folder name                              | npm scope for the project packages                                                   |
+| `--kind <name>`          | text       | `app`                                             | `app`, or `tooling` for a repo with no apps                                          |
+| `--remotes <a,b>`        | list       | `catalog,cart`                                    | Remotes to create; `none` or `""` makes only a shell                                 |
+| `--packages <a,b>`       | list       | `tsconfig,oxlint-config`                          | `--kind tooling` only: the packages to make in your scope; `none` or `""` makes none |
+| `--features <a,b>`       | list       | `lint-oxlint`, `url-factory`, `env-t3`, `testing` | Optional features to turn on                                                         |
+| `--package-manager <pm>` | text       | `pnpm`                                            | Only `pnpm` in this release                                                          |
+| `--topology <name>`      | text       | `monorepo`                                        | `monorepo` or `polyrepo`                                                             |
+| `--org <owner>`          | text       | the scope without `@`                             | polyrepo or tooling: GitHub owner the CI and Renovate files point at                 |
+| `--option <f.k=v>`       | repeatable | none                                              | A feature option, as `feature.key=value`                                             |
 
 Feature names accepted by `--features`: lint-oxlint, url-factory, env-t3, testing, analytics-gtm, telemetry-otel, event-bus, route-factory, http, theming, i18n, tailwind, ui-shadcn, forms, data-react-query, analytics-clarity, storybook, ci-github, git-hooks, commit-prompt.
 
@@ -94,6 +95,12 @@ With `--kind tooling`, `dir` is one repo for shared tooling and it has no apps. 
 
 ```bash
 mfeflow init acme-tooling --kind tooling --scope @acme --features lint-oxlint,git-hooks,commit-prompt
+```
+
+`--packages` (only with `--kind tooling`, otherwise E107) makes one package in your scope for each name, in `packages/<name>/`. In this release the names are `tsconfig` and `oxlint-config`; an unknown name is E107 and the message lists the valid ones. Without the flag both are made; interactively a multiselect asks. A preset can carry `packages`. A package that needs another adds it and the output says so. Each package depends on our `@mfeflow/<name>` at the version of the CLI that made it (a `link:` with `--local`). The packages are not recorded in `mfeflow.json`; their files are listed with the other copied files. See [A repo with no apps](/guide/quickstart#a-repo-with-no-apps).
+
+```bash
+mfeflow init acme-tooling --kind tooling --scope @acme --packages tsconfig,oxlint-config
 ```
 
 In a project with no apps, `dev`, `budget`, `validate`, `check-compat` and `upgrade` print one line and exit 0. `doctor` prints the same line and then the checks that still apply, such as the hashes of the copied files.

@@ -1,0 +1,25 @@
+{
+  "name": "tooling-oxlint-config",
+  "version": "0.1.0",
+  "description": "A tooling repo's oxlint-config package: your rules on top of @mfeflow/oxlint-config, written into one oxlintrc.json that app repos extend.",
+  "files": [
+    {
+      "to": "packages/oxlint-config/package.json",
+      "from": "files/package.json.eta",
+      "template": true
+    },
+    {
+      "to": "packages/oxlint-config/README.md",
+      "from": "files/README.md.eta",
+      "template": true
+    },
+    {
+      "to": "packages/oxlint-config/build.mjs",
+      "from": "files/build.mjs"
+    },
+    {
+      "to": "packages/oxlint-config/overrides.json",
+      "from": "files/overrides.json"
+    }
+  ]
+}

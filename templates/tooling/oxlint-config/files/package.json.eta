@@ -1,0 +1,22 @@
+{
+  "name": "<%= it.scope %>/oxlint-config",
+  "version": "0.0.0",
+  "description": "The oxlint rules every repo here extends.",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    "./oxlintrc.json": "./dist/oxlintrc.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "peerDependencies": {
+    "oxlint": ">=1.90.0",
+    "oxlint-tsgolint": ">=7.0.2005"
+  }
+}

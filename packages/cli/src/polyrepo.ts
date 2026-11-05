@@ -19,6 +19,7 @@ import { chooseLocal } from './local';
 import type { PlanReport } from './output';
 import { createBuilder } from './pipeline';
 import type { Runtime } from './runtime';
+import { isToolingPackageFeature, planToolingPackages } from './tooling-packages';
 import { writePlan, type WriteOutcome } from './write';
 
 export const PLATFORM_DIR = 'platform';
@@ -121,6 +122,8 @@ export interface RepoRequest {
   shellRemotes?: readonly RemoteSpec[];
   /** A platform repo made on its own by `init --kind tooling`, not as part of a polyrepo. */
   standalone?: boolean;
+  /** The tooling packages to make under packages/ (a standalone platform repo only), already checked. */
+  packages?: readonly string[];
   features: readonly string[];
   featureOptions: FeatureOptions;
   local: string | undefined;
@@ -301,7 +304,11 @@ export async function planRepo(rt: Runtime, request: RepoRequest): Promise<RepoP
       });
     });
   }
+  if (request.standalone && request.packages !== undefined) {
+    await planToolingPackages(rt, builder, project, request.packages);
+  }
   const plan = builder.build();
+  plan.features = plan.features.filter((f) => !isToolingPackageFeature(f.name));
   if (request.standalone && request.features.some((name) => PROVIDED.has(name))) {
     plan.warnings.push(
       'release: this repo already versions and publishes its packages with Changesets (.changeset, release.yml); nothing was added',

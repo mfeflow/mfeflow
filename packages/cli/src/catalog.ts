@@ -71,10 +71,8 @@ const TEMPLATE_FEATURES: Readonly<Record<string, string>> = {
 /** `polyrepo` is applied by `init --topology polyrepo`; it is not offered by `add` or listed by `features`. */
 export const POLYREPO_FEATURE = 'polyrepo';
 
-async function loadFirstParty(name: string, roots: AssetRoots): Promise<LoadedFeature> {
-  const folder = TEMPLATE_FEATURES[name];
-  if (folder === undefined) return loadFeature(name, { featuresDir: roots.features });
-  const dir = path.join(roots.templates, folder);
+/** A feature kept in a folder with a `feature.json` and its asset files, as the templates are. */
+async function loadFolderFeature(name: string, dir: string): Promise<LoadedFeature> {
   let text: string;
   try {
     text = await realFs.readFile(path.join(dir, 'feature.json'));
@@ -90,6 +88,17 @@ async function loadFirstParty(name: string, roots: AssetRoots): Promise<LoadedFe
       return realFs.readFile(path.join(dir, ...relative.split('/')));
     },
   };
+}
+
+async function loadFirstParty(name: string, roots: AssetRoots): Promise<LoadedFeature> {
+  const folder = TEMPLATE_FEATURES[name];
+  if (folder === undefined) return loadFeature(name, { featuresDir: roots.features });
+  return loadFolderFeature(name, path.join(roots.templates, folder));
+}
+
+/** The template of one tooling package, from `templates/tooling/<name>`. */
+export function loadToolingPackage(name: string, roots: AssetRoots): Promise<LoadedFeature> {
+  return loadFolderFeature(`tooling-${name}`, path.join(roots.templates, 'tooling', name));
 }
 
 export interface FeatureSource {

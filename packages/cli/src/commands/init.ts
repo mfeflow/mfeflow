@@ -40,6 +40,11 @@ import { createBuilder } from '../pipeline';
 import { loadPreset, type Preset } from '../preset';
 import type { Runtime } from '../runtime';
 import {
+  chooseToolingPackages,
+  DEFAULT_TOOLING_PACKAGES,
+  TOOLING_PACKAGES,
+} from '../tooling-packages';
+import {
   assertFeaturesFit,
   assertToolingFeatures,
   checkOrg,
@@ -78,6 +83,12 @@ export const INIT_ARGS = {
     type: 'string',
     description:
       'Remotes to create, comma separated (default catalog,cart); none or "" starts with only a shell',
+    valueHint: 'a,b',
+  },
+  packages: {
+    type: 'string',
+    description:
+      'tooling: the packages to make in your scope, comma separated (default tsconfig,oxlint-config; none or "" for none)',
     valueHint: 'a,b',
   },
   features: {
@@ -123,6 +134,7 @@ const TOOLING_DEFAULTS: readonly string[] = ['lint-oxlint', 'git-hooks'];
 const DEFAULT_REMOTES = ['catalog', 'cart'];
 const SCOPE = /^@[a-z0-9][a-z0-9-._]*$/;
 const NO_REMOTES = 'none';
+const NO_PACKAGES = 'none';
 
 export type Topology = 'monorepo' | 'polyrepo';
 export type Kind = 'app' | 'tooling';
@@ -135,6 +147,10 @@ export interface InitOptions {
   scope: string;
   remotes: string[];
   features: string[];
+  /** The tooling packages to make, with the ones they need; empty outside `--kind tooling`. */
+  packages: string[];
+  /** What the command says about the package choice. */
+  packageNotices: string[];
   featureOptions: FeatureOptions;
 }
 
@@ -156,6 +172,19 @@ export function parseRemotes(value: string | readonly string[] | undefined): str
     throw new MfeflowError(
       'E107',
       `remotes: "${NO_REMOTES}" means no remotes at all, so it cannot be mixed with names (${list.join(', ')})`,
+    );
+  }
+  return [];
+}
+
+/** A packages list from a flag or a preset: empty or `none` is no packages at all. */
+export function parsePackages(value: string | readonly string[] | undefined): string[] | undefined {
+  const list = splitList(value);
+  if (list === undefined || !list.includes(NO_PACKAGES)) return list;
+  if (list.length > 1) {
+    throw new MfeflowError(
+      'E107',
+      `packages: "${NO_PACKAGES}" means no packages at all, so it cannot be mixed with names (${list.join(', ')})`,
     );
   }
   return [];
@@ -286,6 +315,26 @@ export async function resolveInitOptions(
   if (topology === 'polyrepo') assertFeaturesFit(features);
   if (tooling) await assertToolingFeatures(rt, features);
 
+  const packagesFlag = parsePackages(typed(args, 'packages')) ?? parsePackages(preset.packages);
+  if (!tooling && packagesFlag !== undefined) {
+    throw new MfeflowError('E107', '--packages is for --kind tooling');
+  }
+  const packageChoice = tooling
+    ? chooseToolingPackages(
+        packagesFlag ??
+          (canPrompt
+            ? await prompter.multiselect({
+                message: 'Packages to make in your scope',
+                choices: TOOLING_PACKAGES.map((entry) => ({
+                  value: entry.name,
+                  label: entry.name,
+                })),
+                initialValues: DEFAULT_TOOLING_PACKAGES,
+              })
+            : DEFAULT_TOOLING_PACKAGES),
+      )
+    : { packages: [], notices: [] };
+
   const featureOptions = mergeOptions(
     preset.options ?? {},
     parseFeatureOptions(repeated(raw, 'option')),
@@ -302,6 +351,8 @@ export async function resolveInitOptions(
     scope,
     remotes,
     features,
+    packages: packageChoice.packages,
+    packageNotices: packageChoice.notices,
     featureOptions,
   };
 }
@@ -455,11 +506,13 @@ async function runToolingInit(
     scope: options.scope,
     ...(options.org === undefined ? {} : { org: options.org }),
     features: options.features,
+    packages: options.packages,
     featureOptions: options.featureOptions,
     local: globals.local,
     cwd: globals.cwd,
   };
   const repo = await planRepo(rt, request);
+  repo.plan.warnings.push(...options.packageNotices);
   const { writes, notRepos } = await writeRepos(rt, globals, root, [repo], false);
   const outcome = writes[0]?.outcome;
   if (outcome === undefined) throw new MfeflowError('E106', `nothing was written to ${root}`);

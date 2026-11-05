@@ -1,0 +1,29 @@
+# <%= it.scope %>/oxlint-config
+
+The oxlint rules for every repo that uses <%= it.scope %>: everything in
+[`@mfeflow/oxlint-config`](https://www.npmjs.com/package/@mfeflow/oxlint-config), plus what you put in
+`overrides.json`.
+
+`overrides.json` has the same shape as an `oxlintrc.json`. Objects (`rules`, `categories`) are merged key by
+key, lists (`plugins`, `ignorePatterns`, `overrides`) are added to, anything else is replaced:
+
+```json
+{
+  "rules": { "no-console": "error" },
+  "ignorePatterns": ["**/generated/**"]
+}
+```
+
+`pnpm build` writes `dist/oxlintrc.json` from our rules and yours. It is not committed; the release builds it
+before publishing, so each release of this package carries the rules of the `@mfeflow/oxlint-config` that was
+installed then.
+
+In an app repo:
+
+```json
+{
+  "extends": ["./node_modules/<%= it.scope %>/oxlint-config/dist/oxlintrc.json"]
+}
+```
+
+The path is written out because oxlint reads `extends` as a file path and does not look up a package name.

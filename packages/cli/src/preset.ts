@@ -8,6 +8,7 @@ export interface Preset {
   scope?: string;
   remotes?: string[];
   features?: string[];
+  packages?: string[];
   packageManager?: string;
   topology?: string;
   options?: Record<string, Record<string, unknown>>;
@@ -20,6 +21,7 @@ const KEYS = new Set([
   'scope',
   'remotes',
   'features',
+  'packages',
   'packageManager',
   'topology',
   'options',
@@ -59,7 +61,7 @@ export function parsePreset(source: string, value: unknown): Preset {
     if (key === 'scope' || key === 'packageManager' || key === 'topology' || key === 'kind') {
       if (typeof item !== 'string') bad(source, `${key} must be text`);
       preset[key] = item;
-    } else if (key === 'remotes' || key === 'features') {
+    } else if (key === 'remotes' || key === 'features' || key === 'packages') {
       preset[key] = stringList(source, key, item);
     } else if (key === 'options') {
       preset.options = optionsOf(source, item);

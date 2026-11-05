@@ -167,7 +167,7 @@ describe('init --kind tooling', () => {
 
   it('starts with lint-oxlint and git-hooks, and offers only the allowed features', async () => {
     const cwd = await workspace();
-    const prompter = scriptedPrompter(['tools', '@acme', ['commit-prompt']]);
+    const prompter = scriptedPrompter(['tools', '@acme', ['commit-prompt'], []]);
     const rt = testRuntime({ prompter });
     rt.io.interactive = true;
     const code = await main(['init', '--kind', 'tooling', '--no-install', '--cwd', cwd], rt);
@@ -176,6 +176,7 @@ describe('init --kind tooling', () => {
       'Where should the project go?',
       'npm scope for your packages',
       'Features',
+      'Packages to make in your scope',
     ]);
     const project = parseProject(
       await fs.readFile(path.join(cwd, 'tools', 'mfeflow.json'), 'utf8'),

@@ -188,7 +188,7 @@ For shared config that other repos depend on, make a repo with no shell and no r
 mfeflow init acme-tooling --kind tooling --scope @acme --features lint-oxlint,git-hooks,commit-prompt
 ```
 
-You get the packages `@acme/contracts` and `@acme/tokens`, a Renovate preset other repos can extend, a CI workflow, Changesets for versions, and the features you picked. Without `--features` it starts with `lint-oxlint` and `git-hooks`.
+You get the packages `@acme/contracts`, `@acme/tokens`, `@acme/tsconfig` and `@acme/oxlint-config`, a Renovate preset other repos can extend, a CI workflow, Changesets for versions, and the features you picked. Without `--features` it starts with `lint-oxlint` and `git-hooks`.
 
 ```text
 Created /work/acme-tooling, a repo for shared tooling with no apps.
@@ -197,6 +197,28 @@ Next:
   pnpm install
   pnpm build
 ```
+
+### Config packages in your scope
+
+`--packages` makes one package in your scope for each name, in `packages/<name>/`. This release has two, and both are made unless you say otherwise: `@acme/tsconfig` and `@acme/oxlint-config`. Each depends on our package of the same name, so app repos depend on `@acme/...` and never on `@mfeflow/...` directly.
+
+```bash
+mfeflow init acme-tooling --kind tooling --scope @acme --packages tsconfig,oxlint-config
+```
+
+`@acme/tsconfig` has `base.json`, `react-app.json`, `react-library.json` and `node.json`, each extending the matching preset of `@mfeflow/tsconfig`. In an app repo that installs it:
+
+```json
+{ "extends": "@acme/tsconfig/react-app.json", "include": ["src"] }
+```
+
+`@acme/oxlint-config` holds your rules on top of ours, in `overrides.json`. `pnpm build` in the tooling repo writes `dist/oxlintrc.json` from both. oxlint reads `extends` as a file path and does not look up a package name (tried with oxlint 1.90.0: `"extends": ["@t/cfg/oxlintrc.json"]` fails with "No such file or directory"), so an app repo writes the path out:
+
+```json
+{ "extends": ["./node_modules/@acme/oxlint-config/dist/oxlintrc.json"] }
+```
+
+Build the tooling repo once before an app repo that links to it runs `tsc` or `oxlint`. The files in `packages/` are yours to edit.
 
 `pnpm lint`, `pnpm typecheck`, `pnpm build` and `pnpm validate` all run. Commands that are about apps print one line and succeed:
 

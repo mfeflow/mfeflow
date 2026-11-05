@@ -1,0 +1,33 @@
+{
+  "name": "tooling-tsconfig",
+  "version": "0.1.0",
+  "description": "A tooling repo's tsconfig package: four presets that extend @mfeflow/tsconfig, so app repos extend your scope and not ours.",
+  "files": [
+    {
+      "to": "packages/tsconfig/package.json",
+      "from": "files/package.json.eta",
+      "template": true
+    },
+    {
+      "to": "packages/tsconfig/README.md",
+      "from": "files/README.md.eta",
+      "template": true
+    },
+    {
+      "to": "packages/tsconfig/base.json",
+      "from": "files/base.json"
+    },
+    {
+      "to": "packages/tsconfig/react-app.json",
+      "from": "files/react-app.json"
+    },
+    {
+      "to": "packages/tsconfig/react-library.json",
+      "from": "files/react-library.json"
+    },
+    {
+      "to": "packages/tsconfig/node.json",
+      "from": "files/node.json"
+    }
+  ]
+}
