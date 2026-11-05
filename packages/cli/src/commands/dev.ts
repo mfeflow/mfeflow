@@ -5,6 +5,7 @@ import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals, repeated, splitList } from '../args';
 import { assertAllowed, devIndex, parseOverrides, serializeIndex } from '../devregistry';
 import { inspectProject, readText, type AppView, type ProjectView } from '../inspect';
+import { hasNoApps, noApps } from '../noapps';
 import type { DevApp, DevResult } from '../output';
 import { DEFAULT_WAIT, realDevHost, type DevHost, type DevProcess } from '../proc';
 import type { Runtime } from '../runtime';
@@ -225,6 +226,19 @@ export async function runDev(
   const host = rt.dev ?? realDevHost();
   const root = await findProjectRoot(globals.cwd);
   let view = await inspectProject(root, rt.io);
+  if (hasNoApps(view.project)) {
+    if (!globals.json) rt.io.stdout(noApps('there is nothing to run.'));
+    return {
+      ok: true,
+      command: 'dev',
+      root,
+      registry: '',
+      apps: [],
+      overrides: {},
+      dryRun: globals.dryRun,
+      interrupted: false,
+    };
+  }
   const { packageManager } = view.project;
   const known = view.apps.map((a) => a.name);
   const only = splitList(typeof args.only === 'string' ? args.only : undefined);

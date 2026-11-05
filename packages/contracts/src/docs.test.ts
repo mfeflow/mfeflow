@@ -111,7 +111,7 @@ describe('schemas agree with the validators', () => {
     expect(props('project').files?.propertyNames?.pattern).toBe(SAFE_RELATIVE_PATH.source);
     expect(props('project').local?.pattern).toBe(CHECKOUT_PATH.source);
     expect(props('project').cli?.pattern).toBe(SEMVER.source);
-    expect(JSON.stringify(props('project').repo)).toBe('{"enum":["platform","shell","remote"]}');
+    expect(JSON.stringify(props('project').repo)).toContain('"enum":["platform","shell","remote"]');
   });
 
   it('allows the same literals in workflow step env and with', () => {

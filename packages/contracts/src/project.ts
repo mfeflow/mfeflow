@@ -8,7 +8,11 @@ export interface MfeflowProject {
   version: 1;
   /** Version of the CLI that last wrote this file. */
   cli?: string;
-  /** Which repo this is in a multi-repo setup. Absent means a monorepo. A `platform` or `remote` repo may have no shell. */
+  /**
+   * What kind of repo this is. Absent means an app repo with a shell, in any topology. A `platform` or
+   * `remote` repo may have no shell, in any topology; a `platform` repo may have no apps at all
+   * (`init --kind tooling`). Needs mfeflow 0.6.0 or newer.
+   */
   repo?: 'platform' | 'shell' | 'remote';
   topology: 'monorepo' | 'polyrepo' | 'hybrid';
   packageManager: 'pnpm' | 'npm';

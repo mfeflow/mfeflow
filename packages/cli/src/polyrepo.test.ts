@@ -364,15 +364,17 @@ describe('mfeflow init --topology polyrepo, the other paths', () => {
     expect(rt.system.gitInits).toEqual([]);
   });
 
-  it('applies the features you choose to the shell and the remotes, not to platform', async () => {
+  it('applies the features you choose to the shell and the remotes, and the root-only ones to platform', async () => {
     const parent = await fresh();
-    const { code } = await init(parent, '--features', 'lint-oxlint');
+    const { code } = await init(parent, '--features', 'lint-oxlint,theming');
     expect(code).toBe(0);
     const tree = await files(path.join(parent, 'acme'));
     expect(Object.keys(tree)).toEqual(
       expect.arrayContaining(['shell/.oxlintrc.json', 'catalog/.oxlintrc.json']),
     );
-    expect(tree['platform/.oxlintrc.json']).toBeUndefined();
+    expect(tree['platform/.oxlintrc.json']).toBeDefined();
+    expect(Object.keys(tree).filter((file) => file.startsWith('platform/apps/'))).toEqual([]);
+    expect(tree['platform/mfeflow.json']).not.toContain('theming');
   });
 
   it('removes the repos it wrote, and the org folder, when a later repo fails', async () => {

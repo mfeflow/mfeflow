@@ -18,6 +18,7 @@ import {
   text,
   type Globals,
 } from '../args';
+import { hasNoApps, noApps } from '../noapps';
 import { planReport, type UpgradeFileReport, type UpgradeResult } from '../output';
 import { withProjectChange } from '../pipeline';
 import type { Runtime } from '../runtime';
@@ -431,6 +432,41 @@ function printOutcome(
   rt.io.stdout(`\nUpgraded to ${up.to}.${note}`);
 }
 
+function noAppsUpgrade(
+  rt: Runtime,
+  globals: Globals,
+  root: string,
+  from: string | undefined,
+): UpgradeResult {
+  const line = noApps(
+    'there is nothing to upgrade. Update the mfeflow packages in package.json by hand.',
+  );
+  if (!globals.json) rt.io.stdout(line);
+  const version = readPackageJson().version;
+  return {
+    ok: true,
+    command: 'upgrade',
+    dryRun: globals.dryRun,
+    root,
+    from: from ?? version,
+    fromSource: 'mfeflow.json',
+    to: version,
+    upToDate: true,
+    replaced: [],
+    created: [],
+    edited: [],
+    diverged: [],
+    integrity: {},
+    missing: [],
+    removed: [],
+    migrations: [],
+    plan: { features: [], changes: [], dependencies: [], scripts: [], warnings: [] },
+    written: [],
+    installed: false,
+    ...(globals.dryRun ? { diff: '' } : {}),
+  };
+}
+
 export async function runUpgrade(
   rt: Runtime,
   args: Record<string, unknown>,
@@ -445,6 +481,9 @@ export async function runUpgrade(
 
   const root = await findProjectRoot(globals.cwd);
   const project = await loadProject(root);
+  if (hasNoApps(project) && project.topology !== 'polyrepo') {
+    return noAppsUpgrade(rt, globals, root, project.cli);
+  }
   const acceptChanged = acceptChangedOf(raw);
   assertAcceptChanged(acceptChanged, project.features);
   const trusted = await trustedIn(rt, project.registries);

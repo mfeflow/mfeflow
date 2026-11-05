@@ -348,6 +348,21 @@ describe('mfeflow.json', () => {
     expect(validateMfeflowProject({ ...project, apps: {}, repo: 'platform' })).toEqual([]);
   });
 
+  it('accepts a platform repo with no apps in a monorepo (init --kind tooling)', () => {
+    expect(
+      validateMfeflowProject({ ...project, apps: {}, repo: 'platform', topology: 'monorepo' }),
+    ).toEqual([]);
+    expect(paths(validateMfeflowProject({ ...project, apps: {} }))).toEqual(['apps']);
+  });
+
+  it('describes the repo field in the JSON schema', () => {
+    const schema = JSON_SCHEMAS.project as unknown as {
+      properties: { repo: { enum: string[]; description: string } };
+    };
+    expect(schema.properties.repo.enum).toEqual(['platform', 'shell', 'remote']);
+    expect(schema.properties.repo.description).toContain('a platform repo may have no apps at all');
+  });
+
   it('checks the dev server port of an app', () => {
     expect(validateMfeflowProject(withPort(4311))).toEqual([]);
     expect(paths(validateMfeflowProject(withPort(0)))).toEqual(['apps.cart.port']);

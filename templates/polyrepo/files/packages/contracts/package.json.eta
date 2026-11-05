@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "description": "Event names and types the shell and every remote agree on.",
   "type": "module",
-  "files": ["dist"],
+  "files": <% if (it.options.name) { %>[
+    "dist"
+  ]<% } else { %>["dist"]<% } %>,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

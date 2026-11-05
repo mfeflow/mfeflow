@@ -180,6 +180,33 @@ dev registry: []
 
 When a team is ready, run `mfeflow add remote cart` and restart `pnpm dev`; the shell lists the remote and routes to it. With `--topology polyrepo` you get the `platform` and `shell` repos only, and the shell's dev config has an empty `devRemotes` until you run `mfeflow add team-repo <name>`. `none` cannot be mixed with names: `--remotes none,cart` is an error (E107).
 
+## A repo with no apps
+
+For shared config that other repos depend on, make a repo with no shell and no remotes:
+
+```bash
+mfeflow init acme-tooling --kind tooling --scope @acme --features lint-oxlint,git-hooks,commit-prompt
+```
+
+You get the packages `@acme/contracts` and `@acme/tokens`, a Renovate preset other repos can extend, a CI workflow, Changesets for versions, and the features you picked. Without `--features` it starts with `lint-oxlint` and `git-hooks`.
+
+```text
+Created /work/acme-tooling, a repo for shared tooling with no apps.
+Next:
+  cd acme-tooling
+  pnpm install
+  pnpm build
+```
+
+`pnpm lint`, `pnpm typecheck`, `pnpm build` and `pnpm validate` all run. Commands that are about apps print one line and succeed:
+
+```text
+$ mfeflow dev
+This project has no apps, so there is nothing to run.
+```
+
+Only features that write at the root of the repo fit: `lint-oxlint`, `git-hooks`, `commit-prompt` and `release`. Anything else is refused (E107) with the feature's name. `release` is accepted but adds nothing, since the repo already versions and publishes its packages with Changesets. `mfeflow upgrade` does nothing here yet; update the `mfeflow` packages in `package.json` by hand.
+
 ## What you built
 
 You have a pnpm monorepo with a shell, two remotes, a dev registry and a set of checks. Each remote can be built and deployed on its own.

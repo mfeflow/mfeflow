@@ -65,15 +65,16 @@ Creates a project.
 mfeflow init [dir] [options]
 ```
 
-| Flag                     | Type       | Default                                           | Meaning                                                   |
-| ------------------------ | ---------- | ------------------------------------------------- | --------------------------------------------------------- |
-| `--scope <@scope>`       | text       | from the folder name                              | npm scope for the project packages                        |
-| `--remotes <a,b>`        | list       | `catalog,cart`                                    | Remotes to create; `none` or `""` makes only a shell      |
-| `--features <a,b>`       | list       | `lint-oxlint`, `url-factory`, `env-t3`, `testing` | Optional features to turn on                              |
-| `--package-manager <pm>` | text       | `pnpm`                                            | Only `pnpm` in this release                               |
-| `--topology <name>`      | text       | `monorepo`                                        | `monorepo` or `polyrepo`                                  |
-| `--org <owner>`          | text       | the scope without `@`                             | polyrepo: GitHub owner the CI and Renovate files point at |
-| `--option <f.k=v>`       | repeatable | none                                              | A feature option, as `feature.key=value`                  |
+| Flag                     | Type       | Default                                           | Meaning                                                              |
+| ------------------------ | ---------- | ------------------------------------------------- | -------------------------------------------------------------------- |
+| `--scope <@scope>`       | text       | from the folder name                              | npm scope for the project packages                                   |
+| `--kind <name>`          | text       | `app`                                             | `app`, or `tooling` for a repo with no apps                          |
+| `--remotes <a,b>`        | list       | `catalog,cart`                                    | Remotes to create; `none` or `""` makes only a shell                 |
+| `--features <a,b>`       | list       | `lint-oxlint`, `url-factory`, `env-t3`, `testing` | Optional features to turn on                                         |
+| `--package-manager <pm>` | text       | `pnpm`                                            | Only `pnpm` in this release                                          |
+| `--topology <name>`      | text       | `monorepo`                                        | `monorepo` or `polyrepo`                                             |
+| `--org <owner>`          | text       | the scope without `@`                             | polyrepo or tooling: GitHub owner the CI and Renovate files point at |
+| `--option <f.k=v>`       | repeatable | none                                              | A feature option, as `feature.key=value`                             |
 
 Feature names accepted by `--features`: lint-oxlint, url-factory, env-t3, testing, analytics-gtm, telemetry-otel, event-bus, route-factory, http, theming, i18n, tailwind, ui-shadcn, forms, data-react-query, analytics-clarity, storybook, ci-github, git-hooks, commit-prompt.
 
@@ -88,6 +89,14 @@ With `--topology polyrepo`, `dir` is a folder that holds one git repo per `platf
 ```bash
 mfeflow init my-org --topology polyrepo --remotes catalog,cart
 ```
+
+With `--kind tooling`, `dir` is one repo for shared tooling and it has no apps. It is the `platform` repo of a polyrepo, made on its own: the `contracts` and `tokens` packages, the reusable CI, a Renovate preset and Changesets. `mfeflow.json` has `repo: "platform"`, `topology: "monorepo"` and `apps: {}`. `--features` takes `lint-oxlint`, `git-hooks`, `commit-prompt` and `release` (default `lint-oxlint,git-hooks`). `release` changes nothing, because the repo already uses Changesets, and the output says so. A feature that needs an app is refused with E107 and names the feature. `ci-github` is refused because it would write the `.github/workflows/ci.yml` the repo already has. `--remotes` and `--topology` do not apply and are E107. `--kind remote` is accepted and answers "not available in this release". See [A repo with no apps](/guide/quickstart#a-repo-with-no-apps).
+
+```bash
+mfeflow init acme-tooling --kind tooling --scope @acme --features lint-oxlint,git-hooks,commit-prompt
+```
+
+In a project with no apps, `dev`, `budget`, `validate`, `check-compat` and `upgrade` print one line and exit 0. `doctor` prints the same line and then the checks that still apply, such as the hashes of the copied files.
 
 ## adopt
 

@@ -208,7 +208,11 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
     properties: {
       version: { const: 1 },
       cli: str(SEMVER),
-      repo: { enum: [...PROJECT_REPOS] },
+      repo: {
+        enum: [...PROJECT_REPOS],
+        description:
+          'Absent means an app repo with a shell. A platform or remote repo may have no shell, in any topology; a platform repo may have no apps at all.',
+      },
       topology: { enum: ['monorepo', 'polyrepo', 'hybrid'] },
       packageManager: { enum: ['pnpm', 'npm'] },
       scope: str(SCOPE),

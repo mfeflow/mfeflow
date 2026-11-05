@@ -11,6 +11,7 @@ import { inspectProject, type ProjectView } from '../inspect';
 import { chooseLocal } from '../local';
 import type { ReportResult } from '../output';
 import { createBuilder } from '../pipeline';
+import { noApps, hasNoApps } from '../noapps';
 import { formatReport, runChecks, summarizeReport } from '../report';
 import type { Runtime } from '../runtime';
 import { writePlan } from '../write';
@@ -147,7 +148,12 @@ async function runGroup(
     }
   }
   const summary = summarizeReport(report, fixed);
-  if (!globals.json) rt.io.stdout(formatReport(report, summary));
+  if (!globals.json) {
+    const note = noApps('the checks about apps have nothing to look at.');
+    if (!hasNoApps(view.project)) rt.io.stdout(formatReport(report, summary));
+    else if (command === 'doctor') rt.io.stdout(`${note}\n\n${formatReport(report, summary)}`);
+    else rt.io.stdout(note);
+  }
   return {
     ok: summary.errors === 0,
     command,

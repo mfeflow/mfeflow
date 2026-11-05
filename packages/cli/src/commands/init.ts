@@ -41,6 +41,7 @@ import { loadPreset, type Preset } from '../preset';
 import type { Runtime } from '../runtime';
 import {
   assertFeaturesFit,
+  assertToolingFeatures,
   checkOrg,
   notReposWarning,
   mergeReports,
@@ -60,7 +61,13 @@ export const INIT_ARGS = {
   dir: {
     type: 'positional',
     required: false,
-    description: 'Folder to create (default mfeflow-app)',
+    description: 'Folder to create (default mfeflow-app, or mfeflow-tooling for --kind tooling)',
+  },
+  kind: {
+    type: 'string',
+    description:
+      'app (default): a shell and remotes; tooling: a repo for shared config and packages, with no apps',
+    valueHint: 'app|tooling',
   },
   scope: {
     type: 'string',
@@ -104,13 +111,24 @@ export const INIT_ARGS = {
 } as const satisfies ArgsDef;
 
 const DEFAULT_DIR = 'mfeflow-app';
+const DEFAULT_TOOLING_DIR = 'mfeflow-tooling';
+/** What a tooling repo offers and starts with. */
+const TOOLING_FEATURES: readonly string[] = [
+  'lint-oxlint',
+  'git-hooks',
+  'commit-prompt',
+  'release',
+];
+const TOOLING_DEFAULTS: readonly string[] = ['lint-oxlint', 'git-hooks'];
 const DEFAULT_REMOTES = ['catalog', 'cart'];
 const SCOPE = /^@[a-z0-9][a-z0-9-._]*$/;
 const NO_REMOTES = 'none';
 
 export type Topology = 'monorepo' | 'polyrepo';
+export type Kind = 'app' | 'tooling';
 
 export interface InitOptions {
+  kind: Kind;
   topology: Topology;
   org?: string;
   dir: string;
@@ -177,6 +195,14 @@ function only(flag: string, value: string | undefined, allowed: string): void {
   }
 }
 
+function kindOf(value: string | undefined): Kind {
+  if (value === undefined || value === 'app' || value === 'tooling') return value ?? 'app';
+  if (value === 'remote') {
+    throw new MfeflowError('E107', '--kind remote: not available in this release');
+  }
+  throw new MfeflowError('E107', `--kind ${value}: use app, remote or tooling`);
+}
+
 function topologyOf(value: string | undefined): Topology {
   if (value === undefined || value === 'monorepo' || value === 'polyrepo') {
     return value ?? 'monorepo';
@@ -196,16 +222,25 @@ export async function resolveInitOptions(
   preset: Preset,
 ): Promise<InitOptions> {
   only('package-manager', text(args, 'package-manager') ?? preset.packageManager, 'pnpm');
+  const kind = kindOf(text(args, 'kind') ?? preset.kind);
   const topology = topologyOf(text(args, 'topology') ?? preset.topology);
+  const tooling = kind === 'tooling';
+  if (tooling && text(args, 'topology') !== undefined) {
+    throw new MfeflowError('E107', '--kind tooling is one repo; --topology does not apply to it');
+  }
+  if (tooling && (typed(args, 'remotes') !== undefined || preset.remotes !== undefined)) {
+    throw new MfeflowError('E107', '--kind tooling has no apps, so it takes no --remotes');
+  }
   const { canPrompt } = globals;
   const { prompter } = rt;
 
   const given = typeof args.dir === 'string' && args.dir !== '' ? args.dir : undefined;
+  const fallbackDir = tooling ? DEFAULT_TOOLING_DIR : DEFAULT_DIR;
   const dir =
     given ??
     (canPrompt
-      ? await prompter.text({ message: 'Where should the project go?', initialValue: DEFAULT_DIR })
-      : DEFAULT_DIR);
+      ? await prompter.text({ message: 'Where should the project go?', initialValue: fallbackDir })
+      : fallbackDir);
 
   const scopeFlag = text(args, 'scope') ?? preset.scope;
   const scope =
@@ -222,41 +257,45 @@ export async function resolveInitOptions(
   }
 
   const remotesFlag = parseRemotes(typed(args, 'remotes')) ?? parseRemotes(preset.remotes);
-  const remotes =
-    remotesFlag ??
-    (canPrompt
-      ? (parseRemotes(
-          await prompter.text({
-            message: 'Remotes, comma separated (empty for none)',
-            initialValue: DEFAULT_REMOTES.join(','),
-          }),
-        ) ?? [])
-      : DEFAULT_REMOTES);
+  const remotes = tooling
+    ? []
+    : (remotesFlag ??
+      (canPrompt
+        ? (parseRemotes(
+            await prompter.text({
+              message: 'Remotes, comma separated (empty for none)',
+              initialValue: DEFAULT_REMOTES.join(','),
+            }),
+          ) ?? [])
+        : DEFAULT_REMOTES));
   checkRemotes(remotes);
 
   const featuresFlag = splitList(text(args, 'features')) ?? preset.features;
-  const defaults = topology === 'polyrepo' ? [] : DEFAULT_FEATURES;
+  const choices = tooling ? TOOLING_FEATURES : OPTIONAL_FEATURES;
+  const defaults = tooling ? TOOLING_DEFAULTS : topology === 'polyrepo' ? [] : DEFAULT_FEATURES;
   const features = checkFeatures(
     featuresFlag ??
       (canPrompt
         ? await prompter.multiselect({
             message: 'Features',
-            choices: OPTIONAL_FEATURES.map((name) => ({ value: name, label: name })),
+            choices: choices.map((name) => ({ value: name, label: name })),
             initialValues: defaults,
           })
         : defaults),
   );
   if (topology === 'polyrepo') assertFeaturesFit(features);
+  if (tooling) await assertToolingFeatures(rt, features);
 
   const featureOptions = mergeOptions(
     preset.options ?? {},
     parseFeatureOptions(repeated(raw, 'option')),
   );
   const org = checkOrg(text(args, 'org'));
-  if (org !== undefined && topology !== 'polyrepo') {
-    throw new MfeflowError('E107', '--org is for --topology polyrepo');
+  if (org !== undefined && topology !== 'polyrepo' && !tooling) {
+    throw new MfeflowError('E107', '--org is for --topology polyrepo or --kind tooling');
   }
   return {
+    kind,
     topology,
     ...(org === undefined ? {} : { org }),
     dir,
@@ -324,6 +363,7 @@ export async function runInit(
   const options = await resolveInitOptions(rt, globals, args, raw, preset);
   const root = path.resolve(globals.cwd, options.dir);
   await assertEmpty(root);
+  if (options.kind === 'tooling') return runToolingInit(rt, globals, options, root);
   if (options.topology === 'polyrepo') return runPolyrepoInit(rt, globals, options, root);
 
   const chosen = chooseLocal(skeleton(options), root, globals.cwd, globals.local);
@@ -394,6 +434,50 @@ export async function runInit(
     written: outcome.written,
     installed: outcome.installed,
     next,
+    ...(outcome.diff === undefined ? {} : { diff: outcome.diff }),
+  };
+  if (!globals.json) printInit(rt, result);
+  return result;
+}
+
+/** A repo of shared tooling: the polyrepo platform repo, made on its own with `topology: monorepo`. */
+async function runToolingInit(
+  rt: Runtime,
+  globals: Globals,
+  options: InitOptions,
+  root: string,
+): Promise<InitResult> {
+  const request: RepoRequest = {
+    kind: 'platform',
+    standalone: true,
+    dir: path.basename(root),
+    root,
+    scope: options.scope,
+    ...(options.org === undefined ? {} : { org: options.org }),
+    features: options.features,
+    featureOptions: options.featureOptions,
+    local: globals.local,
+    cwd: globals.cwd,
+  };
+  const repo = await planRepo(rt, request);
+  const { writes, notRepos } = await writeRepos(rt, globals, root, [repo], false);
+  const outcome = writes[0]?.outcome;
+  if (outcome === undefined) throw new MfeflowError('E106', `nothing was written to ${root}`);
+  const result: InitResult = {
+    ok: true,
+    command: 'init',
+    dryRun: outcome.dryRun,
+    root,
+    scope: options.scope,
+    apps: [],
+    plan: withWarnings(planReport(outcome.shown), notReposWarning(notRepos)),
+    written: outcome.written,
+    installed: outcome.installed,
+    next: [
+      ...(path.resolve(globals.cwd) === root ? [] : [`cd ${options.dir}`]),
+      ...(outcome.installed || outcome.dryRun ? [] : ['pnpm install']),
+      'pnpm build',
+    ],
     ...(outcome.diff === undefined ? {} : { diff: outcome.diff }),
   };
   if (!globals.json) printInit(rt, result);
@@ -520,6 +604,11 @@ function printInit(rt: Runtime, result: InitResult, org?: string): void {
     return;
   }
   const remotes = result.apps.filter((a) => a.kind === 'remote').map((a) => a.name);
+  if (result.apps.length === 0) {
+    rt.io.stdout(`\nCreated ${result.root}, a repo for shared tooling with no apps.`);
+    rt.io.stdout(`Next:\n${result.next.map((line) => `  ${line}`).join('\n')}`);
+    return;
+  }
   if (remotes.length === 0) {
     rt.io.stdout(`\nCreated ${result.root} with only a shell.`);
     rt.io.stdout(`Next:\n${result.next.map((line) => `  ${line}`).join('\n')}`);

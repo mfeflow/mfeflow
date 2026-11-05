@@ -68,6 +68,24 @@ describe('create-mfeflow', () => {
     }
   });
 
+  it('passes --kind tooling on to init', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'create-mfeflow-'));
+    try {
+      const err: string[] = [];
+      const code = await main(
+        ['tools', '--kind', 'tooling', '--yes', '--no-install', '--cwd', cwd],
+        runtimeIn([], err),
+      );
+      expect(err).toEqual([]);
+      expect(code).toBe(0);
+      const file = await fs.readFile(path.join(cwd, 'tools', 'mfeflow.json'), 'utf8');
+      expect(file).toContain('"repo": "platform"');
+      expect(file).toContain('"apps": {}');
+    } finally {
+      await fs.rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it('shows the help of init for --help', async () => {
     const out: string[] = [];
     expect(await main(['--help'], runtimeIn(out, []))).toBe(0);

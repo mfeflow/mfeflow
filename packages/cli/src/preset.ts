@@ -4,6 +4,7 @@ import { getHttps, messageOf, MfeflowError, readCappedText, type FetchLike } fro
 
 /** The options a preset may carry: the same names as the flags of `init`. */
 export interface Preset {
+  kind?: string;
   scope?: string;
   remotes?: string[];
   features?: string[];
@@ -15,6 +16,7 @@ export interface Preset {
 const MAX_BYTES = 100_000;
 const KEYS = new Set([
   '$schema',
+  'kind',
   'scope',
   'remotes',
   'features',
@@ -54,7 +56,7 @@ export function parsePreset(source: string, value: unknown): Preset {
   const preset: Preset = {};
   for (const [key, item] of Object.entries(value)) {
     if (!KEYS.has(key)) bad(source, `"${key}" is not a preset option`);
-    if (key === 'scope' || key === 'packageManager' || key === 'topology') {
+    if (key === 'scope' || key === 'packageManager' || key === 'topology' || key === 'kind') {
       if (typeof item !== 'string') bad(source, `${key} must be text`);
       preset[key] = item;
     } else if (key === 'remotes' || key === 'features') {
