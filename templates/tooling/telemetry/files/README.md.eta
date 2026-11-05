@@ -1,0 +1,36 @@
+# <%= it.scope %>/telemetry
+
+Tracing and error reporting for every app here: everything in
+[`@mfeflow/telemetry`](https://www.npmjs.com/package/@mfeflow/telemetry), plus the collector address and service
+names of this company, and one helper that applies them. `/otel` is re-exported too.
+
+## What to fill in
+
+`src/defaults.ts` holds the settings:
+
+- `otlpEndpoints`: the collector's OTLP/HTTP traces URL of `dev`, `staging` and `prod`. They are empty; put your
+  addresses in.
+- `SERVICE_PREFIX`: put in front of every service name, so `checkout` is reported as `<%= it.scope.slice(1) %>-checkout`.
+
+`telemetryOptions(env, service, version, overrides?)` returns the options for `createOtelProvider` and throws if
+the collector address of that environment is still empty (unless you pass your own `exporter`). It does not
+create the provider itself: `@mfeflow/telemetry/otel` brings in OpenTelemetry, and the shell loads it after the
+first render.
+
+In the shell:
+
+```ts
+import { initTelemetry, telemetryOptions } from '<%= it.scope %>/telemetry';
+
+initTelemetry(async () => {
+  const { createOtelProvider } = await import('<%= it.scope %>/telemetry/otel');
+  return createOtelProvider(telemetryOptions('prod', 'shell', '1.4.0'));
+});
+```
+
+## Settings only, no state
+
+`@mfeflow/telemetry` is a Module Federation singleton, shared by package name. `<%= it.scope %>/telemetry` is not
+in that list, so every remote gets its own copy of this package while the one underneath stays shared. That is
+fine while this package holds only settings and functions that build things. Keep it that way: no provider,
+tracer or flag at module level here. State belongs in `@mfeflow/telemetry` or in the shell.

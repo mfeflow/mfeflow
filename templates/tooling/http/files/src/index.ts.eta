@@ -1,0 +1,25 @@
+import {
+  createHttpClient,
+  type HttpClient,
+  type HttpClientOptions,
+  type ResponseMap,
+} from '@mfeflow/http';
+import { createUrlFactory, type Endpoints } from '<%= it.scope %>/url-factory';
+import { baseUrls, getToken, type Environment } from './defaults';
+
+export * from '@mfeflow/http';
+export { baseUrls, getToken, ENVIRONMENTS, type Environment } from './defaults';
+
+/**
+ * A client over your endpoints for an environment: URLs from `baseUrls`, tokens from `getToken`, and whatever
+ * else `createHttpClient` takes in `overrides` (those win). A service with no base URL throws when a request is made.
+ */
+export function createHttp<E extends Endpoints, R extends ResponseMap<E> = ResponseMap<E>>(
+  endpoints: E,
+  env: Environment,
+  overrides: Partial<Omit<HttpClientOptions<E>, 'url'>> = {},
+): HttpClient<E, R> {
+  const urls = baseUrls[env];
+  const url = createUrlFactory(endpoints, (service) => urls[service]);
+  return createHttpClient<E, R>({ url, getToken, ...overrides });
+}

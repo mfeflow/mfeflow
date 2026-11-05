@@ -1,0 +1,12 @@
+export const ENVIRONMENTS = ['dev', 'staging', 'prod'] as const;
+export type Environment = (typeof ENVIRONMENTS)[number];
+
+/** Put in front of every service name: `<%= it.scope.slice(1) %>-checkout`. */
+export const SERVICE_PREFIX = '<%= it.scope.slice(1) %>';
+
+/** The collector's OTLP/HTTP traces URL of each environment, e.g. https://collector.example.com/v1/traces. Fill these in. */
+export const otlpEndpoints: Readonly<Record<Environment, string>> = Object.freeze({
+  dev: '',
+  staging: '',
+  prod: '',
+});

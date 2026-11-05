@@ -1,0 +1,37 @@
+{
+  "name": "tooling-theme",
+  "version": "0.1.0",
+  "description": "A tooling repo's theme package: the company's light and dark tokens on top of @mfeflow/theme, with createThemes.",
+  "files": [
+    {
+      "to": "packages/theme/package.json",
+      "from": "files/package.json.eta",
+      "template": true
+    },
+    {
+      "to": "packages/theme/README.md",
+      "from": "files/README.md.eta",
+      "template": true
+    },
+    {
+      "to": "packages/theme/tsconfig.json",
+      "from": "files/tsconfig.json"
+    },
+    {
+      "to": "packages/theme/src/index.ts",
+      "from": "files/src/index.ts"
+    },
+    {
+      "to": "packages/theme/src/react.ts",
+      "from": "files/src/react.ts"
+    },
+    {
+      "to": "packages/theme/src/starting.ts",
+      "from": "files/src/starting.ts"
+    },
+    {
+      "to": "packages/theme/src/tokens.ts",
+      "from": "files/src/tokens.ts"
+    }
+  ]
+}

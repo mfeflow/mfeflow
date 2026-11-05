@@ -1,0 +1,22 @@
+import type { HttpClientOptions } from '@mfeflow/http';
+import type { Endpoints } from '<%= it.scope %>/url-factory';
+
+export const ENVIRONMENTS = ['dev', 'staging', 'prod'] as const;
+export type Environment = (typeof ENVIRONMENTS)[number];
+
+/**
+ * The base URL of each service, per environment. A service is the `service` of an endpoint you define with
+ * `defineEndpoints`. `api` is a placeholder: rename it and add the others. Fill these in.
+ */
+export const baseUrls: Readonly<Record<Environment, Readonly<Record<string, string>>>> =
+  Object.freeze({
+    dev: Object.freeze({ api: '' }),
+    staging: Object.freeze({ api: '' }),
+    prod: Object.freeze({ api: '' }),
+  });
+
+/**
+ * Token handling, in one place. It is asked before every attempt, so return the current token (read it from
+ * wherever your sign-in keeps it), or undefined for a signed-out visitor and no header is sent.
+ */
+export const getToken: NonNullable<HttpClientOptions<Endpoints>['getToken']> = () => undefined;

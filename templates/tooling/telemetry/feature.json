@@ -1,0 +1,34 @@
+{
+  "name": "tooling-telemetry",
+  "version": "0.1.0",
+  "description": "A tooling repo's telemetry package: the collector address and service names per environment on top of @mfeflow/telemetry.",
+  "files": [
+    {
+      "to": "packages/telemetry/package.json",
+      "from": "files/package.json.eta",
+      "template": true
+    },
+    {
+      "to": "packages/telemetry/README.md",
+      "from": "files/README.md.eta",
+      "template": true
+    },
+    {
+      "to": "packages/telemetry/tsconfig.json",
+      "from": "files/tsconfig.json"
+    },
+    {
+      "to": "packages/telemetry/src/defaults.ts",
+      "from": "files/src/defaults.ts.eta",
+      "template": true
+    },
+    {
+      "to": "packages/telemetry/src/index.ts",
+      "from": "files/src/index.ts"
+    },
+    {
+      "to": "packages/telemetry/src/otel.ts",
+      "from": "files/src/otel.ts"
+    }
+  ]
+}

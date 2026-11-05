@@ -24,6 +24,12 @@ export interface ToolingPackage {
 export const TOOLING_PACKAGES: readonly ToolingPackage[] = [
   { name: 'tsconfig' },
   { name: 'oxlint-config', dev: true },
+  { name: 'analytics' },
+  { name: 'telemetry' },
+  { name: 'url-factory' },
+  { name: 'http', needs: ['url-factory'] },
+  { name: 'storage' },
+  { name: 'theme', needs: ['storage'] },
 ];
 
 export const DEFAULT_TOOLING_PACKAGES: readonly string[] = ['tsconfig', 'oxlint-config'];

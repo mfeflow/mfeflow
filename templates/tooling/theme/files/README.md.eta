@@ -1,0 +1,34 @@
+# <%= it.scope %>/theme
+
+The company's design tokens: everything in [`@mfeflow/theme`](https://www.npmjs.com/package/@mfeflow/theme), plus
+the light and dark tokens of this company and one helper that builds the themes. `/react` and `/starting` are
+re-exported too. [`<%= it.scope %>/storage`](../storage) is installed with it: the chosen theme is kept in
+storage, so the two are released together.
+
+## What to fill in
+
+`src/tokens.ts` holds the tokens in one file, `lightTokens` and `darkTokens`. Every name becomes a CSS variable
+`--mf-<name>` on `<html>`, so keep the two lists on the same names. The values are starting points.
+
+`createThemes()` returns `{ themes, defaultTheme }`: a `light` and a `dark` theme and `light` as the default.
+
+In the shell:
+
+```tsx
+import { createThemes, noFlashScript } from '<%= it.scope %>/theme';
+import { ThemeProvider } from '<%= it.scope %>/theme/react';
+
+const { themes, defaultTheme } = createThemes();
+
+// <ThemeProvider themes={themes} defaultTheme={defaultTheme}> ... </ThemeProvider>
+// Put noFlashScript(themes, { defaultTheme }) in an inline <script> in the <head>.
+```
+
+In a remote, read the tokens with `var(--mf-color-bg)` or `cssVar('color-bg')`.
+
+## Settings only, no state
+
+`@mfeflow/theme` is a Module Federation singleton, shared by package name. `<%= it.scope %>/theme` is not in that
+list, so every remote gets its own copy of this package while the one underneath stays shared. That is fine while
+this package holds only settings and functions that build things. Keep it that way: no theme choice, listener
+or flag at module level here. State belongs in `@mfeflow/theme` or in the shell.

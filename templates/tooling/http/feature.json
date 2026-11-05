@@ -1,0 +1,31 @@
+{
+  "name": "tooling-http",
+  "version": "0.1.0",
+  "description": "A tooling repo's http package: base URLs per environment and one place for tokens on top of @mfeflow/http, with createHttp.",
+  "files": [
+    {
+      "to": "packages/http/package.json",
+      "from": "files/package.json.eta",
+      "template": true
+    },
+    {
+      "to": "packages/http/README.md",
+      "from": "files/README.md.eta",
+      "template": true
+    },
+    {
+      "to": "packages/http/tsconfig.json",
+      "from": "files/tsconfig.json"
+    },
+    {
+      "to": "packages/http/src/defaults.ts",
+      "from": "files/src/defaults.ts.eta",
+      "template": true
+    },
+    {
+      "to": "packages/http/src/index.ts",
+      "from": "files/src/index.ts.eta",
+      "template": true
+    }
+  ]
+}

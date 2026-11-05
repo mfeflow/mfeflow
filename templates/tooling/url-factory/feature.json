@@ -1,0 +1,25 @@
+{
+  "name": "tooling-url-factory",
+  "version": "0.1.0",
+  "description": "A tooling repo's url-factory package: @mfeflow/url-factory under your scope, with nothing added.",
+  "files": [
+    {
+      "to": "packages/url-factory/package.json",
+      "from": "files/package.json.eta",
+      "template": true
+    },
+    {
+      "to": "packages/url-factory/README.md",
+      "from": "files/README.md.eta",
+      "template": true
+    },
+    {
+      "to": "packages/url-factory/tsconfig.json",
+      "from": "files/tsconfig.json"
+    },
+    {
+      "to": "packages/url-factory/src/index.ts",
+      "from": "files/src/index.ts"
+    }
+  ]
+}

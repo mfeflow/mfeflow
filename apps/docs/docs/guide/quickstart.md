@@ -200,7 +200,7 @@ Next:
 
 ### Config packages in your scope
 
-`--packages` makes one package in your scope for each name, in `packages/<name>/`. This release has two, and both are made unless you say otherwise: `@acme/tsconfig` and `@acme/oxlint-config`. Each depends on our package of the same name, so app repos depend on `@acme/...` and never on `@mfeflow/...` directly.
+`--packages` makes one package in your scope for each name, in `packages/<name>/`. `@acme/tsconfig` and `@acme/oxlint-config` are made unless you say otherwise; the others are listed below. Each depends on our package of the same name, so app repos depend on `@acme/...` and never on `@mfeflow/...` directly.
 
 ```bash
 mfeflow init acme-tooling --kind tooling --scope @acme --packages tsconfig,oxlint-config
@@ -217,6 +217,20 @@ mfeflow init acme-tooling --kind tooling --scope @acme --packages tsconfig,oxlin
 ```json
 { "extends": ["./node_modules/@acme/oxlint-config/dist/oxlintrc.json"] }
 ```
+
+The other packages are thin wrappers: each depends on our package of the same name, re-exports its API, and adds the company's defaults and one helper that applies them.
+
+- `analytics`: consent denied until granted and a Tag Manager container id per environment (`dev`, `staging`, `prod`, empty for you to fill in), and `createAnalytics(env)`.
+- `telemetry`: the collector address per environment, a service name prefix, and `telemetryOptions(env, service, version)`.
+- `http`: base URLs per environment, one place for token handling, and `createHttp(endpoints, env)`. Adds `url-factory`.
+- `theme`: your light and dark tokens in one file, and `createThemes()`. Adds `storage`.
+- `url-factory`, `storage`: our package under your scope and nothing else.
+
+```bash
+mfeflow init acme-tooling --kind tooling --scope @acme --packages tsconfig,oxlint-config,analytics,telemetry,http,theme
+```
+
+A wrapper holds settings and functions that build things, never state. `analytics`, `telemetry` and `theme` are shared between the shell and the remotes by package name, and a package in your scope is not in that list, so each remote gets its own copy of the wrapper. Each wrapper's README says so.
 
 Build the tooling repo once before an app repo that links to it runs `tsc` or `oxlint`. The files in `packages/` are yours to edit.
 

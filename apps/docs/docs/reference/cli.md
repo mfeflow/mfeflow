@@ -97,7 +97,7 @@ With `--kind tooling`, `dir` is one repo for shared tooling and it has no apps. 
 mfeflow init acme-tooling --kind tooling --scope @acme --features lint-oxlint,git-hooks,commit-prompt
 ```
 
-`--packages` (only with `--kind tooling`, otherwise E107) makes one package in your scope for each name, in `packages/<name>/`. In this release the names are `tsconfig` and `oxlint-config`; an unknown name is E107 and the message lists the valid ones. Without the flag both are made; interactively a multiselect asks. A preset can carry `packages`. A package that needs another adds it and the output says so. Each package depends on our `@mfeflow/<name>` at the version of the CLI that made it (a `link:` with `--local`). The packages are not recorded in `mfeflow.json`; their files are listed with the other copied files. See [A repo with no apps](/guide/quickstart#a-repo-with-no-apps).
+`--packages` (only with `--kind tooling`, otherwise E107) makes one package in your scope for each name, in `packages/<name>/`. The names are `tsconfig`, `oxlint-config`, `analytics`, `telemetry`, `http`, `theme`, `url-factory` and `storage`; an unknown name is E107 and the message lists the valid ones. Without the flag both are made; interactively a multiselect asks. A preset can carry `packages`. A package that needs another adds it and the output says so: `http` adds `url-factory` and `theme` adds `storage`. Each package depends on our `@mfeflow/<name>` at the version of the CLI that made it (a `link:` with `--local`). The packages are not recorded in `mfeflow.json`; their files are listed with the other copied files. See [A repo with no apps](/guide/quickstart#a-repo-with-no-apps).
 
 ```bash
 mfeflow init acme-tooling --kind tooling --scope @acme --packages tsconfig,oxlint-config

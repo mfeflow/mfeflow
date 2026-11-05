@@ -83,7 +83,7 @@ describe('chooseToolingPackages', () => {
 
   it('lists the valid names for an unknown one (E107)', () => {
     expect(() => chooseToolingPackages(['tsconfig', 'nope'])).toThrow(
-      /--packages nope.*use tsconfig, oxlint-config/s,
+      /--packages nope.*use tsconfig, oxlint-config, analytics, telemetry, url-factory, http, storage, theme/s,
     );
   });
 
@@ -328,10 +328,10 @@ describe('init --kind tooling --packages', () => {
 
   it('refuses an unknown package and writes nothing', async () => {
     const cwd = await workspace();
-    const { code, err } = await tooling(cwd, '--packages', 'tsconfig,analytics');
+    const { code, err } = await tooling(cwd, '--packages', 'tsconfig,nope');
     expect(code).toBe(2);
     expect(err).toContain('MFEFLOW_E107');
-    expect(err).toContain('analytics');
+    expect(err).toContain('nope');
     expect(err).toContain('tsconfig, oxlint-config');
     expect(await fs.readdir(cwd)).toEqual([]);
   });
@@ -349,6 +349,274 @@ describe('init --kind tooling --packages', () => {
     expect(viaPreset.code).toBe(2);
     expect(await fs.readdir(cwd)).toEqual(['preset.json']);
   });
+});
+
+const WRAPPERS = ['analytics', 'telemetry', 'http', 'theme', 'url-factory', 'storage'] as const;
+
+const WRAPPER_FILES: Record<(typeof WRAPPERS)[number], string[]> = {
+  analytics: [
+    'README.md',
+    'package.json',
+    'src/clarity.ts',
+    'src/defaults.ts',
+    'src/gtm.ts',
+    'src/index.ts',
+    'src/providers.ts',
+    'src/react.ts',
+    'tsconfig.json',
+  ],
+  telemetry: [
+    'README.md',
+    'package.json',
+    'src/defaults.ts',
+    'src/index.ts',
+    'src/otel.ts',
+    'tsconfig.json',
+  ],
+  http: ['README.md', 'package.json', 'src/defaults.ts', 'src/index.ts', 'tsconfig.json'],
+  theme: [
+    'README.md',
+    'package.json',
+    'src/index.ts',
+    'src/react.ts',
+    'src/starting.ts',
+    'src/tokens.ts',
+    'tsconfig.json',
+  ],
+  'url-factory': ['README.md', 'package.json', 'src/index.ts', 'tsconfig.json'],
+  storage: ['README.md', 'package.json', 'src/index.ts', 'src/react.ts', 'tsconfig.json'],
+};
+
+function filesOf(tree: Record<string, string>, name: string): string[] {
+  const prefix = `packages/${name}/`;
+  return Object.keys(tree)
+    .filter((f) => f.startsWith(prefix))
+    .map((f) => f.slice(prefix.length))
+    .toSorted();
+}
+
+describe('the wrapper packages', () => {
+  it('makes the files of each, alone or with what it needs', async () => {
+    for (const name of ['analytics', 'telemetry', 'url-factory', 'storage'] as const) {
+      const cwd = await workspace();
+      const { code, err } = await tooling(cwd, '--packages', name);
+      expect(err).toBe('');
+      expect(code).toBe(0);
+      const tree = await readTree(path.join(cwd, 'tools'));
+      expect(filesOf(tree, name)).toEqual(WRAPPER_FILES[name]);
+      expect(filesOf(tree, 'tsconfig')).toEqual([]);
+    }
+  });
+
+  it('adds url-factory for http and storage for theme, and says so', async () => {
+    const cwd = await workspace();
+    const { code, out, err } = await tooling(cwd, '--packages', 'http,theme');
+    expect(code).toBe(0);
+    const said = `${out}\n${err}`;
+    expect(said).toContain('packages: also made url-factory, which http needs');
+    expect(said).toContain('packages: also made storage, which theme needs');
+    const tree = await readTree(path.join(cwd, 'tools'));
+    for (const name of WRAPPERS.filter((n) =>
+      ['http', 'theme', 'url-factory', 'storage'].includes(n),
+    )) {
+      expect(filesOf(tree, name)).toEqual(WRAPPER_FILES[name]);
+    }
+    expect(filesOf(tree, 'analytics')).toEqual([]);
+    expect(parsed(tree['packages/http/package.json']).dependencies).toMatchObject({
+      '@acme/url-factory': 'workspace:*',
+    });
+    expect(parsed(tree['packages/theme/package.json']).dependencies).toMatchObject({
+      '@acme/storage': 'workspace:*',
+    });
+  });
+
+  it('does not repeat the notice when the needed package was asked for', async () => {
+    const cwd = await workspace();
+    const { out, err } = await tooling(cwd, '--packages', 'url-factory,http');
+    expect(`${out}\n${err}`).not.toContain('also made');
+  });
+
+  it('names each in the user scope, public, with our package at the CLI version', async () => {
+    const cwd = await workspace();
+    await tooling(cwd, '--packages', WRAPPERS.join(','));
+    const tree = await readTree(path.join(cwd, 'tools'));
+    const version = readPackageJson().version;
+    for (const name of WRAPPERS) {
+      const pkg = parsed(tree[`packages/${name}/package.json`]);
+      expect(pkg).toMatchObject({
+        name: `@acme/${name}`,
+        version: '0.0.0',
+        publishConfig: { access: 'public' },
+        scripts: { build: 'tsc', typecheck: 'tsc --noEmit' },
+        dependencies: { [`@mfeflow/${name}`]: `^${version}` },
+      });
+      expect(pkg.exports).toHaveProperty(['.']);
+    }
+  });
+
+  it('links our packages with --local', async () => {
+    const cwd = await workspace();
+    const { code } = await tooling(cwd, '--packages', WRAPPERS.join(','), '--local', REPO);
+    expect(code).toBe(0);
+    const tree = await readTree(path.join(cwd, 'tools'));
+    for (const name of WRAPPERS) {
+      expect(
+        parsed(tree[`packages/${name}/package.json`]).dependencies?.[`@mfeflow/${name}`],
+      ).toMatch(new RegExp(`^link:.*packages/${name}$`));
+    }
+  });
+
+  it('exports a subpath for each one of ours that has one', async () => {
+    const cwd = await workspace();
+    await tooling(cwd, '--packages', WRAPPERS.join(','));
+    const tree = await readTree(path.join(cwd, 'tools'));
+    const subpaths = (name: string) =>
+      Object.keys(parsed(tree[`packages/${name}/package.json`]).exports ?? {});
+    expect(subpaths('analytics')).toEqual(['.', './gtm', './clarity', './providers', './react']);
+    expect(subpaths('telemetry')).toEqual(['.', './otel']);
+    expect(subpaths('theme')).toEqual(['.', './react', './starting']);
+    expect(subpaths('storage')).toEqual(['.', './react']);
+    expect(subpaths('http')).toEqual(['.']);
+    expect(subpaths('url-factory')).toEqual(['.']);
+    expect(tree['packages/telemetry/src/otel.ts']).toContain("'@mfeflow/telemetry/otel'");
+  });
+
+  it('puts the defaults in one file, empty or denied until the team fills them in', async () => {
+    const cwd = await workspace();
+    await tooling(cwd, '--packages', WRAPPERS.join(','));
+    const tree = await readTree(path.join(cwd, 'tools'));
+    expect(tree['packages/analytics/src/defaults.ts']).toContain('DENY_ALL');
+    expect(tree['packages/analytics/src/defaults.ts']).toMatch(/prod: ''/);
+    expect(tree['packages/telemetry/src/defaults.ts']).toContain("SERVICE_PREFIX = 'acme'");
+    expect(tree['packages/telemetry/src/defaults.ts']).toMatch(/prod: ''/);
+    expect(tree['packages/http/src/defaults.ts']).toMatch(/prod: Object.freeze\(\{ api: '' \}\)/);
+    expect(tree['packages/http/src/index.ts']).toContain("from '@acme/url-factory'");
+    const tokens = tree['packages/theme/src/tokens.ts'] ?? '';
+    expect(tokens).toContain('lightTokens');
+    expect(tokens).toContain('darkTokens');
+  });
+
+  it('says in every README that a wrapper holds settings and no state', async () => {
+    const cwd = await workspace();
+    await tooling(cwd, '--packages', WRAPPERS.join(','));
+    const tree = await readTree(path.join(cwd, 'tools'));
+    for (const name of WRAPPERS) {
+      const readme = tree[`packages/${name}/README.md`] ?? '';
+      expect(readme, name).toContain('## Settings only, no state');
+      expect(readme, name).toContain(`@acme/${name}`);
+    }
+    for (const name of ['analytics', 'telemetry', 'theme']) {
+      expect(tree[`packages/${name}/README.md`]).toContain('Module Federation singleton');
+    }
+  });
+
+  it('keeps module-level state out of the sources', async () => {
+    const cwd = await workspace();
+    await tooling(cwd, '--packages', WRAPPERS.join(','));
+    const tree = await readTree(path.join(cwd, 'tools'));
+    const sources = Object.entries(tree).filter(([file]) =>
+      /^packages\/(analytics|telemetry|http|theme|url-factory|storage)\/src\//.test(file),
+    );
+    expect(sources.length).toBeGreaterThan(10);
+    for (const [file, text] of sources) {
+      expect(text, file).not.toMatch(/^(let|var) /m);
+      expect(text, file).not.toMatch(/\bnew (Map|Set|WeakMap)\b/);
+    }
+  });
+
+  it('records no wrapper in mfeflow.json, and lists the files in --json and --dry-run', async () => {
+    const cwd = await workspace();
+    const real = await tooling(cwd, '--packages', 'analytics,http');
+    expect(real.code).toBe(0);
+    const tree = await readTree(path.join(cwd, 'tools'));
+    const project = parseProject(tree['mfeflow.json'] ?? '');
+    expect(Object.keys(project.features)).toEqual(['core', 'polyrepo', 'lint-oxlint', 'git-hooks']);
+    expect(project.files).toHaveProperty(['packages/analytics/src/defaults.ts']);
+    expect(project.files).toHaveProperty(['packages/url-factory/src/index.ts']);
+
+    const other = await workspace();
+    const { code, out } = await tooling(other, '--packages', 'theme', '--json', '--dry-run');
+    expect(code).toBe(0);
+    const result = JSON.parse(out) as InitResult;
+    const paths = result.plan.changes.map((c) => c.path);
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        'packages/theme/src/tokens.ts',
+        'packages/theme/src/index.ts',
+        'packages/storage/src/index.ts',
+      ]),
+    );
+    expect(result.plan.features.some((f) => f.name.startsWith('tooling-'))).toBe(false);
+    expect(await fs.readdir(other)).toEqual([]);
+
+    const text = await tooling(await workspace(), '--packages', 'http', '--dry-run');
+    expect(text.out).toContain('packages/url-factory/src/index.ts');
+  });
+
+  it('typechecks against the built @mfeflow packages, and follows them', async () => {
+    const cwd = await workspace();
+    const { code } = await tooling(cwd, '--packages', WRAPPERS.join(','));
+    expect(code).toBe(0);
+    const repo = path.join(cwd, 'tools');
+    const link = async (target: string, at: string) => {
+      await fs.mkdir(path.dirname(at), { recursive: true });
+      await fs.symlink(target, at, 'junction');
+    };
+    for (const name of WRAPPERS) {
+      const modules = path.join(repo, 'packages', name, 'node_modules');
+      await link(path.join(REPO, 'packages', name), path.join(modules, '@mfeflow', name));
+    }
+    await link(
+      path.join(repo, 'packages', 'url-factory'),
+      path.join(repo, 'packages', 'http', 'node_modules', '@acme', 'url-factory'),
+    );
+    await link(
+      path.join(repo, 'packages', 'storage'),
+      path.join(repo, 'packages', 'theme', 'node_modules', '@acme', 'storage'),
+    );
+    await link(
+      path.join(REPO, 'packages', 'storage'),
+      path.join(repo, 'packages', 'theme', 'node_modules', '@mfeflow', 'storage'),
+    );
+    await link(
+      path.join(REPO, 'packages', 'url-factory'),
+      path.join(repo, 'packages', 'http', 'node_modules', '@mfeflow', 'url-factory'),
+    );
+    const tsc = path.join(
+      path.dirname(
+        createRequire(path.join(REPO, 'package.json')).resolve('typescript/package.json'),
+      ),
+      'bin',
+      'tsc',
+    );
+    const tscIn = (name: string, ...flags: string[]) =>
+      spawnSync(
+        process.execPath,
+        [tsc, '-p', path.join(repo, 'packages', name), '--pretty', 'false', ...flags],
+        { encoding: 'utf8' },
+      );
+    // The ones the others import go first: they are built, as `pnpm build` does, so their types exist.
+    for (const name of ['url-factory', 'storage', 'analytics', 'telemetry', 'http', 'theme']) {
+      const result = tscIn(name);
+      expect(result.status, `${name}: ${result.stdout}`).toBe(0);
+    }
+
+    await fs.writeFile(
+      path.join(repo, 'packages', 'http', 'src', 'misuse.ts'),
+      [
+        "import { defineEndpoints } from '@acme/url-factory';",
+        "import { createHttp } from './index';",
+        "const endpoints = defineEndpoints({ list: { service: 'api', path: '/v1/orders' } });",
+        "createHttp(endpoints, 'staging', { url: () => '' });",
+        "createHttp(endpoints, 'qa');",
+        '',
+      ].join('\n'),
+    );
+    const misuse = tscIn('http', '--noEmit');
+    expect(misuse.status).not.toBe(0);
+    expect(misuse.stdout).toContain('misuse.ts(4');
+    expect(misuse.stdout).toContain('misuse.ts(5');
+  }, 180_000);
 });
 
 describe('the generated packages', () => {
