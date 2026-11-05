@@ -277,6 +277,10 @@ export async function runDev(
     overrides: Object.fromEntries(overrides),
   };
 
+  if (!view.apps.some((a) => a.kind === 'remote') && overrides.size === 0) {
+    out('mfeflow: this project has no remotes yet. Add one with `mfeflow add remote <name>`.');
+  }
+
   if (globals.dryRun) {
     if (!globals.json) {
       for (const app of apps) {

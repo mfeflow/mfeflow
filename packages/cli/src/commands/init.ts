@@ -14,6 +14,7 @@ import {
   repeated,
   splitList,
   text,
+  typed,
   assertKnownFlags,
   GLOBAL_ARGS,
   type Globals,
@@ -68,7 +69,8 @@ export const INIT_ARGS = {
   },
   remotes: {
     type: 'string',
-    description: 'Remotes to create, comma separated (default catalog,cart)',
+    description:
+      'Remotes to create, comma separated (default catalog,cart); none or "" starts with only a shell',
     valueHint: 'a,b',
   },
   features: {
@@ -104,6 +106,7 @@ export const INIT_ARGS = {
 const DEFAULT_DIR = 'mfeflow-app';
 const DEFAULT_REMOTES = ['catalog', 'cart'];
 const SCOPE = /^@[a-z0-9][a-z0-9-._]*$/;
+const NO_REMOTES = 'none';
 
 export type Topology = 'monorepo' | 'polyrepo';
 
@@ -125,6 +128,19 @@ export function scopeFor(dir: string, cwd: string = process.cwd()): string {
     .replaceAll(/[^a-z0-9-._]+/g, '-')
     .replaceAll(/^[^a-z0-9]+|[^a-z0-9]+$/g, '');
   return `@${name === '' ? 'app' : name}`;
+}
+
+/** A remotes list from a flag, a preset or a prompt: empty or `none` is a shell with no remotes. */
+export function parseRemotes(value: string | readonly string[] | undefined): string[] | undefined {
+  const list = splitList(value);
+  if (list === undefined || !list.includes(NO_REMOTES)) return list;
+  if (list.length > 1) {
+    throw new MfeflowError(
+      'E107',
+      `remotes: "${NO_REMOTES}" means no remotes at all, so it cannot be mixed with names (${list.join(', ')})`,
+    );
+  }
+  return [];
 }
 
 export function checkRemotes(remotes: readonly string[]): void {
@@ -205,13 +221,13 @@ export async function resolveInitOptions(
     throw new MfeflowError('E107', `--scope "${scope}" must look like @my-org`);
   }
 
-  const remotesFlag = splitList(text(args, 'remotes')) ?? preset.remotes;
+  const remotesFlag = parseRemotes(typed(args, 'remotes')) ?? parseRemotes(preset.remotes);
   const remotes =
     remotesFlag ??
     (canPrompt
-      ? (splitList(
+      ? (parseRemotes(
           await prompter.text({
-            message: 'Remotes, comma separated',
+            message: 'Remotes, comma separated (empty for none)',
             initialValue: DEFAULT_REMOTES.join(','),
           }),
         ) ?? [])
@@ -504,6 +520,12 @@ function printInit(rt: Runtime, result: InitResult, org?: string): void {
     return;
   }
   const remotes = result.apps.filter((a) => a.kind === 'remote').map((a) => a.name);
+  if (remotes.length === 0) {
+    rt.io.stdout(`\nCreated ${result.root} with only a shell.`);
+    rt.io.stdout(`Next:\n${result.next.map((line) => `  ${line}`).join('\n')}`);
+    rt.io.stdout('Add a remote later with `mfeflow add remote <name>`.');
+    return;
+  }
   rt.io.stdout(
     `\nCreated ${result.root} with a shell and ${String(remotes.length)} remote${remotes.length === 1 ? '' : 's'} (${remotes.join(', ')}).`,
   );

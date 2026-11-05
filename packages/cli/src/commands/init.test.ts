@@ -255,7 +255,7 @@ describe('mfeflow init', () => {
       asked: [
         'Where should the project go?',
         'npm scope for your packages',
-        'Remotes, comma separated',
+        'Remotes, comma separated (empty for none)',
         'Features',
         'Write these changes?',
       ],

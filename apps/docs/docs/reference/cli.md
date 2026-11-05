@@ -68,7 +68,7 @@ mfeflow init [dir] [options]
 | Flag                     | Type       | Default                                           | Meaning                                                   |
 | ------------------------ | ---------- | ------------------------------------------------- | --------------------------------------------------------- |
 | `--scope <@scope>`       | text       | from the folder name                              | npm scope for the project packages                        |
-| `--remotes <a,b>`        | list       | `catalog,cart`                                    | Remotes to create                                         |
+| `--remotes <a,b>`        | list       | `catalog,cart`                                    | Remotes to create; `none` or `""` makes only a shell      |
 | `--features <a,b>`       | list       | `lint-oxlint`, `url-factory`, `env-t3`, `testing` | Optional features to turn on                              |
 | `--package-manager <pm>` | text       | `pnpm`                                            | Only `pnpm` in this release                               |
 | `--topology <name>`      | text       | `monorepo`                                        | `monorepo` or `polyrepo`                                  |
@@ -80,6 +80,8 @@ Feature names accepted by `--features`: lint-oxlint, url-factory, env-t3, testin
 ```bash
 mfeflow init my-app --scope @acme --remotes catalog,cart,checkout --features lint-oxlint,git-hooks
 ```
+
+`--remotes none` (or an empty value, or `"remotes": []` in a preset) creates the shell with no remotes. Mixing `none` with names is E107. At the prompt, an empty answer means none. See [Start with only a shell](/guide/quickstart#start-with-only-a-shell).
 
 With `--topology polyrepo`, `dir` is a folder that holds one git repo per `platform`, `shell` and remote. `--features` goes to the shell and the remote repos. `ci-github` and `env-t3` are refused, and no feature is on by default. The result lists each repo under `repos`. See [One repo per team](/guide/polyrepo).
 
@@ -256,7 +258,7 @@ See [CI and budgets](/guide/ci-and-budgets) for what it checks and [The cost mod
 
 ## dev
 
-Runs the shell and every remote with a dev registry that follows the project. In the shell repo of a polyrepo it runs the shell only, and the registry lists the remotes in `devRemotes` of `public/config/runtime-config.dev.json`.
+Runs the shell and every remote with a dev registry that follows the project. A project with no remotes prints one line saying so and how to add one, then runs the shell. In the shell repo of a polyrepo it runs the shell only, and the registry lists the remotes in `devRemotes` of `public/config/runtime-config.dev.json`.
 
 | Flag                      | Meaning                                                                                        |
 | ------------------------- | ---------------------------------------------------------------------------------------------- |

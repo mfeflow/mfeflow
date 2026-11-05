@@ -69,6 +69,10 @@ Run your local shell against a remote that is already running somewhere, with `m
 
 Remote builds produce type files, and the shell can typecheck against them. In practice, remotes should not import each other. Share types through the contracts package, and use typed events and links. The generated shell does not turn on remote type checking by default.
 
+## Can I start with only a shell and add remotes later?
+
+Yes. `mfeflow init my-app --remotes none` creates the shell alone; the page says there are no remotes yet, and `mfeflow add remote <name>` adds one whenever a team is ready. It is a normal project, not a separate kind. See [Start with only a shell](/guide/quickstart#start-with-only-a-shell).
+
 ## Can I use npm or Yarn?
 
 No. This release supports pnpm only. The generated project depends on pnpm workspaces and the pnpm `catalog`. The `--package-manager` flag accepts only `pnpm`.

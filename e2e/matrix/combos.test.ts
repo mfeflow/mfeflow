@@ -4,10 +4,10 @@ import { describe, expect, it } from 'vitest';
 import { combinations, featuresOf, find, presetOf, runsE2e, runsUiE2e, stepsFor } from './combos';
 
 describe('combinations', () => {
-  it('has 59 with unique ids: the old 16, env/testing/ci on lint + url-factory, two validators, analytics + telemetry, event-bus + route-factory + http, and the react-scale features', () => {
+  it('has 60 with unique ids: the old 16, env/testing/ci on lint + url-factory, two validators, analytics + telemetry, event-bus + route-factory + http, and the react-scale features', () => {
     const all = combinations();
-    expect(all).toHaveLength(59);
-    expect(new Set(all.map((c) => c.id)).size).toBe(59);
+    expect(all).toHaveLength(60);
+    expect(new Set(all.map((c) => c.id)).size).toBe(60);
     expect(all.filter((c) => !c.env && !c.testing && !c.ci && !c.commit)).toHaveLength(16);
     expect(all.filter((c) => c.remotes === 1)).toHaveLength(40);
     expect(all.filter((c) => c.gtm || c.otel)).toHaveLength(10);
@@ -34,6 +34,14 @@ describe('combinations', () => {
       expect(ids).toContain(id);
     }
     expect(all.filter((c) => c.validator !== 'zod').every((c) => c.env)).toBe(true);
+  });
+
+  it('has one shell with no remotes, and its preset asks for none', () => {
+    const [only, ...others] = combinations().filter((c) => c.remotes === 0);
+    expect(others).toEqual([]);
+    expect(only?.id).toBe('lint-url-env-testing-r0');
+    expect(only && presetOf(only).remotes).toEqual([]);
+    expect(only && runsE2e(only)).toBe(false);
   });
 
   it('adds the react-scale features in targeted combinations, not in every one', () => {
