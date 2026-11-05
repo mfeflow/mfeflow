@@ -137,7 +137,31 @@ describe('mfeflow init with only a shell', () => {
   it('writes a shell page that says there are no remotes and how to add one', async () => {
     const root = await shellOnly();
     const home = await fs.readFile(path.join(root, 'apps/shell/src/pages/Home.tsx'), 'utf8');
-    expect(home).toContain('No remotes yet. Add one with `mfeflow add remote &lt;name&gt;`.');
+    expect(home).toContain('No remotes yet. Run `pnpm mfeflow add remote &lt;name&gt;`.');
+  });
+
+  it('keeps the route table comment inside the array, so Prettier leaves a one-route table alone', async () => {
+    const root = await shellOnly();
+    const table = await fs.readFile(
+      path.join(root, 'apps/shell/src/remotes/route-table.tsx'),
+      'utf8',
+    );
+    expect(table).toContain(
+      "export const routes: RouteEntry[] = [\n  // `mfeflow add remote <name>` adds a route here.\n  { path: '/', Component: Home },\n];",
+    );
+  });
+
+  it('leaves the route table of a project with remotes as it was', async () => {
+    const cwd = await workspace();
+    const { code } = await init(cwd, '--remotes', 'cart');
+    expect(code).toBe(0);
+    const table = await fs.readFile(
+      path.join(cwd, 'app/apps/shell/src/remotes/route-table.tsx'),
+      'utf8',
+    );
+    expect(table).toContain(
+      '// `mfeflow add remote <name>` adds a route here.\nexport const routes',
+    );
   });
 });
 

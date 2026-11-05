@@ -170,7 +170,7 @@ Next:
 Add a remote later with `mfeflow add remote <name>`.
 ```
 
-`pnpm dev` starts the shell on port 4300. The page shows one line, "No remotes yet. Add one with `mfeflow add remote <name>`.", and the console stays clean. `mfeflow dev` prints the same hint once before it starts the shell:
+`pnpm dev` starts the shell on port 4300. The page shows one line, "No remotes yet. Run `pnpm mfeflow add remote <name>`.", and the console stays clean. `mfeflow dev` prints the same hint once before it starts the shell:
 
 ```text
 mfeflow: this project has no remotes yet. Add one with `mfeflow add remote <name>`.

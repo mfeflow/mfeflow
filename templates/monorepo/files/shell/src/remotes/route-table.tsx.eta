@@ -6,7 +6,14 @@ export interface RouteEntry {
   Component: ComponentType;
 }
 
+<% if (it.apps.some((app) => app.kind === 'remote')) { -%>
 // `mfeflow add remote <name>` adds a route here.
 export const routes: RouteEntry[] = [
   { path: '/', Component: Home },
 ];
+<% } else { -%>
+export const routes: RouteEntry[] = [
+  // `mfeflow add remote <name>` adds a route here.
+  { path: '/', Component: Home },
+];
+<% } -%>

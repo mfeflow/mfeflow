@@ -4,7 +4,7 @@ import { RemoteBoundary, registeredRemotes } from '@mfeflow/runtime';
 export function Home() {
   const remotes = registeredRemotes();
   if (remotes.length === 0) {
-    return <p>No remotes yet. Add one with `mfeflow add remote &lt;name&gt;`.</p>;
+    return <p>No remotes yet. Run `pnpm mfeflow add remote &lt;name&gt;`.</p>;
   }
   return remotes.map((remote) => (
     <section key={remote.name}>
