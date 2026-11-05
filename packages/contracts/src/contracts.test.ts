@@ -408,6 +408,14 @@ describe('mfeflow.json', () => {
     expect(schema.properties.repo.description).toContain('a platform repo may have no apps at all');
   });
 
+  it('lets the JSON schema accept a platform repo with no apps', () => {
+    const schema = JSON_SCHEMAS.project as unknown as {
+      properties: { apps: { minProperties?: number; description: string } };
+    };
+    expect(schema.properties.apps.minProperties).toBeUndefined();
+    expect(schema.properties.apps.description).toContain('a platform repo may have none');
+  });
+
   it('checks the dev server port of an app', () => {
     expect(validateMfeflowProject(withPort(4311))).toEqual([]);
     expect(paths(validateMfeflowProject(withPort(0)))).toEqual(['apps.cart.port']);

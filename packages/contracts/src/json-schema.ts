@@ -224,8 +224,9 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
       scope: str(SCOPE),
       apps: {
         type: 'object',
+        description:
+          'The apps of the project. A project needs at least one shell, except a repo whose `repo` is remote or platform; a platform repo may have none. `mfeflow validate` checks this, because the rule depends on `repo`.',
         propertyNames: str(MFE_NAME),
-        minProperties: 1,
         additionalProperties: item(
           {
             kind: { enum: ['shell', 'remote'] },
