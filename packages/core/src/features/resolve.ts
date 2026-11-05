@@ -62,6 +62,13 @@ function placesFor(target: string | undefined, project: MfeflowProject): Place[]
   return [app];
 }
 
+/** True when the part targets the shell and the project has remotes but no shell to put it in. */
+function lacksShell(target: string | undefined, project: MfeflowProject): boolean {
+  if (target !== 'shell') return false;
+  const kinds = Object.values(project.apps).map((app) => app.kind);
+  return kinds.length > 0 && !kinds.includes('shell');
+}
+
 /** Checks `value` against the prompts and fills in defaults. */
 export function resolveOptions(
   manifest: FeatureManifest,
@@ -193,6 +200,9 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
         `${manifest.name}: "${file.to}" uses atRoot, which only features that ship with mfeflow may`,
       );
     }
+    if (lacksShell(file.target, project)) {
+      builder.skip({ feature: manifest.name, kind: 'file', name: file.to, target: 'shell' });
+    }
     for (const place of placesFor(file.target, project)) {
       const data = dataFor(place);
       const relative = fill(file.to, data, `${manifest.name}:${file.to}`);
@@ -203,6 +213,9 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
   }
 
   for (const dep of (manifest.dependencies ?? []).filter((d) => applies(d, options, present))) {
+    if (lacksShell(dep.target, project)) {
+      builder.skip({ feature: manifest.name, kind: 'dependency', name: dep.name, target: 'shell' });
+    }
     for (const place of placesFor(dep.target, project)) {
       const pkg = joinPosix(place.dir, 'package.json');
       if (!trusted && dep.name.includes('{{')) {
@@ -214,6 +227,9 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
   }
 
   for (const script of (manifest.scripts ?? []).filter((x) => applies(x, options, present))) {
+    if (lacksShell(script.target, project)) {
+      builder.skip({ feature: manifest.name, kind: 'script', name: script.name, target: 'shell' });
+    }
     for (const place of placesFor(script.target, project)) {
       const pkg = joinPosix(place.dir, 'package.json');
       if (!trusted) assertPlainScript(script.name, manifest.name);
@@ -227,6 +243,14 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
       !trusted && declared.op === 'add-env-key'
         ? { ...declared, schema: sanitizeSchemas(declared.schema, manifest.name) }
         : declared;
+    if (lacksShell(transform.target, project)) {
+      builder.skip({
+        feature: manifest.name,
+        kind: 'transform',
+        name: transform.file,
+        target: 'shell',
+      });
+    }
     for (const place of placesFor(transform.target, project)) {
       if (transform.op === 'add-workflow-step') {
         const where = joinPosix(place.dir, transform.file);

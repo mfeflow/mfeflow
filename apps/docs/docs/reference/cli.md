@@ -384,4 +384,4 @@ The success documents have these shapes. Each has `ok` and `command`.
 | `budget`                             | `root`, `model`, `shells[]`, `remotes[]`, `findings[]`                                                                |
 | `dev`                                | `root`, `registry`, `apps[]`, `overrides`, `dryRun`, `interrupted`                                                    |
 
-The plan in the `init` and `add` output lists features, changes (path and action), dependencies, scripts and warnings. Output shapes are part of the public API. See [Versions and upgrades](/guide/upgrading).
+The plan in the `init` and `add` output lists features, changes (path and action), dependencies, scripts, warnings and `skipped`: the parts of a feature that target a shell the repo does not have (`feature`, `kind`, `name`, `target`). Older documents have no `skipped` key. Output shapes are part of the public API. See [Versions and upgrades](/guide/upgrading).

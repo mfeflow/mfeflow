@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PlanBuilder, renderDiff, summarize, type ReadFile } from './plan';
+import { PlanBuilder, emptyPlan, renderDiff, skippedLines, summarize, type ReadFile } from './plan';
 import { rejection } from './testing';
 
 const reader =
@@ -512,5 +512,41 @@ describe('summarize new packages', () => {
     const b = new PlanBuilder(reader({ 'package.json': pkg({ dependencies: { zod: '^4.0.0' } }) }));
     await b.scoped('third-party').addDependency('package.json', 'zod', '^4.0.0');
     expect(summarize(b.build())).not.toContain('NEW PACKAGES');
+  });
+});
+
+describe('skipped parts', () => {
+  const part = (feature: string, name: string, kind: 'file' | 'dependency' = 'file') =>
+    ({ feature, kind, name, target: 'shell' }) as const;
+
+  it('records each part once', () => {
+    const builder = new PlanBuilder(() => Promise.resolve(undefined));
+    builder.skip(part('theming', 'a.ts'));
+    builder.skip(part('theming', 'a.ts'));
+    builder.skip(part('theming', 'a.ts', 'dependency'));
+    expect(builder.build().skipped).toHaveLength(2);
+  });
+
+  it('writes one block per feature, after the warnings', () => {
+    const plan = {
+      ...emptyPlan(),
+      warnings: ['careful'],
+      skipped: [
+        part('theming', 'a.ts'),
+        part('tailwind', 'b.css'),
+        part('theming', '@x/theme', 'dependency'),
+      ],
+    };
+    const lines = skippedLines(plan.skipped);
+    expect(lines).toEqual([
+      'Skipped because this repo has no shell: file a.ts, dependency @x/theme. Add `theming` in the shell repo too.',
+      'Skipped because this repo has no shell: file b.css. Add `tailwind` in the shell repo too.',
+    ]);
+    expect(summarize(plan).split('\n').slice(-3)).toEqual(['Warning: careful', ...lines]);
+  });
+
+  it('prints nothing when nothing was skipped', () => {
+    expect(skippedLines([])).toEqual([]);
+    expect(summarize(emptyPlan())).not.toContain('Skipped');
   });
 });
