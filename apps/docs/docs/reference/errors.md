@@ -55,6 +55,7 @@ Every error the CLI prints has a code like MFEFLOW_E102, a cause, a fix and a li
 | [E213](/errors/E213) | Installing dependencies failed                                      |
 | [E214](/errors/E214) | A feature option is invalid                                         |
 | [E215](/errors/E215) | The app name cannot be used                                         |
+| [E216](/errors/E216) | A feature needs an app, and this repo has none                      |
 
 ## Build and runtime (E3xx, exit code 5)
 
@@ -77,7 +78,7 @@ Every error the CLI prints has a code like MFEFLOW_E102, a cause, a fix and a li
 | [E403](/errors/E403) | The registry's index.json is not valid                |
 | [E404](/errors/E404) | A feature in the registry folder cannot be published  |
 
-E107 and E215 are command-line mistakes and exit with code 2. The E5xx range belongs to `deploy`, `promote`, `rollback` and `status` and exits with code 7:
+E107, E215 and E216 are command-line mistakes and exit with code 2. The E5xx range belongs to `deploy`, `promote`, `rollback` and `status` and exits with code 7:
 
 | Code                 | Meaning                                                          |
 | -------------------- | ---------------------------------------------------------------- |

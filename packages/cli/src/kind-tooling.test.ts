@@ -2,10 +2,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { validateMfeflowProject } from '@mfeflow/contracts';
-import { parseProject } from '@mfeflow/core';
+import { MfeflowError, parseProject } from '@mfeflow/core';
 import { main, validateResult, type InitResult } from '.';
 import { FIRST_PARTY, loadAny } from './catalog';
-import { appPartOf } from './polyrepo';
+import { appPartOf, assertToolingFeatures } from './polyrepo';
 import {
   readTree,
   removeDir,
@@ -257,12 +257,15 @@ describe('init --kind tooling', () => {
     ['deploy-docker', 'deploy-docker'],
     ['registry-static', 'registry-static'],
     ['lint-oxlint,telemetry-otel', 'telemetry-otel'],
-  ])('refuses %s with E107 naming the feature, and writes nothing', async (features, named) => {
+  ])('refuses %s with E216 naming the feature, and writes nothing', async (features, named) => {
     const cwd = await workspace();
     const { code, err } = await tooling(cwd, '--features', features);
     expect(code).toBe(2);
-    expect(err).toContain('MFEFLOW_E107');
-    expect(err).toContain(`--features ${named}: needs an app`);
+    expect(err).toContain('MFEFLOW_E216');
+    expect(err).not.toContain('MFEFLOW_E107');
+    expect(err).toContain(`--features ${named}: needs an app (`);
+    expect(err).toContain('a tooling repo has none');
+    expect(err).toContain('shell and remote repos of a polyrepo');
     expect(await fs.readdir(cwd)).toEqual([]);
   });
 
@@ -270,6 +273,7 @@ describe('init --kind tooling', () => {
     const cwd = await workspace();
     const { code, err } = await tooling(cwd, '--features', 'ci-github');
     expect(code).toBe(2);
+    expect(err).toContain('MFEFLOW_E107');
     expect(err).toContain('--features ci-github: not in a tooling repo');
     expect(err).toContain('.github/workflows/ci.yml, which this repo already has');
     expect(await fs.readdir(cwd)).toEqual([]);
@@ -383,20 +387,59 @@ describe('commands in a project with no apps', () => {
 
 describe('which features a repo with no apps takes', () => {
   const rt = testRuntime();
+  const ALLOWED = ['lint-oxlint', 'git-hooks', 'commit-prompt', 'release'];
+  /** Refused because they write to an app, or are about apps. A new feature must be added here or to ALLOWED by a person. */
+  const REFUSED = [
+    'analytics-clarity',
+    'analytics-gtm',
+    'ci-github',
+    'data-react-query',
+    'deploy-cloudflare',
+    'deploy-docker',
+    'env-t3',
+    'event-bus',
+    'forms',
+    'http',
+    'i18n',
+    'registry-server',
+    'registry-static',
+    'route-factory',
+    'storybook',
+    'tailwind',
+    'telemetry-otel',
+    'testing',
+    'theming',
+    'ui-shadcn',
+    'url-factory',
+  ];
+  const names = FIRST_PARTY.filter((f) => !f.always).map((f) => f.name);
+
   const verdicts = async (): Promise<Record<string, string | undefined>> => {
     const entries = await Promise.all(
-      FIRST_PARTY.filter((f) => !f.always).map(
-        async (f) => [f.name, appPartOf(await loadAny(f.name, { roots: rt.roots }))] as const,
+      names.map(
+        async (name) => [name, appPartOf(await loadAny(name, { roots: rt.roots }))] as const,
       ),
     );
     return Object.fromEntries(entries);
+  };
+
+  const refusalOf = async (
+    name: string,
+  ): Promise<{ code: string; message: string } | undefined> => {
+    try {
+      await assertToolingFeatures(rt, [name]);
+    } catch (error) {
+      if (error instanceof MfeflowError) return { code: error.code, message: error.message };
+      throw error;
+    }
+    return undefined;
   };
 
   it('qualifies a feature when every part targets the root', async () => {
     const taken = Object.entries(await verdicts())
       .filter(([, why]) => why === undefined)
       .map(([name]) => name);
-    expect(taken).toEqual(['lint-oxlint', 'ci-github', 'git-hooks', 'commit-prompt', 'release']);
+    expect(taken.toSorted()).toEqual([...ALLOWED, 'ci-github'].toSorted());
   });
 
   it('says which part sends a feature to an app', async () => {
@@ -409,6 +452,31 @@ describe('which features a repo with no apps takes', () => {
     const all = await verdicts();
     expect(all['deploy-docker']).toBe('it builds images of the shell and the remotes');
     expect(all['registry-static']).toBe('it deploys the remotes registry');
+  });
+
+  it('has every feature folder listed as allowed or refused, so a new one needs a decision', async () => {
+    const dir = path.resolve(import.meta.dirname, '../../../features');
+    const folders = (await fs.readdir(dir)).filter((f) => FIRST_PARTY.some((p) => p.name === f));
+    const optional = folders.filter((f) => names.includes(f));
+    expect(optional.toSorted()).toEqual([...ALLOWED, ...REFUSED].toSorted());
+    const unregistered = (await fs.readdir(dir)).filter(
+      (f) => !FIRST_PARTY.some((p) => p.name === f),
+    );
+    expect(unregistered).toEqual([]);
+  });
+
+  it('passes the allowed features and refuses every other first-party feature', async () => {
+    const results = await Promise.all(
+      names.map(async (name) => [name, await refusalOf(name)] as const),
+    );
+    const passed = results.filter(([, r]) => r === undefined).map(([n]) => n);
+    expect(passed.toSorted()).toEqual(ALLOWED.toSorted());
+    for (const [name, refusal] of results) {
+      if (ALLOWED.includes(name)) continue;
+      const expected = name === 'ci-github' ? 'MFEFLOW_E107' : 'MFEFLOW_E216';
+      expect(refusal?.code, name).toBe(expected);
+      expect(refusal?.message, name).toContain(`--features ${name}:`);
+    }
   });
 });
 

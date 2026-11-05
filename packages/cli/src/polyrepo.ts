@@ -41,7 +41,7 @@ const ABOUT_APPS: Readonly<Record<string, string>> = {
 /** Features whose job the platform template already does. */
 const PROVIDED = new Set(['release']);
 
-/** Features a standalone tooling repo cannot take at all. */
+/** Features a tooling repo cannot take although they are not about apps. */
 const TOOLING_CLASHES: Readonly<Record<string, string>> = {
   'ci-github':
     'it writes .github/workflows/ci.yml, which this repo already has (build and mfeflow validate), and its other steps (doctor, check-compat, budget, the smoke test) are about apps',
@@ -69,26 +69,32 @@ export function appPartOf(feature: LoadedFeature): string | undefined {
   return part && `${part.label} goes to ${part.target ?? 'root'}`;
 }
 
+/** The one place that decides whether a tooling repo takes a feature: the refusal, or undefined. */
+export function toolingRefusal(feature: LoadedFeature): MfeflowError | undefined {
+  const name = feature.manifest.name;
+  const clash = TOOLING_CLASHES[name];
+  if (clash !== undefined) {
+    return new MfeflowError('E107', `--features ${name}: not in a tooling repo, ${clash}`);
+  }
+  const app = appPartOf(feature);
+  if (app !== undefined) {
+    return new MfeflowError(
+      'E216',
+      `--features ${name}: needs an app (${app}), and a tooling repo has none. Use a repo with apps, or the shell and remote repos of a polyrepo.`,
+    );
+  }
+  return undefined;
+}
+
 /** Refuses a feature a tooling repo cannot take, naming it and why. */
 export async function assertToolingFeatures(
   rt: Runtime,
   features: readonly string[],
 ): Promise<void> {
-  for (const name of features) {
-    const clash = TOOLING_CLASHES[name];
-    if (clash !== undefined) {
-      throw new MfeflowError('E107', `--features ${name}: not in a tooling repo, ${clash}`);
-    }
-  }
   const loaded = await Promise.all(features.map((name) => loadAny(name, { roots: rt.roots })));
   for (const feature of loaded) {
-    const app = appPartOf(feature);
-    if (app !== undefined) {
-      throw new MfeflowError(
-        'E107',
-        `--features ${feature.manifest.name}: needs an app (${app}); a tooling repo has none`,
-      );
-    }
+    const refusal = toolingRefusal(feature);
+    if (refusal) throw refusal;
   }
 }
 

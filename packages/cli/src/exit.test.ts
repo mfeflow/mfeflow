@@ -8,6 +8,7 @@ describe('exit codes', () => {
       exitCodeFor(new MfeflowError(c));
     expect(code('E107')).toBe(EXIT.usage);
     expect(code('E215')).toBe(EXIT.usage);
+    expect(code('E216')).toBe(EXIT.usage);
     expect(code('E102')).toBe(EXIT.project);
     expect(code('E108')).toBe(EXIT.project);
     expect(code('E201')).toBe(EXIT.feature);

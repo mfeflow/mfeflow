@@ -50,6 +50,10 @@ The Package column is the library that runs in the browser or at build time. The
 | [release](/features/release)                     | Opt in    | Changesets versions each remote, and deploy uses it        | Changesets               | `.changeset/`, releasing guide        |
 | [deploy-docker](/features/deploy-docker)         | Opt in    | A Dockerfile, nginx config and Kubernetes example          | none                     | `docker/`, `compose.yaml`, `k8s/`     |
 
+## Which features work in a repo with no apps?
+
+A [tooling repo](/reference/cli#init) has no apps, so it takes only the features that write at the root: `lint-oxlint`, `git-hooks`, `commit-prompt` and `release`. Every other feature is refused with [E216](/errors/E216), and `ci-github` with E107 because the repo already has a `ci.yml`.
+
 The always-on `core` feature is the shell, the remotes and the registry files. It has no page of its own. See [Project structure](/guide/project-structure).
 
 ## What does a feature page contain?
