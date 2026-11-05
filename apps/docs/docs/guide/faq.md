@@ -73,6 +73,10 @@ Remote builds produce type files, and the shell can typecheck against them. In p
 
 No. This release supports pnpm only. The generated project depends on pnpm workspaces and the pnpm `catalog`. The `--package-manager` flag accepts only `pnpm`.
 
+## How does mfeflow compare with Nx or create-mf-app?
+
+See [mfeflow vs Nx](/guide/compare/nx) and [mfeflow vs create-mf-app](/guide/compare/create-mf-app). Each lists what the other tool does well and what we have not checked.
+
 ## Can I use Next.js?
 
 No. mfeflow builds client-rendered React apps with Rsbuild. Next.js is not supported.

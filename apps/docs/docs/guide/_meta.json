@@ -15,6 +15,14 @@
   { "type": "file", "name": "ci-and-budgets", "label": "CI and budgets" },
   { "type": "dir", "name": "deploy", "label": "Deploy", "collapsible": true, "collapsed": false },
   { "type": "file", "name": "upgrading", "label": "Versions and upgrades" },
+  { "type": "section-header", "label": "Compare" },
+  {
+    "type": "dir",
+    "name": "compare",
+    "label": "Comparisons",
+    "collapsible": true,
+    "collapsed": false
+  },
   { "type": "section-header", "label": "Help" },
   { "type": "file", "name": "troubleshooting", "label": "Troubleshooting" },
   { "type": "file", "name": "faq", "label": "FAQ" }
