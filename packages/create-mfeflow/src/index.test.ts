@@ -86,6 +86,38 @@ describe('create-mfeflow', () => {
     }
   });
 
+  it('passes --kind remote, --remotes and --shell on to init', async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), 'create-mfeflow-'));
+    try {
+      const err: string[] = [];
+      const code = await main(
+        [
+          'parts',
+          '--kind',
+          'remote',
+          '--remotes',
+          'cart,checkout',
+          '--shell',
+          'https://app.example.com/mf-manifest.json',
+          '--yes',
+          '--no-install',
+          '--cwd',
+          cwd,
+        ],
+        runtimeIn([], err),
+      );
+      expect(err).toEqual([]);
+      expect(code).toBe(0);
+      const file = await fs.readFile(path.join(cwd, 'parts', 'mfeflow.json'), 'utf8');
+      expect(file).toContain('"repo": "remote"');
+      expect(file).toContain('"shell": "https://app.example.com/mf-manifest.json"');
+      expect(file).toContain('"checkout"');
+      expect(file).not.toContain('"kind": "shell"');
+    } finally {
+      await fs.rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it('shows the help of init for --help', async () => {
     const out: string[] = [];
     expect(await main(['--help'], runtimeIn(out, []))).toBe(0);

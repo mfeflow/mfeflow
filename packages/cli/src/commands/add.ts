@@ -34,6 +34,7 @@ import { addTeamRepo } from './team-repo';
 import { chooseLocal } from '../local';
 import { createBuilder } from '../pipeline';
 import { loadPreset } from '../preset';
+import { glueScope } from '../remote-only';
 import type { Runtime } from '../runtime';
 import { trustedIn } from '../trust';
 import { writePlan } from '../write';
@@ -212,8 +213,7 @@ async function addApp(
         roots: rt.roots,
         version,
         remote: { name, port },
-        registry: true,
-        shells: ['shell'],
+        ...glueScope(project),
       }),
       project: next,
       builder,

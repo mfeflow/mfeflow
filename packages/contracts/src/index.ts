@@ -54,6 +54,7 @@ export {
   REGISTRY_HOST,
   REGISTRY_NAMESPACE,
   isMfeflowProject,
+  shellSourceProblem,
   validateMfeflowProject,
   type MfeflowProject,
   type ProjectBudget,

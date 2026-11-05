@@ -15,6 +15,7 @@ import type { AssetRoots } from './assets';
 import { inCatalogueOrder, loadAny } from './catalog';
 import { remoteGlue } from './glue';
 import { projectReader } from './pipeline';
+import { coreFor, glueScope } from './remote-only';
 import { readPackageJson } from './version';
 import type { FetchLike } from '@mfeflow/core';
 
@@ -102,7 +103,10 @@ export async function planProjectUpgrade(
       skipped.push({ name, reason: messageOf(error) });
     }
   }
-  const core = features.find((f) => f.manifest.name === 'core');
+  const coreAt = features.findIndex((f) => f.manifest.name === 'core');
+  const original = features[coreAt];
+  if (original !== undefined) features[coreAt] = await coreFor(project, original);
+  const core = features[coreAt];
   const glue = await Promise.all(
     Object.entries(project.apps).flatMap(([name, app]) =>
       app.kind === 'remote' && app.port !== undefined && core !== undefined
@@ -111,8 +115,7 @@ export async function planProjectUpgrade(
               roots: ctx.roots,
               version: core.manifest.version,
               remote: { name, port: app.port },
-              registry: true,
-              shells: ['shell'],
+              ...glueScope(project),
             }),
           ]
         : [],

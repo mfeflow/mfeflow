@@ -47,15 +47,19 @@ async function json(file: string): Promise<Record<string, unknown>> {
 }
 
 describe('init --kind', () => {
-  it.each([
-    ['remote', /not available in this release/],
-    ['library', /use app, remote or tooling/],
-  ])('refuses --kind %s with E107', async (kind, message) => {
+  it('refuses an unknown --kind with E107', async () => {
     const cwd = await workspace();
-    const { code, err } = await run(cwd, ['init', 'x', '--kind', kind, '--yes', '--no-install']);
+    const { code, err } = await run(cwd, [
+      'init',
+      'x',
+      '--kind',
+      'library',
+      '--yes',
+      '--no-install',
+    ]);
     expect(code).toBe(2);
     expect(err).toContain('MFEFLOW_E107');
-    expect(err).toMatch(message);
+    expect(err).toMatch(/use app, remote or tooling/);
     expect(await fs.readdir(cwd)).toEqual([]);
   });
 

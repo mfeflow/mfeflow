@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { redactUrl } from '@mfeflow/contracts';
 import { findProjectRoot, messageOf, MfeflowError } from '@mfeflow/core';
 import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals, repeated, splitList } from '../args';
@@ -216,6 +217,15 @@ function assertPortsFree(busy: readonly AppView[]): void {
   );
 }
 
+/** One line on seeing a local remote in the deployed shell a remotes-only repo records, or undefined without one. */
+export function shellHintOf(view: ProjectView): string | undefined {
+  const { shell } = view.project;
+  const remote = view.apps.find((a) => a.kind === 'remote' && a.port !== undefined);
+  if (shell === undefined || remote === undefined) return undefined;
+  const manifest = `http://localhost:${String(remote.port)}/mf-manifest.json`;
+  return `mfeflow: the shell is at ${redactUrl(shell)}. To see ${remote.name} there, add ?mfe-override=${remote.name}@${manifest} to a page of that shell. This works only if that shell is a development build; production builds ignore overrides.`;
+}
+
 export async function runDev(
   rt: Runtime,
   args: Record<string, unknown>,
@@ -294,6 +304,9 @@ export async function runDev(
   if (!view.apps.some((a) => a.kind === 'remote') && overrides.size === 0) {
     out('mfeflow: this project has no remotes yet. Add one with `mfeflow add remote <name>`.');
   }
+
+  const shellHint = shellHintOf(view);
+  if (shellHint !== undefined) out(shellHint);
 
   if (globals.dryRun) {
     if (!globals.json) {
