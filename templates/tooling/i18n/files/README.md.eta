@@ -33,3 +33,9 @@ const i18n = await startI18n(); // or startI18n({ detect: false })
 list, so every remote gets its own copy of this package while the one underneath stays shared. That is fine while
 this package holds only settings and functions that build things. Keep it that way: no instance, language or flag
 at module level here. State belongs in `@mfeflow/i18n` or in the shell.
+
+## In an app
+
+An app that imports `<%= it.scope %>/i18n` must also list `@mfeflow/i18n` in its own `package.json` (the shell and every
+remote). The preset shares `@mfeflow/i18n` only when the app can resolve it from its own folder, and pnpm does not
+make a dependency of a dependency visible there. Without it the preset cannot see the package, leaves it out of the shared list, and each remote gets its own copy, so a remote does not see the language the shell set.

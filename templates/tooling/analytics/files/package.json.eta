@@ -10,23 +10,28 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./gtm": {
       "types": "./dist/gtm.d.ts",
-      "import": "./dist/gtm.js"
+      "import": "./dist/gtm.js",
+      "default": "./dist/gtm.js"
     },
     "./clarity": {
       "types": "./dist/clarity.d.ts",
-      "import": "./dist/clarity.js"
+      "import": "./dist/clarity.js",
+      "default": "./dist/clarity.js"
     },
     "./providers": {
       "types": "./dist/providers.d.ts",
-      "import": "./dist/providers.js"
+      "import": "./dist/providers.js",
+      "default": "./dist/providers.js"
     },
     "./react": {
       "types": "./dist/react.d.ts",
-      "import": "./dist/react.js"
+      "import": "./dist/react.js",
+      "default": "./dist/react.js"
     }
   },
   "publishConfig": {

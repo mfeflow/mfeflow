@@ -10,23 +10,28 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./providers": {
       "types": "./dist/providers.d.ts",
-      "import": "./dist/providers.js"
+      "import": "./dist/providers.js",
+      "default": "./dist/providers.js"
     },
     "./beacon": {
       "types": "./dist/beacon.d.ts",
-      "import": "./dist/beacon.js"
+      "import": "./dist/beacon.js",
+      "default": "./dist/beacon.js"
     },
     "./plugins/report": {
       "types": "./dist/plugins/report.d.ts",
-      "import": "./dist/plugins/report.js"
+      "import": "./dist/plugins/report.js",
+      "default": "./dist/plugins/report.js"
     },
     "./plugins/entry-retry": {
       "types": "./dist/plugins/entry-retry.d.ts",
-      "import": "./dist/plugins/entry-retry.js"
+      "import": "./dist/plugins/entry-retry.js",
+      "default": "./dist/plugins/entry-retry.js"
     }
   },
   "publishConfig": {

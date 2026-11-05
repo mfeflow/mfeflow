@@ -605,6 +605,7 @@ describe('the wrapper packages', () => {
         expect(target, `${name} ${subpath}`).toEqual({
           types: `./dist/${file}.d.ts`,
           import: `./dist/${file}.js`,
+          default: `./dist/${file}.js`,
         });
         expect(tree[`packages/${name}/src/${file}.ts`], `${name} ${subpath}`).toBeDefined();
       }
@@ -613,6 +614,23 @@ describe('the wrapper packages', () => {
     expect(tree['packages/runtime/src/plugins/entry-retry.ts']).toContain(
       "'@mfeflow/runtime/plugins/entry-retry'",
     );
+  });
+
+  it('gives every export a default condition, which is how the preset finds a package to share', async () => {
+    const cwd = await workspace();
+    await tooling(cwd, '--packages', WRAPPERS.join(','));
+    const tree = await readTree(path.join(cwd, 'tools'));
+    for (const name of WRAPPERS) {
+      const wrapper = parsed(tree[`packages/${name}/package.json`]);
+      const real = await realPackage(name);
+      for (const [subpath, target] of Object.entries(wrapper.exports ?? {})) {
+        const conditions = Object.keys(target);
+        expect(conditions, `${name} ${subpath}`).toContain('default');
+        expect(conditions, `${name} ${subpath}`).toEqual(
+          Object.keys((real.exports ?? {})[subpath] as object),
+        );
+      }
+    }
   });
 
   it('carries the peer dependencies of the real package, with the same ranges and optional flags', async () => {
@@ -673,7 +691,10 @@ describe('the wrapper packages', () => {
       expect(readme, name).toContain(`@acme/${name}`);
     }
     for (const name of ['analytics', 'telemetry', 'theme', 'i18n', 'runtime']) {
-      expect(tree[`packages/${name}/README.md`]).toContain('Module Federation singleton');
+      const readme = tree[`packages/${name}/README.md`] ?? '';
+      expect(readme, name).toContain('Module Federation singleton');
+      expect(readme, name).toContain('## In an app');
+      expect(readme, name).toContain(`must also list \`@mfeflow/${name}\``);
     }
   });
 
