@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://mfeflow.github.io/mfeflow/sitemap.xml
