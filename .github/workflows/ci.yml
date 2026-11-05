@@ -64,7 +64,7 @@ jobs:
   smoke:
     name: smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -81,6 +81,8 @@ jobs:
       # Generates a project with `mfeflow init --local`, installs and builds it, boots `pnpm dev`
       # and fetches the shell and both remotes.
       - run: node scripts/smoke.mjs
+      # Generates a tooling repo (four packages, lint and git hooks), installs, builds, typechecks and lints it.
+      - run: node scripts/smoke-tooling.mjs
 
   # Generates a polyrepo, installs and builds each repo on its own with the platform packages
   # linked, boots the shell next to one remote, and adds a team repo while it runs. Ubuntu only:
