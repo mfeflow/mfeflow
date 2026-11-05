@@ -46,6 +46,33 @@ async function json(file: string): Promise<Record<string, unknown>> {
   return JSON.parse(await fs.readFile(file, 'utf8')) as Record<string, unknown>;
 }
 
+const ALLOWED = ['lint-oxlint', 'git-hooks', 'commit-prompt', 'release'];
+/** Refused because they write to an app, or are about apps. A new feature must be added here or to ALLOWED by a person. */
+const REFUSED = [
+  'analytics-clarity',
+  'analytics-gtm',
+  'ci-github',
+  'data-react-query',
+  'deploy-cloudflare',
+  'deploy-docker',
+  'env-t3',
+  'event-bus',
+  'forms',
+  'http',
+  'i18n',
+  'registry-server',
+  'registry-static',
+  'route-factory',
+  'storybook',
+  'tailwind',
+  'telemetry-otel',
+  'testing',
+  'theming',
+  'ui-shadcn',
+  'url-factory',
+];
+const names = FIRST_PARTY.filter((f) => !f.always).map((f) => f.name);
+
 describe('init --kind', () => {
   it.each([
     ['remote', /not available in this release/],
@@ -388,33 +415,6 @@ describe('commands in a project with no apps', () => {
 
 describe('which features a repo with no apps takes', () => {
   const rt = testRuntime();
-  const ALLOWED = ['lint-oxlint', 'git-hooks', 'commit-prompt', 'release'];
-  /** Refused because they write to an app, or are about apps. A new feature must be added here or to ALLOWED by a person. */
-  const REFUSED = [
-    'analytics-clarity',
-    'analytics-gtm',
-    'ci-github',
-    'data-react-query',
-    'deploy-cloudflare',
-    'deploy-docker',
-    'env-t3',
-    'event-bus',
-    'forms',
-    'http',
-    'i18n',
-    'registry-server',
-    'registry-static',
-    'route-factory',
-    'storybook',
-    'tailwind',
-    'telemetry-otel',
-    'testing',
-    'theming',
-    'ui-shadcn',
-    'url-factory',
-  ];
-  const names = FIRST_PARTY.filter((f) => !f.always).map((f) => f.name);
-
   const verdicts = async (): Promise<Record<string, string | undefined>> => {
     const entries = await Promise.all(
       names.map(
@@ -481,6 +481,114 @@ describe('which features a repo with no apps takes', () => {
   });
 });
 
+describe('mfeflow add in a tooling repo', () => {
+  async function toolingRoot(): Promise<string> {
+    const cwd = await workspace();
+    expect((await tooling(cwd)).code).toBe(0);
+    return path.join(cwd, 'tools');
+  }
+
+  const add = (root: string, name: string, ...flags: string[]): Promise<Run> =>
+    run(root, ['add', name, '--yes', '--no-install', ...flags]);
+
+  it.each(REFUSED.filter((name) => name !== 'ci-github'))(
+    'refuses %s with E216 and writes nothing',
+    async (name) => {
+      const root = await toolingRoot();
+      const before = await readTree(root);
+      const { code, err } = await add(root, name);
+      expect(code).toBe(2);
+      expect(err).toContain('MFEFLOW_E216');
+      expect(err).toContain(`--features ${name}: needs an app (`);
+      expect(err).toContain('a tooling repo has none');
+      expect(await readTree(root)).toEqual(before);
+    },
+  );
+
+  it('refuses ci-github with E107, as init does', async () => {
+    const root = await toolingRoot();
+    const before = await readTree(root);
+    const { code, err } = await add(root, 'ci-github');
+    expect(code).toBe(2);
+    expect(err).toContain('MFEFLOW_E107');
+    expect(err).toContain('--features ci-github: not in a tooling repo');
+    expect(await readTree(root)).toEqual(before);
+  });
+
+  it('refuses the whole command when one of several features needs an app', async () => {
+    const root = await toolingRoot();
+    const before = await readTree(root);
+    const { code, err } = await run(root, [
+      'add',
+      'commit-prompt',
+      'theming',
+      '--yes',
+      '--no-install',
+    ]);
+    expect(code).toBe(2);
+    expect(err).toContain('--features theming:');
+    expect(await readTree(root)).toEqual(before);
+  });
+
+  it('never refuses an allowed feature', async () => {
+    const results = await Promise.all(
+      ALLOWED.map(async (name) => [name, await add(await toolingRoot(), name)] as const),
+    );
+    for (const [name, { err }] of results) {
+      expect(err, name).not.toContain('MFEFLOW_E216');
+      expect(err, name).not.toContain('MFEFLOW_E107');
+    }
+  });
+
+  it('adds commit-prompt', async () => {
+    const root = await toolingRoot();
+    const { code, err } = await add(root, 'commit-prompt');
+    expect(err).toBe('');
+    expect(code).toBe(0);
+    expect(await readTree(root)).toHaveProperty(['cz.config.js']);
+  });
+
+  it('leaves lint-oxlint and git-hooks as already added', async () => {
+    const root = await toolingRoot();
+    const { code, out } = await add(root, 'lint-oxlint');
+    expect(code).toBe(0);
+    expect(out).toContain('already added');
+  });
+
+  it('prints a JSON error for a refusal and writes nothing on --dry-run', async () => {
+    const root = await toolingRoot();
+    const before = await readTree(root);
+    const { code, out } = await add(root, 'theming', '--json', '--dry-run');
+    expect(code).toBe(2);
+    const error: unknown = JSON.parse(out);
+    expect(error).toMatchObject({ ok: false, error: { code: 'MFEFLOW_E216' } });
+    expect(await readTree(root)).toEqual(before);
+  });
+
+  it('refuses before anything is shown on --dry-run', async () => {
+    const root = await toolingRoot();
+    const { code, out, err } = await add(root, 'deploy-docker', '--dry-run');
+    expect(code).toBe(2);
+    expect(out).not.toContain('to create');
+    expect(err).toContain('MFEFLOW_E216');
+  });
+});
+
+describe('mfeflow add in a project with apps', () => {
+  it('still takes a feature that has app parts', async () => {
+    const cwd = await workspace();
+    const made = await run(cwd, ['init', 'a', '--yes', '--no-install', '--remotes', 'cart']);
+    expect(made.code).toBe(0);
+    const root = path.join(cwd, 'a');
+    const { code, err } = await run(root, ['add', 'url-factory', '--yes', '--no-install']);
+    expect(err).toBe('');
+    expect(code).toBe(0);
+    expect(parseProject((await readTree(root))['mfeflow.json'] ?? '').features).toHaveProperty([
+      'url-factory',
+    ]);
+  });
+});
+
 describe('polyrepo platform repo', () => {
   async function platformTree(...flags: string[]): Promise<Record<string, string>> {
     const cwd = await workspace();
@@ -532,5 +640,17 @@ describe('polyrepo platform repo', () => {
       }
     }
     expect(JSON.parse(picked['mfeflow.json'] ?? '{}')).toMatchObject({ topology: 'polyrepo' });
+  });
+
+  it('still takes add for a feature that was allowed before', async () => {
+    const cwd = await workspace();
+    const made = await run(cwd, ['init', 'org', '--topology', 'polyrepo', '--yes', '--no-install']);
+    expect(made.code).toBe(0);
+    const root = path.join(cwd, 'org', 'platform');
+    const { code, err } = await run(root, ['add', 'registry-static', '--yes', '--no-install']);
+    expect(err).toBe('');
+    expect(code).toBe(0);
+    const dry = await run(root, ['add', 'commit-prompt', '--yes', '--no-install']);
+    expect(dry.code).toBe(0);
   });
 });
