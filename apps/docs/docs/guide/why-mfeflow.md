@@ -87,6 +87,5 @@ Skip mfeflow in these cases:
 - You need Next.js or server rendering today. mfeflow builds client-rendered apps with Rsbuild or Vite.
 - Your remotes use different frameworks. The shared singleton design assumes one React.
 - You need npm or Yarn. This release supports pnpm only.
-- You need a finished deploy and rollback workflow now. Only the design exists.
 
 If none of those apply, start with the [Quickstart](/guide/quickstart).
