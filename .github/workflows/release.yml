@@ -222,14 +222,15 @@ jobs:
           lock=$RUNNER_TEMP/lock
           mkdir "$lock"
           printf '{"private":true,"dependencies":{"@mfeflow/registry":"%s"}}\n' "$VERSION" > "$lock/package.json"
-          for attempt in 1 2 3 4 5; do
-            if npm view "@mfeflow/registry@$VERSION" version >/dev/null 2>&1 &&
-              (cd "$lock" && npm install --package-lock-only --ignore-scripts --no-audit --no-fund); then
+          # A new version can take several minutes to show up on every npm mirror (0.8.0 took about 5), so wait up to ~10.
+          for attempt in $(seq 1 12); do
+            if npm view "@mfeflow/registry@$VERSION" version --prefer-online >/dev/null 2>&1 &&
+              (cd "$lock" && npm install --package-lock-only --prefer-online --ignore-scripts --no-audit --no-fund); then
               cp "$lock/package.json" "$lock/package-lock.json" packages/registry/docker/
               exit 0
             fi
             echo "attempt $attempt: @mfeflow/registry@$VERSION is not installable yet"
-            sleep $((attempt * 15))
+            sleep $(( attempt < 4 ? attempt * 15 : 60 ))
           done
           echo "::error::@mfeflow/registry@$VERSION never became installable from npm"
           exit 1
