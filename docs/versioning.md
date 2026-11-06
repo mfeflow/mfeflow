@@ -67,7 +67,10 @@ Releasing is `.github/workflows/release.yml`, off until the repository variable 
    already on npm, so re-running a failed job is safe.
 6. **Tag and release.** The `tag` job creates `<name>@<version>` for every package and `v<version>`,
    and one GitHub Release `v<version>` with the notes from `packages/cli/CHANGELOG.md` and the
-   tarballs attached.
+   tarballs attached. Before tagging it re-checks each tarball against the `pack` job's sha256, then
+   signs them with `actions/attest-build-provenance` and attaches the bundle as
+   `mfeflow-<version>.intoto.jsonl`. To verify a download:
+   `gh attestation verify <file>.tgz --repo mfeflow/mfeflow`.
 
 What this does not stop: a build dependency can tamper with both the tarballs and the `pack` job's
 outputs. Its reach is limited to the planned `name@version` under the planned dist-tag, and npm

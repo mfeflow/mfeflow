@@ -416,10 +416,10 @@ describe('the workflows', () => {
     expect(release.image).toMatch(/runs-on: ubuntu-latest/);
   });
 
-  it('gives only the publish job id-token and holds no npm token anywhere', () => {
+  it('gives only the publish and tag jobs id-token and holds no npm token anywhere', () => {
     const text = code(readWorkflow('release.yml'));
     for (const [name, chunk] of Object.entries(release))
-      expect(/id-token: write/.test(chunk)).toBe(name === 'publish');
+      expect(/id-token: write/.test(chunk)).toBe(name === 'publish' || name === 'tag');
     expect(text).not.toMatch(/NPM_TOKEN|NODE_AUTH_TOKEN/);
   });
 
@@ -462,9 +462,23 @@ describe('the workflows', () => {
     expect(release.version).not.toMatch(/id-token|NPM_TOKEN/);
   });
 
-  it('tags with contents: write and without id-token', () => {
+  it('tags with contents: write and holds no npm token', () => {
     expect(release.tag).toMatch(/contents: write/);
-    expect(release.tag).not.toMatch(/id-token|NPM_TOKEN/);
+    expect(release.tag).not.toMatch(/NPM_TOKEN/);
+  });
+
+  it('signs the release tarballs and attaches the provenance bundle to the GitHub Release', () => {
+    expect(release.tag).toMatch(/id-token: write/);
+    expect(release.tag).toMatch(/attestations: write/);
+    expect(release.tag).toMatch(/needs: \[plan, pack, publish\]/);
+    expect(release.tag).toMatch(/uses: actions\/attest-build-provenance@[0-9a-f]{40}/);
+    expect(release.tag).toContain('subject-path: release/*.tgz');
+    expect(release.tag).toContain('mfeflow-${version#v}.intoto.jsonl');
+    expect(release.tag).toMatch(/gh release create "\$version" release\/\* "\$provenance"/);
+    expect(release.tag).toMatch(/gh release upload "\$version" release\/\* "\$provenance"/);
+    expect(release.tag.indexOf('Check the tarballs against the pack job')).toBeLessThan(
+      release.tag.indexOf('actions/attest-build-provenance'),
+    );
   });
 
   it('keeps the dry-run publish check in ci.yml on Node 24', () => {
