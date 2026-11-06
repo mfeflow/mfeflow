@@ -326,6 +326,7 @@ export function prefixReport(report: PlanReport, dir: string): PlanReport {
     dependencies: report.dependencies.map((d) => ({ ...d, file: at(d.file) })),
     scripts: report.scripts.map((s) => ({ ...s, file: at(s.file) })),
     warnings: report.warnings.map((w) => `${dir}: ${w}`),
+    skipped: report.skipped,
   };
 }
 
@@ -338,6 +339,7 @@ export function mergeReports(reports: readonly PlanReport[]): PlanReport {
     dependencies: reports.flatMap((r) => r.dependencies),
     scripts: reports.flatMap((r) => r.scripts),
     warnings: reports.flatMap((r) => r.warnings),
+    skipped: reports.flatMap((r) => r.skipped),
   };
 }
 

@@ -847,4 +847,107 @@ describe('plan, apply and re-plan against a real folder', () => {
       await fs.rm(root, { recursive: true, force: true });
     }
   });
+
+  describe('shell parts in a project with no shell', () => {
+    const noShell: MfeflowProject = {
+      ...project,
+      repo: 'remote',
+      apps: {
+        catalog: { kind: 'remote', path: 'apps/catalog' },
+        cart: { kind: 'remote', path: 'apps/cart' },
+      },
+    };
+    const run = async (p: MfeflowProject, manifest: FeatureManifest = analytics) => {
+      const builder = new PlanBuilder(reader());
+      await resolveFeature({ feature: local(manifest, assets), project: p, builder });
+      return builder.build();
+    };
+    const names = (plan: Awaited<ReturnType<typeof run>>) =>
+      plan.skipped.map((s) => `${s.kind} ${s.name}`);
+
+    it('lists each part that targets the shell, and still writes the rest', async () => {
+      const plan = await run(noShell);
+      expect(plan.skipped.every((s) => s.feature === 'analytics-gtm' && s.target === 'shell')).toBe(
+        true,
+      );
+      expect(names(plan)).toEqual([
+        'file src/platform/consent.ts',
+        'dependency react',
+        'script analytics:check',
+        'transform src/app/providers.tsx',
+        'transform src/bootstrap.tsx',
+        'transform env.ts',
+        'transform src/config/schema.ts',
+      ]);
+      expect(plan.changes.map((c) => c.path)).toEqual([
+        'apps/cart/src/analytics.ts',
+        'apps/catalog/src/analytics.ts',
+        'package.json',
+      ]);
+    });
+
+    it('writes the same remote and root changes as a project that has a shell', async () => {
+      const outside = (p: Awaited<ReturnType<typeof run>>) =>
+        p.changes.filter((c) => !c.path.startsWith('apps/shell/') && c.path !== 'env.ts');
+      const withShell = outside(await run(project));
+      const without = outside(await run(noShell));
+      expect(without.map((c) => c.path)).toEqual(
+        withShell.map((c) => c.path).filter((f) => !f.includes('config')),
+      );
+      for (const change of without) {
+        expect(change).toEqual(withShell.find((c) => c.path === change.path));
+      }
+    });
+
+    it('says nothing when the project has a shell', async () => {
+      expect((await run(project)).skipped).toEqual([]);
+    });
+
+    it('says nothing for a tooling repo with no apps', async () => {
+      const tooling: MfeflowProject = { ...project, repo: 'platform', apps: {} };
+      expect((await run(tooling)).skipped).toEqual([]);
+    });
+
+    it('does not count remotes or root parts, with or without a remote', async () => {
+      const remotesAndRoot: FeatureManifest = {
+        name: 'plain',
+        version: '1.0.0',
+        files: [
+          { to: 'a.ts', target: 'remotes', content: 'a\n' },
+          { to: 'b.ts', content: 'b\n' },
+        ],
+      };
+      expect((await run(noShell, remotesAndRoot)).skipped).toEqual([]);
+      const shellOnly: MfeflowProject = {
+        ...project,
+        apps: { shell: { kind: 'shell', path: 'apps/shell' } },
+      };
+      expect((await run(shellOnly, remotesAndRoot)).skipped).toEqual([]);
+    });
+
+    it.each(['core', 'tsconfig', 'polyrepo'])(
+      'does not report the shell parts of %s, which init applies on its own',
+      async (name) => {
+        const glue: FeatureManifest = {
+          name,
+          version: '1.0.0',
+          files: [{ to: 'shell.ts', target: 'shell', content: 's\n' }],
+          dependencies: [{ name: 'react', range: '^19.0.0', target: 'shell' }],
+        };
+        const plan = await run(noShell, glue);
+        expect(plan.skipped).toEqual([]);
+        expect(plan.changes.some((c) => c.path.startsWith('apps/shell/'))).toBe(false);
+      },
+    );
+
+    it('skips a part whose when does not hold without reporting it', async () => {
+      const conditional: FeatureManifest = {
+        name: 'cond',
+        version: '1.0.0',
+        prompts: [{ name: 'on', type: 'boolean' }],
+        files: [{ to: 'c.ts', target: 'shell', content: 'c\n', when: { on: true } }],
+      };
+      expect((await run(noShell, conditional)).skipped).toEqual([]);
+    });
+  });
 });

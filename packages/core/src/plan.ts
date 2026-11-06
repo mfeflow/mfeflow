@@ -46,6 +46,15 @@ export interface ScriptAdd {
   command: string;
 }
 
+/** A part of a feature that targets the shell, in a project that has remotes and no shell. Not written. */
+export interface SkippedPart {
+  feature: string;
+  kind: 'file' | 'dependency' | 'script' | 'transform';
+  /** The path, package, script name or edited file, as the feature declares it. */
+  name: string;
+  target: 'shell';
+}
+
 export interface EnvKeyAdd {
   file: string;
   key: string;
@@ -60,6 +69,8 @@ export interface Plan {
   scripts: ScriptAdd[];
   env: EnvKeyAdd[];
   warnings: string[];
+  /** Shell parts left out because the project has no shell. */
+  skipped: SkippedPart[];
   /**
    * What `mfeflow.json` held when the plan was made (null: no file). `applyPlan`
    * checks it like any other target, so an edit in between is an E211.
@@ -76,6 +87,7 @@ export function emptyPlan(): Plan {
     scripts: [],
     env: [],
     warnings: [],
+    skipped: [],
   };
 }
 
@@ -180,6 +192,12 @@ export class PlanBuilder {
 
   warn(message: string): void {
     this.plan.warnings.push(message);
+  }
+
+  skip(part: SkippedPart): void {
+    const same = (p: SkippedPart) =>
+      p.feature === part.feature && p.kind === part.kind && p.name === part.name;
+    if (!this.plan.skipped.some(same)) this.plan.skipped.push(part);
   }
 
   /** Creates a file. Asking for the same content again is fine; different content is a conflict. */
@@ -446,6 +464,21 @@ const VERB: Record<ChangeAction, string> = { create: 'create', patch: 'patch ', 
 const dependencyLine = (d: DependencyAdd) =>
   `  ${d.file}  ${d.name}@${d.range}${d.dev ? ' (dev)' : ''}`;
 
+/** One block per feature: what was left out, and where to add it. */
+export function skippedLines(skipped: readonly SkippedPart[]): string[] {
+  const byFeature = new Map<string, string[]>();
+  for (const part of skipped) {
+    byFeature.set(part.feature, [
+      ...(byFeature.get(part.feature) ?? []),
+      `${part.kind} ${part.name}`,
+    ]);
+  }
+  return [...byFeature].map(
+    ([feature, parts]) =>
+      `Skipped because this repo has no shell: ${parts.join(', ')}. Add \`${feature}\` in the shell repo too.`,
+  );
+}
+
 /** A short human summary: counts, then each file, dependency, script and env key. */
 export function summarize(plan: Plan): string {
   const count = (action: ChangeAction) => plan.changes.filter((c) => c.action === action).length;
@@ -478,5 +511,6 @@ export function summarize(plan: Plan): string {
     for (const e of plan.env) lines.push(`  ${e.file}  ${e.key}`);
   }
   for (const w of plan.warnings) lines.push(`Warning: ${w}`);
+  for (const line of skippedLines(plan.skipped)) lines.push(line);
   return lines.join('\n');
 }

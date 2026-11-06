@@ -52,6 +52,16 @@ The CLI builds the whole plan first. It then writes every file, edits the others
 
 You can add several at once, such as `pnpm mfeflow add tailwind ui-shadcn`. A feature that needs another one stops with a clear message if the other is missing (E206).
 
+## When a repo has no shell
+
+Some features put a part in the shell: the theme provider of `theming`, the boot step of `telemetry-otel`, the Tailwind setup of the shell. In a repo that has remotes and no shell (`repo: "remote"` in `mfeflow.json`), those parts are not written, because the shell owns them. The plan now says so, once per feature:
+
+```text
+Skipped because this repo has no shell: file src/theme/themes.ts, dependency @mfeflow/theme, transform src/bootstrap.tsx. Add `theming` in the shell repo too.
+```
+
+The remotes get their own files and packages as before. With `--json`, the same list is `plan.skipped`: one entry per part with `feature`, `kind` (`file`, `dependency`, `script` or `transform`), `name` and `target`. Nothing is listed for a project with a shell, for a repo with no apps, or for parts that target the remotes or the root.
+
 ## Set a feature's options
 
 Some features ask a question, such as which validator env-t3 should use. Answer it from the command line with `--option`:

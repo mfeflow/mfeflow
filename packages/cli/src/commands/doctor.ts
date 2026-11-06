@@ -172,15 +172,19 @@ async function runGroup(
 async function againstOf(
   args: Record<string, unknown>,
   globals: Globals,
-): Promise<{ source: string; shown: string } | undefined> {
+): Promise<{ source: string; shown: string; fromProject: boolean } | undefined> {
   if (typeof args.against === 'string') {
-    return { source: args.against, shown: redactUrl(args.against) };
+    return { source: args.against, shown: redactUrl(args.against), fromProject: false };
   }
   const root = await findProjectRoot(globals.cwd);
   const { shell } = await loadProject(root);
   if (shell === undefined) return undefined;
   const isFile = !/^(https?|file):/i.test(shell) && !path.isAbsolute(shell);
-  return { source: isFile ? path.resolve(root, shell) : shell, shown: redactUrl(shell) };
+  return {
+    source: isFile ? path.resolve(root, shell) : shell,
+    shown: redactUrl(shell),
+    fromProject: true,
+  };
 }
 
 export async function runDoctor(
@@ -199,7 +203,11 @@ export async function runDoctor(
       const found = await againstOf(args, globals);
       if (found === undefined) return DOCTOR_CHECKS;
       against = found.shown;
-      const shell = await loadShell(found.source, { cwd: globals.cwd, fetch: rt.fetch });
+      const shell = await loadShell(found.source, {
+        cwd: globals.cwd,
+        fetch: rt.fetch,
+        fromProject: found.fromProject,
+      });
       return DOCTOR_CHECKS.map((check) =>
         check.id === compat.id ? compatCheck(shell, 'doctor') : check,
       );
@@ -236,7 +244,11 @@ export async function runCheckCompat(
         compatCheck(
           found === undefined
             ? undefined
-            : await loadShell(found.source, { cwd: globals.cwd, fetch: rt.fetch }),
+            : await loadShell(found.source, {
+                cwd: globals.cwd,
+                fetch: rt.fetch,
+                fromProject: found.fromProject,
+              }),
         ),
       ];
     },

@@ -8,6 +8,7 @@ const plan = {
   dependencies: [{ file: 'package.json', name: 'react', range: 'catalog:', dev: false }],
   scripts: [{ file: 'package.json', name: 'dev', command: 'x' }],
   warnings: [],
+  skipped: [],
 };
 
 const init: InitResult = {
@@ -45,6 +46,41 @@ describe('planReport', () => {
     const report = planReport(full);
     expect(report.features).toEqual([{ name: 'core', version: '1' }]);
     expect(JSON.stringify(report)).not.toContain('secret');
+  });
+});
+
+describe('planReport skipped', () => {
+  const part = {
+    feature: 'theming',
+    kind: 'file' as const,
+    name: 'src/a.ts',
+    target: 'shell' as const,
+  };
+
+  it('carries the skipped parts of the plan', () => {
+    expect(planReport({ ...emptyPlan(), skipped: [part] }).skipped).toEqual([part]);
+    expect(planReport(emptyPlan()).skipped).toEqual([]);
+  });
+
+  it('is accepted by validateResult, with or without the key', () => {
+    expect(validateResult({ ...init, plan: { ...plan, skipped: [part] } })).toEqual([]);
+    const { skipped: _skipped, ...old } = plan;
+    expect(validateResult({ ...init, plan: old })).toEqual([]);
+  });
+
+  it('rejects a malformed skipped list', () => {
+    const bad = {
+      ...init,
+      plan: { ...plan, skipped: [{ feature: 1, kind: 'x', name: 'n', target: 'root' }] },
+    };
+    expect(validateResult(bad).map((i) => i.path)).toEqual([
+      'plan.skipped[0].feature',
+      'plan.skipped[0].kind',
+      'plan.skipped[0].target',
+    ]);
+    expect(validateResult({ ...init, plan: { ...plan, skipped: 'x' } }).map((i) => i.path)).toEqual(
+      ['plan.skipped'],
+    );
   });
 });
 
