@@ -257,13 +257,16 @@ jobs:
 
   tag:
     name: tag and release
-    needs: [plan, publish]
+    needs: [plan, pack, publish]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write # keyless signing of the build provenance
+      attestations: write
     env:
       GH_TOKEN: ${{ github.token }}
       PLAN: ${{ needs.plan.outputs.expected }}
+      HASHES: ${{ needs.pack.outputs.hashes }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -275,6 +278,15 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24.x
+      # The tarballs are signed below, so they must be the ones the pack job hashed.
+      - name: Check the tarballs against the pack job
+        run: |
+          set -euo pipefail
+          for f in release/*.tgz; do
+            actual=$(sha256sum "$f" | cut -d' ' -f1)
+            expected=$(jq -r --arg f "${f##*/}" '.[$f] // empty' <<<"$HASHES")
+            [ -n "$expected" ] && [ "$actual" = "$expected" ] || { echo "::error::${f##*/} does not match the pack job's sha256"; exit 1; }
+          done
       - name: Tag
         run: |
           node scripts/release-plan.mjs tags | while read -r tag; do
@@ -285,14 +297,25 @@ jobs:
               echo "tagged $tag"
             fi
           done
+      - name: Attest the tarballs
+        id: attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release/*.tgz
+      # Scorecard looks for a release asset ending in .intoto.jsonl, .sigstore.json, .sig or .asc.
+      # Verify a tarball with `gh attestation verify <file> --repo mfeflow/mfeflow`.
       - name: GitHub Release
+        env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
         run: |
           version=$(node scripts/release-plan.mjs tags | tail -n 1)
+          provenance="mfeflow-${version#v}.intoto.jsonl"
+          cp "$BUNDLE" "$provenance"
           node scripts/release-plan.mjs notes "${version#v}" packages/cli/CHANGELOG.md > notes.md
           flags=()
           case "$version" in *-*) flags+=(--prerelease) ;; esac
           if gh release view "$version" >/dev/null 2>&1; then
-            gh release upload "$version" release/* --clobber
+            gh release upload "$version" release/* "$provenance" --clobber
           else
-            gh release create "$version" release/* --title "$version" --notes-file notes.md --verify-tag "${flags[@]}"
+            gh release create "$version" release/* "$provenance" --title "$version" --notes-file notes.md --verify-tag "${flags[@]}"
           fi
