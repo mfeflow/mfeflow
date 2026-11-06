@@ -62,6 +62,9 @@ function placesFor(target: string | undefined, project: MfeflowProject): Place[]
   return [app];
 }
 
+/** The features `init` applies on its own; the user never adds them, so their skipped parts are not worth a report. */
+const INIT_GLUE = new Set(['core', 'tsconfig', 'polyrepo']);
+
 /** True when the part targets the shell and the project has remotes but no shell to put it in. */
 function lacksShell(target: string | undefined, project: MfeflowProject): boolean {
   if (target !== 'shell') return false;
@@ -167,6 +170,8 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
     if (!present.has(needed)) throw new MfeflowError('E206', `${manifest.name} needs ${needed}`);
   }
   const options = resolveOptions(manifest, input.options);
+  const skipsShell = (target: string | undefined): boolean =>
+    !INIT_GLUE.has(manifest.name) && lacksShell(target, project);
   if (manifest.name === 'tailwind') assertUniqueTailwindPrefixes(Object.keys(project.apps));
 
   const apps = Object.entries(project.apps).map(([name, app]) => ({
@@ -200,7 +205,7 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
         `${manifest.name}: "${file.to}" uses atRoot, which only features that ship with mfeflow may`,
       );
     }
-    if (lacksShell(file.target, project)) {
+    if (skipsShell(file.target)) {
       builder.skip({ feature: manifest.name, kind: 'file', name: file.to, target: 'shell' });
     }
     for (const place of placesFor(file.target, project)) {
@@ -213,7 +218,7 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
   }
 
   for (const dep of (manifest.dependencies ?? []).filter((d) => applies(d, options, present))) {
-    if (lacksShell(dep.target, project)) {
+    if (skipsShell(dep.target)) {
       builder.skip({ feature: manifest.name, kind: 'dependency', name: dep.name, target: 'shell' });
     }
     for (const place of placesFor(dep.target, project)) {
@@ -227,7 +232,7 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
   }
 
   for (const script of (manifest.scripts ?? []).filter((x) => applies(x, options, present))) {
-    if (lacksShell(script.target, project)) {
+    if (skipsShell(script.target)) {
       builder.skip({ feature: manifest.name, kind: 'script', name: script.name, target: 'shell' });
     }
     for (const place of placesFor(script.target, project)) {
@@ -243,7 +248,7 @@ export async function resolveFeature(input: ResolveInput): Promise<void> {
       !trusted && declared.op === 'add-env-key'
         ? { ...declared, schema: sanitizeSchemas(declared.schema, manifest.name) }
         : declared;
-    if (lacksShell(transform.target, project)) {
+    if (skipsShell(transform.target)) {
       builder.skip({
         feature: manifest.name,
         kind: 'transform',

@@ -925,6 +925,21 @@ describe('plan, apply and re-plan against a real folder', () => {
       expect((await run(shellOnly, remotesAndRoot)).skipped).toEqual([]);
     });
 
+    it.each(['core', 'tsconfig', 'polyrepo'])(
+      'does not report the shell parts of %s, which init applies on its own',
+      async (name) => {
+        const glue: FeatureManifest = {
+          name,
+          version: '1.0.0',
+          files: [{ to: 'shell.ts', target: 'shell', content: 's\n' }],
+          dependencies: [{ name: 'react', range: '^19.0.0', target: 'shell' }],
+        };
+        const plan = await run(noShell, glue);
+        expect(plan.skipped).toEqual([]);
+        expect(plan.changes.some((c) => c.path.startsWith('apps/shell/'))).toBe(false);
+      },
+    );
+
     it('skips a part whose when does not hold without reporting it', async () => {
       const conditional: FeatureManifest = {
         name: 'cond',
