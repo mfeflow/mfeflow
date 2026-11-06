@@ -48,7 +48,7 @@ The GTM provider pushes the four consent signals as `denied` to `dataLayer` befo
 
 ## Module Federation sharing
 
-Bucket: **singleton**. Share `@mfeflow/analytics` and `@mfeflow/analytics/react` (`@mfeflow/rsbuild` does). State also lives on `globalThis`, so a second copy still talks to the one provider. `@mfeflow/analytics/gtm`, `/clarity` and `/providers` are imported by the shell only; `addProvider` lives in its own entry point so the shared module that remotes load stays small.
+Bucket: **singleton**. Share `@mfeflow/analytics` and `@mfeflow/analytics/react` (`@mfeflow/rsbuild` and `@mfeflow/vite` do). State also lives on `globalThis`, so a second copy still talks to the one provider. `@mfeflow/analytics/gtm`, `/clarity` and `/providers` are imported by the shell only; `addProvider` lives in its own entry point so the shared module that remotes load stays small. A micro-frontend app must also list `@mfeflow/analytics` in its own dependencies, even if it imports only a company wrapper such as `@acme/analytics`: the presets share the package only when the app can resolve it from its own folder.
 
 ## Links
 

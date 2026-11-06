@@ -37,9 +37,11 @@ In a remote, read the tokens:
 
 Or in TypeScript, `cssVar('color-bg', '#fff')` returns `var(--mf-color-bg, #fff)`. `useTheme()` returns `{ theme, themes, setTheme }`.
 
+`startingTheme(themes, { defaultTheme })` from `@mfeflow/theme/starting` returns the theme to show before React renders: the stored choice, else the system dark preference, else the default.
+
 ## Module Federation sharing
 
-Bucket: **singleton**. This package keeps page-wide state, so the shell and every remote must use one copy. `@mfeflow/rsbuild` shares it as a Module Federation singleton by default (`createShellConfig` and `createRemoteConfig`); if you configure sharing by hand, mark it `singleton: true`.
+Bucket: **singleton**. This package keeps page-wide state, so the shell and every remote must use one copy. `@mfeflow/rsbuild` and `@mfeflow/vite` share it as a Module Federation singleton by default (the list is in `@mfeflow/bundler-shared`); if you configure sharing by hand, mark it `singleton: true`. A micro-frontend app must also list `@mfeflow/theme` in its own dependencies, even if it imports only a company wrapper such as `@acme/theme`: the presets share the package only when the app can resolve it from its own folder.
 
 ## Links
 

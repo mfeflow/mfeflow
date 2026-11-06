@@ -29,7 +29,7 @@ const [open, setOpen] = useStoredState(storage, 'drawer-open', false);
 
 ## Module Federation sharing
 
-Bucket: **stateless**. Its listeners live on a page global, so separate copies in different remotes still see each other's writes and no copy is required to be the only one. `@mfeflow/rsbuild` shares it as a singleton by default anyway, which keeps one copy on the page; sharing is not required for correctness.
+Bucket: **stateless**. Its listeners live on a page global, so separate copies in different remotes still see each other's writes and no copy is required to be the only one. `@mfeflow/rsbuild` and `@mfeflow/vite` share it as a singleton by default anyway, which keeps one copy on the page; sharing is not required for correctness.
 
 ## Links
 

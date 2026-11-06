@@ -24,7 +24,7 @@ The shell loads both remotes from their `mf-manifest.json`. Nothing here imports
 
 - Node 22.12 or newer
 - pnpm 12 or newer
-- mfeflow 0.6.0 or newer. npm's latest, 0.5.0, has no `adopt` command yet
+- mfeflow with the `adopt` command (`pnpm dlx mfeflow@latest adopt`)
 
 ## 1. Check that it works without mfeflow
 
@@ -67,13 +67,13 @@ You should see this list first, then the diff of every file:
   create  registry/envs/staging/reviews.json
   create  mfeflow.json
 Dependencies (1):
-  apps/shell/package.json  @mfeflow/runtime@^0.5.0
+  apps/shell/package.json  @mfeflow/runtime@^<version>
 Warning: routes are empty (mfeflow cannot read them from a build config); ...
 Warning: registry entries for staging and prod point at example.com; ...
 Warning: some apps build with Vite and some do not; ...
 ```
 
-The `@mfeflow/runtime` version follows the CLI release, so yours may differ from `^0.5.0`.
+The `@mfeflow/runtime` version follows the CLI release, so the number you see is the release you ran.
 
 The list ends with a note that your build config was not changed. That is a promise: `adopt` never edits `rsbuild.config.ts`, `rspack.config.mjs` or `vite.config.ts`.
 

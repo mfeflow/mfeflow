@@ -7,6 +7,7 @@ import {
   FEATURE_GROUPS,
   GUARDRAILS,
   INSTALL_COMMAND,
+  KINDS,
   NPM_URL,
   REGISTRY_CARDS,
   REPO_URL,
@@ -72,7 +73,7 @@ export function Home() {
           <p className="mf-lede">
             The React micro-frontend boilerplate that keeps going after day one. A shell and remotes
             on Module Federation 2.0 and Rsbuild or Vite, then typed env, GTM with Consent Mode,
-            OpenTelemetry and 18 more features, added when you need them.
+            OpenTelemetry and 23 more features, added when you need them.
           </p>
           <div className="mf-cta">
             <CopyCommand command={INSTALL_COMMAND} />
@@ -188,6 +189,26 @@ export function Home() {
         </div>
       </section>
 
+      <section className="mf-band" aria-labelledby="mf-kinds">
+        <div className="mf-wrap">
+          <SectionHead
+            id="mf-kinds"
+            kicker="PROJECT KINDS"
+            title="Start where your team is."
+            sub="Not every repo is a shell with two remotes. Pick the kind when you create it. Rsbuild builds every app by default; add --bundler vite to use Vite."
+          />
+          <ul className="mf-grid mf-grid--4 mf-list">
+            {KINDS.map((k) => (
+              <li key={k.title} className="mf-card">
+                <h3>{k.title}</h3>
+                <code className="mf-codebox">{k.code}</code>
+                <p className="mf-body">{k.text}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
       <section className="mf-band" aria-labelledby="mf-teams">
         <div className="mf-wrap">
           <SectionHead
@@ -211,9 +232,9 @@ export function Home() {
         <div className="mf-wrap">
           <SectionHead
             id="mf-registry"
-            kicker="IN PROGRESS · PHASE 05"
+            kicker="REGISTRY"
             title="Roll back by pointer, not by rebuild."
-            sub="Remotes are built once and stored by version. Deploy, promote and roll back will move a pointer in the registry index, on any static host or a small server with percentage rollouts. This is being built now; the docs will say when it ships."
+            sub="Remotes are built once and stored by version. mfeflow deploy, promote and rollback move a pointer in the registry index, on any static host or on the registry server with percentage rollouts. The shell is never rebuilt."
           />
           <ul className="mf-grid mf-grid--3 mf-list">
             {REGISTRY_CARDS.map((c) => (

@@ -48,7 +48,7 @@ Registering does not download anything. A remote's code loads only when a route 
 
 ## How are the apps built?
 
-Every app uses Rsbuild with the Module Federation 2 plugin. You do not write that configuration. Two functions from `@mfeflow/rsbuild` return it: `createShellConfig` and `createRemoteConfig`.
+Every app uses Rsbuild with the Module Federation 2 plugin, or Vite if you made the project with `--bundler vite`. You do not write that configuration. Two functions from `@mfeflow/rsbuild` (or `@mfeflow/vite`) return it: `createShellConfig` and `createRemoteConfig`. See [Build with Vite](/guide/vite).
 
 ```text
 rsbuild.config.ts                 @mfeflow/rsbuild

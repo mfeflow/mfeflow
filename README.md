@@ -24,30 +24,15 @@
 
 ## Try it
 
-```bash
-npm create mfeflow@latest my-platform
-cd my-platform
-pnpm dev
-```
-
-It asks a few questions (add `--yes` to take the defaults). Then `pnpm dev` starts the shell on http://localhost:4300 and the two default remotes, catalog and cart, on ports 4311 and 4312.
-
-A React micro-frontend platform: a shell, your remotes, and the checks that keep them working together.
-
-Install it with one command. You need Node 22.12 or newer:
+A React micro-frontend platform: a shell, your remotes, and the checks that keep them working together. You need Node 22.12 or newer.
 
 ```bash
 npm create mfeflow@latest my-platform
-```
-
-Then start the shell and every remote together:
-
-```bash
 cd my-platform
 pnpm mfeflow dev
 ```
 
-You should see something like this, and the shell is at http://localhost:4300:
+It asks a few questions (`npm create mfeflow@latest my-platform -- --yes` takes the defaults). Then the shell runs on http://localhost:4300 and the two default remotes, catalog and cart, on ports 4311 and 4312:
 
 ```text
 mfeflow: running shell, catalog, cart. Ctrl+C stops everything.
@@ -75,6 +60,17 @@ pnpm mfeflow add theming i18n
 ```
 
 A new remote starts without restarting `mfeflow dev`, and the shell gets its route.
+
+Not every repo is a shell with two remotes. Pick the kind when you create it:
+
+```bash
+npm create mfeflow@latest my-shell -- --remotes none                                 # a shell, remotes later
+npm create mfeflow@latest team-cart -- --kind remote --shell https://example.com/mf-manifest.json  # remotes for a shell another team owns
+npm create mfeflow@latest acme-tooling -- --kind tooling --packages tsconfig,analytics        # no apps: shared config, hooks, release, packages
+npm create mfeflow@latest my-platform -- --bundler vite                               # Vite instead of Rsbuild
+```
+
+See [Join a platform with a remote](https://mfeflow.github.io/mfeflow/guide/join-a-platform), [A repo for shared tooling](https://mfeflow.github.io/mfeflow/guide/tooling-repo) and [Build with Vite](https://mfeflow.github.io/mfeflow/guide/vite).
 
 ## Why mfeflow
 
@@ -175,6 +171,7 @@ There are 26 first-party features. Each lives in `features/` and can be added on
 | [commit-prompt](https://mfeflow.github.io/mfeflow/features/commit-prompt)         | An interactive Conventional Commits prompt                 |
 | [ci-github](https://mfeflow.github.io/mfeflow/features/ci-github)                 | A pull request workflow that runs every check              |
 | [registry-static](https://mfeflow.github.io/mfeflow/features/registry-static)     | Deploy and roll back remotes on a folder or bucket         |
+| [registry-server](https://mfeflow.github.io/mfeflow/features/registry-server)     | A self-hosted registry server with percentage rollouts     |
 | [release](https://mfeflow.github.io/mfeflow/features/release)                     | Changesets versions each remote, and deploy uses it        |
 | [deploy-docker](https://mfeflow.github.io/mfeflow/features/deploy-docker)         | A Dockerfile, nginx config and Kubernetes example          |
 | [deploy-cloudflare](https://mfeflow.github.io/mfeflow/features/deploy-cloudflare) | One way to host on Cloudflare Workers, with wrangler files |
@@ -215,7 +212,7 @@ Third-party features are plain data, never code, and install from any static hos
 
 | Command                                  | What it does                                                                                              |
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `mfeflow init` (or `npm create mfeflow`) | Create a project: a shell and remotes, in one repo or one repo per team                                   |
+| `mfeflow init` (or `npm create mfeflow`) | Create a project: shell and remotes, shell only, remotes only, or a tooling repo with no apps             |
 | `mfeflow adopt`                          | Set up mfeflow in a Module Federation app you already have                                                |
 | `mfeflow add`                            | Add a remote, a shell, a team repo, a feature or a typed env key                                          |
 | `mfeflow upgrade`                        | Move a project to the mfeflow version you run, keeping your edits                                         |
@@ -226,12 +223,18 @@ Third-party features are plain data, never code, and install from any static hos
 | `mfeflow check-compat`                   | Compare each remote's shared version ranges with its shell, or, with `--against`, a shell in another repo |
 | `mfeflow budget`                         | Measure built JavaScript against the size budget                                                          |
 | `mfeflow registry`                       | Add or remove a feature registry, or build one to host                                                    |
+| `mfeflow deploy`                         | Upload a remote's build and point an environment at it                                                    |
+| `mfeflow promote`                        | Point one environment at the version another one serves; no upload                                        |
+| `mfeflow rollback`                       | Point an environment back at an earlier version; no rebuild, no upload                                    |
+| `mfeflow status`                         | Show what each environment serves, the version before it, and drift                                       |
+| `mfeflow rollout`                        | Move a percentage rollout on the registry server: step, complete, abort                                   |
+| `mfeflow kill`, `mfeflow restore`        | Take a remote out of the served index, or put it back (registry server)                                   |
 
 Every command takes `--dry-run` and `--json`. Run any command with `--help` for the rest.
 
 ## Packages
 
-All 19 are on npm. They are versioned together, so one version number tells you what works with what. The [versioning guide](docs/versioning.md) covers the release flow.
+All 21 are on npm. They are versioned together, so one version number tells you what works with what. The [versioning guide](docs/versioning.md) covers the release flow.
 
 | Package                                            | Role                                                                                      |
 | -------------------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -259,7 +262,7 @@ All 19 are on npm. They are versioned together, so one version number tells you 
 
 ## Examples
 
-Two examples show the Phase 06 commands on real files. They are tutorials you can run.
+Two of these are tutorials you can run; the third is the app the benchmarks use.
 
 | Example                                   | What it shows                                                                       |
 | ----------------------------------------- | ----------------------------------------------------------------------------------- |
@@ -289,32 +292,28 @@ The shell and catalog sit right at their limits. An earlier target of +35 KB for
 
 ## Status and roadmap
 
-Version 0.5.0 is on npm. The feature set (Phase 04) is built.
+Version 0.8.0 is on npm. Phases 02 to 06 are released, and 0.8.0 added Vite and the new project kinds.
 
-| Phase | What                                               | State                   |
-| ----- | -------------------------------------------------- | ----------------------- |
-| 05    | Registry with deploy, promote, rollback and status | Built, not released yet |
-| 06    | Upgrade, adopt an existing app, polyrepo layouts   | Built, not released yet |
-| Later | More docs, an MCP server                           | Planned                 |
-
-Phase 06 adds these. They are tested, and none is on npm yet:
-
-- `mfeflow upgrade` moves a project to the version you run. It replaces files you did not edit, diffs the ones you did, and never overwrites them without `--accept`. It does not ask npm for a newer version.
-- `mfeflow adopt` sets up mfeflow in a Module Federation app you already have. It reads Rsbuild, Vite, `module-federation.config` and literal webpack or Rspack configs as text, and never edits a build config. What it cannot read is listed, not guessed.
-- `mfeflow init --topology polyrepo` and `mfeflow add team-repo` make one git repo per team. mfeflow writes the repos on your machine and never calls GitHub.
-- `mfeflow check-compat --against <url|file>` checks a remote against a shell that lives in another repo, and warns when it has no shell to compare with. `mfeflow doctor --against <url|file>` runs every doctor check with that shell.
-- The app file is now `mfeflow.app.json`. `mfe.json` is still read, with a notice, and `upgrade` renames it.
+| Phase | What                                                                        | State             |
+| ----- | --------------------------------------------------------------------------- | ----------------- |
+| 05    | Registry with deploy, promote, rollback, status and rollouts                | Released in 0.6.0 |
+| 06    | Upgrade, adopt an existing app, polyrepo layouts                            | Released in 0.6.0 |
+| 12    | Vite as a second bundler (`--bundler vite`)                                 | Released in 0.8.0 |
+| 14-16 | Shell only, remotes only (`--kind remote`), tooling repo (`--kind tooling`) | Released in 0.8.0 |
+| 13    | First users: a live demo, comparison pages, talking to teams                | In progress       |
+| Later | An MCP server                                                               | Planned           |
 
 What is still open:
 
 - There is no `mfeflow remove`. Adding a feature is tested. Removing one is not supported.
 - The generated GitHub Actions workflow has not yet run on a fresh GitHub repository.
 - The MCP server does not exist yet.
-- The registry server's Docker image (linux/amd64 and linux/arm64) is built by the release workflow, which has not run for it yet, so there is no image on GHCR until the next release.
 - `upgrade` does not work inside a polyrepo yet. It also merges two ways (hash, diff, prompt); a three-way merge is planned.
 - `adopt` reads only literal configs. A config built by a function or read from the environment is listed as not carried over. It supports pnpm and npm projects, not yarn or bun. A folder with only a remote and no shell is refused.
 - The `hybrid` layout, a platform monorepo with team repos next to it, is not built. `ci-github` and `env-t3` cannot be added to a polyrepo yet.
 - `check-compat --against` compares the shell's manifest. Other cross-repo checks are not built.
+- A Vite shell has not been run on a real Windows machine yet, only in CI. Vite with `--kind remote` or `--kind tooling` is not tested.
+- In a tooling repo, an app that uses a wrapper package such as `@acme/theme` must also list `@mfeflow/theme` itself, or the remotes get their own copy. A preset fix is planned.
 
 This section is the status board. Update it in the same pull request that starts or finishes a phase.
 
@@ -325,7 +324,7 @@ To work on the repo:
 ```bash
 corepack enable
 pnpm install
-pnpm ci
+pnpm run ci
 ```
 
 Read [CONTRIBUTING](https://github.com/mfeflow/.github/blob/main/CONTRIBUTING.md) before opening a pull request. Report vulnerabilities as described in [SECURITY](https://github.com/mfeflow/.github/blob/main/SECURITY.md). mfeflow is released under the [MIT license](LICENSE).

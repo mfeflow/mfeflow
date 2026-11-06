@@ -9,7 +9,7 @@ This page explains how to develop and review components in isolation, one Storyb
 
 ## What you get
 
-Each remote gets a Storybook on Rsbuild and a starter story for its `App`. The shell gets a Storybook that embeds every remote's built Storybook as a reference. This feature is off by default.
+Each remote gets a Storybook on the project's bundler (Rsbuild or Vite) and a starter story for its `App`. The shell gets a Storybook that embeds every remote's built Storybook as a reference. This feature is off by default.
 
 ## Add it
 

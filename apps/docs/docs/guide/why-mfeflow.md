@@ -47,7 +47,6 @@ It does not make a bad split good. If your teams cut the product along the wrong
 
 Some things are not built yet or are out of scope for this release:
 
-- A registry server with percentage rollouts. It is planned for Phase 05. Deploy, promote and rollback commands for a static host are built. See [Deploy](/guide/deploy/).
 - Frameworks other than React, and server-side rendering.
 - CSS isolation between remotes beyond what the `tailwind` feature gives you.
 - A package manager other than pnpm.
@@ -67,7 +66,7 @@ This table lists what each option gives you out of the box. It does not rate qua
 | Local dev with every app running         | You write scripts         | Per-app scripts                     | `mfeflow dev`                           |
 | Ownership and route checks               | You write them            | Not part of the tool                | `mfeflow.app.json`, `validate`          |
 | Budget check                             | You write it              | Not part of the tool                | `mfeflow budget`                        |
-| Optional features as file changes        | None                      | None                                | 20 features and registries for more     |
+| Optional features as file changes        | None                      | None                                | 26 features and registries for more     |
 
 Monorepo tools solve a different problem.
 

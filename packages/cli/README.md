@@ -13,31 +13,47 @@ pnpm dev                                    # shell on :4300, remotes on :4311, 
 
 ## Commands
 
-| Command                               | Does                                                                                  |
-| ------------------------------------- | ------------------------------------------------------------------------------------- |
-| `mfeflow init [dir]`                  | New project: a shell, remotes (default `catalog`, `cart`), pnpm workspace, Turborepo  |
-| `mfeflow add remote <name>`           | New remote with its registry entries and a route in every shell                       |
-| `mfeflow add shell <name>`            | New shell that routes to every existing remote                                        |
-| `mfeflow add <feature...>`            | Add features, or `@namespace/feature` from a registry you added with `registry add`   |
-| `mfeflow add env-key <KEY>`           | Add a typed env key: `--scope server` (env.ts) or `runtime`, with `--schema <expr>`   |
-| `mfeflow features [search]`           | List and search the features you can add, from mfeflow and every configured registry  |
-| `mfeflow registry add @ns <url>`      | Add a third-party feature registry (`https`, or `http` on loopback) to `mfeflow.json` |
-| `mfeflow registry list`, `remove @ns` | List the registries, or remove one                                                    |
-| `mfeflow registry build <dir>`        | Check a folder of features and write `index.json` and the files to host               |
-| `mfeflow dev`                         | Run the shell and every remote, one prefixed log each; follows `add remote`           |
-| `mfeflow doctor`                      | Singletons, compatibility, config health, drift; `--fix` repairs the safe ones        |
-| `mfeflow validate`                    | `mfeflow.json`, every `mfeflow.app.json` and every registry entry against schemas     |
-| `mfeflow check-compat`                | Each remote's shared ranges against the shells it runs in                             |
-| `mfeflow budget`                      | Built first-load JS of the shell and each remote against the cost-model budget        |
-| `mfeflow deploy <remote> --env <env>` | Upload a remote's build to a static registry host and point the env's index at it     |
-| `mfeflow promote <remote>`            | Copy the version one env serves to another env: `--from staging --to prod`            |
-| `mfeflow rollback <remote>`           | Point an env back at the previous version, or `--to <version>`, without a rebuild     |
-| `mfeflow status`                      | What each env serves, the version before it, and drift from `registry/envs`           |
-| `mfeflow --version`, `mfeflow --help` | Version, and help with examples (`mfeflow <command> --help` for one command)          |
+| Command                                                    | Does                                                                                                   |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `mfeflow init [dir]`                                       | New project: a shell, remotes (default `catalog`, `cart`), pnpm workspace, Turborepo                   |
+| `mfeflow add remote <name>`                                | New remote with its registry entries and a route in every shell                                        |
+| `mfeflow add shell <name>`                                 | New shell that routes to every existing remote                                                         |
+| `mfeflow add team-repo <name>`                             | In the shell repo of a polyrepo: a new remote repo next to it, registered here                         |
+| `mfeflow add <feature...>`                                 | Add features, or `@namespace/feature` from a registry you added with `registry add`                    |
+| `mfeflow add env-key <KEY>`                                | Add a typed env key: `--scope server` (env.ts) or `runtime`, with `--schema <expr>`                    |
+| `mfeflow features [search]`                                | List and search the features you can add, from mfeflow and every configured registry                   |
+| `mfeflow registry add @ns <url>`                           | Add a third-party feature registry (`https`, or `http` on loopback) to `mfeflow.json`                  |
+| `mfeflow registry list`, `remove @ns`                      | List the registries, or remove one                                                                     |
+| `mfeflow registry build <dir>`                             | Check a folder of features and write `index.json` and the files to host                                |
+| `mfeflow adopt`                                            | Set up mfeflow in an existing Module Federation project, without touching its build config             |
+| `mfeflow upgrade`                                          | Move the project to the version you are running, keeping your edits; `--bundler vite` switches bundler |
+| `mfeflow dev`                                              | Run the shell and every remote, one prefixed log each; follows `add remote`                            |
+| `mfeflow doctor`                                           | Singletons, compatibility, config health, drift; `--fix` repairs the safe ones                         |
+| `mfeflow validate`                                         | `mfeflow.json`, every `mfeflow.app.json` and every registry entry against schemas                      |
+| `mfeflow check-compat`                                     | Each remote's shared ranges against the shells it runs in                                              |
+| `mfeflow budget`                                           | Built first-load JS of the shell and each remote against the cost-model budget                         |
+| `mfeflow deploy <remote> --env <env>`                      | Upload a remote's build to a static registry host and point the env's index at it                      |
+| `mfeflow promote <remote>`                                 | Copy the version one env serves to another env: `--from staging --to prod`                             |
+| `mfeflow rollback <remote>`                                | Point an env back at the previous version, or `--to <version>`, without a rebuild                      |
+| `mfeflow rollout <step\|complete\|abort\|status> <remote>` | A percentage rollout on the registry server (`promote --percent 10 --steps 50,100` starts one)         |
+| `mfeflow kill <remote>`, `mfeflow restore <remote>`        | Take a remote out of the served index at once, or put it back (registry server only)                   |
+| `mfeflow status`                                           | What each env serves, the version before it, and drift from `registry/envs`                            |
+| `mfeflow --version`, `mfeflow --help`                      | Version, and help with examples (`mfeflow <command> --help` for one command)                           |
 
 Features that ship with it: `core` and `tsconfig` (always), `lint-oxlint`, `url-factory`, `env-t3` and `testing`
-(default), `ci-github` and `git-hooks` (opt-in). `init` takes `--scope`, `--remotes a,b`, `--features a,b` and
-`--option feature.key=value`; every prompt has a flag.
+(default), and the rest (`ci-github`, `git-hooks`, `theming`, `i18n` and more; `mfeflow features` lists them) are opt-in.
+`doctor` and `check-compat` take `--against <url|file>`, the registry index or `mf-manifest.json` of a deployed shell;
+without it they use the `shell` field of `mfeflow.json`, if there is one.
+
+`init` takes `--scope`, `--remotes a,b` (`none` for a shell only), `--features a,b` and `--option feature.key=value`;
+every prompt has a flag. The others:
+
+- `--kind app|remote|tooling`: `app` (default) is a shell and remotes; `remote` is remotes only, for a team whose shell
+  is deployed from another repo (`--shell <url|file>` records where it is); `tooling` is a repo of shared config and
+  packages with no apps (`--packages a,b` picks them, default `tsconfig,oxlint-config`).
+- `--bundler rsbuild|vite`: what builds the apps (default `rsbuild`).
+- `--topology monorepo|polyrepo`: one repo (default), or a platform repo, a shell repo and a repo per remote.
+- `--org <owner>`: with `polyrepo`, the GitHub owner the CI and Renovate files point at (default: the scope without `@`).
 
 ## dev, doctor and the CI checks
 
@@ -80,16 +96,16 @@ errors. LCP is measured by the perf job, not by `budget`.
 
 ## Flags on every command
 
-| Flag                   | Does                                                                                                |
-| ---------------------- | --------------------------------------------------------------------------------------------------- |
-| `--yes`, `-y`          | Take the defaults, never prompt                                                                     |
-| `--preset <file\|url>` | Replay options from a JSON file or https URL (`scope`, `remotes`, `features`, `options`); flags win |
-| `--json`               | One JSON document on stdout, nothing else; errors come as `{ ok: false, error }`                    |
-| `--dry-run`            | Print the summary and a unified diff, write nothing, run nothing                                    |
-| `--cwd <dir>`          | Run as if started in that folder                                                                    |
-| `--no-install`         | Do not run the package manager                                                                      |
-| `--verbose`            | Show the diff, package manager output and stack traces                                              |
-| `--local <path>`       | Link `@mfeflow/*` from a built checkout (env `MFEFLOW_LOCAL`)                                       |
+| Flag                   | Does                                                                                                                                           |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--yes`, `-y`          | Take the defaults, never prompt                                                                                                                |
+| `--preset <file\|url>` | Replay options from a JSON file or https URL (`kind`, `scope`, `remotes`, `features`, `packages`, `topology`, `bundler`, `options`); flags win |
+| `--json`               | One JSON document on stdout, nothing else; errors come as `{ ok: false, error }`                                                               |
+| `--dry-run`            | Print the summary and a unified diff, write nothing, run nothing                                                                               |
+| `--cwd <dir>`          | Run as if started in that folder                                                                                                               |
+| `--no-install`         | Do not run the package manager                                                                                                                 |
+| `--verbose`            | Show the diff, package manager output and stack traces                                                                                         |
+| `--local <path>`       | Link `@mfeflow/*` from a built checkout (env `MFEFLOW_LOCAL`)                                                                                  |
 
 Every write is a plan first: the summary (and with `--dry-run` the diff) is shown, then the files are
 written all or nothing, and the install runs inside the same transaction. If the install fails, the
@@ -120,8 +136,8 @@ MFEFLOW_E108 The target folder is not empty: /work/app already has notes.txt
 
 ## Try it from a checkout
 
-Before `@mfeflow/*` is on npm, `--local` writes the dependencies as `link:` to the packages of a clone.
-Without it, they are `^<the CLI's version>`.
+`--local` writes the dependencies as `link:` to the packages of a clone, which is how you try a change to the packages.
+Without it, they are `^<the CLI's version>` from npm.
 
 ```sh
 git clone https://github.com/mfeflow/mfeflow && cd mfeflow

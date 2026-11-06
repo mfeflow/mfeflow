@@ -32,9 +32,11 @@ try {
 
 `composeProviders([...])` nests providers (first is outermost) and `withProps` binds props to one. `checkSingletons` and `assertRequested` back the `?mfeflow-assert` check. Optional plugins are at `@mfeflow/runtime/plugins/report` and `@mfeflow/runtime/plugins/entry-retry`.
 
+`@mfeflow/runtime/providers` exports `composeProviders` and `withProps` alone, for code that should not load the registry code. `@mfeflow/runtime/beacon` exports `registrySourcesWithBeacon`: when the runtime config has `registryBeacon: true` and an index URL is a registry server's, it adds this browser's id to that URL and reports which remote versions were loaded. Import it on demand (`await import('@mfeflow/runtime/beacon')`) so a shell with the option off never downloads it.
+
 ## Module Federation sharing
 
-Bucket: **singleton**. This package keeps page-wide state, so the shell and every remote must use one copy. `@mfeflow/rsbuild` shares it as a Module Federation singleton by default (`createShellConfig` and `createRemoteConfig`); if you configure sharing by hand, mark it `singleton: true`.
+Bucket: **singleton**. This package keeps page-wide state, so the shell and every remote must use one copy. `@mfeflow/rsbuild` and `@mfeflow/vite` share it as a Module Federation singleton by default (the list is in `@mfeflow/bundler-shared`); if you configure sharing by hand, mark it `singleton: true`. A micro-frontend app must also list `@mfeflow/runtime` in its own dependencies, even if it imports only a company wrapper such as `@acme/runtime`: the presets share the package only when the app can resolve it from its own folder.
 
 ## Links
 

@@ -32,6 +32,10 @@ export default createShellConfig({ name: 'storefront', port: 4300 });
 
 Merge extra settings with `mergeRsbuildConfig` from `@rsbuild/core`. `shared: ['some-lib']` adds more singletons. With `eager: false` the shell entry must only `import('./bootstrap')`, and the preset throws if it does not.
 
+To build with Vite instead, use `@mfeflow/vite`, which takes the same options: `mfeflow init --bundler vite` starts a project with it, and `mfeflow upgrade --bundler vite` moves one over.
+
+Both presets swap the CommonJS Module Federation runtime for its ESM build. Pass `esmRuntime: false` to `createShellConfig` or `createRemoteConfig` to keep the CommonJS one.
+
 ## Module Federation sharing
 
 Bucket: **config**. Used at build, lint or test time only, never shipped to the browser, so it is not shared through Module Federation.

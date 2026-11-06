@@ -1,11 +1,11 @@
 ---
 title: CLI reference
-description: Every mfeflow command and flag for version 0.4.0, with the global options, exit codes and the JSON output shapes. Copied from the built command line help.
+description: Every mfeflow command and flag for version 0.8.0, with the global options, exit codes and the JSON output shapes. Copied from the built command line help.
 ---
 
 # CLI reference
 
-This page lists every command, flag and exit code of the `mfeflow` command line. It matches `mfeflow --help` for version 0.4.0. For task-based help, use the [guides](/guide/introduction).
+This page lists every command, flag and exit code of the `mfeflow` command line. It matches `mfeflow --help` for version 0.8.0. For task-based help, use the [guides](/guide/introduction).
 
 In a generated project, run commands as `pnpm mfeflow <command>`. To create a project, use `pnpm create mfeflow`, which runs `init`.
 
@@ -79,7 +79,7 @@ mfeflow init [dir] [options]
 | `--org <owner>`          | text       | the scope without `@`                             | polyrepo or tooling: GitHub owner the CI and Renovate files point at                  |
 | `--option <f.k=v>`       | repeatable | none                                              | A feature option, as `feature.key=value`                                              |
 
-Feature names accepted by `--features`: lint-oxlint, url-factory, env-t3, testing, analytics-gtm, telemetry-otel, event-bus, route-factory, http, theming, i18n, tailwind, ui-shadcn, forms, data-react-query, analytics-clarity, storybook, ci-github, git-hooks, commit-prompt.
+Feature names accepted by `--features`: lint-oxlint, url-factory, env-t3, testing, analytics-gtm, telemetry-otel, event-bus, route-factory, http, theming, i18n, tailwind, ui-shadcn, forms, data-react-query, analytics-clarity, storybook, ci-github, git-hooks, commit-prompt, registry-static, release, registry-server, deploy-cloudflare, deploy-docker. See [Features](/features/).
 
 ```bash
 mfeflow init my-app --scope @acme --remotes catalog,cart,checkout --features lint-oxlint,git-hooks

@@ -27,7 +27,7 @@ Nx is the stronger choice if you want one tool for the whole workspace. It is no
 
 ## What mfeflow does differently
 
-mfeflow is narrower. It only does micro-frontends, and it builds with Rsbuild today. There is no bundler choice.
+mfeflow is narrower. It only does micro-frontends. It builds with Rsbuild by default, and with Vite if you pass `--bundler vite`.
 
 - **A registry index.** The shell reads a JSON list of remotes with their entry URLs at boot. See [The registry index](/concepts/registry-index).
 - **Rollback by pointer.** `mfeflow rollback` changes one registry entry to an earlier version. Nothing is rebuilt. See [Deploy and roll back a remote](/guide/deploy-and-rollback).

@@ -77,6 +77,8 @@ Every error the CLI prints has a code like MFEFLOW_E102, a cause, a fix and a li
 | [E402](/errors/E402) | The registry returned something that is not a feature |
 | [E403](/errors/E403) | The registry's index.json is not valid                |
 | [E404](/errors/E404) | A feature in the registry folder cannot be published  |
+| [E405](/errors/E405) | The registry is not trusted yet                       |
+| [E406](/errors/E406) | The registry changed a feature since you added it     |
 
 E107, E215 and E216 are command-line mistakes and exit with code 2. The E5xx range belongs to `deploy`, `promote`, `rollback` and `status` and exits with code 7:
 
@@ -97,9 +99,9 @@ E107, E215 and E216 are command-line mistakes and exit with code 2. The E5xx ran
 
 ## Upgrade (E6xx, exit code 8)
 
-| Code                 | Meaning                                               |
-| -------------------- | ----------------------------------------------------- |
-| [E601](/errors/E601) | Cannot tell which version of mfeflow made the project |
-| [E602](/errors/E602) | The project is newer than the version you upgrade to  |
-| [E603](/errors/E603) | A feature migration could not be loaded or failed     |
-| [E604](/errors/E604) | Files you changed need a decision                     |
+| Code                 | Meaning                                                |
+| -------------------- | ------------------------------------------------------ |
+| [E601](/errors/E601) | Cannot tell which version of mfeflow made this project |
+| [E602](/errors/E602) | The project is newer than the version you upgrade to   |
+| [E603](/errors/E603) | A feature migration could not be loaded or failed      |
+| [E604](/errors/E604) | Files you changed need a decision                      |

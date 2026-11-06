@@ -36,7 +36,7 @@ Getting a shell to load one remote is easy. The trouble starts when the second t
 | Tag manager loaded twice | Double page views and doubled consent prompts        | One feature owns analytics in the shell. Remotes only send events.                  |
 | No owner                 | Nobody knows who to page for the broken cart         | Every app has an `mfeflow.app.json` with an owner and routes.                       |
 | Bundle creep             | The shell gets heavier with each remote              | `budget` measures JS against a stated budget.                                       |
-| Rollback needs a rebuild | A bad release means building the old one again       | The registry design points at a build instead. This part is not built yet.          |
+| Rollback needs a rebuild | A bad release means building the old one again       | `mfeflow rollback` points the registry back at the last build. No rebuild.          |
 
 ## How do the pieces fit together?
 
