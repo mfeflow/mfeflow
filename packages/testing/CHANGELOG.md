@@ -1,5 +1,12 @@
 # @mfeflow/testing
 
+## 0.8.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @mfeflow/runtime@0.8.0
+
 ## 0.7.0
 
 ### Patch Changes

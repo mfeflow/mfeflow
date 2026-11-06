@@ -1,6 +1,6 @@
 {
   "name": "@mfeflow/vite",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Vite presets for Module Federation 2.0 micro-frontends: createShellConfig and createRemoteConfig with shared singletons, manifests, types and error reporting set up, on @module-federation/vite.",
   "keywords": [
     "micro-frontend",

@@ -1,5 +1,12 @@
 # @mfeflow/http
 
+## 0.8.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @mfeflow/url-factory@0.8.0
+
 ## 0.7.0
 
 ### Patch Changes
