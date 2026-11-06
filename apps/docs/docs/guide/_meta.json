@@ -14,6 +14,7 @@
   { "type": "file", "name": "vite", "label": "Build with Vite" },
   { "type": "file", "name": "join-a-platform", "label": "Join a platform with a remote" },
   { "type": "file", "name": "tooling-repo", "label": "A repo for shared tooling" },
+  { "type": "file", "name": "agents-and-mcp", "label": "Use a coding agent" },
   { "type": "section-header", "label": "Ship" },
   { "type": "file", "name": "ci-and-budgets", "label": "CI and budgets" },
   { "type": "dir", "name": "deploy", "label": "Deploy", "collapsible": true, "collapsed": false },

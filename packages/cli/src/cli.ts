@@ -24,6 +24,7 @@ import {
 import { DEV_ARGS, runDev } from './commands/dev';
 import { FEATURES_ARGS, runFeatures } from './commands/features';
 import { INIT_ARGS, runInit } from './commands/init';
+import { MCP_ARGS, runMcp } from './commands/mcp';
 import { REGISTRY_ARGS, runRegistry } from './commands/registry';
 import {
   formatServerAction,
@@ -289,6 +290,19 @@ export const COMMANDS: readonly Command[] = [
       'mfeflow dev --dry-run',
     ],
     run: runDev,
+  },
+  {
+    name: 'mcp',
+    summary:
+      'run an MCP server on stdin and stdout, so a coding agent can inspect and change a project',
+    usage: 'mfeflow mcp [--allow-registry-writes]',
+    args: MCP_ARGS,
+    examples: [
+      'claude mcp add mfeflow -- npx -y mfeflow mcp',
+      'mfeflow mcp   # started by the agent, not by hand',
+      'mfeflow mcp --allow-registry-writes   # also offer promote and rollback',
+    ],
+    run: (rt, args, raw) => runMcp(rt, args, raw, main),
   },
 ];
 

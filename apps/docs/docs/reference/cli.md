@@ -36,6 +36,7 @@ Run the command with `--help` for the options and examples of one command.
 | `status`                                         | What each environment serves, the version before it, and drift                    |
 | `rollout step\|complete\|abort\|status <remote>` | Move or read a percentage rollout (registry server only)                          |
 | `kill <remote>`, `restore <remote>`              | Take a remote out of the served index, or put it back (registry server only)      |
+| `mcp`                                            | Run an MCP server on stdin and stdout for coding agents                           |
 
 This release has no command to remove a feature.
 
@@ -296,6 +297,20 @@ Runs the shell and every remote with a dev registry that follows the project. A 
 | `--allow-origin <origin>` | Allow `--remote` to point at this origin. Localhost is always allowed. Repeatable              |
 
 Ctrl+C stops everything and exits with code 130. See [Develop locally](/guide/development).
+
+## mcp
+
+Starts an MCP server on stdin and stdout, for a coding agent to inspect a project and plan changes. It is started by the agent's config, not by hand. It prints nothing else on stdout, and ends when its input closes.
+
+```bash
+mfeflow mcp [--allow-registry-writes]
+```
+
+| Flag                      | Meaning                                                                                |
+| ------------------------- | -------------------------------------------------------------------------------------- |
+| `--allow-registry-writes` | Also offer `mfeflow_registry_plan` and `mfeflow_registry_apply` (promote and rollback) |
+
+The MCP code loads only when this command runs, so no other command is slower for it. Available from the release after 0.8.0. See [Use mfeflow from a coding agent](/guide/agents-and-mcp) for the tools, the plan and apply steps, and the install lines for Claude Code, Cursor, VS Code and Codex.
 
 ## deploy, promote, rollback and status
 

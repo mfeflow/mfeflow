@@ -370,6 +370,12 @@ export interface KillCommandResult {
   killed: boolean | null;
 }
 
+/** `mfeflow mcp` printed nothing; this is what it returns once the client has gone. */
+export interface McpResult {
+  ok: true;
+  command: 'mcp';
+}
+
 export interface FailureResult {
   ok: false;
   error: ErrorReport;
@@ -390,6 +396,7 @@ export type CliResult =
   | StatusResult
   | RolloutCommandResult
   | KillCommandResult
+  | McpResult
   | FailureResult;
 
 /** The plan as plain data for `--json`, without file contents. Features are listed once. */
@@ -797,10 +804,12 @@ export function validateResult(value: unknown): Issue[] {
         if (value[key] !== null && typeof value[key] !== 'boolean')
           c.add(key, 'must be true, false or null');
       break;
+    case 'mcp':
+      break;
     default:
       c.add(
         'command',
-        'must be init, adopt, add, upgrade, features, registry, doctor, validate, check-compat, budget, dev, deploy, promote, rollback, status, rollout, kill or restore',
+        'must be init, adopt, add, upgrade, features, registry, doctor, validate, check-compat, budget, dev, deploy, promote, rollback, status, rollout, kill, restore or mcp',
       );
   }
   return c.issues;

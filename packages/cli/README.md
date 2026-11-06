@@ -13,32 +13,33 @@ pnpm dev                                    # shell on :4300, remotes on :4311, 
 
 ## Commands
 
-| Command                                                    | Does                                                                                                   |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `mfeflow init [dir]`                                       | New project: a shell, remotes (default `catalog`, `cart`), pnpm workspace, Turborepo                   |
-| `mfeflow add remote <name>`                                | New remote with its registry entries and a route in every shell                                        |
-| `mfeflow add shell <name>`                                 | New shell that routes to every existing remote                                                         |
-| `mfeflow add team-repo <name>`                             | In the shell repo of a polyrepo: a new remote repo next to it, registered here                         |
-| `mfeflow add <feature...>`                                 | Add features, or `@namespace/feature` from a registry you added with `registry add`                    |
-| `mfeflow add env-key <KEY>`                                | Add a typed env key: `--scope server` (env.ts) or `runtime`, with `--schema <expr>`                    |
-| `mfeflow features [search]`                                | List and search the features you can add, from mfeflow and every configured registry                   |
-| `mfeflow registry add @ns <url>`                           | Add a third-party feature registry (`https`, or `http` on loopback) to `mfeflow.json`                  |
-| `mfeflow registry list`, `remove @ns`                      | List the registries, or remove one                                                                     |
-| `mfeflow registry build <dir>`                             | Check a folder of features and write `index.json` and the files to host                                |
-| `mfeflow adopt`                                            | Set up mfeflow in an existing Module Federation project, without touching its build config             |
-| `mfeflow upgrade`                                          | Move the project to the version you are running, keeping your edits; `--bundler vite` switches bundler |
-| `mfeflow dev`                                              | Run the shell and every remote, one prefixed log each; follows `add remote`                            |
-| `mfeflow doctor`                                           | Singletons, compatibility, config health, drift; `--fix` repairs the safe ones                         |
-| `mfeflow validate`                                         | `mfeflow.json`, every `mfeflow.app.json` and every registry entry against schemas                      |
-| `mfeflow check-compat`                                     | Each remote's shared ranges against the shells it runs in                                              |
-| `mfeflow budget`                                           | Built first-load JS of the shell and each remote against the cost-model budget                         |
-| `mfeflow deploy <remote> --env <env>`                      | Upload a remote's build to a static registry host and point the env's index at it                      |
-| `mfeflow promote <remote>`                                 | Copy the version one env serves to another env: `--from staging --to prod`                             |
-| `mfeflow rollback <remote>`                                | Point an env back at the previous version, or `--to <version>`, without a rebuild                      |
-| `mfeflow rollout <step\|complete\|abort\|status> <remote>` | A percentage rollout on the registry server (`promote --percent 10 --steps 50,100` starts one)         |
-| `mfeflow kill <remote>`, `mfeflow restore <remote>`        | Take a remote out of the served index at once, or put it back (registry server only)                   |
-| `mfeflow status`                                           | What each env serves, the version before it, and drift from `registry/envs`                            |
-| `mfeflow --version`, `mfeflow --help`                      | Version, and help with examples (`mfeflow <command> --help` for one command)                           |
+| Command                                                    | Does                                                                                                                            |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `mfeflow init [dir]`                                       | New project: a shell, remotes (default `catalog`, `cart`), pnpm workspace, Turborepo                                            |
+| `mfeflow add remote <name>`                                | New remote with its registry entries and a route in every shell                                                                 |
+| `mfeflow add shell <name>`                                 | New shell that routes to every existing remote                                                                                  |
+| `mfeflow add team-repo <name>`                             | In the shell repo of a polyrepo: a new remote repo next to it, registered here                                                  |
+| `mfeflow add <feature...>`                                 | Add features, or `@namespace/feature` from a registry you added with `registry add`                                             |
+| `mfeflow add env-key <KEY>`                                | Add a typed env key: `--scope server` (env.ts) or `runtime`, with `--schema <expr>`                                             |
+| `mfeflow features [search]`                                | List and search the features you can add, from mfeflow and every configured registry                                            |
+| `mfeflow registry add @ns <url>`                           | Add a third-party feature registry (`https`, or `http` on loopback) to `mfeflow.json`                                           |
+| `mfeflow registry list`, `remove @ns`                      | List the registries, or remove one                                                                                              |
+| `mfeflow registry build <dir>`                             | Check a folder of features and write `index.json` and the files to host                                                         |
+| `mfeflow adopt`                                            | Set up mfeflow in an existing Module Federation project, without touching its build config                                      |
+| `mfeflow upgrade`                                          | Move the project to the version you are running, keeping your edits; `--bundler vite` switches bundler                          |
+| `mfeflow dev`                                              | Run the shell and every remote, one prefixed log each; follows `add remote`                                                     |
+| `mfeflow doctor`                                           | Singletons, compatibility, config health, drift; `--fix` repairs the safe ones                                                  |
+| `mfeflow validate`                                         | `mfeflow.json`, every `mfeflow.app.json` and every registry entry against schemas                                               |
+| `mfeflow check-compat`                                     | Each remote's shared ranges against the shells it runs in                                                                       |
+| `mfeflow budget`                                           | Built first-load JS of the shell and each remote against the cost-model budget                                                  |
+| `mfeflow deploy <remote> --env <env>`                      | Upload a remote's build to a static registry host and point the env's index at it                                               |
+| `mfeflow promote <remote>`                                 | Copy the version one env serves to another env: `--from staging --to prod`                                                      |
+| `mfeflow rollback <remote>`                                | Point an env back at the previous version, or `--to <version>`, without a rebuild                                               |
+| `mfeflow rollout <step\|complete\|abort\|status> <remote>` | A percentage rollout on the registry server (`promote --percent 10 --steps 50,100` starts one)                                  |
+| `mfeflow kill <remote>`, `mfeflow restore <remote>`        | Take a remote out of the served index at once, or put it back (registry server only)                                            |
+| `mfeflow status`                                           | What each env serves, the version before it, and drift from `registry/envs`                                                     |
+| `mfeflow mcp`                                              | An MCP server on stdin and stdout for coding agents: inspect, plan, apply (`--allow-registry-writes` adds promote and rollback) |
+| `mfeflow --version`, `mfeflow --help`                      | Version, and help with examples (`mfeflow <command> --help` for one command)                                                    |
 
 Features that ship with it: `core` and `tsconfig` (always), `lint-oxlint`, `url-factory`, `env-t3` and `testing`
 (default), and the rest (`ci-github`, `git-hooks`, `theming`, `i18n` and more; `mfeflow features` lists them) are opt-in.
