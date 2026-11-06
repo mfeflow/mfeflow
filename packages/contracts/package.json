@@ -52,6 +52,7 @@
   "devDependencies": {
     "@rslib/core": "catalog:",
     "@types/node": "catalog:",
+    "fast-check": "catalog:",
     "typescript": "catalog:"
   },
   "sideEffects": false,

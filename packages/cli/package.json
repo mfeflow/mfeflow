@@ -64,6 +64,7 @@
     "@mfeflow/rsbuild": "workspace:*",
     "@rslib/core": "catalog:",
     "@types/node": "catalog:",
+    "fast-check": "catalog:",
     "@types/semver": "catalog:",
     "typescript": "catalog:"
   }
