@@ -99,6 +99,24 @@ describe('init --kind remote', () => {
     expect(out).toContain('with 1 remote (catalog) and no shell');
   });
 
+  it('reports no skipped shell parts for the files init writes itself', async () => {
+    const cwd = await workspace();
+    const { out } = await remoteRepo(cwd);
+    expect(out).not.toContain('Skipped because');
+    const json = await workspace();
+    const { out: text } = await remoteRepo(json, '--json');
+    const result = JSON.parse(text) as InitResult;
+    expect(validateResult(result)).toEqual([]);
+    expect(result.plan.skipped).toEqual([]);
+  });
+
+  it('still reports the shell parts of a feature the user picked', async () => {
+    const cwd = await workspace();
+    const { out } = await remoteRepo(cwd, '--features', 'theming');
+    expect(out).toContain('Add `theming` in the shell repo too.');
+    expect(out).not.toContain('Add `url-factory`');
+  });
+
   it('makes three remotes on consecutive ports and names the root package after the repo of remotes', async () => {
     const cwd = await workspace();
     const { root } = await remoteRepo(cwd, '--remotes', 'cart,checkout,orders');

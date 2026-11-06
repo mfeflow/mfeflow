@@ -531,6 +531,8 @@ export async function runInit(
     });
   });
   const plan = builder.build();
+  // Every shell repo gets the default features at its own init, so their shell parts need no reminder.
+  if (remoteRepo) plan.skipped = plan.skipped.filter((p) => !DEFAULT_FEATURES.includes(p.feature));
 
   const outcome = await writePlan({
     rt,
