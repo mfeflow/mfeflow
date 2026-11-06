@@ -1,11 +1,20 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { findProjectRoot, loadProject, messageOf, isMfeflowError } from '@mfeflow/core';
+import { fileURLToPath } from 'node:url';
+import { isPrivateHost, redactUrl, shellSourceProblem } from '@mfeflow/contracts';
+import {
+  findProjectRoot,
+  loadProject,
+  messageOf,
+  isMfeflowError,
+  MfeflowError,
+} from '@mfeflow/core';
 import { z } from 'zod';
 import { readPackageJson } from '../version';
 import { runCli, type CliMain, type CliRun } from './capture';
 import { explainCode, explainLog } from './errors';
-import { hashTargets, PlanRefused, type PlanStore } from './plans';
+import { hashTargets, pageCount, pageOf, PlanRefused, type PlanStore } from './plans';
 
 export interface ToolOutput {
   data: Record<string, unknown>;
@@ -121,21 +130,76 @@ async function cli(
   ctx: ToolContext,
   cwd: string,
   argv: readonly string[],
+  guardFetch?: (url: string) => void,
 ): Promise<{ result: Obj } | { error: ToolOutput }> {
-  return resultOf(await runCli(ctx.main, [...argv, '--json', '--cwd', cwd], cwd, ctx.env));
+  return resultOf(
+    await runCli(ctx.main, [...argv, '--json', '--cwd', cwd], cwd, ctx.env, guardFetch),
+  );
 }
 
 function pick(source: Obj, keys: readonly string[]): Obj {
   return Object.fromEntries(keys.filter((key) => key in source).map((key) => [key, source[key]]));
 }
 
-const hostField = z
-  .string()
-  .max(300)
-  .refine((host) => /^file:[^\0]+$/.test(host) || /^s3:\/\/[^\s@?#]+$/.test(host), {
-    message: 'file:<dir> or s3://<bucket>[/prefix], no credentials',
-  })
-  .optional();
+/**
+ * The registry host the project names. The tools take no host argument, so an agent cannot point a
+ * promote or rollback at a bucket of its choosing.
+ */
+async function configuredHost(cwd: string): Promise<string> {
+  const project = await loadProject(await findProjectRoot(cwd));
+  const option = project.features['registry-static']?.options?.host;
+  const host =
+    project.registry?.host ?? (typeof option === 'string' && option !== '' ? option : '');
+  if (host === '') {
+    throw new MfeflowError(
+      'E506',
+      'no registry host is configured: set registry.host in mfeflow.json. These tools use only the configured host and take no host argument.',
+    );
+  }
+  return host;
+}
+
+const refusePrivateUrl = (url: string): void => {
+  if (isPrivateHost(new URL(url).hostname)) {
+    throw new MfeflowError('E405', `${redactUrl(url)} is a loopback or private address`);
+  }
+};
+
+/**
+ * `against` is treated like a shell address read from a committed file: no credentials, no
+ * loopback or private host, and a file only from inside the project folder.
+ */
+async function checkedAgainst(cwd: string, value: string): Promise<string> {
+  if (value.startsWith('-')) throw new PlanRefused('against must not start with a dash');
+  const why = shellSourceProblem(value);
+  if (why !== undefined) throw new PlanRefused(`against ${why}`);
+  if (/^https?:\/\//i.test(value)) {
+    refusePrivateUrl(value);
+    return value;
+  }
+  const file = value.toLowerCase().startsWith('file:') ? fileURLToPath(value) : value;
+  const home = await fs.realpath(cwd);
+  const inside = async (candidate: string): Promise<string> => {
+    const real = await fs.realpath(path.resolve(cwd, candidate)).catch(() => {
+      throw new PlanRefused(`against ${candidate} does not exist`);
+    });
+    const rel = path.relative(home, real);
+    if (rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+      throw new PlanRefused('against may only name a file inside the project folder');
+    }
+    return real;
+  };
+  const real = await inside(file);
+  const beside = path.join(path.dirname(real), 'mf-manifest.json');
+  if (
+    await fs.stat(beside).then(
+      () => true,
+      () => false,
+    )
+  )
+    await inside(beside);
+  return real;
+}
 
 const READ = {
   readOnlyHint: true,
@@ -149,6 +213,28 @@ function report(result: Obj, detailed: boolean): Obj {
   return detailed
     ? result
     : pick(result, ['ok', 'command', 'root', 'summary', 'against', 'findings']);
+}
+
+function redactedProject(project: Awaited<ReturnType<typeof loadProject>>): Obj {
+  const registries = project.registries
+    ? Object.fromEntries(
+        Object.entries(project.registries).map(([ns, url]) => [ns, redactUrl(url)]),
+      )
+    : undefined;
+  const registry = project.registry
+    ? Object.fromEntries(
+        Object.entries(project.registry).map(([key, value]) => [
+          key,
+          typeof value === 'string' ? redactUrl(value) : value,
+        ]),
+      )
+    : undefined;
+  return {
+    ...project,
+    ...(registries ? { registries } : {}),
+    ...(registry ? { registry } : {}),
+    ...(project.shell === undefined ? {} : { shell: redactUrl(project.shell) }),
+  };
 }
 
 function readTools(ctx: ToolContext): Tool[] {
@@ -188,7 +274,11 @@ function readTools(ctx: ToolContext): Tool[] {
         return {
           data:
             args.response_format === 'detailed'
-              ? { ...concise, packageManager: project.packageManager, project }
+              ? {
+                  ...concise,
+                  packageManager: project.packageManager,
+                  project: redactedProject(project),
+                }
               : concise,
         };
       },
@@ -242,19 +332,23 @@ function readTools(ctx: ToolContext): Tool[] {
         name: 'mfeflow_doctor',
         title: 'Run doctor',
         description:
-          'Check singletons, compatibility, config and drift. Never fixes anything. With against, compare to a deployed shell (https URL of its manifest or registry index, or a file).',
+          'Check singletons, compatibility, config and drift. Never fixes anything. With against, compare to a deployed shell (public https URL of its manifest or registry index, or a file inside the project).',
         annotations: READ_NETWORK,
         shape: {
-          against: z.string().optional().describe('Deployed shell: https URL or file path'),
+          against: z
+            .string()
+            .optional()
+            .describe('Deployed shell: public https URL, or a file inside the project folder'),
         },
       },
       async (args) => {
         const against = args.against?.trim();
-        if (against?.startsWith('-')) return problem('against must not start with a dash');
+        const checked = against ? await checkedAgainst(args.cwd, against) : undefined;
         const out = await cli(
           ctx,
           args.cwd,
-          against ? ['doctor', '--against', against] : ['doctor'],
+          checked ? ['doctor', '--against', checked] : ['doctor'],
+          refusePrivateUrl,
         );
         return 'error' in out
           ? out.error
@@ -266,19 +360,15 @@ function readTools(ctx: ToolContext): Tool[] {
         name: 'mfeflow_registry_status',
         title: 'Registry status',
         description:
-          'What each environment serves, the version before it, and drift. Reads the registry host in mfeflow.json.',
+          'What each environment serves, the version before it, and drift. Reads only the registry host set in mfeflow.json.',
         annotations: READ_NETWORK,
         shape: {
           env: name.optional().describe('Only this environment'),
-          host: hostField.describe('Registry host, default from mfeflow.json'),
         },
       },
       async (args) => {
-        const out = await cli(ctx, args.cwd, [
-          'status',
-          ...(args.env ? ['--env', args.env] : []),
-          ...(args.host ? ['--host', args.host] : []),
-        ]);
+        await configuredHost(args.cwd);
+        const out = await cli(ctx, args.cwd, ['status', ...(args.env ? ['--env', args.env] : [])]);
         if ('error' in out) return out.error;
         return {
           data:
@@ -326,6 +416,9 @@ function readTools(ctx: ToolContext): Tool[] {
 
 const PLAN_KINDS = ['init', 'add_feature', 'add_remote', 'upgrade'] as const;
 
+/** First words `mfeflow add` reads as a subcommand instead of a feature name. */
+const ADD_SUBCOMMANDS = ['remote', 'shell', 'env-key', 'team-repo'];
+
 function planArgv(args: {
   kind: (typeof PLAN_KINDS)[number];
   name?: string | undefined;
@@ -351,9 +444,16 @@ function planArgv(args: {
         ...(args.topology ? ['--topology', args.topology] : []),
         ...(args.bundler ? ['--bundler', args.bundler] : []),
       ];
-    case 'add_feature':
+    case 'add_feature': {
       if (!args.features?.length) throw new PlanRefused('add_feature needs features');
+      const reserved = args.features.find((f) => ADD_SUBCOMMANDS.includes(f.toLowerCase()));
+      if (reserved !== undefined) {
+        throw new PlanRefused(
+          `"${reserved}" is a subcommand of mfeflow add, not a feature name; use kind add_remote to add a remote. ${ADD_SUBCOMMANDS.join(', ')} are not features.`,
+        );
+      }
       return ['add', ...args.features];
+    }
     case 'add_remote':
       return [
         'add',
@@ -374,10 +474,67 @@ function planSummary(result: Obj, detailed: boolean): Obj {
   return {
     features: plan.features,
     changes: plan.changes,
+    changes_count: list('changes').length,
     dependencies: list('dependencies').length,
     scripts: list('scripts').length,
     warnings: plan.warnings,
   };
+}
+
+/** Every path a plan names, including the ones it would skip. */
+function planPaths(plan: Obj): string[] {
+  const named = (key: string): string[] =>
+    (Array.isArray(plan[key]) ? plan[key] : []).flatMap((item): string[] => {
+      if (typeof item === 'string') return [item];
+      return isObj(item) && typeof item.path === 'string' ? [item.path] : [];
+    });
+  return [...named('changes'), ...named('skipped')];
+}
+
+const sha = (text: string): string => createHash('sha256').update(text).digest('hex');
+
+/** What a dry run of a feature add would write; if it differs at apply, the registry changed. */
+function changeFingerprint(result: Obj): string {
+  const plan = isObj(result.plan) ? result.plan : {};
+  const changes = (Array.isArray(plan.changes) ? plan.changes : []).filter(isObj);
+  return sha(
+    JSON.stringify({
+      changes: changes.map((c) => [c.path, c.action]),
+      diff: sha(typeof result.diff === 'string' ? result.diff : ''),
+    }),
+  );
+}
+
+const WRITTEN_SHOWN = 200;
+
+/** `written` with its count, and how many are not listed, so a long list is never cut unseen. */
+function withWrittenCount(result: Obj): Obj {
+  if (!Array.isArray(result.written)) return result;
+  const total = result.written.length;
+  return {
+    ...result,
+    written: result.written.slice(0, WRITTEN_SHOWN),
+    written_count: total,
+    ...(total > WRITTEN_SHOWN ? { written_omitted: total - WRITTEN_SHOWN } : {}),
+  };
+}
+
+/** Runs a plan's stored dry run again and refuses the apply if the outcome moved. */
+async function stillSame(
+  ctx: ToolContext,
+  cwd: string,
+  plan: { verify?: { argv: string[]; fingerprint: string } | undefined },
+  fingerprint: (result: Obj) => string,
+): Promise<ToolOutput | undefined> {
+  if (!plan.verify) return undefined;
+  const out = await cli(ctx, cwd, plan.verify.argv);
+  if ('error' in out) return out.error;
+  if (out.result.ok !== true || fingerprint(out.result) !== plan.verify.fingerprint) {
+    throw new PlanRefused(
+      'what this plan would do is no longer what was planned (the registry or the host changed); make a new plan',
+    );
+  }
+  return undefined;
 }
 
 function writeTools(ctx: ToolContext): Tool[] {
@@ -388,7 +545,7 @@ function writeTools(ctx: ToolContext): Tool[] {
         name: 'mfeflow_plan',
         title: 'Plan a change',
         description:
-          'Plan init, add_feature, add_remote or upgrade. Runs the command as a dry run and writes nothing. Returns plan_id, a summary and the diff; show the diff to the user, then call mfeflow_apply_plan. A plan lasts 10 minutes and is refused if a file it touches changed.',
+          'Plan init, add_feature, add_remote or upgrade. Runs the command as a dry run and writes nothing. Returns plan_id, a summary and the diff; a long diff comes in pages (diff_pages), read the rest with mfeflow_plan_diff. Show the whole diff to the user, then call mfeflow_apply_plan. A plan lasts 10 minutes and is refused if a file it touches changed.',
         annotations: {
           readOnlyHint: true,
           destructiveHint: false,
@@ -419,16 +576,23 @@ function writeTools(ctx: ToolContext): Tool[] {
         if (out.result.ok !== true) return { isError: true, data: out.result };
         const root = typeof out.result.root === 'string' ? out.result.root : args.cwd;
         const plan = isObj(out.result.plan) ? out.result.plan : {};
-        const paths = (Array.isArray(plan.changes) ? plan.changes : [])
-          .filter(isObj)
-          .map((change) => change.path)
-          .filter((p): p is string => typeof p === 'string');
+        const diff = typeof out.result.diff === 'string' ? out.result.diff : '';
         const stored = ctx.plans.add({
           scope: 'local',
           cwd: args.cwd,
           argv: [...argv, '--yes'],
-          hashes: await hashTargets(root, [...paths, 'mfeflow.json']),
+          hashes: await hashTargets(root, [...planPaths(plan), 'mfeflow.json']),
+          diff,
+          ...(args.kind === 'add_feature'
+            ? {
+                verify: {
+                  argv: [...argv, '--dry-run'],
+                  fingerprint: changeFingerprint(out.result),
+                },
+              }
+            : {}),
         });
+        const pages = pageCount(diff);
         return {
           data: {
             ok: true,
@@ -437,9 +601,54 @@ function writeTools(ctx: ToolContext): Tool[] {
             command: `mfeflow ${argv.join(' ')}`,
             root,
             summary: planSummary(out.result, args.response_format === 'detailed'),
-            diff: out.result.diff ?? '',
+            diff: pageOf(diff, 1),
+            diff_page: 1,
+            diff_pages: pages,
+            ...(pages > 1
+              ? {
+                  diff_note: `The diff is cut: this is page 1 of ${String(pages)}. Read the rest with mfeflow_plan_diff (plan_id, page) and show the user all of it before applying.`,
+                }
+              : {}),
           },
         };
+      },
+    ),
+    defineTool(
+      {
+        name: 'mfeflow_plan_diff',
+        title: 'Read a plan diff',
+        description:
+          'Read the diff of a plan made by mfeflow_plan, one page at a time. Writes nothing and does not use up the plan.',
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+        shape: {
+          plan_id: z.string().uuid(),
+          page: z.number().int().min(1).default(1).describe('Page number, from 1'),
+        },
+      },
+      (args) => {
+        const plan = ctx.plans.peek(args.plan_id, 'local', args.cwd);
+        const diff = plan.diff ?? '';
+        const pages = pageCount(diff);
+        if (args.page > pages) {
+          return Promise.resolve(
+            problem(`the diff has ${String(pages)} page(s); no page ${String(args.page)}`),
+          );
+        }
+        return Promise.resolve({
+          data: {
+            ok: true,
+            plan_id: plan.id,
+            diff_page: args.page,
+            diff_pages: pages,
+            diff: pageOf(diff, args.page),
+            ...(args.page < pages ? { next_page: args.page + 1 } : {}),
+          },
+        });
       },
     ),
     defineTool(
@@ -447,7 +656,7 @@ function writeTools(ctx: ToolContext): Tool[] {
         name: 'mfeflow_apply_plan',
         title: 'Apply a plan',
         description:
-          'Write the files of a plan made by mfeflow_plan. Confirm with the user first. Refuses if the plan expired, was made for another cwd, or any file it touches changed. Does not install packages.',
+          'Write the files of a plan made by mfeflow_plan. Confirm with the user first; the plan_id is not a permission, anyone who has it can apply. Refuses if the plan expired, was made for another cwd, any file it touches changed, or a registry feature now gives a different result. Does not install packages.',
         annotations: {
           readOnlyHint: false,
           destructiveHint: true,
@@ -458,24 +667,24 @@ function writeTools(ctx: ToolContext): Tool[] {
       },
       async (args) => {
         const plan = await ctx.plans.take(args.plan_id, 'local', args.cwd);
+        const moved = await stillSame(ctx, args.cwd, plan, changeFingerprint);
+        if (moved) return moved;
         const out = await cli(ctx, args.cwd, plan.argv);
         if ('error' in out) return out.error;
         const detailed = args.response_format === 'detailed';
-        return {
-          isError: out.result.ok !== true,
-          data: detailed
-            ? out.result
-            : pick(out.result, [
-                'ok',
-                'command',
-                'root',
-                'written',
-                'added',
-                'skipped',
-                'installed',
-                'next',
-              ]),
-        };
+        const shown = detailed
+          ? out.result
+          : pick(out.result, [
+              'ok',
+              'command',
+              'root',
+              'written',
+              'added',
+              'skipped',
+              'installed',
+              'next',
+            ]);
+        return { isError: out.result.ok !== true, data: withWrittenCount(shown) };
       },
     ),
   ];
@@ -489,12 +698,10 @@ function registryArgv(args: {
   from?: string | undefined;
   to?: string | undefined;
   version?: string | undefined;
-  host?: string | undefined;
 }): string[] {
-  const host = args.host ? ['--host', args.host] : [];
   if (args.kind === 'promote') {
     if (!args.from || !args.to) throw new PlanRefused('promote needs from and to (environments)');
-    return ['promote', args.remote, '--from', args.from, '--to', args.to, ...host];
+    return ['promote', args.remote, '--from', args.from, '--to', args.to];
   }
   if (!args.env) throw new PlanRefused('rollback needs env');
   return [
@@ -503,8 +710,18 @@ function registryArgv(args: {
     '--env',
     args.env,
     ...(args.version ? ['--to', args.version] : []),
-    ...host,
   ];
+}
+
+/** What a promote or rollback would do right now: the version moved and what the env serves. */
+function moveFingerprint(result: Obj): string {
+  return JSON.stringify([
+    result.env,
+    result.fromEnv,
+    result.remote,
+    result.version,
+    result.servedBefore,
+  ]);
 }
 
 function registryTools(ctx: ToolContext): Tool[] {
@@ -514,7 +731,7 @@ function registryTools(ctx: ToolContext): Tool[] {
         name: 'mfeflow_registry_plan',
         title: 'Plan a promote or rollback',
         description:
-          'Plan moving an environment to another version: promote (copy what one env serves to another) or rollback. Dry run only; nothing is uploaded or changed. Credentials come from the environment the server runs in, never from arguments. Returns plan_id.',
+          'Plan moving an environment to another version: promote (copy what one env serves to another) or rollback. Dry run only; nothing is uploaded or changed. Uses only the registry.host in mfeflow.json and takes no host argument. Credentials come from the environment the server runs in, never from arguments. The plan pins the version and what each environment serves, and apply is refused if either moved. Returns plan_id.',
         annotations: {
           readOnlyHint: true,
           destructiveHint: false,
@@ -532,27 +749,32 @@ function registryTools(ctx: ToolContext): Tool[] {
             .regex(/^[0-9][A-Za-z0-9.+-]*$/)
             .optional()
             .describe('rollback: version to return to'),
-          host: hostField.describe('Registry host, default from mfeflow.json'),
         },
       },
       async (args) => {
+        await configuredHost(args.cwd);
         const argv = registryArgv(args);
         const out = await cli(ctx, args.cwd, [...argv, '--dry-run']);
         if ('error' in out) return out.error;
+        if (out.result.ok !== true) return { isError: true, data: out.result };
+        const pinned =
+          args.kind === 'rollback' && !args.version && typeof out.result.version === 'string'
+            ? [...argv, '--to', out.result.version]
+            : argv;
         const root = typeof out.result.root === 'string' ? out.result.root : args.cwd;
         const entry = typeof out.result.localEntry === 'string' ? [out.result.localEntry] : [];
         const stored = ctx.plans.add({
           scope: 'registry',
           cwd: args.cwd,
-          argv: [...argv, '--yes'],
+          argv: [...pinned, '--yes'],
           hashes: await hashTargets(root, [...entry, 'mfeflow.json']),
+          verify: { argv: [...pinned, '--dry-run'], fingerprint: moveFingerprint(out.result) },
         });
         return {
-          isError: out.result.ok !== true,
           data: {
             plan_id: stored.id,
             expires_at: new Date(stored.expiresAt).toISOString(),
-            command: `mfeflow ${argv.join(' ')}`,
+            command: `mfeflow ${pinned.join(' ')}`,
             ...(args.response_format === 'detailed'
               ? out.result
               : pick(out.result, [
@@ -575,7 +797,7 @@ function registryTools(ctx: ToolContext): Tool[] {
         name: 'mfeflow_registry_apply',
         title: 'Apply a promote or rollback',
         description:
-          'Run a plan made by mfeflow_registry_plan against the registry host. Changes what visitors get. Confirm with the user first. Same refusals as mfeflow_apply_plan.',
+          'Run a plan made by mfeflow_registry_plan against the registry host in mfeflow.json. Changes what visitors get. Confirm with the user first; the plan_id is not a permission. Refuses if what the environments serve changed since the plan, and on the same refusals as mfeflow_apply_plan.',
         annotations: {
           readOnlyHint: false,
           destructiveHint: true,
@@ -586,6 +808,9 @@ function registryTools(ctx: ToolContext): Tool[] {
       },
       async (args) => {
         const plan = await ctx.plans.take(args.plan_id, 'registry', args.cwd);
+        await configuredHost(args.cwd);
+        const moved = await stillSame(ctx, args.cwd, plan, moveFingerprint);
+        if (moved) return moved;
         const out = await cli(ctx, args.cwd, plan.argv);
         if ('error' in out) return out.error;
         return {

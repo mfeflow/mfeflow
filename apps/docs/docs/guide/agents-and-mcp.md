@@ -56,10 +56,11 @@ Every tool takes `cwd`, the absolute path of the project (a folder inside it wor
 | `mfeflow_inspect_project` | Reads `mfeflow.json`: apps, features and versions, topology, repo kind, bundler                                | No                             |
 | `mfeflow_search_features` | Lists features from mfeflow and your registries, with optional search text                                     | No                             |
 | `mfeflow_validate`        | Checks `mfeflow.json`, every `mfeflow.app.json` and every registry entry                                       | No                             |
-| `mfeflow_doctor`          | Runs the doctor checks, never `--fix`. Optional `against` for a deployed shell                                 | No                             |
+| `mfeflow_doctor`          | Runs the doctor checks, never `--fix`. Optional `against`: a public https URL, or a file inside the project    | No                             |
 | `mfeflow_registry_status` | What each environment serves, the version before it, and drift                                                 | No                             |
 | `mfeflow_explain_error`   | Gives the title, fix and docs link for an `MFEFLOW_Exxx` code, or finds codes in a log                         | No                             |
 | `mfeflow_plan`            | Plans `init`, `add_feature`, `add_remote` or `upgrade` as a dry run. Returns `plan_id`, a summary and the diff | No, it only remembers the plan |
+| `mfeflow_plan_diff`       | Reads a plan's diff one page at a time, so you can see all of it                                               | No                             |
 | `mfeflow_apply_plan`      | Applies a plan by id, after you confirm                                                                        | Yes, writes files              |
 | `mfeflow_registry_plan`   | Plans a `promote` or a `rollback` as a dry run. Only with `--allow-registry-writes`                            | No                             |
 | `mfeflow_registry_apply`  | Runs that plan against the registry host. Only with `--allow-registry-writes`                                  | Yes, changes what visitors get |
@@ -69,12 +70,17 @@ Planned and applied changes do not install packages. Run `pnpm install` yourself
 ## How changes are kept safe
 
 - **Plan, then apply.** The agent cannot write by calling one tool. `mfeflow_plan` runs the command with `--dry-run` and shows the diff. Only `mfeflow_apply_plan` with the returned `plan_id` writes, and the agent should show you the diff first.
+- **You can read the whole diff.** `mfeflow_plan` returns the first page of a long diff and says how many pages there are (`diff_pages`). `mfeflow_plan_diff` returns the others. Lists of written files come with a count, and a cut never drops `plan_id`.
 - **A plan expires after 10 minutes** and can be applied once. It is held in the server's memory, so restarting the server drops every plan.
-- **A changed file stops it.** The plan records the SHA-256 of every file it touches, and of `mfeflow.json`. If any of them changed, or a file it meant to create now exists, the apply is refused. Make a new plan.
+- **A changed file stops it.** The plan records the SHA-256 of every file it touches, including files it would skip, and of `mfeflow.json`. It also records where symlinks lead and which files were absent. If any of them changed, or a file it meant to create now exists, the apply is refused. Make a new plan.
+- **A registry feature is checked again.** `add_feature` repeats the dry run when you apply, and refuses if the changes or their content differ from what was planned.
+- **Registry plans pin versions.** A rollback with no `version` is stored as a rollback to the version the dry run found. A promote or rollback records the version it moves and what the target serves. The apply repeats the dry run and refuses if either changed, for example because someone deployed in between.
 - **A plan belongs to one folder.** Applying it from a different `cwd` is refused.
 - **Registry writes are off by default.** `mfeflow_registry_plan` and `mfeflow_registry_apply` exist only when the server starts with `--allow-registry-writes`. Add the flag to the command in your client config if you want them.
+- **Registry tools use only the configured host.** They take no `host` argument. They read `registry.host` from `mfeflow.json` and say so if it is not set. `mfeflow_doctor` treats `against` like a shell address from a committed file: no credentials, no private or loopback hosts, and a file must be inside the project folder.
 - **Tokens come from the environment.** The server reads the same variables as the CLI (`MFEFLOW_S3_ENDPOINT`, `AWS_ACCESS_KEY_ID` and the rest). No tool takes a token or a password as an argument, and a host with credentials in it is rejected.
 - **A plan id is not a login.** Anyone who can talk to the server can apply a plan. The server runs as you, on your machine, over stdio.
+- **The server never asks you.** It has no prompt of its own, so the confirmation has to come from your client. Set it to ask before `mfeflow_apply_plan`, `mfeflow_registry_apply` and `mfeflow_registry_plan` (in Claude Code, leave them out of the allowed tools so each call asks).
 
 The hints on each tool (`readOnlyHint`, `destructiveHint`) are set honestly, but they are hints for the client. The safety comes from the plan and apply steps above. A registry plan can only check the project files; it cannot check what is on the remote host, so the apply runs the CLI's own guards (create-only uploads, index compare-and-swap) against it.
 

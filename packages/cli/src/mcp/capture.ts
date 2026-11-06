@@ -24,16 +24,26 @@ export async function runCli(
   argv: readonly string[],
   cwd: string,
   env: Readonly<Record<string, string | undefined>> = process.env,
+  guardFetch?: (url: string) => void,
 ): Promise<CliRun> {
   const out: string[] = [];
   const err: string[] = [];
-  const rt = realRuntime({
+  const base = realRuntime({
     stdout: (text) => out.push(text),
     stderr: (text) => err.push(text),
     cwd,
     env,
     interactive: false,
   });
+  const rt: Runtime = guardFetch
+    ? {
+        ...base,
+        fetch: (url, init) => {
+          guardFetch(url);
+          return base.fetch(url, init);
+        },
+      }
+    : base;
   const code = await main(argv, rt);
   const stdout = out.join('\n');
   return { code, stdout, stderr: err.join('\n'), json: parse(stdout) };
