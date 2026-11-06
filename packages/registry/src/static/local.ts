@@ -115,6 +115,8 @@ async function write(
 export interface LocalHostOptions {
   /** For tests: replaces `fs.link`. */
   link?: typeof fs.link;
+  /** For tests: replaces `fs.open` when taking the lock. */
+  open?: typeof fs.open;
   /** A lock file older than this is treated as left by a crash. Default 30 s. */
   staleLockMs?: number;
   /** How long to wait for a held lock before giving up. Default 2 s. */
@@ -129,6 +131,7 @@ export interface LocalHostOptions {
 export function localHost(dir: string, options: LocalHostOptions = {}): RegistryHost {
   const root = path.resolve(dir);
   const link = options.link ?? fs.link;
+  const open = options.open ?? fs.open;
   const staleLockMs = options.staleLockMs ?? 30_000;
   const lockWaitMs = options.lockWaitMs ?? 2000;
 
@@ -137,24 +140,31 @@ export function localHost(dir: string, options: LocalHostOptions = {}): Registry
     const started = Date.now();
     let delay = 10;
     for (;;) {
+      // Windows answers EPERM while another writer's delete of the lock is still pending.
+      let pendingDelete: unknown;
       try {
         // oxlint-disable-next-line no-await-in-loop -- retries until the lock is free
-        return await fs.open(lock, 'wx');
+        return await open(lock, 'wx');
       } catch (error) {
-        if (!hasCode(error, 'EEXIST')) throw error;
+        if (hasCode(error, 'EPERM')) pendingDelete = error;
+        else if (!hasCode(error, 'EEXIST')) throw error;
       }
-      // oxlint-disable-next-line no-await-in-loop -- retries until the lock is free
-      const info = await fs.stat(lock).catch(() => undefined);
-      if (info === undefined) continue;
-      if (Date.now() - info.mtimeMs > staleLockMs) {
+      if (pendingDelete === undefined) {
         // oxlint-disable-next-line no-await-in-loop -- retries until the lock is free
-        await fs.rm(lock, { force: true });
-        continue;
+        const info = await fs.stat(lock).catch(() => undefined);
+        if (info === undefined) continue;
+        if (Date.now() - info.mtimeMs > staleLockMs) {
+          // oxlint-disable-next-line no-await-in-loop -- retries until the lock is free
+          await fs.rm(lock, { force: true });
+          continue;
+        }
       }
-      if (Date.now() - started >= lockWaitMs)
+      if (Date.now() - started >= lockWaitMs) {
+        if (pendingDelete !== undefined) throw pendingDelete;
         throw new HostError(
           `${lock} is held by another deploy. If none is running, delete that file and retry.`,
         );
+      }
       // oxlint-disable-next-line no-await-in-loop -- retries until the lock is free
       await sleep(delay);
       delay = Math.min(delay * 2, 200);

@@ -146,6 +146,32 @@ describe('localHost', () => {
     });
   });
 
+  describe('lock taken on Windows', () => {
+    const eperm = () =>
+      Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' });
+
+    it('retries while the old lock is still being deleted', async () => {
+      let refusals = 2;
+      const open = ((file: string, flags: string) =>
+        refusals-- > 0 ? Promise.reject(eperm()) : fs.open(file, flags)) as typeof fs.open;
+      const { etag } = await localHost(dir).put('envs/prod/index.json', '0', opts);
+      const host = localHost(dir, { open });
+      await host.put('envs/prod/index.json', '1', { ...opts, ifMatch: etag ?? '' });
+      expect(refusals).toBe(-1);
+      expect(await fs.readFile(path.join(dir, 'envs', 'prod', 'index.json'), 'utf8')).toBe('1');
+    });
+
+    it('gives the EPERM back if it does not clear before the wait is over', async () => {
+      const open = (() => Promise.reject(eperm())) as unknown as typeof fs.open;
+      const { etag } = await localHost(dir).put('envs/prod/index.json', '0', opts);
+      const host = localHost(dir, { open, lockWaitMs: 60 });
+      await expect(
+        host.put('envs/prod/index.json', '1', { ...opts, ifMatch: etag ?? '' }),
+      ).rejects.toMatchObject({ code: 'EPERM' });
+      expect(await fs.readFile(path.join(dir, 'envs', 'prod', 'index.json'), 'utf8')).toBe('0');
+    });
+  });
+
   describe('link fallback', () => {
     const noLink = (code: string) =>
       (() => {
