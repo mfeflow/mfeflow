@@ -39,9 +39,16 @@ tracer.startActiveSpan('cart.click', (span) => {
 
 Remote failures reported by `@mfeflow/runtime` are forwarded through the `window` event it fires; nothing to wire.
 
+The rest of the API:
+
+- `reportError(error, context)` and `recordWebVitals(metric)` send an error or a Core Web Vitals metric to the provider. Calls made before it is ready are kept (the last 50) and replayed.
+- `isTelemetryReady()` and `telemetryReady()` tell you, or wait until, the provider has loaded.
+- `flushTelemetry()` sends what the provider has buffered, for `pagehide` handlers and tests.
+- `connectRemoteErrors(report)` sends every remote failure to `report` and returns a function that disconnects.
+
 ## Module Federation sharing
 
-Bucket: **singleton**. Share `@mfeflow/telemetry` (`@mfeflow/rsbuild` does). `@mfeflow/telemetry/otel` is imported by the shell only, through a dynamic `import()`. Its exporter and instrumentation packages are 0.x (experimental) OpenTelemetry releases.
+Bucket: **singleton**. Share `@mfeflow/telemetry` (`@mfeflow/rsbuild` and `@mfeflow/vite` do). `@mfeflow/telemetry/otel` is imported by the shell only, through a dynamic `import()`. Its exporter and instrumentation packages are 0.x (experimental) OpenTelemetry releases. A micro-frontend app must also list `@mfeflow/telemetry` in its own dependencies, even if it imports only a company wrapper such as `@acme/telemetry`: the presets share the package only when the app can resolve it from its own folder.
 
 ## Links
 

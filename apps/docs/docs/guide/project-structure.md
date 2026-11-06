@@ -5,7 +5,7 @@ description: A tour of every file in a new mfeflow project, which ones you edit,
 
 # Project structure
 
-This page is a reference tour of a generated project. Use it to find where things live and which files are yours to change. The tree comes from `pnpm create mfeflow demo --yes` with mfeflow 0.4.0.
+This page is a reference tour of a generated project. Use it to find where things live and which files are yours to change. The tree comes from `pnpm create mfeflow demo --yes` with mfeflow 0.8.0.
 
 ## What does the tree look like?
 
@@ -36,7 +36,7 @@ demo/
     │   ├── env.ts  vitest.config.ts
     │   ├── public/config/runtime-config.{dev,staging,prod}.json
     │   └── src/
-    │       ├── index.ts  bootstrap.tsx  App.tsx
+    │       ├── index.ts  bootstrap.tsx  App.tsx  assert.ts
     │       ├── config/   runtime.ts  schema.ts
     │       ├── pages/    Home.tsx
     │       ├── remotes/  route-table.tsx  catalog.tsx  cart.tsx
@@ -59,16 +59,16 @@ All generated files are yours to edit. mfeflow records a hash of each copied fil
 
 Some files are also touched by `mfeflow add`. Features look for a fixed shape in them, such as the `routes` array in the route table. Keep that shape when you edit them, or `add` stops and tells you what it could not find (E208).
 
-| File                                     | You edit it                    | A feature or command edits it                  |
-| ---------------------------------------- | ------------------------------ | ---------------------------------------------- |
-| `apps/*/src/exposed/App.tsx`             | Yes, this is your remote       | Some features wrap it                          |
-| `apps/shell/src/pages/Home.tsx`          | Yes                            | No                                             |
-| `apps/shell/src/remotes/route-table.tsx` | Yes                            | `add remote` adds a route                      |
-| `apps/shell/src/bootstrap.tsx`           | Rarely                         | Features add boot steps and providers          |
-| `apps/*/rsbuild.config.ts`               | Rarely                         | `add remote` writes it; features add an import |
-| `mfeflow.json`                           | Only `budget` and `registries` | Every `add` command                            |
-| `registry/envs/*/*.json`                 | Yes, before deploy             | `add remote` creates entries                   |
-| `apps/*/mfeflow.app.json`                | Yes                            | `add remote` creates it                        |
+| File                                     | You edit it                    | A feature or command edits it                                                          |
+| ---------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------- |
+| `apps/*/src/exposed/App.tsx`             | Yes, this is your remote       | Some features wrap it                                                                  |
+| `apps/shell/src/pages/Home.tsx`          | Yes                            | No                                                                                     |
+| `apps/shell/src/remotes/route-table.tsx` | Yes                            | `add remote` adds a route                                                              |
+| `apps/shell/src/bootstrap.tsx`           | Rarely                         | Features add boot steps and providers                                                  |
+| `apps/*/rsbuild.config.ts`               | Rarely                         | `add remote` writes it; features add an import. `vite.config.ts` with `--bundler vite` |
+| `mfeflow.json`                           | Only `budget` and `registries` | Every `add` command                                                                    |
+| `registry/envs/*/*.json`                 | Yes, before deploy             | `add remote` creates entries                                                           |
+| `apps/*/mfeflow.app.json`                | Yes                            | `add remote` creates it                                                                |
 
 ## What is in the shell?
 

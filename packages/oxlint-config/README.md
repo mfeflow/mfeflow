@@ -2,6 +2,12 @@
 
 The type-aware [oxlint](https://oxc.rs) config every mfeflow project uses (TypeScript 7 via oxlint-tsgolint, React, hooks, jsx-a11y).
 
+```sh
+pnpm add -D @mfeflow/oxlint-config oxlint oxlint-tsgolint
+```
+
+`oxlint` (>=1.90.0) and `oxlint-tsgolint` (>=7.0.2005) are peer dependencies.
+
 ```json
 // .oxlintrc.json
 { "extends": ["./node_modules/@mfeflow/oxlint-config/oxlintrc.json"] }

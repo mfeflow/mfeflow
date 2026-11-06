@@ -11,7 +11,7 @@ All the output below comes from a real run in a temp folder.
 - Node 22.12 or newer
 - pnpm 12.16.1
 - git
-- mfeflow 0.6.0 or newer, the first release with `--topology polyrepo`
+- mfeflow with `--topology polyrepo` (`pnpm dlx mfeflow@latest`)
 
 The first install needs the network.
 

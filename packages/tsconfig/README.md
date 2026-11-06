@@ -2,6 +2,12 @@
 
 Strict TypeScript 7 presets used by every mfeflow project.
 
+```sh
+pnpm add -D @mfeflow/tsconfig typescript
+```
+
+`typescript` (>=7.0.0) is a peer dependency.
+
 ```json
 { "extends": "@mfeflow/tsconfig/react-app.json", "include": ["src"] }
 ```

@@ -9,7 +9,7 @@ This tutorial takes you from an empty folder to a running shell with two remotes
 
 ## Before you start
 
-You need Node.js 22.12 or newer and pnpm. The generated project pins the pnpm version it was made with. For 0.4.0 that is 12.16.1.
+You need Node.js 22.12 or newer and pnpm. The generated project pins the pnpm version it was made with. For 0.8.0 that is 12.16.1.
 
 Check your versions:
 
@@ -64,7 +64,7 @@ catalog | $ rsbuild dev
 cart    | $ rsbuild dev
 ```
 
-A few seconds later each app prints its address:
+With `--bundler vite` each line says `vite` instead. A few seconds later each app prints its address:
 
 ```text
 cart    |   ➜  Local:    http://localhost:4312/

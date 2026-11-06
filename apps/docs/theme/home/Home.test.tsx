@@ -33,11 +33,19 @@ describe('home page', () => {
       'From empty folder to a running platform.',
       'Many teams, one platform that holds.',
       'Roll back by pointer, not by rebuild.',
+      'Start where your team is.',
+      '--kind tooling',
+      '--bundler vite',
       'Start with one command.',
       'MIT licensed · built in the open',
     ]) {
       expect(html).toContain(copy);
     }
+  });
+
+  it('does not say shipped work is still being built', () => {
+    expect(html).not.toContain('IN PROGRESS');
+    expect(html).not.toContain('being built now');
   });
 
   it('renders the install command as plain text with no copy button before hydration', () => {
@@ -72,6 +80,8 @@ describe('home page', () => {
     expect(readme).toContain('There are 26 first-party features.');
     expect(readme).toContain('- 26 features you add one at a time');
     expect(fs.readdirSync(path.join(ROOT, 'packages'))).toHaveLength(21);
+    expect(html).toContain('>21<');
+    expect(html).toContain('23 more features');
   });
 
   it('embeds JSON-LD for the source code', () => {

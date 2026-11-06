@@ -36,6 +36,7 @@ The JSON Schema is published at `https://mfeflow.github.io/mfeflow/schema/mfeflo
 | ---------------- | -------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `$schema`        | text                             | No       | Schema URL for editors                                                                                                                                                                                                     |
 | `version`        | `1`                              | Yes      | Format version. Must be 1                                                                                                                                                                                                  |
+| `cli`            | text                             | No       | Version of the CLI that last wrote this file. `upgrade` reads it; see [E601](/errors/E601)                                                                                                                                 |
 | `topology`       | `monorepo`, `polyrepo`, `hybrid` | Yes      | Repository layout. The CLI creates `monorepo` and `polyrepo`, not `hybrid`, in this release                                                                                                                                |
 | `repo`           | `platform`, `shell`, `remote`    | No       | Which repo this is. Absent means an app repo with a shell. A platform or remote repo needs no shell                                                                                                                        |
 | `shell`          | text                             | No       | Where the deployed shell is, for a repo that has none: an https URL of its `mf-manifest.json` or registry index, or a file path. `doctor` and `check-compat` use it when `--against` is not given. No credentials or token |
@@ -50,6 +51,7 @@ The JSON Schema is published at `https://mfeflow.github.io/mfeflow/schema/mfeflo
 | `registries`     | object                           | No       | Third-party feature registries, keyed by namespace                                                                                                                                                                         |
 | `local`          | text                             | No       | Path to a built mfeflow checkout. Set by `--local` only                                                                                                                                                                    |
 | `budget`         | object                           | No       | Overrides of the cost-model limits                                                                                                                                                                                         |
+| `registry`       | object                           | No       | Where `deploy`, `promote`, `rollback` and `status` publish by default. See [registry](#registry)                                                                                                                           |
 
 ## apps
 
@@ -87,6 +89,17 @@ Written by `mfeflow add env-key`. Each key is a file path and each value lists t
 Keys are namespaces like `@acme`. Values are URL templates. The template must be https, with `{name}` in the path and optionally `{version}`.
 
 Plain http is accepted for loopback hosts only. The namespace `@mfeflow` is reserved. See [Third-party features](/concepts/third-party-features).
+
+## registry
+
+Where `mfeflow deploy`, `promote`, `rollback` and `status` publish when you do not pass `--host`.
+
+| Field     | Meaning                                                                                                           |
+| --------- | ----------------------------------------------------------------------------------------------------------------- |
+| `host`    | `file:<dir>` for a folder, or `s3://<bucket>[/prefix]`. Credentials never go here; they come from the environment |
+| `baseUrl` | Where the host's files are served from, such as `https://cdn.example.com`, without a trailing slash               |
+
+See [Deploy and roll back a remote](/guide/deploy-and-rollback).
 
 ## budget
 

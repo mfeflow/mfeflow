@@ -79,11 +79,13 @@ A project keeps one small file per remote per environment:
 }
 ```
 
-Each file says what one remote serves in one environment. `mfeflow validate` checks them against the registry entry schema. `mfeflow dev` reads the dev folder to build the development index. For production, no command combines these files into `index.json` yet, so you write that file. See [Deploy](/guide/deploy/).
+Each file says what one remote serves in one environment. `mfeflow validate` checks them against the registry entry schema. `mfeflow dev` reads the dev folder to build the development index. For production, `mfeflow deploy` uploads the build and writes the remote's entry into `envs/<env>/index.json`. See [Deploy](/guide/deploy/).
 
-## What is planned?
+## How do rollback and rollouts use it?
 
-The entry format already allows a `previous` version and a `rollout` with a percentage. They are not read by anything yet. The plan is that a rollback changes which version an entry points to, and does not rebuild. The `mfeflow rollback` command does the pointer change on a static host, see [Deploy and roll back a remote](/guide/deploy-and-rollback). Percentage rollouts need the registry server, which is not built.
+An entry keeps the version it served before in `previous`. `mfeflow rollback` points the entry back at that version, or at the one you name with `--to`. Nothing is rebuilt and nothing is uploaded. See [Deploy and roll back a remote](/guide/deploy-and-rollback).
+
+An entry can also carry a `rollout`: a new version served to a percentage of browsers. Rollouts need the registry server, because a static file cannot pick a version per browser. `mfeflow deploy --percent` starts one and `mfeflow rollout` moves it on. See [Run the registry server](/guide/deploy/registry-server-runbook).
 
 ## Next
 

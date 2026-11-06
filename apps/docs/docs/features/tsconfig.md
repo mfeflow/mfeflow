@@ -86,7 +86,7 @@ The base preset targets ES2022 with bundler module resolution, and turns on thes
 "isolatedModules": true
 ```
 
-Rsbuild does the building, so TypeScript only checks, which is why the app presets are `noEmit`. The package needs TypeScript 7 or newer as a peer dependency.
+The bundler (Rsbuild or Vite) does the building, so TypeScript only checks, which is why the app presets are `noEmit`. The package needs TypeScript 7 or newer as a peer dependency.
 
 ## Gotchas
 

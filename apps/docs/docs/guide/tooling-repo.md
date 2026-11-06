@@ -143,7 +143,7 @@ With the package in the `shared` option of the shell and both remotes, the secon
 - Features that need an app are refused with [E216](/errors/E216). That includes `env-t3` and `analytics-gtm`, which write into a shell. A tooling repo takes `lint-oxlint`, `git-hooks`, `commit-prompt` and `release`.
 - `release` is accepted but adds nothing, because the repo already versions and publishes with Changesets.
 - Analytics goes as far as the `analytics` wrapper: consent defaults, a container id per environment and `createAnalytics(env)`. A shared tracking plan or event list is not made for you. Put it in `packages/contracts`.
-- There is no `--kind remote` yet; it answers that it is not available in this release.
+- For remotes without a shell, use `--kind remote` instead. See [Join a platform with a remote](/guide/join-a-platform).
 
 ## Related
 

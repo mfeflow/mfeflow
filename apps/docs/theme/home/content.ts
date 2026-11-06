@@ -82,7 +82,7 @@ export const STATS = [
     source: 'Lighthouse mobile, median of 10, budget 300 ms',
   },
   { value: '26', label: 'features, each one command away', source: 'mfeflow add <feature>' },
-  { value: '19', label: 'packages, versioned together', source: 'MIT, npm provenance' },
+  { value: '21', label: 'packages, versioned together', source: 'MIT, npm provenance' },
 ] as const;
 
 export const STEPS = [
@@ -109,6 +109,29 @@ export const STEPS = [
     title: 'Check',
     code: 'pnpm mfeflow doctor && pnpm mfeflow budget',
     text: 'One React, one tracer, one tag manager. Bundle budgets in CI, with fixes it can apply.',
+  },
+] as const;
+
+export const KINDS = [
+  {
+    title: 'Shell and remotes',
+    code: 'pnpm create mfeflow my-platform',
+    text: 'The default: one shell, the remotes you name, in one monorepo.',
+  },
+  {
+    title: 'Shell only',
+    code: 'pnpm create mfeflow my-shell --remotes none',
+    text: 'Start with the shell. Add remotes later with mfeflow add remote.',
+  },
+  {
+    title: 'Remotes only',
+    code: 'pnpm create mfeflow team-cart --kind remote --shell <url>',
+    text: 'Remotes for a shell another team owns. doctor and check-compat check against it.',
+  },
+  {
+    title: 'Shared tooling',
+    code: 'pnpm create mfeflow acme-tooling --kind tooling --packages tsconfig,analytics',
+    text: 'No apps at all: lint, hooks, release and the shared packages, in your own scope.',
   },
 ] as const;
 
