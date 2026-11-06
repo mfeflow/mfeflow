@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from 'storybook-react-rsbuild';
+import type { Meta, StoryObj } from '<%= it.bundler === 'vite' ? '@storybook/react-vite' : 'storybook-react-rsbuild' %>';
 import { Home } from './Home';
 
 const meta = { title: 'shell/Home', component: Home } satisfies Meta<typeof Home>;

@@ -11,9 +11,12 @@ import {
   type UpgradeDecisions,
   type UpgradePlan,
 } from '@mfeflow/core';
+import path from 'node:path';
+import type { Bundler } from '@mfeflow/contracts';
 import type { AssetRoots } from './assets';
 import { inCatalogueOrder, loadAny } from './catalog';
 import { remoteGlue } from './glue';
+import { createRangeRewriter, PLACEHOLDER_RANGE } from './local';
 import { projectReader } from './pipeline';
 import { coreFor, glueScope } from './remote-only';
 import { readPackageJson } from './version';
@@ -28,6 +31,8 @@ export interface UpgradeContext {
   trusted?: ReadonlySet<string>;
   /** Take registry content that differs from the hash recorded in mfeflow.json: every feature (`true`) or the named ones. */
   acceptChanged?: boolean | ReadonlySet<string>;
+  /** Move the project to this bundler as part of the upgrade. */
+  bundler?: Bundler;
 }
 
 /** How a registry feature's content compared with the hash recorded for it. */
@@ -121,9 +126,16 @@ export async function planProjectUpgrade(
         : [],
     ),
   );
+  // A linked project gets a package the new bundler needs (`@mfeflow/vite`) from the same checkout.
+  const link =
+    ctx.bundler !== undefined && project.local !== undefined
+      ? createRangeRewriter(toVersion, path.resolve(root, project.local))
+      : undefined;
   const up = await planUpgrade(project, {
     toVersion,
     decisions,
+    ...(ctx.bundler === undefined ? {} : { bundler: ctx.bundler }),
+    ...(link === undefined ? {} : { linkOwn: (name: string) => link(name, PLACEHOLDER_RANGE) }),
     read: projectReader(root),
     features,
     glue,

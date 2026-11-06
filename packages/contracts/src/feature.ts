@@ -213,6 +213,14 @@ export interface FeatureManifest {
 /** Prefix of a `when` key that tests whether a feature is installed. */
 export const FEATURE_CONDITION = 'feature:';
 
+/** Prefix of a `when` key that tests a project setting: `"project:bundler": "vite"`. */
+export const PROJECT_CONDITION = 'project:';
+
+/** The project settings a `project:` condition can test, and the values each may have. */
+export const PROJECT_CONDITIONS: Readonly<Record<string, readonly string[]>> = {
+  bundler: ['rsbuild', 'vite'],
+};
+
 export const FEATURE_NAME = /^(@[a-z0-9-]+\/)?[a-z][a-z0-9-]*$/;
 export const IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 export const TARGET = /^(root|shell|remotes|(app:)?[a-z][a-z0-9_]*)$/;
@@ -255,6 +263,22 @@ function checkWhen(c: Checker, obj: Obj, at: string): void {
   if (!isObj(when) || Object.keys(when).length === 0)
     return c.add(`${at}.when`, 'must be an object of option names and values');
   for (const [name, value] of Object.entries(when)) {
+    if (name.startsWith(PROJECT_CONDITION)) {
+      const setting = name.slice(PROJECT_CONDITION.length);
+      const allowed = Object.hasOwn(PROJECT_CONDITIONS, setting)
+        ? PROJECT_CONDITIONS[setting]
+        : undefined;
+      if (allowed === undefined)
+        c.add(
+          `${at}.when`,
+          `"${name}" must name a project setting: ${Object.keys(PROJECT_CONDITIONS)
+            .map((k) => PROJECT_CONDITION + k)
+            .join(', ')}`,
+        );
+      else if (typeof value !== 'string' || !allowed.includes(value))
+        c.add(`${at}.when.${name}`, `must be one of ${allowed.join(', ')}`);
+      continue;
+    }
     const feature = name.startsWith(FEATURE_CONDITION) ? name.slice(FEATURE_CONDITION.length) : '';
     if (feature !== '') {
       if (!FEATURE_NAME.test(feature))

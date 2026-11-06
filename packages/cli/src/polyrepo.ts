@@ -9,7 +9,7 @@ import {
   type MfeflowProject,
   type Plan,
 } from '@mfeflow/core';
-import type { FeatureFile } from '@mfeflow/contracts';
+import type { Bundler, FeatureFile } from '@mfeflow/contracts';
 import type { Globals } from './args';
 import { DEV_CONFIG_IN_APP, devConfigText, type RemoteSpec } from './devremotes';
 import { loadAny, POLYREPO_FEATURE } from './catalog';
@@ -114,6 +114,7 @@ export interface RepoRequest {
   dir: string;
   root: string;
   scope: string;
+  bundler?: Bundler;
   /** The GitHub owner the CI and Renovate files point at; the scope without `@` when empty. */
   org?: string | undefined;
   /** The remote this repo holds (kind remote only). */
@@ -149,6 +150,7 @@ export function repoProject(
   scope: string,
   remote?: RemoteSpec,
   topology: MfeflowProject['topology'] = 'polyrepo',
+  bundler: Bundler = 'rsbuild',
 ): MfeflowProject {
   const apps: MfeflowProject['apps'] = {};
   if (kind === 'shell') apps.shell = { kind: 'shell', path: 'apps/shell', port: SHELL_PORT };
@@ -160,6 +162,7 @@ export function repoProject(
     repo: kind,
     topology,
     packageManager: 'pnpm',
+    ...(bundler === 'rsbuild' ? {} : { bundler }),
     scope,
     apps,
     features: {},
@@ -252,7 +255,13 @@ async function rootFeaturesFor(rt: Runtime, request: RepoRequest): Promise<strin
 export async function planRepo(rt: Runtime, request: RepoRequest): Promise<RepoPlan> {
   const { kind, scope, root } = request;
   const chosen = chooseLocal(
-    repoProject(kind, scope, request.remote, request.standalone ? 'monorepo' : 'polyrepo'),
+    repoProject(
+      kind,
+      scope,
+      request.remote,
+      request.standalone ? 'monorepo' : 'polyrepo',
+      request.bundler,
+    ),
     root,
     request.cwd,
     request.local,

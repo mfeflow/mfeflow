@@ -2,11 +2,14 @@ import { SCHEMA_URLS, type SchemaName } from './docs';
 import { ENTRY_TYPES, GLOBAL_NAME } from './entry';
 import {
   ENV_KEY,
+  FEATURE_CONDITION,
   FEATURE_NAME,
   IDENT,
   JOB_ID,
   DEPENDENCY_NAME,
   PACKAGE,
+  PROJECT_CONDITION,
+  PROJECT_CONDITIONS,
   SCRIPT_NAME,
   TARGET,
   TRANSFORM_OPS,
@@ -77,7 +80,13 @@ const remoteFiles: Json = {
 const when: Json = {
   type: 'object',
   minProperties: 1,
-  propertyNames: str(IDENT),
+  propertyNames: {
+    anyOf: [
+      str(IDENT),
+      str(new RegExp(`^${FEATURE_CONDITION}(${FEATURE_NAME.source.slice(1, -1)})$`)),
+      { enum: Object.keys(PROJECT_CONDITIONS).map((k) => PROJECT_CONDITION + k) },
+    ],
+  },
   additionalProperties: { type: ['string', 'boolean'] },
 };
 
@@ -221,6 +230,7 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
       },
       topology: { enum: ['monorepo', 'polyrepo', 'hybrid'] },
       packageManager: { enum: ['pnpm', 'npm'] },
+      bundler: { enum: ['rsbuild', 'vite'] },
       scope: str(SCOPE),
       apps: {
         type: 'object',

@@ -3,7 +3,8 @@
 // shell to list it (no restart), then sends Ctrl+C and checks every dev server is gone.
 // Also runs `pnpm doctor`, which fails if the generated project does not install the CLI.
 // Needs `pnpm build` to have run in this repo.
-// Usage: node scripts/smoke.mjs   (SMOKE_DIR=/some/folder keeps the project there)
+// Usage: node scripts/smoke.mjs   (SMOKE_DIR=/some/folder keeps the project there,
+// SMOKE_BUNDLER=vite generates a Vite project instead of an Rsbuild one)
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -12,6 +13,7 @@ import path from 'node:path';
 const repo = path.resolve(import.meta.dirname, '..');
 const work = process.env.SMOKE_DIR ?? fs.mkdtempSync(path.join(os.tmpdir(), 'mfeflow-smoke-'));
 const project = path.join(work, 'smoke-app');
+const bundler = process.env.SMOKE_BUNDLER ?? 'rsbuild';
 const SHELL = 'http://localhost:4300';
 const REMOTES = { catalog: 'http://localhost:4311', cart: 'http://localhost:4312' };
 
@@ -78,6 +80,8 @@ try {
       path.join(repo, 'packages/cli/bin/mfeflow.js'),
       'init',
       'smoke-app',
+      '--bundler',
+      bundler,
       '--yes',
       '--no-install',
       '--local',

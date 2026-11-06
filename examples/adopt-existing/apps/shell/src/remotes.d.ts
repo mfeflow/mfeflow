@@ -5,3 +5,7 @@ declare module 'catalog/ProductList' {
 declare module 'checkout/Checkout' {
   export const Checkout: () => React.JSX.Element;
 }
+
+declare module 'reviews/Reviews' {
+  export const Reviews: () => React.JSX.Element;
+}

@@ -1,3 +1,4 @@
+<% const hashed = it.bundler === 'vite' ? 'assets' : 'static' -%>
 # Cloudflare
 
 This is one way to host the project on Cloudflare Workers. The files were added by `deploy-cloudflare`. They are
@@ -86,7 +87,7 @@ Add a required reviewer to `cloudflare-prod` to hold production until someone ap
 `_headers` is read by Cloudflare for static assets. It is not applied to responses your own Worker code makes<% if (it.options.r2Proxy) { %>, which is why `registry-proxy.ts` sets its own `Cache-Control`<% } %>. Each path matches one rule, because a header set by two rules is joined with a comma. The file holds up to 100 rules.
 
 - `no-cache`: `/`, `/index.html`, `/mf-manifest.json`, `config/runtime-config*`<% if (!it.options.r2Proxy) { %>, `registry/index.json`<% } %>
-- `public, max-age=31536000, immutable`: `/static/*`, whose names carry a hash
+- `public, max-age=31536000, immutable`: `/<%= hashed %>/*`, whose names carry a hash
 
 ## Change or remove it
 

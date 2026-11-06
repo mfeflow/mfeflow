@@ -1,0 +1,115 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { mergeConfig, type Plugin } from 'vite';
+import { createShellConfig, pluginRestartOn } from '@mfeflow/vite';
+
+<% if (it.topology === 'polyrepo') { %>interface DevRemote {
+  name: string;
+  entry: string;
+  version: string;
+}
+
+function readDevRemotes(file: string): DevRemote[] {
+  let value: unknown;
+  try {
+    value = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (error) {
+    // A shell with no dev config yet has no remotes to list.
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return [];
+    throw error;
+  }
+  const remotes =
+    typeof value === 'object' && value !== null && 'devRemotes' in value ? value.devRemotes : {};
+  if (typeof remotes !== 'object' || remotes === null) {
+    throw new Error(`${file}: devRemotes must be an object of name: manifest URL`);
+  }
+  return Object.entries(remotes)
+    .toSorted(([a], [b]) => (a < b ? -1 : 1))
+    .map(([name, entry]) => {
+      if (typeof entry !== 'string') throw new Error(`${file}: devRemotes.${name} must be a URL`);
+      return { name, entry, version: 'dev' };
+    });
+}
+
+// The shell finds its remotes through the registry. The remotes live in other repos, so in dev
+// their manifest URLs come from "devRemotes" in public/config/runtime-config.dev.json, inlined so
+// the shell needs no registry server. `mfeflow dev` writes the merged registry (that file, plus
+// --remote overrides) to MFEFLOW_DEV_REGISTRY; plain `pnpm dev` reads the file.
+const devConfig = path.resolve(process.cwd(), 'public/config/runtime-config.dev.json');
+<% } else { %>interface DevEntry {
+  manifestUrl: string;
+  version: string;
+}
+
+function readEntry(file: string): DevEntry {
+  const value: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (typeof value !== 'object' || value === null || !('manifestUrl' in value)) {
+    throw new Error(`${file} has no manifestUrl`);
+  }
+  const { manifestUrl } = value;
+  if (typeof manifestUrl !== 'string') throw new Error(`${file}: manifestUrl must be text`);
+  const version = 'version' in value && typeof value.version === 'string' ? value.version : 'dev';
+  return { manifestUrl, version };
+}
+
+function readNames(dir: string): string[] {
+  try {
+    return fs.readdirSync(dir);
+  } catch (error) {
+    // A project with no remotes yet has nothing to list.
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
+// The shell finds its remotes through the registry. In dev that is registry/envs/dev, which
+// points at each remote's dev server, inlined so the shell needs no registry server.
+// `mfeflow dev` writes the merged registry (apps from mfeflow.json, --remote overrides) to
+// MFEFLOW_DEV_REGISTRY and rewrites it when the project changes; plain `pnpm dev` reads the folder.
+const registryDir = path.resolve(process.cwd(), '../../registry/envs/dev');
+<% } %>const generated = process.env.MFEFLOW_DEV_REGISTRY;
+
+function readGenerated(file: string): unknown {
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+function devRegistry(): string {
+  const remotes = generated
+    ? readGenerated(generated)
+    : {
+<% if (it.topology === 'polyrepo') { %>        remotes: readDevRemotes(devConfig),
+      };
+<% } else { %>        remotes: readNames(registryDir)
+          .filter((file) => file.endsWith('.json'))
+          .toSorted()
+          .map((file) => {
+            const { manifestUrl, version } = readEntry(path.join(registryDir, file));
+            return { name: file.slice(0, -'.json'.length), entry: manifestUrl, version };
+          }),
+      };
+<% } %>  return `window.__MFE_REGISTRY__=${JSON.stringify(remotes).replaceAll('<', '\\u003c')}`;
+}
+
+/** Inlines the dev registry first in <head>, so the shell boots without a registry server. */
+function devRegistryScript(): Plugin {
+  return {
+    name: 'dev-registry',
+    apply: 'serve',
+    transformIndexHtml: () => [
+      { tag: 'script', children: devRegistry(), injectTo: 'head-prepend' },
+    ],
+  };
+}
+
+export default mergeConfig(
+  // snapshot: registry entries carry a manifest URL until deploys also publish remoteEntry.
+  createShellConfig({ name: '<%= it.app.name %>', port: <%= it.app.port %>, snapshot: true }),
+  {
+    plugins: [
+      devRegistryScript(),
+      // A new or changed remote restarts the dev server, which reads the registry again.
+<% if (it.topology === 'polyrepo') { %>      pluginRestartOn(generated ?? devConfig),
+<% } else { %>      pluginRestartOn(generated ?? registryDir),
+<% } %>    ],
+  },
+);

@@ -1,33 +1,78 @@
 {
   "name": "storybook",
-  "version": "0.1.0",
-  "description": "Storybook 10 on Rsbuild (storybook-react-rsbuild) in every remote, and the shell's Storybook shows them all: it lists each remote's built Storybook as a ref, found from mfeflow.json, so a remote added later appears without an edit. Each remote has its own Storybook config, kept apart from the Module Federation build.",
+  "version": "0.2.0",
+  "description": "Storybook 10 in every remote, on the project's bundler (storybook-react-rsbuild or @storybook/react-vite), and the shell's Storybook shows them all: it lists each remote's built Storybook as a ref, found from mfeflow.json, so a remote added later appears without an edit. Each remote has its own Storybook config, kept apart from the Module Federation build.",
   "requires": ["core", "tsconfig"],
   "files": [
     {
       "to": ".storybook/main.ts",
       "target": "shell",
-      "from": "files/shell-main.ts"
+      "from": "files/shell-main.ts",
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "to": ".storybook/main.ts",
+      "target": "shell",
+      "from": "files/shell-main.vite.ts",
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "to": ".storybook/rsbuild.config.ts",
       "target": "shell",
-      "from": "files/rsbuild.config.ts"
+      "from": "files/rsbuild.config.ts",
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "to": ".storybook/vite.config.ts",
+      "target": "shell",
+      "from": "files/vite.config.ts",
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "to": "src/pages/Home.stories.tsx",
       "target": "shell",
-      "from": "files/Home.stories.tsx"
+      "from": "files/Home.stories.tsx.eta",
+      "template": true
     },
     {
       "to": ".storybook/main.ts",
       "target": "remotes",
-      "from": "files/remote-main.ts"
+      "from": "files/remote-main.ts",
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "to": ".storybook/main.ts",
+      "target": "remotes",
+      "from": "files/remote-main.vite.ts",
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "to": ".storybook/rsbuild.config.ts",
       "target": "remotes",
-      "from": "files/rsbuild.config.ts"
+      "from": "files/rsbuild.config.ts",
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "to": ".storybook/vite.config.ts",
+      "target": "remotes",
+      "from": "files/vite.config.ts",
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "to": "src/exposed/App.stories.tsx",
@@ -38,10 +83,11 @@
     {
       "to": "src/components/ui/button.stories.tsx",
       "target": "remotes",
-      "from": "files/button.stories.tsx",
+      "from": "files/button.stories.tsx.eta",
       "when": {
         "feature:ui-shadcn": true
-      }
+      },
+      "template": true
     }
   ],
   "dependencies": [
@@ -55,13 +101,37 @@
       "name": "storybook-react-rsbuild",
       "range": "3.6.1",
       "target": "shell",
-      "dev": true
+      "dev": true,
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "name": "@storybook/react-vite",
+      "range": "10.6.5",
+      "target": "shell",
+      "dev": true,
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "name": "@rsbuild/plugin-react",
       "range": "2.1.1",
       "target": "shell",
-      "dev": true
+      "dev": true,
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "name": "@vitejs/plugin-react",
+      "range": "6.2.1",
+      "target": "shell",
+      "dev": true,
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "name": "storybook",
@@ -73,13 +143,37 @@
       "name": "storybook-react-rsbuild",
       "range": "3.6.1",
       "target": "remotes",
-      "dev": true
+      "dev": true,
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "name": "@storybook/react-vite",
+      "range": "10.6.5",
+      "target": "remotes",
+      "dev": true,
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "name": "@rsbuild/plugin-react",
       "range": "2.1.1",
       "target": "remotes",
-      "dev": true
+      "dev": true,
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "name": "@vitejs/plugin-react",
+      "range": "6.2.1",
+      "target": "remotes",
+      "dev": true,
+      "when": {
+        "project:bundler": "vite"
+      }
     }
   ],
   "scripts": [

@@ -246,11 +246,20 @@ export function planAdoption(input: AdoptInput): AdoptPlan {
     );
   }
 
+  // One bundler per project: Vite when every adopted app builds with it.
+  const vite = named.length > 0 && named.every(({ app }) => app.buildTool === 'vite');
+  if (!vite && named.some(({ app }) => app.buildTool === 'vite')) {
+    warnings.push(
+      'some apps build with Vite and some do not; features you add later write Rsbuild config, so add them to the Vite apps by hand',
+    );
+  }
+
   return {
     project: {
       version: 1,
       topology: 'monorepo',
       packageManager: input.packageManager,
+      ...(vite ? { bundler: 'vite' as const } : {}),
       scope: input.scope,
       apps,
       features: {},

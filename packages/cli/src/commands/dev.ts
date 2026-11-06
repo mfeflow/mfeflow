@@ -212,7 +212,7 @@ function assertPortsFree(busy: readonly AppView[]): void {
     'E306',
     busy.map((a) => `${String(a.port)} is in use (${a.name})`).join('; '),
     {
-      fix: "Stop whatever listens there (an earlier `mfeflow dev`?), or change the port in mfeflow.json and the app's rsbuild config.",
+      fix: "Stop whatever listens there (an earlier `mfeflow dev`?), or change the port in mfeflow.json and the app's bundler config.",
     },
   );
 }

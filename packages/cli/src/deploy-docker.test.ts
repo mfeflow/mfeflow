@@ -5,11 +5,18 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parse, parseAllDocuments } from 'yaml';
+import { renderTemplate } from '@mfeflow/core';
 import { main } from '.';
 import { REPO, removeDir, tempDir, testRuntime } from './testing';
 
 const FILES = path.join(REPO, 'features/deploy-docker/files');
-const source = (name: string): string => fs.readFileSync(path.join(FILES, name), 'utf8');
+/** A file of the feature as an Rsbuild project gets it: `.eta` sources are rendered. */
+const source = (name: string, bundler = 'rsbuild'): string => {
+  const file = path.join(FILES, name);
+  return fs.existsSync(file)
+    ? fs.readFileSync(file, 'utf8')
+    : renderTemplate(fs.readFileSync(`${file}.eta`, 'utf8'), { bundler });
+};
 
 /** The environment without the variables a git hook sets, which would point child processes at the wrong repo. */
 const cleanEnv = (extra: Record<string, string> = {}): Record<string, string> => ({
@@ -216,6 +223,14 @@ describe('the nginx configs', () => {
     for (const conf of [shell, remote]) {
       expect(conf).toMatch(/^types \{\s*text\/javascript mjs;\s*\}$/m);
       expect(conf).not.toContain('mime.types');
+    }
+  });
+
+  it('caches the hashed build output of the project bundler for a year', () => {
+    for (const name of ['nginx.shell.conf', 'nginx.remote.conf']) {
+      expect(source(name)).toContain('location ^~ /static/ {');
+      expect(source(name, 'vite')).toContain('location ^~ /assets/ {');
+      expect(source(name, 'vite')).not.toContain('/static/');
     }
   });
 

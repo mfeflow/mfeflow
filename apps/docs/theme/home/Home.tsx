@@ -71,7 +71,7 @@ export function Home() {
           </h1>
           <p className="mf-lede">
             The React micro-frontend boilerplate that keeps going after day one. A shell and remotes
-            on Module Federation 2.0 and Rsbuild, then typed env, GTM with Consent Mode,
+            on Module Federation 2.0 and Rsbuild or Vite, then typed env, GTM with Consent Mode,
             OpenTelemetry and 18 more features, added when you need them.
           </p>
           <div className="mf-cta">
@@ -80,7 +80,7 @@ export function Home() {
               Read the docs
             </a>
           </div>
-          <p className="mf-facts">TypeScript · Rsbuild 2 · pnpm · Turborepo · oxlint</p>
+          <p className="mf-facts">TypeScript · Rsbuild 2 or Vite 8 · pnpm · Turborepo · oxlint</p>
         </div>
 
         <figure className="mf-term" aria-label="Terminal example">

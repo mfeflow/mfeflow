@@ -326,6 +326,20 @@ describe('mfeflow doctor', () => {
     ]);
   });
 
+  it('finds a runtime plugin a vite config lists', async () => {
+    const root = await project();
+    await fs.mkdir(path.join(root, 'apps/cart/plugins'), { recursive: true });
+    await fs.writeFile(path.join(root, 'apps/cart/plugins/c.ts'), "import 'react';\n");
+    await fs.writeFile(
+      path.join(root, 'apps/cart/vite.config.ts'),
+      "const x = { runtimePlugins: ['./plugins/c.ts'] };\n",
+    );
+    const { result } = await run(root, 'doctor');
+    expect(result.findings.filter((f) => f.code === 'MFEFLOW_E303').map((f) => f.path)).toEqual([
+      'apps/cart/plugins/c.ts',
+    ]);
+  });
+
   it('reports a linked checkout that is not built', async () => {
     const root = await project();
     const checkout = path.join(root, '..', 'checkout');

@@ -5,6 +5,8 @@ on:
     paths:
       - packages/cli/**
       - packages/core/**
+      - packages/vite/**
+      - packages/bundler-shared/**
       - features/**
       - templates/**
       - e2e/matrix/**

@@ -1,7 +1,7 @@
 import type { ReadFile } from '../plan';
 
 /** The bundler an adopted app builds with, judged from its config file name. */
-export type BuildTool = 'rsbuild' | 'rspack' | 'webpack';
+export type BuildTool = 'rsbuild' | 'rspack' | 'webpack' | 'vite';
 
 /** `remote` when the app exposes modules, `shell` (a host) when it only consumes them. */
 export type FederationRole = 'shell' | 'remote';

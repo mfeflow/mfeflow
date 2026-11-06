@@ -81,6 +81,10 @@ jobs:
       # Generates a project with `mfeflow init --local`, installs and builds it, boots `pnpm dev`
       # and fetches the shell and both remotes.
       - run: node scripts/smoke.mjs
+      # The same with Vite as the bundler.
+      - run: node scripts/smoke.mjs
+        env:
+          SMOKE_BUNDLER: vite
       # Generates a tooling repo (four packages, lint and git hooks), installs, builds, typechecks and lints it.
       - run: node scripts/smoke-tooling.mjs
 
@@ -90,7 +94,7 @@ jobs:
   smoke-polyrepo:
     name: smoke (polyrepo)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -105,6 +109,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: node scripts/smoke-polyrepo.mjs
+      - run: node scripts/smoke-polyrepo.mjs
+        env:
+          SMOKE_BUNDLER: vite
 
   # Runs the exact `npm publish` the release job runs, on every PR and push, with a throwaway version
   # and no auth. Same Node as the publish job.

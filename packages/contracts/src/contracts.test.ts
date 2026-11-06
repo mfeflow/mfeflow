@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bundlerOf,
   isMfeflowProject,
   isMfeManifest,
   isPrivateHost,
@@ -323,6 +324,13 @@ describe('mfeflow.json', () => {
       'features.x',
     ]);
     expect(validateMfeflowProject('x')).toHaveLength(1);
+  });
+
+  it('accepts rsbuild or vite as the bundler, rsbuild when absent', () => {
+    expect(validateMfeflowProject({ ...project, bundler: 'vite' })).toEqual([]);
+    expect(paths(validateMfeflowProject({ ...project, bundler: 'webpack' }))).toEqual(['bundler']);
+    expect(bundlerOf({})).toBe('rsbuild');
+    expect(bundlerOf({ bundler: 'vite' })).toBe('vite');
   });
 
   it('accepts the writer version and the repo kind, both optional', () => {

@@ -6,7 +6,7 @@ This is a tutorial. The [adopt guide](../../apps/docs/docs/guide/adopt.md) expla
 
 ## What is in it
 
-One shell and two remotes, in a pnpm workspace. React 19 everywhere. Every Module Federation setting is a literal value in the config.
+One shell and three remotes, in a pnpm workspace, on three bundlers. React 19 everywhere. Every Module Federation setting is a literal value in the config.
 
 ```text
 adopt-existing/
@@ -15,6 +15,7 @@ adopt-existing/
     shell/      Rsbuild + pluginModuleFederation, port 3000
     catalog/    Rsbuild + pluginModuleFederation, exposes ./ProductList, port 3001
     checkout/   Rspack + ModuleFederationPlugin, exposes ./Checkout, port 3002
+    reviews/    Vite + @module-federation/vite, exposes ./Reviews, port 3003
 ```
 
 The shell loads both remotes from their `mf-manifest.json`. Nothing here imports an `@mfeflow` package.
@@ -36,7 +37,7 @@ pnpm install
 pnpm build
 ```
 
-You should see `Done` from each of the three apps. Run `pnpm dev` and open `http://localhost:3000` to see the catalog and the checkout button inside the shell. Stop it with Ctrl+C.
+You should see `Done` from each of the four apps. Run `pnpm dev` and open `http://localhost:3000` to see the catalog, the checkout button and the reviews inside the shell. Stop it with Ctrl+C.
 
 ## 2. Preview the change
 
@@ -49,32 +50,37 @@ npx mfeflow adopt --dry-run
 You should see this list first, then the diff of every file:
 
 ```text
-10 to create, 1 to patch, 0 to delete
+14 to create, 1 to patch, 0 to delete
   create  apps/catalog/mfeflow.app.json
   create  apps/checkout/mfeflow.app.json
+  create  apps/reviews/mfeflow.app.json
   create  apps/shell/mfeflow.app.json
   patch   apps/shell/package.json
   create  registry/envs/dev/catalog.json
   create  registry/envs/dev/checkout.json
+  create  registry/envs/dev/reviews.json
   create  registry/envs/prod/catalog.json
   create  registry/envs/prod/checkout.json
+  create  registry/envs/prod/reviews.json
   create  registry/envs/staging/catalog.json
   create  registry/envs/staging/checkout.json
+  create  registry/envs/staging/reviews.json
   create  mfeflow.json
 Dependencies (1):
   apps/shell/package.json  @mfeflow/runtime@^0.5.0
 Warning: routes are empty (mfeflow cannot read them from a build config); ...
 Warning: registry entries for staging and prod point at example.com; ...
+Warning: some apps build with Vite and some do not; ...
 ```
 
 The `@mfeflow/runtime` version follows the CLI release, so yours may differ from `^0.5.0`.
 
-The list ends with a note that your build config was not changed. That is a promise: `adopt` never edits `rsbuild.config.ts` or `rspack.config.mjs`.
+The list ends with a note that your build config was not changed. That is a promise: `adopt` never edits `rsbuild.config.ts`, `rspack.config.mjs` or `vite.config.ts`.
 
 ```text
 Your build config was not changed (apps/catalog/rsbuild.config.ts,
-apps/checkout/rspack.config.mjs, apps/shell/rsbuild.config.ts). adopt never
-edits it.
+apps/checkout/rspack.config.mjs, apps/reviews/vite.config.ts,
+apps/shell/rsbuild.config.ts). adopt never edits it.
 To share the runtime as a singleton, add this line to the shared list in the
 shell's config:
 
@@ -138,7 +144,7 @@ ok    every remote has a valid registry entry in dev, staging and prod
 
 ## 5. Run it
 
-Start the shell and both remotes with one command:
+Start the shell and every remote with one command:
 
 ```bash
 npx mfeflow dev
@@ -147,13 +153,15 @@ npx mfeflow dev
 You should see each app's own dev server, prefixed with its name:
 
 ```text
-mfeflow: running catalog, checkout, shell. Ctrl+C stops everything.
+mfeflow: running catalog, checkout, reviews, shell. Ctrl+C stops everything.
 catalog  | $ rsbuild dev
 shell    | $ rsbuild dev
 checkout | $ rspack serve
+reviews  | $ vite
 shell    |   ➜  Local:    http://localhost:3000/
 catalog  |   ➜  Local:    http://localhost:3001/
 checkout |   ➜  Local:    http://localhost:3002/
+reviews  |   ➜  Local:   http://localhost:3003/
 ```
 
 The shell still loads its remotes from the URLs in its own config. To load them through the registry at run time, switch the shell to `@mfeflow/runtime`. That step is not part of `adopt`.

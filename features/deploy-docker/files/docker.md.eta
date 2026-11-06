@@ -1,3 +1,4 @@
+<% const hashed = it.bundler === 'vite' ? 'assets' : 'static' -%>
 # Docker
 
 This project can package each app as a small nginx image. Everything here is plain code in your repository: change it, or delete it. mfeflow does not call it.
@@ -35,7 +36,7 @@ docker run --read-only --tmpfs /tmp \
 | ------------------------------------------- | ------------------------------------- |
 | `index.html`, `/config/runtime-config.json` | `no-cache`                            |
 | `/registry/index.json`, `mf-manifest.json`  | `no-cache`                            |
-| `/static/*` (hashed files)                  | `public, max-age=31536000, immutable` |
+| `/<%= hashed %>/*` (hashed files)                  | `public, max-age=31536000, immutable` |
 | `/mfe/<name>/<version>/*` on a remote       | `public, max-age=31536000, immutable` |
 
 Bump the version in a remote's `package.json` for every release. The versioned path is cached for a year, so the same version must always mean the same files.

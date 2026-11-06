@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from 'storybook-react-rsbuild';
+import type { Meta, StoryObj } from '<%= it.bundler === 'vite' ? '@storybook/react-vite' : 'storybook-react-rsbuild' %>';
 import App from './App';
 
 const meta = { title: '<%= it.app.name %>/App', component: App } satisfies Meta<typeof App>;

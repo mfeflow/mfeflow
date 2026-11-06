@@ -1,0 +1,56 @@
+{
+  "name": "@mfeflow/bundler-shared",
+  "version": "0.7.0",
+  "description": "Bundler-agnostic Module Federation 2.0 settings shared by the mfeflow presets (@mfeflow/rsbuild and @mfeflow/vite): singletons, federation options, head scripts and runtime config.",
+  "keywords": [
+    "micro-frontend",
+    "mfe",
+    "module-federation",
+    "module-federation-2",
+    "rsbuild",
+    "vite",
+    "preset"
+  ],
+  "homepage": "https://mfeflow.github.io/mfeflow/",
+  "bugs": "https://github.com/mfeflow/mfeflow/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfeflow/mfeflow.git",
+    "directory": "packages/bundler-shared"
+  },
+  "license": "MIT",
+  "author": "Sanjeev Sharma <speedsharma.ai@gmail.com>",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "rslib build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "es-module-lexer": "catalog:"
+  },
+  "devDependencies": {
+    "@rslib/core": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "mfeflow": {
+    "bucket": "config"
+  }
+}

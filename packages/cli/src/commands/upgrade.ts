@@ -8,6 +8,7 @@ import {
   type Plan,
   type UpgradePlan,
 } from '@mfeflow/core';
+import { BUNDLERS, type Bundler } from '@mfeflow/contracts';
 import type { ArgsDef } from 'citty';
 import {
   assertKnownFlags,
@@ -42,6 +43,11 @@ export const UPGRADE_ARGS = {
     type: 'string',
     description: 'Keep your version of a file you changed: a path, a list, or all',
     valueHint: 'path|all',
+  },
+  bundler: {
+    type: 'string',
+    description: 'Move the project to another bundler: rsbuild or vite',
+    valueHint: 'name',
   },
   // A boolean for the parser, so a bare flag does not swallow the next one; the names are read from the raw arguments.
   'accept-changed-content': {
@@ -358,6 +364,16 @@ function assertTrusted(
   }
 }
 
+function bundlerArg(args: Record<string, unknown>): Bundler | undefined {
+  const value = text(args, 'bundler');
+  if (value === undefined) return undefined;
+  const known = BUNDLERS.find((b) => b === value);
+  if (known === undefined) {
+    throw new MfeflowError('E107', `--bundler ${value}: use ${BUNDLERS.join(' or ')}`);
+  }
+  return known;
+}
+
 function targetOf(args: Record<string, unknown>): string {
   const running = readPackageJson().version;
   const to = text(args, 'to') ?? running;
@@ -482,6 +498,7 @@ export async function runUpgrade(
   assertKnownFlags(raw, UPGRADE_ARGS);
   const globals = readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive);
   const to = targetOf(args);
+  const bundler = bundlerArg(args);
   const accept = pathsOf(raw, 'accept');
   const keep = pathsOf(raw, 'keep');
   assertDecisions(accept, keep);
@@ -500,6 +517,7 @@ export async function runUpgrade(
     fetch: rt.fetch,
     trusted: trusted.privateOk,
     ...(acceptChanged === undefined ? {} : { acceptChanged }),
+    ...(bundler === undefined ? {} : { bundler }),
   };
   const up = await planProjectUpgrade(context, root, project, to, {
     ...(accept === undefined ? {} : { accept }),

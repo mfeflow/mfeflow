@@ -59,7 +59,7 @@ shell   | ready   built in 0.28s
 
 What you get:
 
-- A shell and remotes on Module Federation 2.0 and Rsbuild, with React shared once.
+- A shell and remotes on Module Federation 2.0 and Rsbuild, or Vite with `--bundler vite`, with React shared once.
 - 26 features you add one at a time, each with a diff you can preview.
 - Checks for compatibility, ownership and bundle size that run in CI.
 - A static registry: `mfeflow deploy` and `mfeflow rollback` move a pointer, with no rebuild.
@@ -233,27 +233,29 @@ Every command takes `--dry-run` and `--json`. Run any command with `--help` for 
 
 All 19 are on npm. They are versioned together, so one version number tells you what works with what. The [versioning guide](docs/versioning.md) covers the release flow.
 
-| Package                                          | Role                                                                                      |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| [mfeflow](packages/cli)                          | The CLI                                                                                   |
-| [create-mfeflow](packages/create-mfeflow)        | The `npm create` entry point                                                              |
-| [@mfeflow/core](packages/core)                   | The engine behind the CLI: change plans, diffs, atomic apply                              |
-| [@mfeflow/contracts](packages/contracts)         | Types and validators for the project, ownership and registry files                        |
-| [@mfeflow/registry](packages/registry)           | Static registry core and a self-hosted server: build and gate the index, upload, roll out |
-| [@mfeflow/runtime](packages/runtime)             | Registry loading, remote boundaries with fallback, singleton checks                       |
-| [@mfeflow/rsbuild](packages/rsbuild)             | Rsbuild presets for the shell and remotes                                                 |
-| [@mfeflow/storage](packages/storage)             | Browser storage namespaced per remote                                                     |
-| [@mfeflow/theme](packages/theme)                 | Theme tokens as CSS variables                                                             |
-| [@mfeflow/i18n](packages/i18n)                   | One i18next instance with per-remote messages                                             |
-| [@mfeflow/url-factory](packages/url-factory)     | Typed API URLs                                                                            |
-| [@mfeflow/http](packages/http)                   | A small fetch client over typed endpoints                                                 |
-| [@mfeflow/event-bus](packages/event-bus)         | A typed event bus with replay for late subscribers                                        |
-| [@mfeflow/route-factory](packages/route-factory) | Typed links between remotes                                                               |
-| [@mfeflow/analytics](packages/analytics)         | Analytics behind one provider interface                                                   |
-| [@mfeflow/telemetry](packages/telemetry)         | Telemetry behind one provider interface                                                   |
-| [@mfeflow/testing](packages/testing)             | Test helpers that wrap components in the shell's providers                                |
-| [@mfeflow/tsconfig](packages/tsconfig)           | Strict TypeScript presets                                                                 |
-| [@mfeflow/oxlint-config](packages/oxlint-config) | Type-aware oxlint rules                                                                   |
+| Package                                            | Role                                                                                      |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [mfeflow](packages/cli)                            | The CLI                                                                                   |
+| [create-mfeflow](packages/create-mfeflow)          | The `npm create` entry point                                                              |
+| [@mfeflow/core](packages/core)                     | The engine behind the CLI: change plans, diffs, atomic apply                              |
+| [@mfeflow/contracts](packages/contracts)           | Types and validators for the project, ownership and registry files                        |
+| [@mfeflow/registry](packages/registry)             | Static registry core and a self-hosted server: build and gate the index, upload, roll out |
+| [@mfeflow/runtime](packages/runtime)               | Registry loading, remote boundaries with fallback, singleton checks                       |
+| [@mfeflow/rsbuild](packages/rsbuild)               | Rsbuild presets for the shell and remotes                                                 |
+| [@mfeflow/vite](packages/vite)                     | Vite presets for the shell and remotes                                                    |
+| [@mfeflow/bundler-shared](packages/bundler-shared) | The settings both presets share: singletons, federation options, runtime config           |
+| [@mfeflow/storage](packages/storage)               | Browser storage namespaced per remote                                                     |
+| [@mfeflow/theme](packages/theme)                   | Theme tokens as CSS variables                                                             |
+| [@mfeflow/i18n](packages/i18n)                     | One i18next instance with per-remote messages                                             |
+| [@mfeflow/url-factory](packages/url-factory)       | Typed API URLs                                                                            |
+| [@mfeflow/http](packages/http)                     | A small fetch client over typed endpoints                                                 |
+| [@mfeflow/event-bus](packages/event-bus)           | A typed event bus with replay for late subscribers                                        |
+| [@mfeflow/route-factory](packages/route-factory)   | Typed links between remotes                                                               |
+| [@mfeflow/analytics](packages/analytics)           | Analytics behind one provider interface                                                   |
+| [@mfeflow/telemetry](packages/telemetry)           | Telemetry behind one provider interface                                                   |
+| [@mfeflow/testing](packages/testing)               | Test helpers that wrap components in the shell's providers                                |
+| [@mfeflow/tsconfig](packages/tsconfig)             | Strict TypeScript presets                                                                 |
+| [@mfeflow/oxlint-config](packages/oxlint-config)   | Type-aware oxlint rules                                                                   |
 
 ## Examples
 
@@ -261,7 +263,7 @@ Two examples show the Phase 06 commands on real files. They are tutorials you ca
 
 | Example                                   | What it shows                                                                       |
 | ----------------------------------------- | ----------------------------------------------------------------------------------- |
-| [adopt-existing](examples/adopt-existing) | `mfeflow adopt` on a plain Module Federation app: one Rsbuild shell, two remotes    |
+| [adopt-existing](examples/adopt-existing) | `mfeflow adopt` on a plain Module Federation app: one Rsbuild shell, three remotes  |
 | [polyrepo-teams](examples/polyrepo-teams) | One repo per team: `init --topology polyrepo`, `add team-repo`, shared packages, CI |
 | [storefront](examples/storefront)         | The app the benchmarks and end-to-end tests run against                             |
 
@@ -298,7 +300,7 @@ Version 0.5.0 is on npm. The feature set (Phase 04) is built.
 Phase 06 adds these. They are tested, and none is on npm yet:
 
 - `mfeflow upgrade` moves a project to the version you run. It replaces files you did not edit, diffs the ones you did, and never overwrites them without `--accept`. It does not ask npm for a newer version.
-- `mfeflow adopt` sets up mfeflow in a Module Federation app you already have. It reads Rsbuild, `module-federation.config` and literal webpack or Rspack configs as text, and never edits a build config. What it cannot read is listed, not guessed.
+- `mfeflow adopt` sets up mfeflow in a Module Federation app you already have. It reads Rsbuild, Vite, `module-federation.config` and literal webpack or Rspack configs as text, and never edits a build config. What it cannot read is listed, not guessed.
 - `mfeflow init --topology polyrepo` and `mfeflow add team-repo` make one git repo per team. mfeflow writes the repos on your machine and never calls GitHub.
 - `mfeflow check-compat --against <url|file>` checks a remote against a shell that lives in another repo, and warns when it has no shell to compare with. `mfeflow doctor --against <url|file>` runs every doctor check with that shell.
 - The app file is now `mfeflow.app.json`. `mfe.json` is still read, with a notice, and `upgrade` renames it.

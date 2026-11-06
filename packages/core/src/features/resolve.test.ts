@@ -243,6 +243,31 @@ describe('resolveFeature', () => {
     expect(await run({ alsoAdding: ['env-t3', 'adaptive'] })).toEqual(['apps/shell/with-env.txt']);
   });
 
+  it('applies a part with project:bundler only for that bundler, rsbuild when unset', async () => {
+    const perBundler: FeatureManifest = {
+      name: 'per-bundler',
+      version: '1.0.0',
+      files: [
+        {
+          to: 'rsbuild.txt',
+          target: 'shell',
+          content: 'a',
+          when: { 'project:bundler': 'rsbuild' },
+        },
+        { to: 'vite.txt', target: 'shell', content: 'b', when: { 'project:bundler': 'vite' } },
+        { to: 'which.txt', target: 'shell', content: '<%= it.bundler %>', template: true },
+      ],
+    };
+    const run = async (bundler?: 'rsbuild' | 'vite') => {
+      const builder = new PlanBuilder(reader());
+      const withBundler = bundler === undefined ? project : { ...project, bundler };
+      await resolveFeature({ feature: local(perBundler), project: withBundler, builder });
+      return builder.build().changes.map((c) => `${c.path}=${c.after ?? ''}`);
+    };
+    expect(await run()).toEqual(['apps/shell/rsbuild.txt=a', 'apps/shell/which.txt=rsbuild']);
+    expect(await run('vite')).toEqual(['apps/shell/vite.txt=b', 'apps/shell/which.txt=vite']);
+  });
+
   it('fills the app name into a file destination, and writes it from the root with atRoot', async () => {
     const perApp: FeatureManifest = {
       name: 'per-app',

@@ -1,6 +1,6 @@
 {
   "name": "theming",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Light and dark themes as CSS variables (@mfeflow/theme): the shell owns the provider and the persisted choice, every remote reads the same --mf-* tokens with no theme code of its own. The stored theme is set by an inline script in the shell's <head>, before any bundle loads, so a reload never paints the wrong colours.",
   "requires": ["core", "tsconfig"],
   "files": [
@@ -32,7 +32,8 @@
     {
       "to": "src/theme/head-script.ts",
       "target": "shell",
-      "from": "files/head-script.ts"
+      "from": "files/head-script.ts.eta",
+      "template": true
     },
     {
       "to": "src/theme/apply-stored.test.ts",
@@ -81,7 +82,19 @@
       "op": "add-import",
       "file": "rsbuild.config.ts",
       "target": "shell",
-      "from": "./src/theme/head-script"
+      "from": "./src/theme/head-script",
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "op": "add-import",
+      "file": "vite.config.ts",
+      "target": "shell",
+      "from": "./src/theme/head-script",
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "op": "add-boot-step",

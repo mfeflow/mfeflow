@@ -32,10 +32,19 @@ export interface ShellSize {
 export async function shellInitial(dist: string): Promise<ShellSize | undefined> {
   const html = await readText(path.join(dist, 'index.html'));
   if (html === undefined) return undefined;
-  const files = [...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["']/g)]
-    .map((m) => m[1] ?? '')
-    .filter((src) => !/^[a-z]+:\/\//.test(src))
-    .map((src) => src.replace(/^\.?\//, '').split(/[?#]/)[0] ?? '');
+  // Scripts, and the modules Vite preloads next to its entry: both load before the first render.
+  const found = [
+    ...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["']/g),
+    ...html.matchAll(/<link\b(?=[^>]*\brel=["']modulepreload["'])[^>]*\bhref=["']([^"']+)["']/g),
+  ];
+  const files = [
+    ...new Set(
+      found
+        .map((m) => m[1] ?? '')
+        .filter((src) => !/^[a-z]+:\/\//.test(src))
+        .map((src) => src.replace(/^\.?\//, '').split(/[?#]/)[0] ?? ''),
+    ),
+  ];
   const bytes = await sumGzip(dist, files);
   return bytes === undefined ? undefined : { files, bytes };
 }

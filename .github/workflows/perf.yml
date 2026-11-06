@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - packages/rsbuild/**
+      - packages/bundler-shared/**
       - packages/runtime/**
       - packages/contracts/src/cost-model*
       - examples/storefront/**

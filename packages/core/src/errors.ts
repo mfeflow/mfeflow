@@ -69,7 +69,7 @@ export const ERROR_CATALOGUE = {
   },
   E115: {
     title: 'Two apps use the same port',
-    fix: 'Give one of them another port in its rsbuild config and in "apps" in mfeflow.json.',
+    fix: 'Give one of them another port in its bundler config (rsbuild.config.ts or vite.config.ts) and in "apps" in mfeflow.json.',
   },
   E116: {
     title: 'Two remotes claim routes that overlap, or an app file disagrees with mfeflow.json',
@@ -193,7 +193,7 @@ export const ERROR_CATALOGUE = {
   },
   E306: {
     title: 'A dev server could not start',
-    fix: "Free the port or change it in mfeflow.json and the app's rsbuild config, then run `mfeflow dev` again.",
+    fix: "Free the port or change it in mfeflow.json and the app's bundler config (rsbuild.config.ts or vite.config.ts), then run `mfeflow dev` again.",
   },
   E307: {
     title: 'The shell to check against could not be read',

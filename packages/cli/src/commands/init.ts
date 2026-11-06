@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { redactUrlsIn, shellSourceProblem } from '@mfeflow/contracts';
+import { BUNDLERS, redactUrlsIn, shellSourceProblem, type Bundler } from '@mfeflow/contracts';
 import {
   hasErrno,
   inOrder,
@@ -112,6 +112,11 @@ export const INIT_ARGS = {
     description: 'pnpm (the only one in this release)',
     valueHint: 'pm',
   },
+  bundler: {
+    type: 'string',
+    description: 'What builds the apps: rsbuild (default) or vite',
+    valueHint: 'name',
+  },
   topology: {
     type: 'string',
     description:
@@ -155,6 +160,7 @@ export type Kind = 'app' | 'remote' | 'tooling';
 export interface InitOptions {
   kind: Kind;
   topology: Topology;
+  bundler: Bundler;
   org?: string;
   dir: string;
   scope: string;
@@ -256,6 +262,13 @@ function topologyOf(value: string | undefined): Topology {
   );
 }
 
+function bundlerOf(value: string | undefined): Bundler | undefined {
+  if (value === undefined) return undefined;
+  const known = BUNDLERS.find((b) => b === value);
+  if (known !== undefined) return known;
+  throw new MfeflowError('E107', `--bundler ${value}: use ${BUNDLERS.join(' or ')}`);
+}
+
 /**
  * The `--shell` value as `mfeflow.json` records it, or an E107. The rules of `--against`: https (http on
  * localhost) or a file. A file must exist and is recorded relative to the project, with forward slashes.
@@ -303,6 +316,8 @@ export async function resolveInitOptions(
   if (tooling && (typed(args, 'remotes') !== undefined || preset.remotes !== undefined)) {
     throw new MfeflowError('E107', '--kind tooling has no apps, so it takes no --remotes');
   }
+  // No prompt: Rsbuild stays the default, so scripted inits that answer every question keep working.
+  const bundler = bundlerOf(text(args, 'bundler') ?? preset.bundler) ?? 'rsbuild';
   const { canPrompt } = globals;
   const { prompter } = rt;
 
@@ -414,6 +429,7 @@ export async function resolveInitOptions(
   return {
     kind,
     topology,
+    bundler,
     ...(org === undefined ? {} : { org }),
     dir,
     scope,
@@ -467,6 +483,8 @@ export function skeleton(options: InitOptions): MfeflowProject {
     ...(options.shell === undefined ? {} : { shell: options.shell }),
     topology: 'monorepo',
     packageManager: 'pnpm',
+    // Rsbuild is the default, so its projects keep the shape they had before there was a choice.
+    ...(options.bundler === 'rsbuild' ? {} : { bundler: options.bundler }),
     scope: options.scope,
     apps,
     features: {},
@@ -631,6 +649,7 @@ async function runPolyrepoInit(
   }
   const base = {
     scope: options.scope,
+    bundler: options.bundler,
     ...(options.org === undefined ? {} : { org: options.org }),
     features: options.features,
     featureOptions: options.featureOptions,
@@ -648,6 +667,7 @@ async function runPolyrepoInit(
     },
     ...remotes.map((remote): RepoRequest => ({
       scope: base.scope,
+      bundler: base.bundler,
       org: options.org,
       features: base.features,
       featureOptions: base.featureOptions,

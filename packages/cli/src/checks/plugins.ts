@@ -38,15 +38,22 @@ export function importsOf(code: string): string[] {
   return [...found];
 }
 
-/** Runtime plugin files of an app: the ones its rsbuild config lists, and `runtime-plugin*` files under src. */
+/** The bundler config files an app may have, one per bundler. */
+const BUNDLER_CONFIGS = ['rsbuild.config.ts', 'vite.config.ts'];
+
+/** Runtime plugin files of an app: the ones its bundler config lists, and `runtime-plugin*` files under src. */
 async function pluginFiles(app: AppView): Promise<string[]> {
   const found = new Set<string>();
-  const config = await readText(path.join(app.dir, 'rsbuild.config.ts'));
-  const listed =
-    config === undefined ? null : /runtimePlugins\s*:\s*\[([^\]]*)\]/.exec(withoutComments(config));
-  for (const m of (listed?.[1] ?? '').matchAll(/['"]([^'"]+)['"]/g)) {
-    const spec = m[1] ?? '';
-    if (spec.startsWith('.')) found.add(path.resolve(app.dir, spec));
+  const configs = await Promise.all(BUNDLER_CONFIGS.map((f) => readText(path.join(app.dir, f))));
+  for (const config of configs) {
+    const listed =
+      config === undefined
+        ? null
+        : /runtimePlugins\s*:\s*\[([^\]]*)\]/.exec(withoutComments(config));
+    for (const m of (listed?.[1] ?? '').matchAll(/['"]([^'"]+)['"]/g)) {
+      const spec = m[1] ?? '';
+      if (spec.startsWith('.')) found.add(path.resolve(app.dir, spec));
+    }
   }
   const walk = async (dir: string): Promise<void> => {
     let entries;

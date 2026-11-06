@@ -1,18 +1,20 @@
 {
   "name": "tsconfig",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Strict TypeScript 7 presets from @mfeflow/tsconfig, and a typecheck script.",
   "requires": ["core"],
   "files": [
     {
       "to": "tsconfig.json",
       "target": "shell",
-      "from": "files/tsconfig.json"
+      "from": "files/tsconfig.json.eta",
+      "template": true
     },
     {
       "to": "tsconfig.json",
       "target": "remotes",
-      "from": "files/tsconfig.json"
+      "from": "files/tsconfig.json.eta",
+      "template": true
     },
     {
       "to": "tsconfig.json",

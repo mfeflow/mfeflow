@@ -39,12 +39,15 @@ Many entries have a `target` that says where they apply.
 
 ## Conditions
 
-An entry with `when` applies only if every condition holds. There are two kinds of key.
+An entry with `when` applies only if every condition holds. There are three kinds of key.
 
-| Key              | Meaning                                                               | Example                      |
-| ---------------- | --------------------------------------------------------------------- | ---------------------------- |
-| A plain name     | One of the feature's own options; it must equal the value             | `{ "validator": "zod" }`     |
-| `feature:<name>` | Whether that feature is installed, or being added in the same command | `{ "feature:env-t3": true }` |
+| Key               | Meaning                                                               | Example                         |
+| ----------------- | --------------------------------------------------------------------- | ------------------------------- |
+| A plain name      | One of the feature's own options; it must equal the value             | `{ "validator": "zod" }`        |
+| `feature:<name>`  | Whether that feature is installed, or being added in the same command | `{ "feature:env-t3": true }`    |
+| `project:bundler` | The project's bundler, `rsbuild` or `vite`; it must equal the value   | `{ "project:bundler": "vite" }` |
+
+First-party templates can also read the bundler as `it.bundler`.
 
 ## prompts
 

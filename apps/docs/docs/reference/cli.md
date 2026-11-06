@@ -75,6 +75,7 @@ mfeflow init [dir] [options]
 | `--features <a,b>`       | list       | `lint-oxlint`, `url-factory`, `env-t3`, `testing` | Optional features to turn on                                                          |
 | `--package-manager <pm>` | text       | `pnpm`                                            | Only `pnpm` in this release                                                           |
 | `--topology <name>`      | text       | `monorepo`                                        | `monorepo` or `polyrepo`                                                              |
+| `--bundler <name>`       | text       | `rsbuild`                                         | `rsbuild` or `vite`. See [Vite](/guide/vite)                                          |
 | `--org <owner>`          | text       | the scope without `@`                             | polyrepo or tooling: GitHub owner the CI and Renovate files point at                  |
 | `--option <f.k=v>`       | repeatable | none                                              | A feature option, as `feature.key=value`                                              |
 
@@ -205,7 +206,7 @@ The build action lists every problem and writes nothing if there is one (E404).
 Moves the project to the version of mfeflow you run. It never asks npm for a newer one. The tutorial is in [Versions and upgrades](/guide/upgrading). It does not work in the repos of a polyrepo yet and exits with code 2 (E107) without writing.
 
 ```bash
-mfeflow upgrade [--to <version>] [--dry-run] [--json] [--yes] [--accept <path|all>] [--keep <path|all>] [--accept-changed-content [features]]
+mfeflow upgrade [--to <version>] [--bundler <name>] [--dry-run] [--json] [--yes] [--accept <path|all>] [--keep <path|all>] [--accept-changed-content [features]]
 ```
 
 | Flag                                  | Meaning                                                                                                                                   |
@@ -216,6 +217,7 @@ mfeflow upgrade [--to <version>] [--dry-run] [--json] [--yes] [--accept <path|al
 | `--yes`                               | Never ask. A changed file still needs `--accept` or `--keep`, and a registry feature is applied                                           |
 | `--accept-changed-content [features]` | Take registry content that differs from the recorded hash. Alone it takes every feature; with a comma list (`@acme/a,@acme/b`) only those |
 | `--to <version>`                      | Must be the version that runs, because the files come from it. Anything else is E107                                                      |
+| `--bundler <name>`                    | Move the project to `rsbuild` or `vite`. Old config files, dependencies and scripts you did not change go. See [Vite](/guide/vite)        |
 
 A generated file you did not edit is replaced and a new file is created. `package.json`, `pnpm-workspace.yaml` and `turbo.json` only get small edits. Files the new version no longer makes, and files you deleted, are listed and left alone. A file you changed is offered only when the new version generates something different from the old one. It is never written unless you accept it.
 

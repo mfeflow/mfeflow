@@ -13,6 +13,7 @@ const BUILD_FILES = [
   'apps/shell/rsbuild.config.ts',
   'apps/catalog/rsbuild.config.ts',
   'apps/checkout/rspack.config.mjs',
+  'apps/reviews/vite.config.ts',
 ];
 
 const dirs: string[] = [];
@@ -64,11 +65,19 @@ describe('examples/adopt-existing', () => {
       apps: {
         catalog: { kind: 'remote', path: 'apps/catalog', port: 3001 },
         checkout: { kind: 'remote', path: 'apps/checkout', port: 3002 },
+        reviews: { kind: 'remote', path: 'apps/reviews', port: 3003 },
         shell: { kind: 'shell', path: 'apps/shell', port: 3000 },
       },
     });
+    // The apps build with Rsbuild, Rspack and Vite, so the project keeps the default bundler.
+    expect(project).not.toHaveProperty('bundler');
 
-    const exposes = { catalog: ['./ProductList'], checkout: ['./Checkout'], shell: [] };
+    const exposes = {
+      catalog: ['./ProductList'],
+      checkout: ['./Checkout'],
+      reviews: ['./Reviews'],
+      shell: [],
+    };
     for (const [name, expected] of Object.entries(exposes)) {
       const app: unknown = JSON.parse(tree[`apps/${name}/mfeflow.app.json`] ?? '');
       expect(isMfeManifest(app)).toBe(true);
@@ -82,7 +91,7 @@ describe('examples/adopt-existing', () => {
     }
 
     for (const env of ['dev', 'staging', 'prod']) {
-      for (const remote of ['catalog', 'checkout']) {
+      for (const remote of ['catalog', 'checkout', 'reviews']) {
         const entry: unknown = JSON.parse(tree[`registry/envs/${env}/${remote}.json`] ?? '');
         expect(validateRegistryEntry(entry)).toEqual([]);
       }
@@ -92,6 +101,9 @@ describe('examples/adopt-existing', () => {
     });
     expect(JSON.parse(tree['registry/envs/dev/checkout.json'] ?? '')).toMatchObject({
       manifestUrl: 'http://localhost:3002/mf-manifest.json',
+    });
+    expect(JSON.parse(tree['registry/envs/dev/reviews.json'] ?? '')).toMatchObject({
+      manifestUrl: 'http://localhost:3003/mf-manifest.json',
     });
     expect(tree['apps/shell/package.json']).toContain(
       `"@mfeflow/runtime": "^${readPackageJson().version}"`,
@@ -121,7 +133,7 @@ describe('examples/adopt-existing', () => {
     const before = await readTree(root);
     const { code, out } = await run(root, ['adopt', '--dry-run']);
     expect(code).toBe(EXIT.ok);
-    expect(out).toContain('10 to create, 1 to patch, 0 to delete');
+    expect(out).toContain('14 to create, 1 to patch, 0 to delete');
     expect(await readTree(root)).toEqual(before);
   });
 });

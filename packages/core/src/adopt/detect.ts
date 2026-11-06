@@ -39,7 +39,9 @@ import { eachInSequence, findAppDirs } from './workspace';
 
 /** Config file extensions, in the order a bundler would pick them. */
 const EXTENSIONS = ['.ts', '.mts', '.cts', '.js', '.mjs', '.cjs'];
-const BUILD_TOOLS: BuildTool[] = ['rsbuild', 'rspack', 'webpack'];
+const BUILD_TOOLS: BuildTool[] = ['rsbuild', 'rspack', 'webpack', 'vite'];
+/** Where Vite's Module Federation plugin comes from: its export is a bare `federation`, so the import decides. */
+const VITE_FEDERATION = '@module-federation/vite';
 const FEDERATION_CONFIG = 'module-federation.config';
 /** How many files deep the options object is followed through relative imports. */
 const MAX_IMPORT_HOPS = 3;
@@ -147,14 +149,32 @@ interface FederationCall {
   shadowed: ReadonlySet<string>;
 }
 
+/** Local names of `federation` imported from `@module-federation/vite`. */
+function viteFederationNames(scope: Scope): Set<string> {
+  const names = new Set<string>();
+  for (const [local, binding] of scope.bindings) {
+    if (
+      binding.kind === 'import' &&
+      binding.imported === 'federation' &&
+      binding.source === VITE_FEDERATION
+    )
+      names.add(local);
+  }
+  return names;
+}
+
 /**
- * `pluginModuleFederation(…)`, `mf.pluginModuleFederation(…)`, and
- * `new ModuleFederationPlugin(…)` / `new x.container.ModuleFederationPlugin(…)`.
+ * `pluginModuleFederation(…)`, `mf.pluginModuleFederation(…)`,
+ * `new ModuleFederationPlugin(…)` / `new x.container.ModuleFederationPlugin(…)`,
+ * and Vite's `federation(…)` when it is imported from `@module-federation/vite`.
  * A call whose name is redeclared in an enclosing function or block is not
  * the plugin.
  */
 function federationCalls(ast: File, scope: Scope): FederationCall[] {
-  const plugin = namesFor(scope, 'pluginModuleFederation');
+  const plugin = new Set([
+    ...namesFor(scope, 'pluginModuleFederation'),
+    ...viteFederationNames(scope),
+  ]);
   const webpack = namesFor(scope, 'ModuleFederationPlugin');
   const found: FederationCall[] = [];
   const matches = (n: Node, shadowed: ReadonlySet<string>): boolean => {
@@ -304,9 +324,9 @@ async function resolveOptions(
   return resolveOptions(ctx, exported, imported, hops + 1);
 }
 
-/** The literal dev server port: `server.port` for rsbuild, `devServer.port` for rspack and webpack. */
+/** The literal dev server port: `server.port` for rsbuild and vite, `devServer.port` for rspack and webpack. */
 function readPort(ctx: Context, ast: Node, scope: Scope, tool: BuildTool): number | undefined {
-  const key = tool === 'rsbuild' ? 'server' : 'devServer';
+  const key = tool === 'rsbuild' || tool === 'vite' ? 'server' : 'devServer';
   const ports: Node[] = [];
   for (const prop of findAll(ast, (n) => isObjectProperty(n))) {
     if (!isObjectProperty(prop) || prop.computed || !isIdentifier(prop.key, { name: key }))
@@ -362,7 +382,7 @@ async function detectApp(ctx: Context): Promise<DetectedApp | undefined> {
         ctx,
         federation.file,
         'buildTool',
-        'has no rsbuild, rspack or webpack config next to it',
+        'has no rsbuild, rspack, webpack or vite config next to it',
       );
     }
     return undefined;

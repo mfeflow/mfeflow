@@ -59,6 +59,26 @@ async function run(
 }
 
 describe('mfeflow budget', () => {
+  it('counts the modules a Vite shell preloads with its entry, once each', async () => {
+    const root = await project();
+    const dist = path.join(root, 'apps/shell/dist');
+    await fs.mkdir(dist, { recursive: true });
+    await fs.writeFile(
+      path.join(dist, 'index.html'),
+      '<html><script type="module" crossorigin src="/assets/entry.js"></script>' +
+        '<link rel="modulepreload" crossorigin href="/assets/react.js">' +
+        '<link crossorigin href="/assets/entry.js" rel="modulepreload">' +
+        '<link rel="stylesheet" href="/assets/app.css"></html>',
+    );
+    await blob(path.join(dist, 'assets/entry.js'), 10);
+    await blob(path.join(dist, 'assets/react.js'), 20);
+    await buildRemote(root, 'catalog', 8, 1);
+    await buildRemote(root, 'cart', 8, 1);
+    const { result } = await run(root);
+    expect(result.shells[0]?.scripts).toBe(2);
+    expect(result.shells[0]?.initialKb).toBeGreaterThan(29);
+  });
+
   it('passes remotes under 10 KB and reports the shell without a baseline', async () => {
     const root = await project();
     await buildShell(root, [20, 30]);

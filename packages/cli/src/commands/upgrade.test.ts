@@ -608,3 +608,80 @@ describe('mfeflow upgrade in a polyrepo', () => {
     expect(await readTree(org)).toEqual(before);
   });
 });
+
+describe('mfeflow upgrade --bundler', () => {
+  async function fresh(features: string): Promise<string> {
+    const cwd = await tempDir('mfeflow-bundler-');
+    dirs.push(cwd);
+    const rt = testRuntime();
+    const argv = ['init', 'app', '--features', features, '--yes', '--no-install', '--cwd', cwd];
+    expect(await main(argv, rt)).toBe(0);
+    return path.join(cwd, 'app');
+  }
+
+  it('moves an untouched Rsbuild project to Vite: files, dependencies, scripts and mfeflow.json', async () => {
+    const root = await fresh('theming,env-t3');
+    const { code } = await upgrade(root, ['--bundler', 'vite', '--yes', '--no-install']);
+    expect(code).toBe(EXIT.ok);
+    const tree = await readTree(root);
+    expect(parseProject(tree['mfeflow.json'] ?? '').bundler).toBe('vite');
+    for (const app of ['shell', 'catalog', 'cart']) {
+      expect(tree).not.toHaveProperty([`apps/${app}/rsbuild.config.ts`]);
+      expect(tree[`apps/${app}/vite.config.ts`]).toContain("from '@mfeflow/vite'");
+      expect(tree[`apps/${app}/vite.config.ts`]).toContain("import './env';");
+      expect(tree[`apps/${app}/index.html`]).toContain('/src/index.ts');
+      expect(tree[`apps/${app}/src/env.d.ts`]).toContain('vite/client');
+      const pkg = JSON.parse(tree[`apps/${app}/package.json`] ?? '{}') as {
+        devDependencies: Record<string, string>;
+        scripts: Record<string, string>;
+      };
+      expect(pkg.devDependencies).toMatchObject({ '@mfeflow/vite': `^${running}` });
+      expect(pkg.devDependencies).not.toHaveProperty('@mfeflow/rsbuild');
+      expect(pkg.devDependencies).not.toHaveProperty('@rsbuild/core');
+      expect(pkg.scripts).toMatchObject({ dev: 'vite', build: 'vite build' });
+    }
+    expect(tree['apps/shell/vite.config.ts']).toContain("import './src/theme/head-script';");
+    expect(tree['apps/shell/src/theme/head-script.ts']).toContain("from '@mfeflow/vite'");
+    const again = await upgrade(root, ['--bundler', 'vite', '--dry-run']);
+    expect(again.rt.io.out.join('\n')).toContain('nothing to write');
+  });
+
+  it('leaves a config you changed, says so, and keeps a script you changed', async () => {
+    const root = await fresh('lint-oxlint');
+    const config = path.join(root, 'apps/cart/rsbuild.config.ts');
+    await fs.appendFile(config, '// mine\n');
+    const pkgFile = path.join(root, 'apps/cart/package.json');
+    const pkg = JSON.parse(await fs.readFile(pkgFile, 'utf8')) as {
+      scripts: Record<string, string>;
+    };
+    pkg.scripts.dev = 'rsbuild dev --open';
+    await fs.writeFile(pkgFile, `${JSON.stringify(pkg, null, 2)}\n`);
+    const { code, rt } = await upgrade(root, ['--bundler', 'vite', '--yes', '--no-install']);
+    expect(code).toBe(EXIT.ok);
+    expect(await fs.readFile(config, 'utf8')).toContain('// mine');
+    expect(rt.io.out.join('\n') + rt.io.err.join('\n')).toContain(
+      'apps/cart/rsbuild.config.ts is for the old bundler and you changed it',
+    );
+    const after = JSON.parse(await fs.readFile(pkgFile, 'utf8')) as {
+      scripts: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    expect(after.scripts).toMatchObject({ dev: 'rsbuild dev --open', build: 'vite build' });
+    // cart kept its changed config, so it keeps the Rsbuild packages it needs; catalog's config went, and so did they.
+    expect(after.devDependencies).toHaveProperty('@rsbuild/core');
+    expect(after.devDependencies).toHaveProperty('@mfeflow/rsbuild');
+    expect(after.devDependencies).toHaveProperty('@mfeflow/vite');
+    const catalog = JSON.parse(
+      await fs.readFile(path.join(root, 'apps/catalog/package.json'), 'utf8'),
+    ) as { devDependencies: Record<string, string> };
+    expect(catalog.devDependencies).not.toHaveProperty('@rsbuild/core');
+    expect(catalog.devDependencies).not.toHaveProperty('@mfeflow/rsbuild');
+  });
+
+  it('refuses a bundler it does not know', async () => {
+    const root = await fresh('lint-oxlint');
+    const { code, rt } = await upgrade(root, ['--bundler', 'webpack', '--yes']);
+    expect(code).not.toBe(EXIT.ok);
+    expect(rt.io.err.join('\n')).toContain('--bundler webpack: use rsbuild or vite');
+  });
+});

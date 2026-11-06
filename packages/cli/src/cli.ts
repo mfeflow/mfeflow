@@ -113,6 +113,7 @@ export const COMMANDS: readonly Command[] = [
       'mfeflow upgrade --yes --accept all          # take the new version of every file you changed',
       'mfeflow upgrade --yes --accept env.ts --keep apps/shell/src/pages/Home.tsx',
       'mfeflow upgrade --json --dry-run',
+      'mfeflow upgrade --bundler vite --dry-run   # move the project from Rsbuild to Vite',
     ],
     run: runUpgrade,
   },

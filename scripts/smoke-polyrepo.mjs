@@ -4,7 +4,8 @@
 // `mfeflow dev` next to one remote's `pnpm dev`, adds a team repo while it runs and waits for the
 // shell to list it, then sends Ctrl+C and checks every dev server is gone.
 // Needs `pnpm build` to have run in this repo, and the network (it installs from npm).
-// Usage: node scripts/smoke-polyrepo.mjs   (SMOKE_DIR=/some/folder keeps the repos there)
+// Usage: node scripts/smoke-polyrepo.mjs   (SMOKE_DIR=/some/folder keeps the repos there,
+// SMOKE_BUNDLER=vite generates Vite repos instead of Rsbuild ones)
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -94,6 +95,8 @@ try {
       'acme',
       '--topology',
       'polyrepo',
+      '--bundler',
+      process.env.SMOKE_BUNDLER ?? 'rsbuild',
       '--scope',
       SCOPE,
       '--remotes',

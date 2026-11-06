@@ -110,9 +110,7 @@ export function sharedSingletons(
   for (const name of DEFAULT_SINGLETONS) if (canResolve(name)) add(name);
   for (const name of extra) {
     if (!canResolve(name))
-      throw new Error(
-        `@mfeflow/rsbuild: shared package "${name}" cannot be resolved; is it installed?`,
-      );
+      throw new Error(`mfeflow: shared package "${name}" cannot be resolved; is it installed?`);
     add(name);
   }
   return out;

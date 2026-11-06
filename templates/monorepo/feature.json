@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "The shell, the remotes, the registry and the workspace around them.",
   "files": [
     {
@@ -76,7 +76,28 @@
       "to": "rsbuild.config.ts",
       "target": "shell",
       "from": "files/shell/rsbuild.config.ts.eta",
-      "template": true
+      "template": true,
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "to": "vite.config.ts",
+      "target": "shell",
+      "from": "files/shell/vite.config.ts.eta",
+      "template": true,
+      "when": {
+        "project:bundler": "vite"
+      }
+    },
+    {
+      "to": "index.html",
+      "target": "shell",
+      "from": "files/shell/index.html.eta",
+      "template": true,
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "to": "src/env.d.ts",
@@ -130,7 +151,28 @@
       "to": "rsbuild.config.ts",
       "target": "remotes",
       "from": "files/remote/rsbuild.config.ts.eta",
-      "template": true
+      "template": true,
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "to": "vite.config.ts",
+      "target": "remotes",
+      "from": "files/remote/vite.config.ts.eta",
+      "template": true,
+      "when": {
+        "project:bundler": "vite"
+      }
+    },
+    {
+      "to": "index.html",
+      "target": "remotes",
+      "from": "files/remote/index.html.eta",
+      "template": true,
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "to": "src/env.d.ts",
@@ -200,13 +242,37 @@
       "name": "@mfeflow/rsbuild",
       "range": "latest",
       "target": "shell",
-      "dev": true
+      "dev": true,
+      "when": {
+        "project:bundler": "rsbuild"
+      }
     },
     {
       "name": "@rsbuild/core",
       "range": "2.3.0",
       "target": "shell",
-      "dev": true
+      "dev": true,
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "name": "@mfeflow/vite",
+      "range": "latest",
+      "target": "shell",
+      "dev": true,
+      "when": {
+        "project:bundler": "vite"
+      }
+    },
+    {
+      "name": "vite",
+      "range": "8.3.5",
+      "target": "shell",
+      "dev": true,
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "name": "@types/node",
@@ -245,13 +311,37 @@
       "name": "@mfeflow/rsbuild",
       "range": "latest",
       "target": "remotes",
-      "dev": true
+      "dev": true,
+      "when": {
+        "project:bundler": "rsbuild"
+      }
     },
     {
       "name": "@rsbuild/core",
       "range": "2.3.0",
       "target": "remotes",
-      "dev": true
+      "dev": true,
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "name": "@mfeflow/vite",
+      "range": "latest",
+      "target": "remotes",
+      "dev": true,
+      "when": {
+        "project:bundler": "vite"
+      }
+    },
+    {
+      "name": "vite",
+      "range": "8.3.5",
+      "target": "remotes",
+      "dev": true,
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "name": "@types/node",
@@ -306,22 +396,66 @@
     {
       "name": "dev",
       "command": "rsbuild dev",
-      "target": "shell"
+      "target": "shell",
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "name": "dev",
+      "command": "vite",
+      "target": "shell",
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "name": "build",
       "command": "rsbuild build",
-      "target": "shell"
+      "target": "shell",
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "name": "build",
+      "command": "vite build",
+      "target": "shell",
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "name": "dev",
       "command": "rsbuild dev",
-      "target": "remotes"
+      "target": "remotes",
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "name": "dev",
+      "command": "vite",
+      "target": "remotes",
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "name": "build",
       "command": "rsbuild build",
-      "target": "remotes"
+      "target": "remotes",
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "name": "build",
+      "command": "vite build",
+      "target": "remotes",
+      "when": {
+        "project:bundler": "vite"
+      }
     }
   ],
   "migrations": [{ "from": "0.3.0", "to": "0.4.0", "module": "migrations/0.4.0-app-file.mjs" }]

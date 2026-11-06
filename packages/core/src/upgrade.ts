@@ -11,6 +11,7 @@ import { hashContent, normalizeEol } from './hash';
 import { asRecord, editJsonObject, parseJsonObject } from './json';
 import { PlanBuilder, type FileChange, type Plan, type PlanFeature, type ReadFile } from './plan';
 import type { MfeflowProject } from './project';
+import { bundlerOf, type Bundler } from '@mfeflow/contracts';
 import { schemaKeys } from './transforms';
 
 /**
@@ -37,6 +38,16 @@ export interface UpgradeInput {
   isSymlink?: (file: string) => Promise<boolean>;
   /** Loads a migration module. Defaults to a dynamic `import()`. */
   importModule?: (file: string) => Promise<unknown>;
+  /**
+   * Move the project to this bundler. Files, dependencies and scripts only the old bundler needs
+   * are removed where you have not changed them; edited ones are left and named in the warnings.
+   */
+  bundler?: Bundler;
+  /**
+   * With `--local`, the range a newly needed `@mfeflow/*` package is linked with (its folder in the
+   * checkout). Without it, such a package is left out, as the checkout links the existing ones.
+   */
+  linkOwn?: (name: string) => string | undefined;
   /**
    * What the person decided about files that differ. An accepted file is written with the new
    * version; a kept one is left, and the plan's project remembers it. `all` leaves out symlinks.
@@ -562,6 +573,7 @@ async function addMissing(
   wanted: Record<string, unknown>,
   local: boolean,
   builder: PlanBuilder,
+  linkOwn?: (name: string) => string | undefined,
 ): Promise<void> {
   const have = declared(pkg);
   for (const [section, dev] of [
@@ -569,9 +581,11 @@ async function addMissing(
     ['devDependencies', true],
   ] as const) {
     for (const [name, range] of Object.entries(asRecord(wanted[section]))) {
-      if (have.has(name) || typeof range !== 'string' || (local && isOwn(name))) continue;
+      if (have.has(name) || typeof range !== 'string') continue;
+      const linked = local && isOwn(name) ? linkOwn?.(name) : range;
+      if (linked === undefined) continue;
       // oxlint-disable-next-line no-await-in-loop -- each edit patches the same file
-      await builder.addDependency(file, name, range, dev);
+      await builder.addDependency(file, name, linked, dev);
     }
   }
   const scripts = asRecord(pkg.scripts);
@@ -589,6 +603,7 @@ async function editPackage(
   toVersion: string,
   local: boolean,
   builder: PlanBuilder,
+  linkOwn?: (name: string) => string | undefined,
 ): Promise<void> {
   const source = await builder.content(file);
   if (source === undefined) return;
@@ -600,6 +615,7 @@ async function editPackage(
       parseJsonObject(file, incoming),
       local,
       builder,
+      linkOwn,
     );
   }
   if (local) return;
@@ -688,6 +704,12 @@ async function runMigrations(
   return ran;
 }
 
+/** The project on `bundler`: Rsbuild, the default, is written by leaving the field out. */
+function withBundler(project: MfeflowProject, bundler: Bundler): MfeflowProject {
+  const { bundler: _old, ...rest } = project;
+  return bundler === 'rsbuild' ? rest : { ...rest, bundler };
+}
+
 /** Tracked files that are still on disk but that the new version no longer generates. */
 async function findRemoved(
   project: MfeflowProject,
@@ -701,6 +723,95 @@ async function findRemoved(
     if ((await read(file)) !== undefined) removed.push(file);
   }
   return removed;
+}
+
+/** The package.json among `packageFiles` that owns `file`: the one in the deepest folder above it. */
+function owningPackage(file: string, packageFiles: readonly string[]): string | undefined {
+  let best: string | undefined;
+  for (const pkg of packageFiles) {
+    const dir = pkg === 'package.json' ? '' : pkg.slice(0, -'/package.json'.length);
+    if (dir !== '' && !file.startsWith(`${dir}/`)) continue;
+    if (best === undefined || pkg.length > best.length) best = pkg;
+  }
+  return best;
+}
+
+/** `scripts` of a generated package.json, by name. */
+function scriptsOf(source: string | undefined, file: string): Record<string, unknown> {
+  return source === undefined ? {} : asRecord(parseJsonObject(file, source).scripts);
+}
+
+/**
+ * The part of a bundler switch the replay alone does not do: what only the old bundler generated
+ * goes. A file goes when it still has the content mfeflow recorded; a dependency goes when the new
+ * replay no longer lists it, unless the app kept a changed old-bundler file; a script moves to the
+ * new command when it is still the old one.
+ */
+async function leaveOldBundler(
+  project: MfeflowProject,
+  old: Replay,
+  fresh: Replay,
+  read: ReadFile,
+  builder: PlanBuilder,
+): Promise<void> {
+  const recorded = project.files ?? {};
+  const packageFiles = [...old.files.keys()].filter(isPackageFile);
+  // A changed file stays, and its app keeps the old bundler's packages (the config's own imports and
+  // their peers, such as @rsbuild/core for @mfeflow/rsbuild), so it keeps working until it is ported.
+  const keepsOld = new Set<string>();
+  for (const file of [...old.files.keys()].toSorted(byCodePoint)) {
+    if (fresh.files.has(file) || isStructured(file)) continue;
+    // oxlint-disable-next-line no-await-in-loop -- reading in order keeps the plan deterministic
+    const disk = await read(file);
+    if (disk === undefined) continue;
+    if (recorded[file] === hashContent(disk)) {
+      // oxlint-disable-next-line no-await-in-loop -- ordered edits keep the plan deterministic
+      await builder.delete(file);
+    } else {
+      const owner = owningPackage(file, packageFiles);
+      if (owner !== undefined) keepsOld.add(owner);
+      builder.warn(
+        `${file} is for the old bundler and you changed it; port it and delete it` +
+          (owner === undefined ? '' : `, then remove the old bundler's packages from ${owner}`),
+      );
+    }
+  }
+  for (const file of packageFiles.toSorted(byCodePoint)) {
+    const before = old.files.get(file);
+    const after = fresh.files.get(file);
+    if (before === undefined || after === undefined) continue;
+    const wanted = declared(parseJsonObject(file, after));
+    const gone = new Set(
+      keepsOld.has(file)
+        ? []
+        : [...declared(parseJsonObject(file, before)).keys()].filter((n) => !wanted.has(n)),
+    );
+    const oldScripts = scriptsOf(before, file);
+    const newScripts = scriptsOf(after, file);
+    // oxlint-disable-next-line no-await-in-loop -- each edit patches its own file, in order
+    await builder.patch(file, (source) =>
+      editJsonObject(file, source, (pkg) => {
+        let changed = false;
+        for (const section of DEPENDENCY_SECTIONS) {
+          if (!(section in pkg)) continue;
+          const deps = asRecord(pkg[section]);
+          const kept = Object.fromEntries(Object.entries(deps).filter(([n]) => !gone.has(n)));
+          if (Object.keys(kept).length === Object.keys(deps).length) continue;
+          pkg[section] = kept;
+          changed = true;
+        }
+        const scripts = asRecord(pkg.scripts);
+        for (const [name, command] of Object.entries(newScripts)) {
+          if (scripts[name] === oldScripts[name] && scripts[name] !== command) {
+            scripts[name] = command;
+            changed = true;
+          }
+        }
+        if (changed && 'scripts' in pkg) pkg.scripts = scripts;
+        return changed;
+      }),
+    );
+  }
 }
 
 /**
@@ -727,7 +838,10 @@ export async function planUpgrade(
       `project is at ${baseline.version}, target is ${input.toVersion}`,
     );
   }
-  const fresh = await replay(project, input);
+  const switching = input.bundler !== undefined && input.bundler !== bundlerOf(project);
+  const target: MfeflowProject =
+    input.bundler === undefined ? project : withBundler(project, input.bundler);
+  const fresh = await replay(target, input);
   const builder = new PlanBuilder(input.read, {});
   await builder.captureProject();
 
@@ -752,9 +866,11 @@ export async function planUpgrade(
     // oxlint-disable-next-line no-await-in-loop -- reading in order keeps the plan deterministic
     if (!(await input.read(file))) continue;
     // oxlint-disable-next-line no-await-in-loop -- ordered edits keep the plan deterministic
-    await editPackage(file, fresh, input.toVersion, local, builder);
+    await editPackage(file, fresh, input.toVersion, local, builder, input.linkOwn);
   }
 
+  if (switching)
+    await leaveOldBundler(project, await replay(project, input), fresh, input.read, builder);
   const migrations = await runMigrations(project, input, builder);
   const skipped = input.skipped ?? [];
   // A file a migration deletes or moves is not reported as left behind.
@@ -797,7 +913,7 @@ export async function planUpgrade(
     files[entry.path] = hashContent(entry.yours);
     kept[entry.path] = hashContent(entry.incoming);
   }
-  const next: MfeflowProject = { ...project, cli: input.toVersion };
+  const next: MfeflowProject = { ...target, cli: input.toVersion };
   if (Object.keys(files).length > 0) next.files = files;
   if (Object.keys(kept).length > 0) next.kept = kept;
   else delete next.kept;

@@ -290,6 +290,44 @@ describe('detectFederation edge cases', () => {
     });
   });
 
+  it("reads a vite config using @module-federation/vite's federation plugin", async () => {
+    const report = await inMemory({
+      'vite.config.ts': [
+        "import { defineConfig } from 'vite';",
+        "import { federation as mf } from '@module-federation/vite';",
+        'export default defineConfig({',
+        '  server: { port: 5174 },',
+        "  plugins: [mf({ name: 'cart', exposes: { './App': './src/App.tsx' }, shared: { react: { singleton: true } } })],",
+        '});',
+        '',
+      ].join('\n'),
+    });
+    expect(report.apps).toEqual([
+      {
+        dir: '.',
+        name: 'cart',
+        role: 'remote',
+        buildTool: 'vite',
+        configFile: 'vite.config.ts',
+        remotes: {},
+        exposes: { './App': './src/App.tsx' },
+        shared: { react: { singleton: true } },
+        port: 5174,
+      },
+    ]);
+  });
+
+  it('does not take a federation() that is not from @module-federation/vite for the plugin', async () => {
+    const report = await inMemory({
+      'vite.config.ts': [
+        "import { federation } from 'some-other-plugin';",
+        "export default { plugins: [federation({ name: 'x', exposes: { './A': './a' } })] };",
+        '',
+      ].join('\n'),
+    });
+    expect(report.apps).toEqual([]);
+  });
+
   it('ignores a build config with no federation at all', async () => {
     expect(await inMemory({ 'rsbuild.config.ts': 'export default {};\n' })).toEqual({
       apps: [],
@@ -303,7 +341,7 @@ describe('detectFederation edge cases', () => {
       { 'module-federation.config.ts': 'export default {};' },
       'module-federation.config.ts',
       'buildTool',
-      'has no rsbuild, rspack or webpack config next to it',
+      'has no rsbuild, rspack, webpack or vite config next to it',
     ],
     [
       'a config that does not parse',

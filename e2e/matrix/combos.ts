@@ -1,6 +1,7 @@
 // Every supported combination of the first-party features. `core` and `tsconfig` are always on.
 
 export type Validator = 'zod' | 'valibot' | 'arktype';
+export type Bundler = 'rsbuild' | 'vite';
 
 export interface Combo {
   id: string;
@@ -28,6 +29,7 @@ export interface Combo {
   /** The schema library of the forms feature, which is its own option. */
   formsValidator: Validator;
   remotes: 0 | 1 | 3;
+  bundler: Bundler;
 }
 
 export interface Step {
@@ -63,6 +65,7 @@ type Flags = Partial<
     | 'commit'
     | 'validator'
     | 'formsValidator'
+    | 'bundler'
   >
 >;
 
@@ -90,9 +93,12 @@ function make(flags: Flags, remotes: 0 | 1 | 3): Combo {
     commit: false,
     validator: 'zod' as Validator,
     formsValidator: 'zod' as Validator,
+    bundler: 'rsbuild' as Bundler,
     ...flags,
   };
   const parts = [
+    // First, so the CI filters on "-env", "-testing", "-ci" and "-r3" still match.
+    combo.bundler === 'vite' ? 'vite' : '',
     combo.lint ? 'lint' : '',
     combo.url ? 'url' : '',
     combo.hooks ? 'hooks' : '',
@@ -136,7 +142,8 @@ function make(flags: Flags, remotes: 0 | 1 | 3): Combo {
  * features: theming + i18n + tailwind + ui-shadcn + storybook on three remotes with ci (runs the browser tests
  * for tokens, theme, language and the composed Storybook), the same without env-t3, tailwind and the data
  * and form features each alone, clarity next to gtm with and without env-t3, the commit prompt on its own
- * and beside git-hooks, one run of everything together, and one shell with no remotes.
+ * and beside git-hooks, one run of everything together, and one shell with no remotes. Last, a
+ * Vite set (ids start with `vite-`): the same kinds of project built with Vite instead of Rsbuild.
  */
 export function combinations(): Combo[] {
   const flags = [false, true];
@@ -186,26 +193,33 @@ export function combinations(): Combo[] {
   out.push(make({ ...base, env: false, gtm: true, clarity: true }, 1));
   out.push(make({ lint: true, url: true, hooks: true, commit: true }, 1));
   out.push(make({ commit: true }, 1));
-  out.push(
-    make(
-      {
-        ...base,
-        ci: true,
-        hooks: true,
-        gtm: true,
-        otel: true,
-        ...platform,
-        ...ui,
-        forms: true,
-        query: true,
-        clarity: true,
-        storybook: true,
-        commit: true,
-      },
-      3,
-    ),
-  );
+  const everything = {
+    ...base,
+    ci: true,
+    hooks: true,
+    gtm: true,
+    otel: true,
+    ...platform,
+    ...ui,
+    forms: true,
+    query: true,
+    clarity: true,
+    storybook: true,
+    commit: true,
+  };
+  out.push(make(everything, 3));
   out.push(make(base, 0));
+  // Vite: a representative set rather than every combination again. The bare project, the old
+  // default set, the browser-tested full set, a non-zod validator, the platform features, the
+  // react-scale features with Storybook, and everything together.
+  const vite = { bundler: 'vite' } as const;
+  out.push(make({ ...vite }, 1));
+  out.push(make({ ...vite, lint: true, url: true, hooks: true }, 3));
+  out.push(make({ ...vite, ...base, ci: true }, 3));
+  out.push(make({ ...vite, ...base, validator: 'valibot' }, 1));
+  out.push(make({ ...vite, ...base, ci: true, gtm: true, otel: true, ...platform }, 3));
+  out.push(make({ ...vite, ...base, ci: true, ...ui, storybook: true }, 3));
+  out.push(make({ ...vite, ...everything }, 3));
   return out;
 }
 
@@ -247,10 +261,12 @@ export function featuresOf(combo: Combo): string[] {
 export function presetOf(combo: Combo): {
   remotes: string[];
   features: string[];
+  bundler?: Bundler;
   options?: Record<string, Record<string, string>>;
 } {
   return {
     remotes: REMOTE_NAMES.slice(0, combo.remotes),
+    ...(combo.bundler === 'rsbuild' ? {} : { bundler: combo.bundler }),
     features: featuresOf(combo),
     ...(combo.env || combo.forms
       ? {

@@ -1,6 +1,6 @@
 {
   "name": "env-t3",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Typed env with t3-env: env.ts per app fails the build on a missing variable, runtime-config schema checked before deploy, no validator or env value in the browser bundle.",
   "requires": ["core", "tsconfig"],
   "prompts": [
@@ -275,13 +275,37 @@
       "op": "add-import",
       "file": "rsbuild.config.ts",
       "target": "shell",
-      "from": "./env"
+      "from": "./env",
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "op": "add-import",
+      "file": "vite.config.ts",
+      "target": "shell",
+      "from": "./env",
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "op": "add-import",
       "file": "rsbuild.config.ts",
       "target": "remotes",
-      "from": "./env"
+      "from": "./env",
+      "when": {
+        "project:bundler": "rsbuild"
+      }
+    },
+    {
+      "op": "add-import",
+      "file": "vite.config.ts",
+      "target": "remotes",
+      "from": "./env",
+      "when": {
+        "project:bundler": "vite"
+      }
     },
     {
       "op": "add-boot-step",

@@ -66,12 +66,12 @@ describe('home page', () => {
     }
   });
 
-  it('keeps the 26 features and 19 packages counts true to the repo', () => {
+  it('keeps the 26 features and 21 packages counts true to the repo', () => {
     expect(fs.readdirSync(path.join(ROOT, 'features'))).toHaveLength(26);
     const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
     expect(readme).toContain('There are 26 first-party features.');
     expect(readme).toContain('- 26 features you add one at a time');
-    expect(fs.readdirSync(path.join(ROOT, 'packages'))).toHaveLength(19);
+    expect(fs.readdirSync(path.join(ROOT, 'packages'))).toHaveLength(21);
   });
 
   it('embeds JSON-LD for the source code', () => {

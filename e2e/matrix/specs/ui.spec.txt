@@ -27,16 +27,36 @@ test('two remotes use the same utility with different tokens and do not collide'
   expect(await outline(page, 'checkout')).toBe('rgb(37, 99, 235)');
 });
 
+// The app a port serves: the shell on 4300, each remote on the port of its dev registry entry.
+const appOfPort = {
+  4300: 'shell',
+  ...Object.fromEntries(
+    remotes.map((name) => {
+      const entry = JSON.parse(fs.readFileSync(`registry/envs/dev/${name}.json`, 'utf8'));
+      return [new URL(entry.manifestUrl).port, name];
+    }),
+  ),
+};
+
 test('only the shell loads Tailwind preflight', async ({ page }) => {
   await showAll(page);
   await page.waitForLoadState('networkidle');
-  const hrefs = await page.locator('link[rel="stylesheet"]').evaluateAll((links) => links.map((link) => link.href));
+  const reset = /box-sizing:\s*border-box/;
   const withReset = [];
+  // Rsbuild serves CSS as stylesheet links, one origin per app.
+  const hrefs = await page.locator('link[rel="stylesheet"]').evaluateAll((links) => links.map((link) => link.href));
   for (const href of hrefs) {
     const response = await page.request.get(href);
-    if (/box-sizing:\s*border-box/.test(await response.text())) withReset.push(new URL(href).port);
+    if (reset.test(await response.text())) withReset.push(appOfPort[new URL(href).port] ?? href);
   }
-  expect(withReset).toEqual(['4300']);
+  // Vite's dev server injects <style> tags named after the source file, which sits under apps/<app>/.
+  const styles = await page
+    .locator('style[data-vite-dev-id]')
+    .evaluateAll((els) => els.map((el) => [el.dataset.viteDevId, el.textContent]));
+  for (const [id, css] of styles) {
+    if (reset.test(css)) withReset.push(/[\\/]apps[\\/]([^\\/]+)[\\/]/.exec(id)?.[1] ?? id);
+  }
+  expect(withReset).toEqual(['shell']);
 });
 
 test('the theme reaches every remote through the tokens, and is remembered without a flash', async ({ page }) => {

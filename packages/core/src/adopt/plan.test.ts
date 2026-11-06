@@ -60,6 +60,21 @@ describe('planAdoption', () => {
     });
   });
 
+  it('records vite as the bundler only when every app builds with it, and warns on a mix', () => {
+    const vite = { buildTool: 'vite' as const, configFile: 'vite.config.ts' };
+    const allVite = plan([
+      app({ ...vite, dir: 'apps/shell' }),
+      remote('cart', { ...vite, port: 1 }),
+    ]);
+    expect(allVite.project.bundler).toBe('vite');
+    expect(validateMfeflowProject(allVite.project)).toEqual([]);
+    expect(allVite.warnings.join('\n')).not.toContain('Vite');
+
+    const mixed = plan([app({ dir: 'apps/shell' }), remote('cart', { ...vite, port: 1 })]);
+    expect(mixed.project).not.toHaveProperty('bundler');
+    expect(mixed.warnings.join('\n')).toContain('some apps build with Vite');
+  });
+
   it('matches a remote to the shell by alias when the entry has no name', () => {
     const result = plan([
       app({

@@ -1,3 +1,4 @@
+import { bundlerOf } from '@mfeflow/contracts';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { findProjectRoot, loadProject, MfeflowError, resolveFeature } from '@mfeflow/core';
@@ -74,6 +75,8 @@ export async function addTeamRepo(
     dir: name,
     root: repoRoot,
     scope: project.scope,
+    // The new team builds with the bundler of the shell it joins.
+    bundler: bundlerOf(project),
     ...(typeof recordedOrg === 'string' && recordedOrg !== '' ? { org: recordedOrg } : {}),
     remote: { name, port },
     features,

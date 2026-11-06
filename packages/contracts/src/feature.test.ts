@@ -210,6 +210,19 @@ describe('feature.json', () => {
     ]);
   });
 
+  it('accepts project:bundler conditions for a known bundler only', () => {
+    const files = (when: unknown) => [{ to: 'a', content: 'x', when }];
+    expect(
+      validateFeatureManifest({ ...feature, files: files({ 'project:bundler': 'vite' }) }),
+    ).toEqual([]);
+    expect(paths({ ...feature, files: files({ 'project:bundler': 'webpack' }) })).toEqual([
+      'files[0].when.project:bundler',
+    ]);
+    expect(paths({ ...feature, files: files({ 'project:topology': 'x' }) })).toEqual([
+      'files[0].when',
+    ]);
+  });
+
   it('accepts an add-env-key schema per validator and a list value, and rejects the rest', () => {
     const envKey = (extra: Record<string, unknown>) => ({
       op: 'add-env-key',

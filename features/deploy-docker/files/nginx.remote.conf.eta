@@ -1,3 +1,4 @@
+<% const hashed = it.bundler === 'vite' ? 'assets' : 'static' -%>
 # A remote. __NAME__ and __VERSION__ are filled in when the image is built, from the app name and
 # its package.json version. The files are stored once and answer on two paths:
 #   /mfe/__NAME__/__VERSION__/...  the registry layout, cached for a year (the version is the name)
@@ -52,7 +53,7 @@ server {
   location ^~ /mfe/ { return 404; }
 
   # Hashed build output.
-  location ^~ /static/ {
+  location ^~ /<%= hashed %>/ {
     try_files $uri =404;
     add_header Cache-Control "public, max-age=31536000, immutable";
     add_header X-Content-Type-Options "nosniff" always;

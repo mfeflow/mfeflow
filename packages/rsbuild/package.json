@@ -44,9 +44,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@mfeflow/bundler-shared": "workspace:*",
     "@module-federation/rsbuild-plugin": "catalog:",
-    "@rsbuild/plugin-react": "catalog:",
-    "es-module-lexer": "catalog:"
+    "@rsbuild/plugin-react": "catalog:"
   },
   "peerDependencies": {
     "@rsbuild/core": "^2.0.0"

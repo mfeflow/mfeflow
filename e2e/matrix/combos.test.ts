@@ -3,9 +3,12 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { combinations, featuresOf, find, presetOf, runsE2e, runsUiE2e, stepsFor } from './combos';
 
+/** The Rsbuild combinations: the counts below predate the Vite set, which has its own test. */
+const rsbuild = () => combinations().filter((c) => c.bundler === 'rsbuild');
+
 describe('combinations', () => {
   it('has 60 with unique ids: the old 16, env/testing/ci on lint + url-factory, two validators, analytics + telemetry, event-bus + route-factory + http, and the react-scale features', () => {
-    const all = combinations();
+    const all = rsbuild();
     expect(all).toHaveLength(60);
     expect(new Set(all.map((c) => c.id)).size).toBe(60);
     expect(all.filter((c) => !c.env && !c.testing && !c.ci && !c.commit)).toHaveLength(16);
@@ -45,7 +48,7 @@ describe('combinations', () => {
   });
 
   it('adds the react-scale features in targeted combinations, not in every one', () => {
-    const all = combinations();
+    const all = rsbuild();
     const ids = all.map((c) => c.id);
     for (const id of [
       'lint-url-env-testing-ci-theme-i18n-tw-shadcn-sb-r3',
@@ -73,7 +76,7 @@ describe('combinations', () => {
   });
 
   it('runs the browser test on the full set with analytics and telemetry, with and without the platform features, and the one with every feature, and no other new one', () => {
-    const both = combinations().filter((c) => c.gtm && c.otel);
+    const both = rsbuild().filter((c) => c.gtm && c.otel);
     expect(both.filter(runsE2e).map((c) => c.id)).toEqual([
       'lint-url-env-testing-ci-gtm-otel-r3',
       'lint-url-env-testing-ci-gtm-otel-bus-routes-http-r3',
@@ -85,7 +88,7 @@ describe('combinations', () => {
 
 describe('the browser tests for tokens, theme, language and Storybook', () => {
   it('run only where the three UI features and the full test set are on, with three remotes', () => {
-    const ui = combinations().filter(runsUiE2e);
+    const ui = rsbuild().filter(runsUiE2e);
     expect(ui.map((c) => c.id)).toEqual([
       'lint-url-env-testing-ci-theme-i18n-tw-shadcn-sb-r3',
       'lint-url-hooks-env-testing-ci-gtm-otel-bus-routes-http-theme-i18n-tw-shadcn-forms-query-clarity-sb-commit-r3',
@@ -111,6 +114,25 @@ describe('the browser tests for tokens, theme, language and Storybook', () => {
       forms: { validator: 'valibot' },
     });
     expect(featuresOf(c)).toContain('forms');
+  });
+});
+
+describe('the Vite set', () => {
+  it('builds a representative subset with Vite, ids first, and passes the bundler in the preset', () => {
+    const vite = combinations().filter((c) => c.bundler === 'vite');
+    expect(vite.map((c) => c.id)).toEqual([
+      'vite-r1',
+      'vite-lint-url-hooks-r3',
+      'vite-lint-url-env-testing-ci-r3',
+      'vite-lint-url-env-valibot-testing-r1',
+      'vite-lint-url-env-testing-ci-gtm-otel-bus-routes-http-r3',
+      'vite-lint-url-env-testing-ci-theme-i18n-tw-shadcn-sb-r3',
+      'vite-lint-url-hooks-env-testing-ci-gtm-otel-bus-routes-http-theme-i18n-tw-shadcn-forms-query-clarity-sb-commit-r3',
+    ]);
+    expect(new Set(combinations().map((c) => c.id)).size).toBe(combinations().length);
+    expect(presetOf(vite[0]!)).toEqual({ remotes: ['catalog'], features: [], bundler: 'vite' });
+    expect(vite.filter(runsE2e)).toHaveLength(4);
+    expect(vite.filter(runsUiE2e)).toHaveLength(2);
   });
 });
 

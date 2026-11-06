@@ -1,6 +1,6 @@
 {
   "name": "deploy-cloudflare",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "One way to host the shell and remotes on Cloudflare Workers static assets: a wrangler.jsonc per app with staging and prod, _headers with the cache and CORS rules, a script that picks each environment's runtime config and registry index without rebuilding, an optional R2 proxy for /registry/*, and, when ci-github is present, a workflow. Opt-in; every file is yours to edit or delete.",
   "keywords": ["cloudflare", "workers", "wrangler", "r2", "deploy"],
   "requires": ["core"],
@@ -35,8 +35,9 @@
     {
       "to": "public/_headers",
       "target": "remotes",
-      "from": "files/headers.remote",
-      "when": { "r2Proxy": false }
+      "from": "files/headers.remote.eta",
+      "when": { "r2Proxy": false },
+      "template": true
     },
     {
       "to": "worker/registry-proxy.ts",
