@@ -1,0 +1,7 @@
+import type { ProviderComponent } from '<%= it.scope %>/runtime/providers';
+
+/**
+ * The providers a test wraps a component in, outermost first. List the same ones the shell passes to
+ * `composeProviders`, for example `withProps(ThemeProvider, { themes, defaultTheme })`.
+ */
+export const defaultProviders: readonly ProviderComponent[] = Object.freeze([]);

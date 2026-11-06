@@ -109,7 +109,7 @@ MFEFLOW_E108 The target folder is not empty: /work/app already has notes.txt
 | ---- | ----------------------------------------------------------------------- |
 | 0    | success                                                                 |
 | 1    | unexpected error (`--verbose` prints the stack)                         |
-| 2    | bad command line: `MFEFLOW_E107`, `MFEFLOW_E215`                        |
+| 2    | bad command line: `MFEFLOW_E107`, `MFEFLOW_E215`, `MFEFLOW_E216`        |
 | 3    | project or config problem: `MFEFLOW_E1xx`                               |
 | 4    | feature problem: `MFEFLOW_E2xx`                                         |
 | 5    | build or runtime problem: `MFEFLOW_E3xx`                                |

@@ -1,0 +1,46 @@
+# <%= it.scope.slice(1) %>-remotes
+
+One or more remotes made with [mfeflow](https://github.com/mfeflow/mfeflow). Each one exposes `./App` and is
+deployed on its own. The shell that loads them lives in another repo and is owned by someone else.
+
+```
+apps/<remote>   one micro-frontend each, exposing ./App
+mfeflow.json    what the CLI generated; `repo: "remote"` means this repo has no shell
+```
+
+There is no `registry/` folder here. Which build of a remote each environment serves is recorded in the shell's repo.
+
+## Run it
+
+```sh
+pnpm install
+pnpm dev
+```
+
+`pnpm dev` starts every remote on its own port. `pnpm mfeflow dev` does the same with a prefixed log per app,
+and picks up a remote you add without a restart.
+
+To see a remote inside the shell, open the shell's page with `?mfe-override=<remote>@http://localhost:<port>/mf-manifest.json`.
+That works only if the shell is a development build; production builds ignore the parameter.
+
+## Change it
+
+```sh
+pnpm mfeflow add remote checkout     # a new remote; no route or registry entry, those are in the shell's repo
+pnpm mfeflow add <feature>           # see `pnpm mfeflow features`
+```
+
+A feature that also changes the shell (a theme provider, translations) is applied to the remotes here. Add it in the
+shell's repo as well.
+
+## Check it
+
+```sh
+pnpm doctor              # config, singletons, drift; compatibility when the shell address is known
+pnpm validate            # mfeflow.json and every mfeflow.app.json
+pnpm check-compat        # each remote's shared ranges against the deployed shell
+pnpm budget              # after `pnpm build`: first-load JS per remote
+```
+
+The shell's address is the `shell` field of `mfeflow.json` (set with `mfeflow init --shell`). Without it, `doctor` warns that the
+shell is not in this repo; pass `--against <url|file>` to check against one.

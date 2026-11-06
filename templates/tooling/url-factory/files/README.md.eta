@@ -1,0 +1,22 @@
+# <%= it.scope %>/url-factory
+
+[`@mfeflow/url-factory`](https://www.npmjs.com/package/@mfeflow/url-factory) under the company's scope, with
+nothing added: the same `defineEndpoints` and `createUrlFactory`. It exists so apps import every shared package
+from <%= it.scope %> and never from ours, and so <%= it.scope %>/http has something of yours to build on. It is
+the place to add a company-wide helper later.
+
+```ts
+import { createUrlFactory, defineEndpoints } from '<%= it.scope %>/url-factory';
+
+const endpoints = defineEndpoints({
+  getOrder: { service: 'orders', path: '/v1/orders/:orderId' },
+});
+const bases = { orders: 'https://orders.example.com' };
+const url = createUrlFactory(endpoints, (service) => bases[service]);
+url('getOrder', { params: { orderId: 42 } });
+```
+
+## Settings only, no state
+
+`<%= it.scope %>/url-factory` is not a Module Federation singleton, so every remote gets its own copy of this
+package. That is fine while it only re-exports and builds things. Keep it that way: no module-level state here.

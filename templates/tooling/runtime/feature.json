@@ -1,0 +1,45 @@
+{
+  "name": "tooling-runtime",
+  "version": "0.1.0",
+  "description": "A tooling repo's runtime package: the company's registry addresses on top of @mfeflow/runtime, with loadRegistry.",
+  "files": [
+    {
+      "to": "packages/runtime/package.json",
+      "from": "files/package.json.eta",
+      "template": true
+    },
+    {
+      "to": "packages/runtime/README.md",
+      "from": "files/README.md.eta",
+      "template": true
+    },
+    {
+      "to": "packages/runtime/tsconfig.json",
+      "from": "files/tsconfig.json"
+    },
+    {
+      "to": "packages/runtime/src/beacon.ts",
+      "from": "files/src/beacon.ts"
+    },
+    {
+      "to": "packages/runtime/src/defaults.ts",
+      "from": "files/src/defaults.ts"
+    },
+    {
+      "to": "packages/runtime/src/index.ts",
+      "from": "files/src/index.ts"
+    },
+    {
+      "to": "packages/runtime/src/plugins/entry-retry.ts",
+      "from": "files/src/plugins/entry-retry.ts"
+    },
+    {
+      "to": "packages/runtime/src/plugins/report.ts",
+      "from": "files/src/plugins/report.ts"
+    },
+    {
+      "to": "packages/runtime/src/providers.ts",
+      "from": "files/src/providers.ts"
+    }
+  ]
+}

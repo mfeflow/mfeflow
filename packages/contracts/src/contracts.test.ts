@@ -12,6 +12,7 @@ import {
   MFE_NAME,
   SCHEMA_ALIASES,
   SCHEMA_URLS,
+  shellSourceProblem,
   validateMfeflowProject,
   validateMfeManifest,
   validateRegistryEntry,
@@ -354,6 +355,65 @@ describe('mfeflow.json', () => {
     expect(validateMfeflowProject({ ...remoteOnly, repo: 'remote' })).toEqual([]);
     expect(validateMfeflowProject({ ...remoteOnly, repo: 'platform' })).toEqual([]);
     expect(validateMfeflowProject({ ...project, apps: {}, repo: 'platform' })).toEqual([]);
+  });
+
+  it('accepts a platform repo with no apps in a monorepo (init --kind tooling)', () => {
+    expect(
+      validateMfeflowProject({ ...project, apps: {}, repo: 'platform', topology: 'monorepo' }),
+    ).toEqual([]);
+    expect(paths(validateMfeflowProject({ ...project, apps: {} }))).toEqual(['apps']);
+  });
+
+  it('accepts a repo of remotes with a recorded shell, and checks the address', () => {
+    const remoteOnly = { ...project, repo: 'remote', apps: { cart: project.apps.cart } };
+    for (const shell of [
+      'https://shell.example.com/mf-manifest.json',
+      'http://localhost:4300/mf-manifest.json',
+      'shell/mf-manifest.json',
+      '../shell.json',
+      'file:///work/shell.json',
+      'C:/work/shell.json',
+    ]) {
+      expect(validateMfeflowProject({ ...remoteOnly, shell }), shell).toEqual([]);
+    }
+    for (const shell of [
+      'http://shell.example.com/mf-manifest.json',
+      'ftp://shell.example.com/mf-manifest.json',
+      'https://user:pw@shell.example.com/mf-manifest.json',
+      'https://shell.example.com/mf-manifest.json?token=abc123',
+      'https://',
+      '',
+      ' shell.json',
+      7,
+    ]) {
+      expect(paths(validateMfeflowProject({ ...remoteOnly, shell })), String(shell)).toEqual([
+        'shell',
+      ]);
+    }
+    expect(paths(validateMfeflowProject({ ...project, shell: 'a\0b' }))).toEqual(['shell']);
+  });
+
+  it('explains why an address is not a shell', () => {
+    expect(shellSourceProblem('shell.json')).toBeUndefined();
+    expect(shellSourceProblem('http://shell.example.com/x')).toContain('https');
+    expect(shellSourceProblem('s3://bucket/x')).toContain('https URL');
+    expect(shellSourceProblem('https://a:b@example.com/x')).toContain('credentials');
+  });
+
+  it('describes the shell field in the JSON schema', () => {
+    const schema = JSON_SCHEMAS.project as unknown as {
+      properties: { shell: { type: string; description: string } };
+    };
+    expect(schema.properties.shell.type).toBe('string');
+    expect(schema.properties.shell.description).toContain('--against');
+  });
+
+  it('describes the repo field in the JSON schema', () => {
+    const schema = JSON_SCHEMAS.project as unknown as {
+      properties: { repo: { enum: string[]; description: string } };
+    };
+    expect(schema.properties.repo.enum).toEqual(['platform', 'shell', 'remote']);
+    expect(schema.properties.repo.description).toContain('a platform repo may have no apps at all');
   });
 
   it('checks the dev server port of an app', () => {

@@ -65,16 +65,19 @@ Creates a project.
 mfeflow init [dir] [options]
 ```
 
-| Flag                     | Type       | Default                                           | Meaning                                                   |
-| ------------------------ | ---------- | ------------------------------------------------- | --------------------------------------------------------- |
-| `--scope <@scope>`       | text       | from the folder name                              | npm scope for the project packages                        |
-| `--remotes <a,b>`        | list       | `catalog,cart`                                    | Remotes to create                                         |
-| `--features <a,b>`       | list       | `lint-oxlint`, `url-factory`, `env-t3`, `testing` | Optional features to turn on                              |
-| `--package-manager <pm>` | text       | `pnpm`                                            | Only `pnpm` in this release                               |
-| `--topology <name>`      | text       | `monorepo`                                        | `monorepo` or `polyrepo`                                  |
-| `--bundler <name>`       | text       | `rsbuild`                                         | `rsbuild` or `vite`. See [Vite](/guide/vite)              |
-| `--org <owner>`          | text       | the scope without `@`                             | polyrepo: GitHub owner the CI and Renovate files point at |
-| `--option <f.k=v>`       | repeatable | none                                              | A feature option, as `feature.key=value`                  |
+| Flag                     | Type       | Default                                           | Meaning                                                                               |
+| ------------------------ | ---------- | ------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `--scope <@scope>`       | text       | from the folder name                              | npm scope for the project packages                                                    |
+| `--kind <name>`          | text       | `app`                                             | `app`, `remote` for remotes with no shell, or `tooling` for a repo with no apps       |
+| `--remotes <a,b>`        | list       | `catalog,cart` (`catalog` for `--kind remote`)    | Remotes to create; `none` or `""` makes only a shell (E107 with `--kind remote`)      |
+| `--shell <url\|file>`    | text       | none                                              | `--kind remote` only: where the deployed shell is; `doctor` and `check-compat` use it |
+| `--packages <a,b>`       | list       | `tsconfig,oxlint-config`                          | `--kind tooling` only: the packages to make in your scope; `none` or `""` makes none  |
+| `--features <a,b>`       | list       | `lint-oxlint`, `url-factory`, `env-t3`, `testing` | Optional features to turn on                                                          |
+| `--package-manager <pm>` | text       | `pnpm`                                            | Only `pnpm` in this release                                                           |
+| `--topology <name>`      | text       | `monorepo`                                        | `monorepo` or `polyrepo`                                                              |
+| `--bundler <name>`       | text       | `rsbuild`                                         | `rsbuild` or `vite`. See [Vite](/guide/vite)                                          |
+| `--org <owner>`          | text       | the scope without `@`                             | polyrepo or tooling: GitHub owner the CI and Renovate files point at                  |
+| `--option <f.k=v>`       | repeatable | none                                              | A feature option, as `feature.key=value`                                              |
 
 Feature names accepted by `--features`: lint-oxlint, url-factory, env-t3, testing, analytics-gtm, telemetry-otel, event-bus, route-factory, http, theming, i18n, tailwind, ui-shadcn, forms, data-react-query, analytics-clarity, storybook, ci-github, git-hooks, commit-prompt.
 
@@ -82,11 +85,35 @@ Feature names accepted by `--features`: lint-oxlint, url-factory, env-t3, testin
 mfeflow init my-app --scope @acme --remotes catalog,cart,checkout --features lint-oxlint,git-hooks
 ```
 
+`--remotes none` (or an empty value, or `"remotes": []` in a preset) creates the shell with no remotes. Mixing `none` with names is E107. At the prompt, an empty answer means none. See [Start with only a shell](/guide/quickstart#start-with-only-a-shell).
+
 With `--topology polyrepo`, `dir` is a folder that holds one git repo per `platform`, `shell` and remote. `--features` goes to the shell and the remote repos. `ci-github` and `env-t3` are refused, and no feature is on by default. The result lists each repo under `repos`. See [One repo per team](/guide/polyrepo).
 
 ```bash
 mfeflow init my-org --topology polyrepo --remotes catalog,cart
 ```
+
+With `--kind tooling`, `dir` is one repo for shared tooling and it has no apps. It is the `platform` repo of a polyrepo, made on its own: the `contracts` and `tokens` packages, the reusable CI, a Renovate preset and Changesets. `mfeflow.json` has `repo: "platform"`, `topology: "monorepo"` and `apps: {}`. `--features` takes `lint-oxlint`, `git-hooks`, `commit-prompt` and `release` (default `lint-oxlint,git-hooks`). `release` changes nothing, because the repo already uses Changesets, and the output says so. A feature that needs an app is refused with [E216](/errors/E216) and names the feature and the part. `ci-github` is refused with E107 because it would write the `.github/workflows/ci.yml` the repo already has. `--remotes` and `--topology` do not apply and are E107. See [A repo for shared tooling](/guide/tooling-repo).
+
+```bash
+mfeflow init acme-tooling --kind tooling --scope @acme --features lint-oxlint,git-hooks,commit-prompt
+```
+
+With `--kind remote`, `dir` is one repo that holds one or more remotes and no shell, for a team that joins a platform whose shell is deployed from another repo. `mfeflow.json` has `repo: "remote"` and `topology: "monorepo"`; `apps` has the remotes and no shell. There is no `registry/` folder, because the shell's repo owns the registry and the routes. `--remotes` needs at least one name and defaults to `catalog`; `none` and `""` are E107, and so are `--topology` and `--packages`. Features that write a part for the shell (`theming`, `i18n`, `analytics-gtm`, `telemetry-otel`, `tailwind` and others) write their remote parts; the shell parts are not written. See [Join an existing platform with a remote](/guide/join-a-platform).
+
+```bash
+mfeflow init parts --kind remote --scope @acme --remotes cart,checkout --shell https://app.example.com/mf-manifest.json
+```
+
+`--shell` (only with `--kind remote`, otherwise E107) records where the deployed shell is, as the `shell` field of `mfeflow.json`. It takes what `--against` takes: an https URL (plain http for localhost) of the shell's `mf-manifest.json` or a registry index, or a file. A file must exist and is recorded relative to the project. A URL with credentials or a token in it is refused, because the project file is committed; pass such a URL to `--against` instead. Anything else is E107. The address is not fetched at `init`; `doctor` and `check-compat` fetch it.
+
+`--packages` (only with `--kind tooling`, otherwise E107) makes one package in your scope for each name, in `packages/<name>/`. The names are `tsconfig`, `oxlint-config`, `analytics`, `telemetry`, `http`, `theme`, `url-factory`, `storage`, `i18n`, `event-bus`, `route-factory`, `runtime` and `testing`; an unknown name is E107 and the message lists the valid ones. Without the flag both are made; interactively a multiselect asks. A preset can carry `packages`. A package that needs another adds it and the output says so: `http` and `route-factory` add `url-factory`, `theme` and `i18n` add `storage`, and `testing` adds `runtime`. `runtime` and `testing` are for micro-frontends (`runtime` loads remotes from a registry, `testing` wraps components in the providers of the shell), and the output says so when you pick them. `contracts` and `tokens` are not choices: a tooling repo already has `packages/contracts` and `packages/tokens`. Each package depends on our `@mfeflow/<name>` at the version of the CLI that made it (a `link:` with `--local`). The packages are not recorded in `mfeflow.json`; their files are listed with the other copied files. See [A repo for shared tooling](/guide/tooling-repo).
+
+```bash
+mfeflow init acme-tooling --kind tooling --scope @acme --packages tsconfig,oxlint-config
+```
+
+In a project with no apps, `dev`, `budget`, `validate`, `check-compat` and `upgrade` print one line and exit 0. `doctor` prints the same line and then the checks that still apply, such as the hashes of the copied files.
 
 ## adopt
 
@@ -212,7 +239,7 @@ A feature from a registry is applied only after you confirm in a terminal, or pa
 
 `doctor --fix` repairs a missing workspace version (E111) and missing registry entry files (E114). Add `--dry-run` to see the diff first.
 
-`doctor --against <url|file>` runs every check and takes the shell for the compatibility check from a deployed shell, as `check-compat --against` does (the list below says what it accepts). Use it in a remote repo whose shell lives elsewhere. With `--against`, the "shell is not in this repo" warning does not appear. Without it, a repo that has remotes but no shell prints `shell is not in this repo, run \`mfeflow doctor --against <url|file>\``. A source that cannot be read is E307 and exits 5, as in `check-compat`. A skewed shared version is E302 and also exits 5. The code follows the errors in the report, so a project error (E1xx) in the same run exits 3 instead. With `--json`, `against` holds the source you passed, with any token in a URL hidden.
+`doctor --against <url|file>` runs every check and takes the shell for the compatibility check from a deployed shell, as `check-compat --against` does (the list below says what it accepts). Use it in a remote repo whose shell lives elsewhere. With `--against`, the "shell is not in this repo" warning does not appear. Without it, `doctor` uses the `shell` recorded in `mfeflow.json` (see `init --shell`; a file there is relative to the project), and `--against` wins when both are present. With neither, a repo that has remotes but no shell prints `shell is not in this repo, run \`mfeflow doctor --against <url|file>\``. A source that cannot be read is E307 and exits 5, as in `check-compat`. A skewed shared version is E302 and also exits 5. The code follows the errors in the report, so a project error (E1xx) in the same run exits 3 instead. With `--json`, `against` holds the source you passed, with any token in a URL hidden.
 
 ### check-compat
 
@@ -244,7 +271,9 @@ If the shell is not in this repo and you pass no `--against`, the check cannot c
 warning shell is not in this repo, pass --against <url|file>
 ```
 
-A warning does not change the exit code, as with every other check. The command exits 0 unless there is an error. With `--json`, `against` holds the source you passed, with any token in a URL hidden.
+The same applies when the repo records a `shell`: it is the default for `--against`, and the warning does not appear.
+
+A warning does not change the exit code, as with every other check. The command exits 0 unless there is an error. With `--json`, `against` holds the source you passed or the one recorded, with any token in a URL hidden.
 
 ## budget
 
@@ -258,7 +287,7 @@ See [CI and budgets](/guide/ci-and-budgets) for what it checks and [The cost mod
 
 ## dev
 
-Runs the shell and every remote with a dev registry that follows the project. In the shell repo of a polyrepo it runs the shell only, and the registry lists the remotes in `devRemotes` of `public/config/runtime-config.dev.json`.
+Runs the shell and every remote with a dev registry that follows the project. A project with no remotes prints one line saying so and how to add one, then runs the shell. In the shell repo of a polyrepo it runs the shell only, and the registry lists the remotes in `devRemotes` of `public/config/runtime-config.dev.json`. In a repo of remotes (`init --kind remote`) it runs the remotes. If the project records a `shell`, it also prints one line on how to see a remote in that shell, with `?mfe-override=<remote>@<manifest url>`, and that this works only if the deployed shell is a development build.
 
 | Flag                      | Meaning                                                                                        |
 | ------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -368,4 +397,4 @@ The success documents have these shapes. Each has `ok` and `command`.
 | `budget`                             | `root`, `model`, `shells[]`, `remotes[]`, `findings[]`                                                                |
 | `dev`                                | `root`, `registry`, `apps[]`, `overrides`, `dryRun`, `interrupted`                                                    |
 
-The plan in the `init` and `add` output lists features, changes (path and action), dependencies, scripts and warnings. Output shapes are part of the public API. See [Versions and upgrades](/guide/upgrading).
+The plan in the `init` and `add` output lists features, changes (path and action), dependencies, scripts, warnings and `skipped`: the parts of a feature that target a shell the repo does not have (`feature`, `kind`, `name`, `target`). Older documents have no `skipped` key. Output shapes are part of the public API. See [Versions and upgrades](/guide/upgrading).

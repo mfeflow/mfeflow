@@ -47,6 +47,12 @@ export function text(args: Parsed, key: string): string | undefined {
   return typeof value === 'string' && value !== '' ? value : undefined;
 }
 
+/** A text flag as typed, keeping an empty value (`--remotes ""`) that `text()` reads as not given. */
+export function typed(args: Parsed, key: string): string | undefined {
+  const value = args[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
 export function readGlobals(
   args: Parsed,
   env: Readonly<Record<string, string | undefined>>,

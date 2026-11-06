@@ -1,0 +1,36 @@
+# <%= it.scope %>/http
+
+The HTTP client every app here uses: everything in
+[`@mfeflow/http`](https://www.npmjs.com/package/@mfeflow/http), plus the company's base URLs and token handling,
+and one helper that creates a client from them. It builds URLs with [`<%= it.scope %>/url-factory`](../url-factory),
+which is installed with it.
+
+## What to fill in
+
+`src/defaults.ts` holds the settings:
+
+- `baseUrls`: the base URL of each service, per environment (`dev`, `staging`, `prod`). A service is the `service`
+  of an endpoint. `api` is a placeholder; rename it and add yours. The URLs are empty, so a request fails with
+  "no base URL for service" until you fill them in.
+- `getToken`: the one place that decides which bearer token goes out. It is asked before every attempt.
+
+`createHttp(endpoints, env, overrides?)` makes the client. `overrides` takes anything `createHttpClient` takes
+except `url`, and wins over the defaults.
+
+```ts
+import { createHttp } from '<%= it.scope %>/http';
+import { defineEndpoints } from '<%= it.scope %>/url-factory';
+
+const endpoints = defineEndpoints({
+  listOrders: { service: 'api', path: '/v1/orders' },
+});
+
+const api = createHttp<typeof endpoints, { listOrders: { id: string }[] }>(endpoints, 'prod');
+const orders = await api.get('listOrders');
+```
+
+## Settings only, no state
+
+`<%= it.scope %>/http` is not a Module Federation singleton, so every remote gets its own copy of this package.
+That is fine while it holds only settings and a function that builds a client. Keep it that way: create the client
+where it is used and do not keep one, a token cache or a flag at module level here.

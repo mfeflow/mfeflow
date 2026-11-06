@@ -151,6 +151,60 @@ LCP (+300 ms) is measured by the perf job, not here.
 
 The numbers above came from the 0.4.0 default project, before adding event-bus. Yours may differ slightly. [CI and budgets](/guide/ci-and-budgets) explains what the limits mean.
 
+## Start with only a shell
+
+You do not have to start with remotes. If one team starts alone and others join later, create the shell by itself:
+
+```bash
+mfeflow init my-app --remotes none
+```
+
+`--remotes ""` means the same. Without the flag, `init` still makes `catalog` and `cart`. You get the shell and the checks, and the output says so:
+
+```text
+Created /work/my-app with only a shell.
+Next:
+  cd my-app
+  pnpm install
+  pnpm dev
+Add a remote later with `mfeflow add remote <name>`.
+```
+
+`pnpm dev` starts the shell on port 4300. The page shows one line, "No remotes yet. Run `pnpm mfeflow add remote <name>`.", and the console stays clean. `mfeflow dev` prints the same hint once before it starts the shell:
+
+```text
+mfeflow: this project has no remotes yet. Add one with `mfeflow add remote <name>`.
+shell: pnpm run dev in apps/shell (port 4300)
+dev registry: []
+```
+
+When a team is ready, run `mfeflow add remote cart` and restart `pnpm dev`; the shell lists the remote and routes to it. With `--topology polyrepo` you get the `platform` and `shell` repos only, and the shell's dev config has an empty `devRemotes` until you run `mfeflow add team-repo <name>`. `none` cannot be mixed with names: `--remotes none,cart` is an error (E107).
+
+## A repo with no apps
+
+For shared config that other repos depend on, make a repo with no shell and no remotes:
+
+```bash
+mfeflow init acme-tooling --kind tooling --scope @acme --features lint-oxlint,git-hooks,commit-prompt
+```
+
+```text
+Created /work/acme-tooling, a repo for shared tooling with no apps.
+Next:
+  cd acme-tooling
+  pnpm install
+  pnpm build
+```
+
+You get `@acme/contracts`, `@acme/tokens`, `@acme/tsconfig` and `@acme/oxlint-config`, a Renovate preset other repos can extend, a CI workflow, Changesets for versions, and the features you picked. `--packages` adds more packages in your scope, such as `analytics`, `theme` and `http`. Commands that are about apps print one line and succeed:
+
+```text
+$ mfeflow dev
+This project has no apps, so there is nothing to run.
+```
+
+The packages, how an app repo uses them (a micro-frontend needs one more dependency), and what is not supported yet are in [A repo for shared tooling](/guide/tooling-repo).
+
 ## What you built
 
 You have a pnpm monorepo with a shell, two remotes, a dev registry and a set of checks. Each remote can be built and deployed on its own.

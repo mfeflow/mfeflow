@@ -23,7 +23,7 @@ export class Cancelled extends Error {
 }
 
 /** Errors about what the person typed, whatever range they sit in. */
-const USAGE_ERRORS: ReadonlySet<string> = new Set(['MFEFLOW_E107', 'MFEFLOW_E215']);
+const USAGE_ERRORS: ReadonlySet<string> = new Set(['MFEFLOW_E107', 'MFEFLOW_E215', 'MFEFLOW_E216']);
 
 /** Exit code by the hundreds digit of the error code: E1xx project, E2xx feature, and so on. */
 const BY_RANGE: Record<string, number> = {

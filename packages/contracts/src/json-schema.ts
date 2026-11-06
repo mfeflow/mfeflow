@@ -217,7 +217,17 @@ export const JSON_SCHEMAS: Record<SchemaName, Json> = {
     properties: {
       version: { const: 1 },
       cli: str(SEMVER),
-      repo: { enum: [...PROJECT_REPOS] },
+      repo: {
+        enum: [...PROJECT_REPOS],
+        description:
+          'Absent means an app repo with a shell. A platform or remote repo may have no shell, in any topology; a platform repo may have no apps at all.',
+      },
+      shell: {
+        type: 'string',
+        minLength: 1,
+        description:
+          'Where the deployed shell is, for a repo with no shell of its own: an https URL (http on localhost) of its mf-manifest.json or registry index, or a file path relative to the project. doctor and check-compat use it when --against is not given. Holds no credentials or token.',
+      },
       topology: { enum: ['monorepo', 'polyrepo', 'hybrid'] },
       packageManager: { enum: ['pnpm', 'npm'] },
       bundler: { enum: ['rsbuild', 'vite'] },

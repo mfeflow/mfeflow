@@ -1,0 +1,18 @@
+# <%= it.scope %>/storage
+
+[`@mfeflow/storage`](https://www.npmjs.com/package/@mfeflow/storage) under the company's scope, with nothing
+added: the same `createStorage`, and `useStoredState` from `/react`. It exists so apps import every shared package
+from <%= it.scope %> and never from ours, and so <%= it.scope %>/theme has something of yours to build on. It is
+the place to add a company-wide helper later.
+
+```ts
+import { createStorage } from '<%= it.scope %>/storage';
+
+const storage = createStorage('checkout');
+storage.set('lastStep', 'payment');
+```
+
+## Settings only, no state
+
+`<%= it.scope %>/storage` is not a Module Federation singleton, so every remote gets its own copy of this package.
+That is fine while it only re-exports and builds things. Keep it that way: no module-level state here.

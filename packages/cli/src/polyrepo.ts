@@ -19,6 +19,7 @@ import { chooseLocal } from './local';
 import type { PlanReport } from './output';
 import { createBuilder } from './pipeline';
 import type { Runtime } from './runtime';
+import { isToolingPackageFeature, planToolingPackages } from './tooling-packages';
 import { writePlan, type WriteOutcome } from './write';
 
 export const PLATFORM_DIR = 'platform';
@@ -31,6 +32,72 @@ const CLASHES: Readonly<Record<string, string>> = {
   'ci-github': 'every repo already calls the reusable workflow in the platform repo',
   'env-t3': 'it writes the runtime-config files the shell lists its dev remotes in',
 };
+
+/** Features that write only at the root but are about apps, so a platform or tooling repo does not take them. */
+const ABOUT_APPS: Readonly<Record<string, string>> = {
+  'deploy-docker': 'it builds images of the shell and the remotes',
+  'registry-static': 'it deploys the remotes registry',
+};
+
+/** Features whose job the platform template already does. */
+const PROVIDED = new Set(['release']);
+
+/** Features a tooling repo cannot take although they are not about apps. */
+const TOOLING_CLASHES: Readonly<Record<string, string>> = {
+  'ci-github':
+    'it writes .github/workflows/ci.yml, which this repo already has (build and mfeflow validate), and its other steps (doctor, check-compat, budget, the smoke test) are about apps',
+};
+
+/**
+ * Why a feature cannot go in a repo with no apps, or undefined when it can. A feature qualifies when
+ * every file, dependency, script and transform it has targets the workspace root, and it is not one
+ * of the root-only features that are about apps.
+ */
+export function appPartOf(feature: LoadedFeature): string | undefined {
+  const { manifest } = feature;
+  const about = ABOUT_APPS[manifest.name];
+  if (about !== undefined) return about;
+  const parts: { target: string | undefined; label: string }[] = [
+    ...(manifest.files ?? []).map((p) => ({ target: p.target, label: `file ${p.to}` })),
+    ...(manifest.dependencies ?? []).map((p) => ({
+      target: p.target,
+      label: `dependency ${p.name}`,
+    })),
+    ...(manifest.scripts ?? []).map((p) => ({ target: p.target, label: `script ${p.name}` })),
+    ...(manifest.transforms ?? []).map((p) => ({ target: p.target, label: `edit of ${p.file}` })),
+  ];
+  const part = parts.find((p) => (p.target ?? 'root') !== 'root');
+  return part && `${part.label} goes to ${part.target ?? 'root'}`;
+}
+
+/** The one place that decides whether a tooling repo takes a feature: the refusal, or undefined. */
+export function toolingRefusal(feature: LoadedFeature): MfeflowError | undefined {
+  const name = feature.manifest.name;
+  const clash = TOOLING_CLASHES[name];
+  if (clash !== undefined) {
+    return new MfeflowError('E107', `--features ${name}: not in a tooling repo, ${clash}`);
+  }
+  const app = appPartOf(feature);
+  if (app !== undefined) {
+    return new MfeflowError(
+      'E216',
+      `--features ${name}: needs an app (${app}), and a tooling repo has none. Use a repo with apps, or the shell and remote repos of a polyrepo.`,
+    );
+  }
+  return undefined;
+}
+
+/** Refuses a feature a tooling repo cannot take, naming it and why. */
+export async function assertToolingFeatures(
+  rt: Runtime,
+  features: readonly string[],
+): Promise<void> {
+  const loaded = await Promise.all(features.map((name) => loadAny(name, { roots: rt.roots })));
+  for (const feature of loaded) {
+    const refusal = toolingRefusal(feature);
+    if (refusal) throw refusal;
+  }
+}
 
 export function assertFeaturesFit(features: readonly string[]): void {
   for (const name of features) {
@@ -54,6 +121,10 @@ export interface RepoRequest {
   remote?: RemoteSpec;
   /** The remotes the shell routes to and lists in its dev config (kind shell only). */
   shellRemotes?: readonly RemoteSpec[];
+  /** A platform repo made on its own by `init --kind tooling`, not as part of a polyrepo. */
+  standalone?: boolean;
+  /** The tooling packages to make under packages/ (a standalone platform repo only), already checked. */
+  packages?: readonly string[];
   features: readonly string[];
   featureOptions: FeatureOptions;
   local: string | undefined;
@@ -78,6 +149,7 @@ export function repoProject(
   kind: RepoKind,
   scope: string,
   remote?: RemoteSpec,
+  topology: MfeflowProject['topology'] = 'polyrepo',
   bundler: Bundler = 'rsbuild',
 ): MfeflowProject {
   const apps: MfeflowProject['apps'] = {};
@@ -88,7 +160,7 @@ export function repoProject(
   return {
     version: 1,
     repo: kind,
-    topology: 'polyrepo',
+    topology,
     packageManager: 'pnpm',
     ...(bundler === 'rsbuild' ? {} : { bundler }),
     scope,
@@ -165,11 +237,31 @@ export interface RepoPlan {
   plan: Plan;
 }
 
+/**
+ * The chosen features a platform repo takes: those with no app part, minus the ones the platform
+ * template already covers. A platform repo counts `tsconfig` as present, since the template writes
+ * tsconfig.base.json and a package tsconfig, and the `tsconfig` feature would add a turbo script it does not use.
+ */
+async function rootFeaturesFor(rt: Runtime, request: RepoRequest): Promise<string[]> {
+  const loaded = await Promise.all(
+    request.features.map((name) => loadAny(name, { roots: rt.roots })),
+  );
+  return loaded
+    .filter((f) => appPartOf(f) === undefined && !PROVIDED.has(f.manifest.name))
+    .map((f) => f.manifest.name);
+}
+
 /** What one repo of the polyrepo would get; nothing is written. */
 export async function planRepo(rt: Runtime, request: RepoRequest): Promise<RepoPlan> {
   const { kind, scope, root } = request;
   const chosen = chooseLocal(
-    repoProject(kind, scope, request.remote, request.bundler),
+    repoProject(
+      kind,
+      scope,
+      request.remote,
+      request.standalone ? 'monorepo' : 'polyrepo',
+      request.bundler,
+    ),
     root,
     request.cwd,
     request.local,
@@ -177,12 +269,8 @@ export async function planRepo(rt: Runtime, request: RepoRequest): Promise<RepoP
   const { project } = chosen;
   const builder = createBuilder(root, chosen.checkout, platformLinks(scope));
   const withApps = kind !== 'platform';
-  const names = [
-    'core',
-    ...(withApps ? ['tsconfig'] : []),
-    POLYREPO_FEATURE,
-    ...(withApps ? request.features : []),
-  ];
+  const wanted = withApps ? request.features : await rootFeaturesFor(rt, request);
+  const names = ['core', ...(withApps ? ['tsconfig'] : []), POLYREPO_FEATURE, ...wanted];
   assertOptionsAreForFeatures(request.featureOptions, names);
   const loaded = await Promise.all(names.map((name) => loadAny(name, { roots: rt.roots })));
   const [first, ...others] = loaded;
@@ -191,6 +279,7 @@ export async function planRepo(rt: Runtime, request: RepoRequest): Promise<RepoP
   const polyrepoOptions = {
     repo: kind,
     ...(request.remote ? { name: request.remote.name } : {}),
+    ...(request.standalone ? { name: request.dir } : {}),
     ...(request.org ? { org: request.org } : {}),
   };
   await inOrder([core, ...others], (feature) =>
@@ -202,7 +291,7 @@ export async function planRepo(rt: Runtime, request: RepoRequest): Promise<RepoP
         feature.manifest.name === POLYREPO_FEATURE
           ? polyrepoOptions
           : (request.featureOptions[feature.manifest.name] ?? {}),
-      alsoAdding: names,
+      alsoAdding: withApps ? names : [...names, 'tsconfig'],
     }),
   );
   if (kind === 'shell') {
@@ -224,7 +313,17 @@ export async function planRepo(rt: Runtime, request: RepoRequest): Promise<RepoP
       });
     });
   }
-  return { request, project, plan: builder.build() };
+  if (request.standalone && request.packages !== undefined) {
+    await planToolingPackages(rt, builder, project, request.packages);
+  }
+  const plan = builder.build();
+  plan.features = plan.features.filter((f) => !isToolingPackageFeature(f.name));
+  if (request.standalone && request.features.some((name) => PROVIDED.has(name))) {
+    plan.warnings.push(
+      'release: this repo already versions and publishes its packages with Changesets (.changeset, release.yml); nothing was added',
+    );
+  }
+  return { request, project, plan };
 }
 
 /** `report` with every path under `dir/`, so reports of several repos can share one list. */
@@ -236,6 +335,7 @@ export function prefixReport(report: PlanReport, dir: string): PlanReport {
     dependencies: report.dependencies.map((d) => ({ ...d, file: at(d.file) })),
     scripts: report.scripts.map((s) => ({ ...s, file: at(s.file) })),
     warnings: report.warnings.map((w) => `${dir}: ${w}`),
+    skipped: report.skipped,
   };
 }
 
@@ -248,6 +348,7 @@ export function mergeReports(reports: readonly PlanReport[]): PlanReport {
     dependencies: reports.flatMap((r) => r.dependencies),
     scripts: reports.flatMap((r) => r.scripts),
     warnings: reports.flatMap((r) => r.warnings),
+    skipped: reports.flatMap((r) => r.skipped),
   };
 }
 
@@ -303,6 +404,7 @@ export async function writeRepos(
   globals: Globals,
   org: string,
   repos: readonly RepoPlan[],
+  announce = true,
 ): Promise<RepoWrites> {
   const made: string[] = [];
   const created = await missingParents(org);
@@ -311,7 +413,7 @@ export async function writeRepos(
   try {
     await inOrder(repos, async (repo) => {
       const { request, project, plan } = repo;
-      if (!globals.json) rt.io.stdout(`\n${request.dir}/`);
+      if (announce && !globals.json) rt.io.stdout(`\n${request.dir}/`);
       const outcome = await writePlan({
         rt,
         globals: { ...globals, canPrompt: false },

@@ -1,0 +1,19 @@
+{
+  "name": "remote-only",
+  "version": "0.1.0",
+  "description": "The README and AGENTS.md of a repo that holds remotes and no shell (init --kind remote).",
+  "files": [
+    {
+      "to": "README.md",
+      "target": "root",
+      "from": "files/README.md.eta",
+      "template": true
+    },
+    {
+      "to": "AGENTS.md",
+      "target": "root",
+      "from": "files/AGENTS.md.eta",
+      "template": true
+    }
+  ]
+}

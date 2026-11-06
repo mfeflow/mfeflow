@@ -69,9 +69,17 @@ Run your local shell against a remote that is already running somewhere, with `m
 
 Remote builds produce type files, and the shell can typecheck against them. In practice, remotes should not import each other. Share types through the contracts package, and use typed events and links. The generated shell does not turn on remote type checking by default.
 
+## Can I start with only a shell and add remotes later?
+
+Yes. `mfeflow init my-app --remotes none` creates the shell alone; the page says there are no remotes yet, and `mfeflow add remote <name>` adds one whenever a team is ready. It is a normal project, not a separate kind. See [Start with only a shell](/guide/quickstart#start-with-only-a-shell).
+
 ## Can I use npm or Yarn?
 
 No. This release supports pnpm only. The generated project depends on pnpm workspaces and the pnpm `catalog`. The `--package-manager` flag accepts only `pnpm`.
+
+## How does mfeflow compare with Nx or create-mf-app?
+
+See [mfeflow vs Nx](/guide/compare/nx) and [mfeflow vs create-mf-app](/guide/compare/create-mf-app). Each lists what the other tool does well and what we have not checked.
 
 ## Can I use Next.js?
 
@@ -90,6 +98,14 @@ Yes. `mfeflow init --bundler vite` builds every app with Vite and `@module-feder
 Yes. `mfeflow init --topology polyrepo` creates a platform repo, a shell repo and a repo for each remote, and `mfeflow add team-repo` adds one more. See [One repo per team](/guide/polyrepo).
 
 The `hybrid` layout in the project file is not available yet.
+
+## Can I have a repo with no shell?
+
+Yes. `mfeflow init parts --kind remote --remotes cart,checkout` makes one repo with remotes and no shell, for a team that joins a platform whose shell is deployed from another repo. Pass `--shell <url|file>` to record where that shell is, and `doctor` and `check-compat` check against it. See [Join an existing platform with a remote](/guide/join-a-platform).
+
+## Can I have a repo with no apps?
+
+Yes. `mfeflow init acme-tooling --kind tooling` makes a repo with no shell and no remotes. It holds shared config, git hooks, release and thin packages in your scope that other repos depend on. Features that need an app are refused with [E216](/errors/E216). See [A repo for shared tooling](/guide/tooling-repo).
 
 ## Is there a command to remove a feature?
 

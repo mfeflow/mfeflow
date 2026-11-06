@@ -22,6 +22,16 @@
   <a href="packages/cli/CHANGELOG.md">Changelog</a>
 </p>
 
+## Try it
+
+```bash
+npm create mfeflow@latest my-platform
+cd my-platform
+pnpm dev
+```
+
+It asks a few questions (add `--yes` to take the defaults). Then `pnpm dev` starts the shell on http://localhost:4300 and the two default remotes, catalog and cart, on ports 4311 and 4312.
+
 A React micro-frontend platform: a shell, your remotes, and the checks that keep them working together.
 
 Install it with one command. You need Node 22.12 or newer:

@@ -76,6 +76,8 @@ Monorepo tools solve a different problem.
 | Turborepo | A task runner with caching. It does not configure Module Federation.            |
 | Nx        | A task runner with a project graph, plus generators for Module Federation apps. |
 
+For more detail, see [mfeflow vs Nx](/guide/compare/nx) and [mfeflow vs create-mf-app](/guide/compare/create-mf-app).
+
 mfeflow uses Turborepo for its tasks. You can keep using Nx or Turborepo's other features in the same repository.
 
 ## When not to use mfeflow

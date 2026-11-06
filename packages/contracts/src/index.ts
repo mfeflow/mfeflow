@@ -56,6 +56,7 @@ export {
   REGISTRY_NAMESPACE,
   bundlerOf,
   isMfeflowProject,
+  shellSourceProblem,
   validateMfeflowProject,
   type Bundler,
   type MfeflowProject,

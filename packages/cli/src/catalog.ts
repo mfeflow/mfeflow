@@ -62,19 +62,21 @@ export const DEFAULT_FEATURES: readonly string[] = FIRST_PARTY.filter(
   (f) => !f.always && f.default,
 ).map((f) => f.name);
 
+/** `polyrepo` is applied by `init --topology polyrepo`; it is not offered by `add` or listed by `features`. */
+export const POLYREPO_FEATURE = 'polyrepo';
+
+/** The README and AGENTS.md of a repo of remotes with no shell; applied by `init --kind remote`, not offered by `add`. */
+export const REMOTE_ONLY_FEATURE = 'remote-only';
+
 /** The features that live in a `templates/` folder, by the folder that holds them. */
 const TEMPLATE_FEATURES: Readonly<Record<string, string>> = {
   core: 'monorepo',
   polyrepo: 'polyrepo',
+  [REMOTE_ONLY_FEATURE]: 'remote-only',
 };
 
-/** `polyrepo` is applied by `init --topology polyrepo`; it is not offered by `add` or listed by `features`. */
-export const POLYREPO_FEATURE = 'polyrepo';
-
-async function loadFirstParty(name: string, roots: AssetRoots): Promise<LoadedFeature> {
-  const folder = TEMPLATE_FEATURES[name];
-  if (folder === undefined) return loadFeature(name, { featuresDir: roots.features });
-  const dir = path.join(roots.templates, folder);
+/** A feature kept in a folder with a `feature.json` and its asset files, as the templates are. */
+async function loadFolderFeature(name: string, dir: string): Promise<LoadedFeature> {
   let text: string;
   try {
     text = await realFs.readFile(path.join(dir, 'feature.json'));
@@ -92,6 +94,17 @@ async function loadFirstParty(name: string, roots: AssetRoots): Promise<LoadedFe
   };
 }
 
+async function loadFirstParty(name: string, roots: AssetRoots): Promise<LoadedFeature> {
+  const folder = TEMPLATE_FEATURES[name];
+  if (folder === undefined) return loadFeature(name, { featuresDir: roots.features });
+  return loadFolderFeature(name, path.join(roots.templates, folder));
+}
+
+/** The template of one tooling package, from `templates/tooling/<name>`. */
+export function loadToolingPackage(name: string, roots: AssetRoots): Promise<LoadedFeature> {
+  return loadFolderFeature(`tooling-${name}`, path.join(roots.templates, 'tooling', name));
+}
+
 export interface FeatureSource {
   roots: AssetRoots;
   registries?: Record<string, string> | undefined;
@@ -106,7 +119,9 @@ export interface FeatureSource {
 
 /** A first-party feature by name, or `@namespace/name` from a configured registry. */
 export function loadAny(name: string, source: FeatureSource): Promise<LoadedFeature> {
-  if (isFirstParty(name) || name === POLYREPO_FEATURE) return loadFirstParty(name, source.roots);
+  if (isFirstParty(name) || name === POLYREPO_FEATURE || name === REMOTE_ONLY_FEATURE) {
+    return loadFirstParty(name, source.roots);
+  }
   return loadFeature(name, {
     featuresDir: source.roots.features,
     ...(source.registries ? { registries: source.registries } : {}),

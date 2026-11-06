@@ -1,5 +1,6 @@
+import path from 'node:path';
 import { redactUrl } from '@mfeflow/contracts';
-import { findProjectRoot, type MfeflowProject, type PlanBuilder } from '@mfeflow/core';
+import { findProjectRoot, loadProject, type MfeflowProject, type PlanBuilder } from '@mfeflow/core';
 import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals, type Globals } from '../args';
 import { loadShell } from '../against';
@@ -11,6 +12,7 @@ import { inspectProject, type ProjectView } from '../inspect';
 import { chooseLocal } from '../local';
 import type { ReportResult } from '../output';
 import { createBuilder } from '../pipeline';
+import { noApps, hasNoApps } from '../noapps';
 import { formatReport, runChecks, summarizeReport } from '../report';
 import type { Runtime } from '../runtime';
 import { writePlan } from '../write';
@@ -19,7 +21,7 @@ const AGAINST_ARG = {
   against: {
     type: 'string',
     description:
-      'Check against the shell a registry index or a deployed mf-manifest.json describes (file or https URL)',
+      'Check against the shell a registry index or a deployed mf-manifest.json describes (file or https URL; default: the shell recorded in mfeflow.json)',
     valueHint: 'url|file',
   },
 } as const satisfies ArgsDef;
@@ -147,7 +149,12 @@ async function runGroup(
     }
   }
   const summary = summarizeReport(report, fixed);
-  if (!globals.json) rt.io.stdout(formatReport(report, summary));
+  if (!globals.json) {
+    const note = noApps('the checks about apps have nothing to look at.');
+    if (!hasNoApps(view.project)) rt.io.stdout(formatReport(report, summary));
+    else if (command === 'doctor') rt.io.stdout(`${note}\n\n${formatReport(report, summary)}`);
+    else rt.io.stdout(note);
+  }
   return {
     ok: summary.errors === 0,
     command,
@@ -158,28 +165,56 @@ async function runGroup(
   };
 }
 
-export function runDoctor(
+/**
+ * The shell to check against: `--against` when given, else the `shell` recorded in `mfeflow.json`
+ * (a file there is relative to the project). `shown` is what the report quotes, with any token hidden.
+ */
+async function againstOf(
+  args: Record<string, unknown>,
+  globals: Globals,
+): Promise<{ source: string; shown: string; fromProject: boolean } | undefined> {
+  if (typeof args.against === 'string') {
+    return { source: args.against, shown: redactUrl(args.against), fromProject: false };
+  }
+  const root = await findProjectRoot(globals.cwd);
+  const { shell } = await loadProject(root);
+  if (shell === undefined) return undefined;
+  const isFile = !/^(https?|file):/i.test(shell) && !path.isAbsolute(shell);
+  return {
+    source: isFile ? path.resolve(root, shell) : shell,
+    shown: redactUrl(shell),
+    fromProject: true,
+  };
+}
+
+export async function runDoctor(
   rt: Runtime,
   args: Record<string, unknown>,
   raw: readonly string[],
 ): Promise<ReportResult> {
-  const against = typeof args.against === 'string' ? args.against : undefined;
-  return runGroup(
+  let against: string | undefined;
+  const result = await runGroup(
     rt,
     args,
     raw,
     DOCTOR_ARGS,
     'doctor',
-    against === undefined
-      ? DOCTOR_CHECKS
-      : async (globals) => {
-          const shell = await loadShell(against, { cwd: globals.cwd, fetch: rt.fetch });
-          return DOCTOR_CHECKS.map((check) =>
-            check.id === compat.id ? compatCheck(shell, 'doctor') : check,
-          );
-        },
+    async (globals) => {
+      const found = await againstOf(args, globals);
+      if (found === undefined) return DOCTOR_CHECKS;
+      against = found.shown;
+      const shell = await loadShell(found.source, {
+        cwd: globals.cwd,
+        fetch: rt.fetch,
+        fromProject: found.fromProject,
+      });
+      return DOCTOR_CHECKS.map((check) =>
+        check.id === compat.id ? compatCheck(shell, 'doctor') : check,
+      );
+    },
     args.fix === true,
-  ).then((result) => (against === undefined ? result : { ...result, against: redactUrl(against) }));
+  );
+  return against === undefined ? result : { ...result, against };
 }
 
 export function runValidate(
@@ -190,25 +225,34 @@ export function runValidate(
   return runGroup(rt, args, raw, VALIDATE_ARGS, 'validate', VALIDATE_CHECKS, false);
 }
 
-export function runCheckCompat(
+export async function runCheckCompat(
   rt: Runtime,
   args: Record<string, unknown>,
   raw: readonly string[],
 ): Promise<ReportResult> {
-  const against = typeof args.against === 'string' ? args.against : undefined;
-  return runGroup(
+  let against: string | undefined;
+  const result = await runGroup(
     rt,
     args,
     raw,
     COMPAT_ARGS,
     'check-compat',
-    async (globals) => [
-      compatCheck(
-        against === undefined
-          ? undefined
-          : await loadShell(against, { cwd: globals.cwd, fetch: rt.fetch }),
-      ),
-    ],
+    async (globals) => {
+      const found = await againstOf(args, globals);
+      against = found?.shown;
+      return [
+        compatCheck(
+          found === undefined
+            ? undefined
+            : await loadShell(found.source, {
+                cwd: globals.cwd,
+                fetch: rt.fetch,
+                fromProject: found.fromProject,
+              }),
+        ),
+      ];
+    },
     false,
-  ).then((result) => (against === undefined ? result : { ...result, against: redactUrl(against) }));
+  );
+  return against === undefined ? result : { ...result, against };
 }

@@ -4,9 +4,11 @@ import { getHttps, messageOf, MfeflowError, readCappedText, type FetchLike } fro
 
 /** The options a preset may carry: the same names as the flags of `init`. */
 export interface Preset {
+  kind?: string;
   scope?: string;
   remotes?: string[];
   features?: string[];
+  packages?: string[];
   packageManager?: string;
   topology?: string;
   bundler?: string;
@@ -16,9 +18,11 @@ export interface Preset {
 const MAX_BYTES = 100_000;
 const KEYS = new Set([
   '$schema',
+  'kind',
   'scope',
   'remotes',
   'features',
+  'packages',
   'packageManager',
   'topology',
   'bundler',
@@ -56,10 +60,16 @@ export function parsePreset(source: string, value: unknown): Preset {
   const preset: Preset = {};
   for (const [key, item] of Object.entries(value)) {
     if (!KEYS.has(key)) bad(source, `"${key}" is not a preset option`);
-    if (key === 'scope' || key === 'packageManager' || key === 'topology' || key === 'bundler') {
+    if (
+      key === 'scope' ||
+      key === 'packageManager' ||
+      key === 'topology' ||
+      key === 'bundler' ||
+      key === 'kind'
+    ) {
       if (typeof item !== 'string') bad(source, `${key} must be text`);
       preset[key] = item;
-    } else if (key === 'remotes' || key === 'features') {
+    } else if (key === 'remotes' || key === 'features' || key === 'packages') {
       preset[key] = stringList(source, key, item);
     } else if (key === 'options') {
       preset.options = optionsOf(source, item);

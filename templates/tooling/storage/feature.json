@@ -1,0 +1,29 @@
+{
+  "name": "tooling-storage",
+  "version": "0.1.0",
+  "description": "A tooling repo's storage package: @mfeflow/storage under your scope, with nothing added.",
+  "files": [
+    {
+      "to": "packages/storage/package.json",
+      "from": "files/package.json.eta",
+      "template": true
+    },
+    {
+      "to": "packages/storage/README.md",
+      "from": "files/README.md.eta",
+      "template": true
+    },
+    {
+      "to": "packages/storage/tsconfig.json",
+      "from": "files/tsconfig.json"
+    },
+    {
+      "to": "packages/storage/src/index.ts",
+      "from": "files/src/index.ts"
+    },
+    {
+      "to": "packages/storage/src/react.ts",
+      "from": "files/src/react.ts"
+    }
+  ]
+}

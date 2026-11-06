@@ -1,6 +1,6 @@
 import { Checker, isObj, isSafeRelativePath, isUrl, type Issue } from './validate';
 import { MFE_NAME } from './mfe-manifest';
-import { isRegistryProtocol, registryTemplateProblem } from './feature-registry';
+import { isRegistryProtocol, redactUrl, registryTemplateProblem } from './feature-registry';
 
 /** The bundlers an mfeflow project can build with. */
 export const BUNDLERS = ['rsbuild', 'vite'] as const;
@@ -17,8 +17,18 @@ export interface MfeflowProject {
   version: 1;
   /** Version of the CLI that last wrote this file. */
   cli?: string;
-  /** Which repo this is in a multi-repo setup. Absent means a monorepo. A `platform` or `remote` repo may have no shell. */
+  /**
+   * What kind of repo this is. Absent means an app repo with a shell, in any topology. A `platform` or
+   * `remote` repo may have no shell, in any topology; a `platform` repo may have no apps at all
+   * (`init --kind tooling`). Needs mfeflow 0.6.0 or newer.
+   */
   repo?: 'platform' | 'shell' | 'remote';
+  /**
+   * Where the deployed shell is, for a repo that has none of its own (`init --kind remote --shell`): an
+   * https URL (http on localhost) of its `mf-manifest.json` or registry index, or a file path relative to
+   * the project. `doctor` and `check-compat` use it when `--against` is not given. No credentials or tokens.
+   */
+  shell?: string;
   topology: 'monorepo' | 'polyrepo' | 'hybrid';
   packageManager: 'pnpm' | 'npm';
   /** What builds every app: `rsbuild` or `vite`. Absent means `rsbuild`. */
@@ -110,6 +120,33 @@ export const SCOPE = /^@[a-z0-9][a-z0-9-._]*$/;
 export const PROJECT_REPOS = ['platform', 'shell', 'remote'] as const;
 const FEATURE = /^(@[a-z0-9-]+\/)?[a-z][a-z0-9-]*$/;
 
+/**
+ * Why `value` cannot be the address of a deployed shell, or undefined when it can. The rules of
+ * `--against`: an https URL (http on localhost) or a file path. A URL also holds no credentials or
+ * token, because the project file is committed.
+ */
+export function shellSourceProblem(value: string): string | undefined {
+  if (value.trim() === '' || value !== value.trim())
+    return 'must not be empty or padded with spaces';
+  if (value.includes('\0')) return 'must not contain a null character';
+  if (!/^https?:\/\//i.test(value)) {
+    return /^(?!file:)[a-z][a-z0-9+.-]*:\/\//i.test(value)
+      ? 'must be an https URL (http only on localhost) or a file path'
+      : undefined;
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return 'is not a valid URL';
+  }
+  if (!isRegistryProtocol(url)) return 'must be https (plain http is for localhost only)';
+  if (url.username !== '' || url.password !== '' || redactUrl(value) !== value) {
+    return 'must not hold credentials or a token; the project file is committed, so pass those to --against';
+  }
+  return undefined;
+}
+
 export function validateMfeflowProject(value: unknown): Issue[] {
   const c = new Checker();
   if (!isObj(value)) {
@@ -130,6 +167,11 @@ export function validateMfeflowProject(value: unknown): Issue[] {
     if (repo !== undefined && !PROJECT_REPOS.some((name) => name === repo)) {
       c.add('repo', 'must be platform, shell or remote');
     }
+  }
+  if ('shell' in value) {
+    const shell = c.string(value, 'shell', '');
+    const problem = shell === undefined ? undefined : shellSourceProblem(shell);
+    if (problem !== undefined) c.add('shell', problem);
   }
   const topology = c.string(value, 'topology', '');
   if (topology !== undefined && !['monorepo', 'polyrepo', 'hybrid'].includes(topology)) {

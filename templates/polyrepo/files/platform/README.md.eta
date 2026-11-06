@@ -1,4 +1,16 @@
-# <%= it.scope.slice(1) %>-platform
+<% if (it.options.name) { %># <%= it.options.name %>
+
+A repo for shared tooling, made with [mfeflow](https://github.com/mfeflow/mfeflow). It has no apps.
+Other repos depend on the packages published from here, and extend the config kept here.
+
+```
+packages/contracts   <%= it.scope %>/contracts: event names and types every repo agrees on
+packages/tokens      <%= it.scope %>/tokens: colors and spacing
+.github/workflows    reusable-ci.yml (the CI other repos can call), ci.yml, release.yml
+default.json         the Renovate preset other repos can extend
+.changeset           how a change here gets a version
+```
+<% } else { %># <%= it.scope.slice(1) %>-platform
 
 The shared repo of a polyrepo made with [mfeflow](https://github.com/mfeflow/mfeflow). The shell and
 every team repo sit next to it and depend on what is published from here.
@@ -10,7 +22,7 @@ packages/tokens      <%= it.scope %>/tokens: colors and spacing
 default.json         the Renovate preset every repo extends
 .changeset           how a change here gets a version
 ```
-
+<% } %>
 ## Run it
 
 ```sh
@@ -18,8 +30,9 @@ pnpm install
 pnpm build
 ```
 
-Build here first. The shell and the team repos link to `packages/*/dist` until you publish.
-
+<% if (it.options.name) { %>Build here first. Repos that install these packages with `link:` read `packages/*/dist`.
+<% } else { %>Build here first. The shell and the team repos link to `packages/*/dist` until you publish.
+<% } %>
 ## Change a package
 
 ```sh
@@ -32,9 +45,10 @@ version pull request. Merging that publishes the packages.
 
 ## Where the packages are published
 
-The team repos install `<%= it.scope %>/*` with `link:../platform/packages/*` paths so a first run needs
+<% if (it.options.name) { %>Other repos can install `<%= it.scope %>/*` with `link:` paths to this folder while you try it out. To share the
+packages across machines and CI, publish them to a registry and use a version range instead:<% } else { %>The team repos install `<%= it.scope %>/*` with `link:../platform/packages/*` paths so a first run needs
 no registry. To share the packages across machines and CI, publish them to a registry and replace the
-`link:` ranges in each repo with a version:
+`link:` ranges in each repo with a version:<% } %>
 
 - npm: set `NPM_TOKEN` as a repository secret. Packages are public.
 - GitHub Packages: add `<%= it.scope %>:registry=https://npm.pkg.github.com` to `.npmrc` in every repo.

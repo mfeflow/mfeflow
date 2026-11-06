@@ -28,7 +28,7 @@ export interface Combo {
   validator: Validator;
   /** The schema library of the forms feature, which is its own option. */
   formsValidator: Validator;
-  remotes: 1 | 3;
+  remotes: 0 | 1 | 3;
   bundler: Bundler;
 }
 
@@ -69,7 +69,7 @@ type Flags = Partial<
   >
 >;
 
-function make(flags: Flags, remotes: 1 | 3): Combo {
+function make(flags: Flags, remotes: 0 | 1 | 3): Combo {
   const combo = {
     lint: false,
     url: false,
@@ -142,8 +142,8 @@ function make(flags: Flags, remotes: 1 | 3): Combo {
  * features: theming + i18n + tailwind + ui-shadcn + storybook on three remotes with ci (runs the browser tests
  * for tokens, theme, language and the composed Storybook), the same without env-t3, tailwind and the data
  * and form features each alone, clarity next to gtm with and without env-t3, the commit prompt on its own
- * and beside git-hooks, and one run of everything together. Last, a Vite set (ids start with `vite-`):
- * the same kinds of project built with Vite instead of Rsbuild.
+ * and beside git-hooks, one run of everything together, and one shell with no remotes. Last, a
+ * Vite set (ids start with `vite-`): the same kinds of project built with Vite instead of Rsbuild.
  */
 export function combinations(): Combo[] {
   const flags = [false, true];
@@ -208,6 +208,7 @@ export function combinations(): Combo[] {
     commit: true,
   };
   out.push(make(everything, 3));
+  out.push(make(base, 0));
   // Vite: a representative set rather than every combination again. The bare project, the old
   // default set, the browser-tested full set, a non-zod validator, the platform features, the
   // react-scale features with Storybook, and everything together.

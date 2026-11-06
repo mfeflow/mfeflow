@@ -1,0 +1,31 @@
+# <%= it.scope %>/route-factory
+
+Typed links across remotes: everything in
+[`@mfeflow/route-factory`](https://www.npmjs.com/package/@mfeflow/route-factory), plus the routes of this company
+and one helper that makes links from them. `/react` is re-exported too. It is installed with
+[`<%= it.scope %>/url-factory`](../url-factory), which `@mfeflow/route-factory` builds on, so both move together.
+React is an optional peer dependency, needed only for `/react`.
+
+## What to fill in
+
+`src/routes.ts` holds the route definitions, one `defineRoutes(mount, routes)` per remote, where `mount` is the path
+the shell serves the remote at. `account` is a placeholder; replace it with your remotes and list them in
+`routeSets`.
+
+`createCompanyLinks(config?)` returns `{ href, path }` over `routeSets`. A link id is `<remote>.<route>`, and a
+missing param or an unknown route fails typecheck.
+
+```ts
+import { createCompanyLinks, routeSets, shellRoutes } from '<%= it.scope %>/route-factory';
+
+const links = createCompanyLinks({ base: '/app' });
+links.href('account.invoice', { params: { id: '42' } }); // /app/account/invoices/42
+
+shellRoutes(routeSets); // what the shell needs to route to each remote
+```
+
+## Settings only, no state
+
+`<%= it.scope %>/route-factory` is not a Module Federation singleton, so every remote gets its own copy of this
+package. That is fine while it holds only route definitions and a function that builds links. Keep it that way: no
+current route, listener or flag at module level here.

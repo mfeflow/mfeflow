@@ -12,6 +12,7 @@ import { assertKnownFlags, GLOBAL_ARGS, readGlobals } from '../args';
 import { finding, type Finding } from '../findings';
 import { inspectProject, type AppView, type ProjectView } from '../inspect';
 import type { BudgetResult, RemoteBudget, ShellBudget } from '../output';
+import { noApps, hasNoApps } from '../noapps';
 import { exitForFindings } from '../report';
 import type { Runtime } from '../runtime';
 import { KB, kb, remoteSizes, shellInitial } from '../sizes';
@@ -177,7 +178,11 @@ export async function runBudget(
     remotes,
     findings,
   };
-  if (!globals.json) rt.io.stdout(formatBudget(result));
+  if (!globals.json) {
+    rt.io.stdout(
+      hasNoApps(view.project) ? noApps('there is no size to measure.') : formatBudget(result),
+    );
+  }
   return result;
 }
 

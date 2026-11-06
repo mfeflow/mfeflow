@@ -1,0 +1,30 @@
+{
+  "name": "tooling-testing",
+  "version": "0.1.0",
+  "description": "A tooling repo's testing package: the company's providers on top of @mfeflow/testing, with renderWithCompany.",
+  "files": [
+    {
+      "to": "packages/testing/package.json",
+      "from": "files/package.json.eta",
+      "template": true
+    },
+    {
+      "to": "packages/testing/README.md",
+      "from": "files/README.md.eta",
+      "template": true
+    },
+    {
+      "to": "packages/testing/tsconfig.json",
+      "from": "files/tsconfig.json"
+    },
+    {
+      "to": "packages/testing/src/defaults.ts",
+      "from": "files/src/defaults.ts.eta",
+      "template": true
+    },
+    {
+      "to": "packages/testing/src/index.ts",
+      "from": "files/src/index.ts"
+    }
+  ]
+}

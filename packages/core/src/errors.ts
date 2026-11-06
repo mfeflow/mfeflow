@@ -167,6 +167,10 @@ export const ERROR_CATALOGUE = {
     title: 'The app name cannot be used',
     fix: 'Use lowercase words of letters and digits joined by single underscores (order_history), starting with a letter, and a name no app has yet.',
   },
+  E216: {
+    title: 'A feature needs an app, and this repo has none',
+    fix: 'Add the feature to a repo with apps (an app repo, or the shell and remote repos of a polyrepo). A tooling repo takes lint-oxlint, git-hooks, commit-prompt and release.',
+  },
   E301: {
     title: 'A singleton resolves to more than one version',
     fix: 'Pin one version of the package in every app (the pnpm catalog is the place), then reinstall. Two copies of React break hooks.',

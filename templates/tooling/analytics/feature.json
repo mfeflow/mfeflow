@@ -1,0 +1,45 @@
+{
+  "name": "tooling-analytics",
+  "version": "0.1.0",
+  "description": "A tooling repo's analytics package: the company's consent and container defaults on top of @mfeflow/analytics, with createAnalytics(env).",
+  "files": [
+    {
+      "to": "packages/analytics/package.json",
+      "from": "files/package.json.eta",
+      "template": true
+    },
+    {
+      "to": "packages/analytics/README.md",
+      "from": "files/README.md.eta",
+      "template": true
+    },
+    {
+      "to": "packages/analytics/tsconfig.json",
+      "from": "files/tsconfig.json"
+    },
+    {
+      "to": "packages/analytics/src/clarity.ts",
+      "from": "files/src/clarity.ts"
+    },
+    {
+      "to": "packages/analytics/src/defaults.ts",
+      "from": "files/src/defaults.ts"
+    },
+    {
+      "to": "packages/analytics/src/gtm.ts",
+      "from": "files/src/gtm.ts"
+    },
+    {
+      "to": "packages/analytics/src/index.ts",
+      "from": "files/src/index.ts"
+    },
+    {
+      "to": "packages/analytics/src/providers.ts",
+      "from": "files/src/providers.ts"
+    },
+    {
+      "to": "packages/analytics/src/react.ts",
+      "from": "files/src/react.ts"
+    }
+  ]
+}

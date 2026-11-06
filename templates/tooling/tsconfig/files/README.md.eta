@@ -1,0 +1,30 @@
+# <%= it.scope %>/tsconfig
+
+The TypeScript presets for every repo that uses <%= it.scope %>. Each file extends the matching preset of
+[`@mfeflow/tsconfig`](https://www.npmjs.com/package/@mfeflow/tsconfig), so change a setting for
+everyone here and leave the rest to it.
+
+| File                 | For                                         |
+| -------------------- | ------------------------------------------- |
+| `base.json`          | any TypeScript project                      |
+| `react-app.json`     | a React app (JSX, DOM libraries, no emit)   |
+| `react-library.json` | a React library that publishes declarations |
+| `node.json`          | a Node script or service                    |
+
+In an app repo:
+
+```json
+{
+  "extends": "<%= it.scope %>/tsconfig/react-app.json",
+  "include": ["src"]
+}
+```
+
+To add a setting for all your repos, put it in the file here, next to `extends`:
+
+```json
+{
+  "extends": "@mfeflow/tsconfig/react-app.json",
+  "compilerOptions": { "noUnusedLocals": true }
+}
+```

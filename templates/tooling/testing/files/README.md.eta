@@ -1,0 +1,32 @@
+# <%= it.scope %>/testing
+
+For micro-frontends: test helpers that wrap a component in the providers of the shell. Everything in
+[`@mfeflow/testing`](https://www.npmjs.com/package/@mfeflow/testing), plus the company's list of providers and one
+render helper that uses it. It is installed with [`<%= it.scope %>/runtime`](../runtime), where the providers are
+composed. `@testing-library/react`, `react` and `react-dom` are peer dependencies. Leave this package out of a repo
+whose apps do not run a shell.
+
+## What to fill in
+
+`src/defaults.ts` holds `defaultProviders`, the same list the shell passes to `composeProviders`. It is empty, so
+until you fill it in a component is rendered without providers.
+
+`renderWithCompany(ui, options?)` is `renderWithPlatform` with that list. A `providers` in `options` replaces it.
+`resetPlatform()` clears the page-wide state between tests.
+
+```tsx
+import { renderWithCompany, resetPlatform } from '<%= it.scope %>/testing';
+
+afterEach(resetPlatform);
+
+it('shows the title', () => {
+  const { getByText } = renderWithCompany(<Title />);
+  expect(getByText('Orders')).toBeTruthy();
+});
+```
+
+## Settings only, no state
+
+`<%= it.scope %>/testing` is not a Module Federation singleton, so every remote gets its own copy of this package.
+That is fine while it holds only a list of providers and a function that renders with it. Keep it that way: no
+rendered tree, mock or flag at module level here.

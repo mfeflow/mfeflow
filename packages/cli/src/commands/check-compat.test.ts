@@ -344,3 +344,45 @@ describe('check-compat --against edge cases', () => {
     expect(code).toBe(0);
   });
 });
+
+describe('check-compat with the shell recorded in mfeflow.json', () => {
+  const SHELL = 'https://cdn.example.com/envs/prod/shell/mf-manifest.json';
+
+  async function record(root: string, shell: string): Promise<void> {
+    const file = path.join(root, 'mfeflow.json');
+    const saved = JSON.parse(await fs.readFile(file, 'utf8')) as Record<string, unknown>;
+    await fs.writeFile(file, `${JSON.stringify({ ...saved, repo: 'remote', shell }, null, 2)}\n`);
+  }
+
+  it('reads it without --against', async () => {
+    const root = await polyrepo();
+    await record(root, SHELL);
+    const fetch = serving({ [SHELL]: answer(manifest('18.3.1')) });
+    const { code, result } = await run(root, [], fetch);
+    expect(code).toBe(0);
+    expect(fetch.asked).toEqual([SHELL]);
+    expect(result.against).toBe(SHELL);
+  });
+
+  it.each(['https://10.0.0.5/mf-manifest.json', 'https://169.254.169.254/latest/meta-data/'])(
+    'does not request %s, a private address written into a committed file',
+    async (url) => {
+      const root = await polyrepo();
+      await record(root, url);
+      const fetch = serving({ [url]: answer(manifest('18.3.1')) });
+      const { code, err } = await run(root, [], fetch);
+      expect(code).toBe(5);
+      expect(err).toContain('MFEFLOW_E307');
+      expect(fetch.asked).toEqual([]);
+    },
+  );
+
+  it('still reads a private address the user types as --against', async () => {
+    const root = await polyrepo();
+    const url = 'https://10.0.0.5/mf-manifest.json';
+    const fetch = serving({ [url]: answer(manifest('18.3.1')) });
+    const { code } = await run(root, ['--against', url], fetch);
+    expect(code).toBe(0);
+    expect(fetch.asked).toEqual([url]);
+  });
+});

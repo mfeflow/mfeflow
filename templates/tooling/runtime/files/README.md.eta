@@ -1,0 +1,37 @@
+# <%= it.scope %>/runtime
+
+For micro-frontends: the code that loads remotes from a registry. Everything in
+[`@mfeflow/runtime`](https://www.npmjs.com/package/@mfeflow/runtime), plus the registry addresses of this company
+and two helpers that use them. `/providers`, `/beacon`, `/plugins/report` and `/plugins/entry-retry` are
+re-exported too. `@module-federation/enhanced` and `react` are peer dependencies. Leave this package out of a repo
+whose apps do not run a shell.
+
+## What to fill in
+
+`src/defaults.ts` holds `registryUrls`: where the registry index is served in `dev`, `staging` and `prod`, primary
+first. They are empty, so `loadRegistry` rejects until you fill them in.
+
+`registryOptions(env, overrides?)` returns the options for `loadRegistryIndex`, allowing the origins of those
+addresses. `loadRegistry(env, overrides?)` reads the index from them.
+
+The runtime also reads `registryUrls` from the shell's runtime config, which is how a deployment changes the
+address without a new build. Use `loadRegistry` where you want the address fixed in code.
+
+```ts
+import { loadRegistry } from '<%= it.scope %>/runtime';
+
+const index = await loadRegistry('prod');
+```
+
+## Settings only, no state
+
+`@mfeflow/runtime` is a Module Federation singleton, shared by package name. `<%= it.scope %>/runtime` is not in
+that list, so every remote gets its own copy of this package while the one underneath stays shared. That is fine
+while this package holds only settings and functions that build things. Keep it that way: no loaded index, cache or
+flag at module level here. State belongs in `@mfeflow/runtime` or in the shell.
+
+## In an app
+
+An app that imports `<%= it.scope %>/runtime` must also list `@mfeflow/runtime` in its own `package.json` (the shell and every
+remote). The preset shares `@mfeflow/runtime` only when the app can resolve it from its own folder, and pnpm does not
+make a dependency of a dependency visible there. Without it the preset cannot see the package, leaves it out of the shared list, and each remote gets its own copy of the loader.

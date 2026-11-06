@@ -1,0 +1,21 @@
+{
+  "name": "<%= it.scope %>/tsconfig",
+  "version": "0.0.0",
+  "description": "The TypeScript presets every repo here extends.",
+  "type": "module",
+  "files": [
+    "*.json"
+  ],
+  "exports": {
+    "./base.json": "./base.json",
+    "./react-app.json": "./react-app.json",
+    "./react-library.json": "./react-library.json",
+    "./node.json": "./node.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "typescript": ">=7.0.0"
+  }
+}

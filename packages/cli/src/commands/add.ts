@@ -13,6 +13,7 @@ import {
 import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals, repeated, text, type Globals } from '../args';
 import { inCatalogueOrder, loadAny, OPTIONAL_FEATURES } from '../catalog';
+import { hasNoApps } from '../noapps';
 import {
   assertAppName,
   nameFrom,
@@ -33,7 +34,9 @@ import { addEnvKey } from './env-key';
 import { addTeamRepo } from './team-repo';
 import { chooseLocal } from '../local';
 import { createBuilder } from '../pipeline';
+import { toolingRefusal } from '../polyrepo';
 import { loadPreset } from '../preset';
+import { glueScope } from '../remote-only';
 import type { Runtime } from '../runtime';
 import { trustedIn } from '../trust';
 import { writePlan } from '../write';
@@ -212,8 +215,7 @@ async function addApp(
         roots: rt.roots,
         version,
         remote: { name, port },
-        registry: true,
-        shells: ['shell'],
+        ...glueScope(project),
       }),
       project: next,
       builder,
@@ -356,6 +358,7 @@ async function addFeatures(
         scripts: [],
         env: [],
         warnings: [],
+        skipped: [],
       }),
       written: [],
       installed: false,
@@ -376,6 +379,12 @@ async function addFeatures(
       }),
     ),
   );
+  if (hasNoApps(project) && project.topology !== 'polyrepo') {
+    for (const feature of loaded) {
+      const refusal = toolingRefusal(feature);
+      if (refusal) throw refusal;
+    }
+  }
   const thirdParty = loaded.filter((f) => f.trust === 'third-party').map((f) => f.manifest.name);
   assertThirdPartyAllowed(thirdParty, globals, canPrompt);
   const builder = createBuilder(root, chosen.checkout);

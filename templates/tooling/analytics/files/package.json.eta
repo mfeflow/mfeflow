@@ -1,0 +1,55 @@
+{
+  "name": "<%= it.scope %>/analytics",
+  "version": "0.0.0",
+  "description": "Analytics with the company's consent and container defaults.",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./gtm": {
+      "types": "./dist/gtm.d.ts",
+      "import": "./dist/gtm.js",
+      "default": "./dist/gtm.js"
+    },
+    "./clarity": {
+      "types": "./dist/clarity.d.ts",
+      "import": "./dist/clarity.js",
+      "default": "./dist/clarity.js"
+    },
+    "./providers": {
+      "types": "./dist/providers.d.ts",
+      "import": "./dist/providers.js",
+      "default": "./dist/providers.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "default": "./dist/react.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+}

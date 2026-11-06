@@ -21,3 +21,11 @@ export const workspaceAliases = [
  * stays, so a real hang still fails fast.
  */
 export const testTimeout = process.platform === 'win32' ? 20_000 : 5000;
+
+/**
+ * Hooks that build a project or start a harness (`git init` in four repos, a registry server) do
+ * more than one test does, and on a busy CI runner they have run past the default 10 s: the
+ * registry server tests on Windows and the polyrepo `beforeAll` on macOS both timed out there.
+ * On a developer machine the default stays, so a real hang still fails fast.
+ */
+export const hookTimeout = process.platform === 'win32' || process.env.CI ? 30_000 : 10_000;

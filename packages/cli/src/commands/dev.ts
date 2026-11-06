@@ -1,10 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { redactUrl } from '@mfeflow/contracts';
 import { findProjectRoot, messageOf, MfeflowError } from '@mfeflow/core';
 import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals, repeated, splitList } from '../args';
 import { assertAllowed, devIndex, parseOverrides, serializeIndex } from '../devregistry';
 import { inspectProject, readText, type AppView, type ProjectView } from '../inspect';
+import { hasNoApps, noApps } from '../noapps';
 import type { DevApp, DevResult } from '../output';
 import { DEFAULT_WAIT, realDevHost, type DevHost, type DevProcess } from '../proc';
 import type { Runtime } from '../runtime';
@@ -215,6 +217,15 @@ function assertPortsFree(busy: readonly AppView[]): void {
   );
 }
 
+/** One line on seeing a local remote in the deployed shell a remotes-only repo records, or undefined without one. */
+export function shellHintOf(view: ProjectView): string | undefined {
+  const { shell } = view.project;
+  const remote = view.apps.find((a) => a.kind === 'remote' && a.port !== undefined);
+  if (shell === undefined || remote === undefined) return undefined;
+  const manifest = `http://localhost:${String(remote.port)}/mf-manifest.json`;
+  return `mfeflow: the shell is at ${redactUrl(shell)}. To see ${remote.name} there, add ?mfe-override=${remote.name}@${manifest} to a page of that shell. This works only if that shell is a development build; production builds ignore overrides.`;
+}
+
 export async function runDev(
   rt: Runtime,
   args: Record<string, unknown>,
@@ -225,6 +236,19 @@ export async function runDev(
   const host = rt.dev ?? realDevHost();
   const root = await findProjectRoot(globals.cwd);
   let view = await inspectProject(root, rt.io);
+  if (hasNoApps(view.project)) {
+    if (!globals.json) rt.io.stdout(noApps('there is nothing to run.'));
+    return {
+      ok: true,
+      command: 'dev',
+      root,
+      registry: '',
+      apps: [],
+      overrides: {},
+      dryRun: globals.dryRun,
+      interrupted: false,
+    };
+  }
   const { packageManager } = view.project;
   const known = view.apps.map((a) => a.name);
   const only = splitList(typeof args.only === 'string' ? args.only : undefined);
@@ -276,6 +300,13 @@ export async function runDev(
     apps,
     overrides: Object.fromEntries(overrides),
   };
+
+  if (!view.apps.some((a) => a.kind === 'remote') && overrides.size === 0) {
+    out('mfeflow: this project has no remotes yet. Add one with `mfeflow add remote <name>`.');
+  }
+
+  const shellHint = shellHintOf(view);
+  if (shellHint !== undefined) out(shellHint);
 
   if (globals.dryRun) {
     if (!globals.json) {
