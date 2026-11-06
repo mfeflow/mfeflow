@@ -100,7 +100,8 @@ describe('the image job in the release workflow', () => {
   });
 
   it('waits for the package, locks it, and builds with provenance and an SBOM', () => {
-    expect(image).toMatch(/for attempt in 1 2 3 4 5/);
+    expect(image).toMatch(/for attempt in \$\(seq 1 12\)/);
+    expect(image).toMatch(/npm install --package-lock-only --prefer-online/);
     expect(image).toContain('npm view');
     expect(image).toContain('--package-lock-only');
     expect(image).toMatch(/provenance: true/);
