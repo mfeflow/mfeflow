@@ -1,0 +1,28 @@
+{
+  "projectName": "mfeflow",
+  "projectOwner": "mfeflow",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "files": ["README.md"],
+  "imageSize": 80,
+  "commit": false,
+  "commitConvention": "angular",
+  "contributorsPerLine": 7,
+  "linkToUsage": false,
+  "contributors": [
+    {
+      "login": "speedsharmaai",
+      "name": "Sanjeev Sharma",
+      "avatar_url": "https://avatars.githubusercontent.com/u/283261430?v=4",
+      "profile": "https://github.com/speedsharmaai",
+      "contributions": ["code", "doc", "infra", "maintenance", "test"]
+    },
+    {
+      "login": "gioboa",
+      "name": "Giorgio Boa",
+      "avatar_url": "https://avatars.githubusercontent.com/u/35845425?v=4",
+      "profile": "https://github.com/gioboa",
+      "contributions": ["code"]
+    }
+  ]
+}

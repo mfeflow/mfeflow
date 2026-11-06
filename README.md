@@ -317,6 +317,29 @@ What is still open:
 
 This section is the status board. Update it in the same pull request that starts or finishes a phase.
 
+## Contributors
+
+Thanks to everyone who has helped. New here? The [good first issues](https://github.com/mfeflow/mfeflow/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) are written so you can start without asking first.
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/speedsharmaai"><img src="https://avatars.githubusercontent.com/u/283261430?v=4?s=80" width="80px;" alt="Sanjeev Sharma"/><br /><sub><b>Sanjeev Sharma</b></sub></a><br /><a href="https://github.com/mfeflow/mfeflow/commits?author=speedsharmaai" title="Code">💻</a> <a href="https://github.com/mfeflow/mfeflow/commits?author=speedsharmaai" title="Documentation">📖</a> <a href="#infra-speedsharmaai" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a> <a href="#maintenance-speedsharmaai" title="Maintenance">🚧</a> <a href="https://github.com/mfeflow/mfeflow/commits?author=speedsharmaai" title="Tests">⚠️</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/gioboa"><img src="https://avatars.githubusercontent.com/u/35845425?v=4?s=80" width="80px;" alt="Giorgio Boa"/><br /><sub><b>Giorgio Boa</b></sub></a><br /><a href="https://github.com/mfeflow/mfeflow/commits?author=gioboa" title="Code">💻</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+This list follows the [all-contributors](https://allcontributors.org) spec. Every kind of help counts, not only code.
+
 ## Contributing, security, license
 
 To work on the repo:
