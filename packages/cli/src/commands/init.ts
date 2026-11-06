@@ -291,7 +291,10 @@ export async function resolveInitOptions(
   const topology = topologyOf(text(args, 'topology') ?? preset.topology);
   const tooling = kind === 'tooling';
   const remoteRepo = kind === 'remote';
-  if ((tooling || remoteRepo) && text(args, 'topology') !== undefined) {
+  if (
+    (tooling || remoteRepo) &&
+    (text(args, 'topology') !== undefined || topology === 'polyrepo')
+  ) {
     throw new MfeflowError('E107', `--kind ${kind} is one repo; --topology does not apply to it`);
   }
   if (!remoteRepo && text(args, 'shell') !== undefined) {

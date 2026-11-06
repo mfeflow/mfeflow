@@ -18,14 +18,19 @@ const isUrl = (source: string): boolean => /^https?:\/\//i.test(source);
 const isObj = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-async function readSource(source: string, cwd: string, fetchImpl: FetchLike): Promise<unknown> {
+async function readSource(
+  source: string,
+  cwd: string,
+  fetchImpl: FetchLike,
+  blockPrivate: boolean,
+): Promise<unknown> {
   let text: string;
   if (isUrl(source)) {
     if (!isRegistryProtocol(new URL(source)))
       throw new Error('must be https (plain http is for localhost only)');
     const response = await getHttps(source, fetchImpl, 'E401', {
       loopback: true,
-      blockPrivate: false,
+      blockPrivate,
     });
     if (!response.ok) throw new Error(`answered ${String(response.status)}`);
     text = await readCappedText(response, MAX_BYTES, () => new Error('is larger than 1 MB'));
@@ -67,15 +72,22 @@ const fail = (what: string, why: string, cause?: unknown): never => {
 /**
  * The shell's `mf-manifest.json` from `source`: the manifest itself, or a registry index, whose
  * `shell/mf-manifest.json` is read from beside it. `source` is a file or an https URL (http on
- * localhost). Fails with E307 on anything else.
+ * localhost). Fails with E307 on anything else. `fromProject` is for a source read out of
+ * `mfeflow.json` rather than typed as `--against`: a committed file must not be able to point a
+ * bare `doctor` at a private address, so those hosts are refused.
  */
 export async function loadShell(
   source: string,
-  options: { cwd: string; fetch: FetchLike },
+  options: { cwd: string; fetch: FetchLike; fromProject?: boolean },
 ): Promise<ShellSource> {
   const read = async (from: string): Promise<unknown> => {
     try {
-      return await readSource(toPath(from), options.cwd, options.fetch);
+      return await readSource(
+        toPath(from),
+        options.cwd,
+        options.fetch,
+        options.fromProject === true,
+      );
     } catch (error) {
       return fail(from === source ? source : `${source} (${from})`, messageOf(error), error);
     }

@@ -321,6 +321,28 @@ describe('init --kind remote refuses', () => {
     expect(err).toMatch(message);
   });
 
+  it.each(['remote', 'tooling'])(
+    'a preset that says topology polyrepo with --kind %s, with E107',
+    async (kind) => {
+      const cwd = await workspace();
+      await fs.writeFile(path.join(cwd, 'p.json'), JSON.stringify({ topology: 'polyrepo' }));
+      const { code, err } = await run(cwd, [
+        'init',
+        'r',
+        '--kind',
+        kind,
+        '--preset',
+        'p.json',
+        '--yes',
+        '--no-install',
+      ]);
+      expect(code).toBe(2);
+      expect(err).toContain('MFEFLOW_E107');
+      expect(err).toContain('one repo');
+      expect(await fs.readdir(cwd)).toEqual(['p.json']);
+    },
+  );
+
   it('--shell without --kind remote', async () => {
     const cwd = await workspace();
     const { code, err } = await run(cwd, [
