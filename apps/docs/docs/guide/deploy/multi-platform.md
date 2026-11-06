@@ -1,6 +1,6 @@
 ---
 title: One build, three platforms
-description: A worked example that builds once in GitHub Actions and deploys to two Cloudflare Workers and one Docker platform, each with its own runtime config and index, then rolls one platform back.
+description: A worked example that builds once in GitHub Actions and deploys to two Cloudflare Workers and one Docker platform, then rolls one platform back.
 ---
 
 # One build, three platforms

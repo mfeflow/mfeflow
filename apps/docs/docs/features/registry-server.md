@@ -1,6 +1,6 @@
 ---
 title: registry-server - publish remotes through a registry server
-description: Add the files that point a project at a self-hosted mfeflow registry server - runtime config keys, a shell helper for the browser beacon, a CI workflow that deploys with a token from the environment, and a guide.
+description: Add the files that point a project at a self-hosted registry server. Runtime config keys, a browser beacon helper and a CI workflow that deploys with a token.
 ---
 
 # registry-server

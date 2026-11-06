@@ -1,5 +1,5 @@
 ---
-title: env-t3 - Typed env that fails the build, config you can swap per environment
+title: 'env-t3: typed env that fails the build'
 description: Validate server variables when the build starts, and load browser settings from a per-environment JSON file so one build runs in dev, staging and prod.
 ---
 

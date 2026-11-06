@@ -1,6 +1,6 @@
 ---
 title: Registry server SLOs
-description: What the registry server promises about how fast a pointer move, a kill and the fallback reach people, with the measured number for each, the command that makes it, and what has not been measured yet.
+description: What the registry server promises about how fast a pointer move, a kill and the fallback reach people, with the measured number for each and what is unmeasured.
 ---
 
 # Registry server SLOs

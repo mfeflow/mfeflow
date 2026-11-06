@@ -1,6 +1,6 @@
 ---
 title: mfeflow.app.json reference
-description: Every field of mfeflow.app.json, the per-app file that records an owner, shells, routes, exposed modules, events, budgets and platform ranges, with types, patterns and an example.
+description: Every field of mfeflow.app.json, the per-app file that records an owner, shells, routes, exposed modules, events and budgets, with types and an example.
 ---
 
 # mfeflow.app.json reference

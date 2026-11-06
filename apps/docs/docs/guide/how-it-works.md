@@ -1,6 +1,6 @@
 ---
 title: How mfeflow works
-description: How a shell boots, reads the registry index, registers remotes and loads them, how remotes are built with Rsbuild and Module Federation 2, and how shared singletons are checked.
+description: How a shell boots, reads the registry index and loads remotes, how remotes are built with Rsbuild and Module Federation 2, and how singletons are checked.
 ---
 
 # How mfeflow works

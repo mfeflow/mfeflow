@@ -1,6 +1,6 @@
 ---
-title: deploy-docker - package the shell and remotes as nginx images
-description: Add a Dockerfile with an APP build argument, nginx cache and CORS rules, a start script that picks the runtime config from MFE_ENV, a Kubernetes example, a compose file and a .dockerignore.
+title: 'deploy-docker: nginx images for the shell and remotes'
+description: Add a Dockerfile with an APP build argument, nginx cache and CORS rules, a start script that picks config from MFE_ENV, a Kubernetes example and a compose file.
 ---
 
 # deploy-docker

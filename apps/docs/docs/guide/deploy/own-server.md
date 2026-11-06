@@ -1,6 +1,6 @@
 ---
 title: Deploy to your own server
-description: Serve the site folder from any static file server you already run, with an nginx example, an rsync upload order that keeps old versions, and a pointer to the registry server when you want rollouts and a kill switch.
+description: Serve the site folder from any static file server you run, with an nginx example, an rsync upload order that keeps old versions, and the registry server option.
 ---
 
 # Deploy to your own server

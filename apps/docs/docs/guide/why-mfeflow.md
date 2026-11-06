@@ -1,11 +1,11 @@
 ---
 title: Why try mfeflow
-description: The problem mfeflow solves, a measured example, when you should not use micro-frontends at all, and a facts-only comparison with plain Module Federation and monorepo tools.
+description: The problem mfeflow solves, a measured example, when you should not use micro-frontends, and a facts-only comparison with plain Module Federation and Nx.
 ---
 
 # Why try mfeflow
 
-This page helps you decide whether mfeflow is worth an afternoon. It is an explanation page. It covers the problem, what mfeflow does about it, and where it stops.
+mfeflow is worth an afternoon if several teams need to ship parts of one React front end on their own schedules. Skip it for one team with one deploy, or if you need Next.js or server rendering. This page covers the problem, what mfeflow does about it, and where it stops.
 
 ## What is the problem?
 
@@ -84,9 +84,8 @@ mfeflow uses Turborepo for its tasks. You can keep using Nx or Turborepo's other
 Skip mfeflow in these cases:
 
 - You have one team and one deploy. A single app is simpler.
-- You need Next.js or server rendering today. mfeflow builds client-rendered apps with Rsbuild.
+- You need Next.js or server rendering today. mfeflow builds client-rendered apps with Rsbuild or Vite.
 - Your remotes use different frameworks. The shared singleton design assumes one React.
 - You need npm or Yarn. This release supports pnpm only.
-- You need a finished deploy and rollback workflow now. Only the design exists.
 
 If none of those apply, start with the [Quickstart](/guide/quickstart).

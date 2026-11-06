@@ -1,6 +1,6 @@
 ---
 title: FAQ
-description: Honest answers to the common questions about mfeflow, including duplicate React, shell and remote versions, CSS isolation, SSR, Next.js, Vite, npm and Yarn, and what is not built yet.
+description: Honest answers about mfeflow, including duplicate React, version drift, CSS isolation, SSR, Next.js, Vite, npm and Yarn, and what is not built yet.
 ---
 
 # FAQ

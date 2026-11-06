@@ -1,6 +1,6 @@
 ---
 title: The cost model
-description: The three budgets mfeflow checks (300 ms LCP, 32 KB shell JavaScript, 10 KB per remote), why they exist, how they are measured, and what the storefront example measured.
+description: The three budgets mfeflow checks (300 ms LCP, 32 KB shell JavaScript, 10 KB per remote), why they exist, how they are measured and what the storefront measured.
 ---
 
 # The cost model

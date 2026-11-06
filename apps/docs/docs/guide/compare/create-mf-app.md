@@ -5,7 +5,7 @@ description: An explanation of how mfeflow differs from the create-mf-app starte
 
 # mfeflow vs create-mf-app
 
-This page explains how mfeflow differs from `create-mf-app`, so you can pick one. It is an explanation page, not a benchmark. We make no claim that one is faster, smaller or better.
+Pick `create-mf-app` if you want a small template to learn from or to try an idea. Pick mfeflow if you expect several teams, several remotes and releases on different days. This page is a comparison, not a benchmark. We make no claim that one is faster, smaller or better.
 
 The `create-mf-app` facts below were read from its GitHub page and the npm registry on 2026-11-05. We did not run it for this page.
 
@@ -23,14 +23,14 @@ For learning how Module Federation fits together, or for a throwaway experiment,
 
 ## What mfeflow does differently
 
-mfeflow does more after the first project exists. It is for teams that will keep several remotes running over time. It builds with Rsbuild today.
+mfeflow does more after the first project exists. It is for teams that will keep several remotes running over time. It builds with Rsbuild by default, or Vite with `--bundler vite`.
 
 - **More than the first scaffold.** `mfeflow add remote` adds another remote later. See [Add a remote](/guide/adding-a-remote).
 - **A registry index.** The shell reads a JSON list of remotes at boot, and `mfeflow rollback` points an entry at an earlier version. See [Deploy and roll back a remote](/guide/deploy-and-rollback).
 - **Checks.** `doctor`, `validate` and `budget` look for drifting versions, route clashes and size growth.
 - **Features as file changes.** See [Add features](/guide/adding-features).
 
-The tradeoff is size. mfeflow asks you to accept React, client-side rendering, Rsbuild and pnpm. It has more commands to learn.
+The tradeoff is size. mfeflow asks you to accept React, client-side rendering, Rsbuild or Vite, and pnpm. It has more commands to learn.
 
 ## When to pick which
 

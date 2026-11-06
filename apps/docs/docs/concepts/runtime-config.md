@@ -1,6 +1,6 @@
 ---
 title: Runtime config
-description: Why browser settings come from a JSON file fetched at boot instead of the bundle, how the shell loads and types it, and how dev and production serve the right file.
+description: Why browser settings come from a JSON file fetched at boot instead of the bundle, how the shell loads and types it, and how dev and production serve it.
 ---
 
 # Runtime config

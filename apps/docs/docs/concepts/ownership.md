@@ -1,6 +1,6 @@
 ---
 title: Ownership with mfeflow.app.json
-description: How the mfeflow.app.json file in each app names its owner, routes and exposed modules, and how mfeflow checks those claims so two teams cannot take the same route.
+description: How mfeflow.app.json names each app owner, routes and exposed modules, and how mfeflow checks those claims so two teams cannot take the same route.
 ---
 
 # Ownership with mfeflow.app.json

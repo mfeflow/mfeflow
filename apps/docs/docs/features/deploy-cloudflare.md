@@ -1,6 +1,6 @@
 ---
 title: deploy-cloudflare - host on Cloudflare Workers
-description: Add wrangler config, cache and CORS headers, a per-environment deploy script, an optional R2 registry proxy and, with ci-github, a workflow for hosting the shell and remotes on Cloudflare Workers static assets.
+description: Add wrangler config, cache and CORS headers, a deploy script per environment, an optional R2 registry proxy and a workflow to host on Cloudflare Workers.
 ---
 
 # deploy-cloudflare

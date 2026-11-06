@@ -1,6 +1,6 @@
 ---
 title: One repo per team
-description: Tutorial for a polyrepo. Create a platform repo, a shell repo and a repo for each remote with init --topology polyrepo, run them together, add a team repo, and publish the shared packages.
+description: Polyrepo tutorial. Create a platform repo, a shell repo and one repo per remote with init --topology polyrepo, run them together and publish shared packages.
 ---
 
 # One repo per team

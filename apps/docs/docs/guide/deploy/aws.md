@@ -1,6 +1,6 @@
 ---
 title: Deploy to AWS S3 and CloudFront
-description: Host the site folder in a private S3 bucket behind CloudFront with origin access control, set cache headers per path with the AWS CLI, and handle SPA routes and roll back by index.
+description: Host the site folder in a private S3 bucket behind CloudFront with origin access control, set cache headers with the AWS CLI, handle SPA routes and roll back.
 ---
 
 # Deploy to AWS S3 and CloudFront

@@ -5,11 +5,11 @@ description: What mfeflow is, who it is for, and how it handles the problems tha
 
 # Introduction to mfeflow
 
-This page explains what mfeflow is and whether it fits your team. It is an explanation page, so it has no commands. To build something, go to the [Quickstart](/guide/quickstart).
+mfeflow is an MIT-licensed command line tool and a set of packages for React micro-frontends on Module Federation 2, built with Rsbuild or Vite. The latest version is 0.8.0. It is not for a single-team app, Next.js or server-side rendering. This page is an explanation with no commands. To build something, go to the [Quickstart](/guide/quickstart).
 
 ## What is mfeflow?
 
-mfeflow is a command line tool and a set of small packages for React micro-frontends. It creates a monorepo with one shell and several remotes, built with Rsbuild and Module Federation 2. After that, it adds features and checks the project so the setup stays healthy.
+mfeflow is a command line tool and a set of small packages for React micro-frontends. It creates a monorepo with one shell and several remotes, built with Rsbuild or Vite and Module Federation 2. After that, it adds features and checks the project so the setup stays healthy.
 
 The shell is the page that loads first. A remote is a separate app that the shell loads at runtime. Each remote can be built and deployed on its own.
 

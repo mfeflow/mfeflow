@@ -1,6 +1,6 @@
 ---
 title: feature.json reference
-description: Every field of feature.json, the declarative file that defines an mfeflow feature, including files, dependencies, scripts, prompts, conditions and the seven built-in transform operations.
+description: Every field of feature.json, the declarative file that defines an mfeflow feature, including files, dependencies, scripts, prompts, conditions and transforms.
 ---
 
 # feature.json reference

@@ -1,6 +1,6 @@
 ---
 title: Bring an existing Module Federation app
-description: How to run mfeflow adopt in a project you already have, what it reads, the files it writes, what it never touches, the list of settings it does not carry over, and what to do next.
+description: Run mfeflow adopt in a project you already have. What it reads, the files it writes, what it never touches, the settings it does not carry over, and next steps.
 ---
 
 # Bring an existing Module Federation app

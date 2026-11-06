@@ -1,6 +1,6 @@
 ---
 title: Deploy overview
-description: mfeflow builds static files and leaves hosting to you. This overview shows what to upload, the cache headers every host needs, and how the common hosting options compare.
+description: mfeflow builds static files and leaves hosting to you. This overview shows what to upload, the cache headers every host needs, and how hosting options compare.
 ---
 
 # Deploy overview

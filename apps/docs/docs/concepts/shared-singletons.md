@@ -1,6 +1,6 @@
 ---
 title: Shared singletons
-description: Why React and some packages must exist exactly once on a micro-frontend page, which packages mfeflow shares by default, and how version drift and duplicates are detected.
+description: Why React and some packages must exist exactly once on a page, which packages mfeflow shares by default, and how drift and duplicates are detected.
 ---
 
 # Shared singletons

@@ -1,4 +1,5 @@
-import { withBase } from '@rspress/core/runtime';
+import { Head, withBase } from '@rspress/core/runtime';
+import { DOCS_URL } from '@mfeflow/contracts';
 import { CopyCommand } from './CopyCommand';
 import {
   CHANGELOG_URL,
@@ -17,14 +18,22 @@ import {
 } from './content';
 import './home.css';
 
+export const HOME_TITLE = 'mfeflow: React micro-frontend CLI for Module Federation 2';
+
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'SoftwareSourceCode',
+  '@type': ['SoftwareSourceCode', 'SoftwareApplication'],
   name: 'mfeflow',
   description: DESCRIPTION,
+  url: DOCS_URL,
   license: 'https://opensource.org/licenses/MIT',
   codeRepository: REPO_URL,
   programmingLanguage: 'TypeScript',
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'macOS, Linux, Windows',
+  softwareVersion: VERSION,
+  downloadUrl: NPM_URL,
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
 };
 
 function SectionHead({
@@ -50,6 +59,11 @@ function SectionHead({
 export function Home() {
   return (
     <div className="mf-home">
+      <Head>
+        <title>{HOME_TITLE}</title>
+        <meta property="og:title" content={HOME_TITLE} />
+        <meta name="twitter:title" content={HOME_TITLE} />
+      </Head>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{

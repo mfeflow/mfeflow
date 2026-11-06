@@ -5,7 +5,7 @@ description: An explanation of how mfeflow and the Nx Module Federation generato
 
 # mfeflow vs Nx Module Federation
 
-This page explains how mfeflow differs from the Module Federation support in Nx, so you can pick one. It is an explanation page, not a benchmark. We make no claim that one is faster, smaller or better.
+Pick Nx if you want one tool for the whole workspace, a choice of Vite, Rsbuild or Rspack, or you already use Nx. Pick mfeflow if you want a rollback-by-pointer registry from day one and drift, ownership and size checks around Module Federation. This page is a comparison, not a benchmark. We make no claim that one is faster, smaller or better.
 
 The Nx facts below were read from nx.dev, GitHub and the npm registry on 2026-11-05. We did not run Nx for this page.
 
@@ -47,7 +47,7 @@ Pick Nx when:
 Pick mfeflow when:
 
 - you want a rollback-by-pointer registry from the first day
-- you are fine with Rsbuild, React, client-side rendering and pnpm
+- you are fine with Rsbuild or Vite, React, client-side rendering and pnpm
 - you want drift, ownership and size checks around Module Federation
 
 The two are not exclusive in principle. mfeflow uses Turborepo for its tasks and says nothing against other monorepo tools in the same repository. We have not tried putting a generated mfeflow project inside an Nx workspace.

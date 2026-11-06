@@ -1,5 +1,5 @@
 ---
-title: Third-party features - Install or publish features from any registry
+title: 'Third-party features: install from any registry'
 description: Install features other people publish from a static registry, or host your own, knowing they only list files and edits and never run code on your machine.
 ---
 
