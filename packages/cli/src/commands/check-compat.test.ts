@@ -350,8 +350,8 @@ describe('check-compat with the shell recorded in mfeflow.json', () => {
 
   async function record(root: string, shell: string): Promise<void> {
     const file = path.join(root, 'mfeflow.json');
-    const project = JSON.parse(await fs.readFile(file, 'utf8')) as Record<string, unknown>;
-    await fs.writeFile(file, `${JSON.stringify({ ...project, repo: 'remote', shell }, null, 2)}\n`);
+    const saved = JSON.parse(await fs.readFile(file, 'utf8')) as Record<string, unknown>;
+    await fs.writeFile(file, `${JSON.stringify({ ...saved, repo: 'remote', shell }, null, 2)}\n`);
   }
 
   it('reads it without --against', async () => {
