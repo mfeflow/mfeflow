@@ -1,5 +1,5 @@
 import type { Issue, RegistryIndex } from '@mfeflow/contracts';
-import { type Plan } from '@mfeflow/core';
+import { type Plan, type SkippedPart } from '@mfeflow/core';
 import { EXIT, type ErrorReport } from './exit';
 import type { Finding } from './findings';
 import { exitForFindings, type CheckReport, type Summary } from './report';
@@ -11,6 +11,8 @@ export interface PlanReport {
   dependencies: { file: string; name: string; range: string; dev: boolean; thirdParty?: boolean }[];
   scripts: { file: string; name: string; command: string }[];
   warnings: string[];
+  /** Parts of a feature that target the shell, left out because the project has none. */
+  skipped: SkippedPart[];
 }
 
 export interface AppReport {
@@ -405,6 +407,7 @@ export function planReport(plan: Plan): PlanReport {
     })),
     scripts: plan.scripts.map((s) => ({ file: s.file, name: s.name, command: s.command })),
     warnings: [...plan.warnings],
+    skipped: plan.skipped.map((p) => ({ ...p })),
   };
 }
 
@@ -478,6 +481,14 @@ function checkPlan(c: Check, plan: unknown): void {
     for (const key of ['file', 'name', 'command']) c.string(s, key, p);
   });
   c.texts(plan, 'warnings', at);
+  if (plan.skipped !== undefined) {
+    c.objects(plan, 'skipped', at, (part, p) => {
+      for (const key of ['feature', 'name']) c.string(part, key, p);
+      if (!['file', 'dependency', 'script', 'transform'].includes(String(part.kind)))
+        c.add(`${p}kind`, 'must be file, dependency, script or transform');
+      if (part.target !== 'shell') c.add(`${p}target`, 'must be shell');
+    });
+  }
 }
 
 function checkWrite(c: Check, value: Obj): void {

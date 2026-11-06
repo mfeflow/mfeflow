@@ -42,6 +42,7 @@ export {
   emptyPlan,
   PlanBuilder,
   renderDiff,
+  skippedLines,
   summarize,
   type ChangeAction,
   type DependencyAdd,
@@ -52,6 +53,7 @@ export {
   type PlanFeature,
   type ReadFile,
   type ScriptAdd,
+  type SkippedPart,
 } from './plan';
 export {
   applyPlan,

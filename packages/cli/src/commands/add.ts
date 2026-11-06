@@ -356,6 +356,7 @@ async function addFeatures(
         scripts: [],
         env: [],
         warnings: [],
+        skipped: [],
       }),
       written: [],
       installed: false,
