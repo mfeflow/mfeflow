@@ -1,6 +1,6 @@
 ---
 title: Versions and upgrades
-description: How mfeflow versions its packages together before 1.0, what counts as a breaking change, how changesets record them, and a tutorial for moving a project to a new version with mfeflow upgrade.
+description: How mfeflow versions its packages together before 1.0, what counts as a breaking change, how changesets record them, and how to move a project with upgrade.
 ---
 
 # Versions and upgrades

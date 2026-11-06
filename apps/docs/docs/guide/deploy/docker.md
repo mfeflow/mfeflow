@@ -1,6 +1,6 @@
 ---
 title: Deploy with Docker
-description: Package the shell and remotes in one nginx image that picks its runtime config and registry index per environment at start, runs read-only, and deploys to Kubernetes.
+description: Package the shell and remotes in one nginx image that picks its runtime config and registry index per environment, runs read-only and deploys to Kubernetes.
 ---
 
 # Deploy with Docker

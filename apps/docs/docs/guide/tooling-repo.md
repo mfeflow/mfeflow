@@ -1,6 +1,6 @@
 ---
 title: A repo for shared tooling
-description: Make a repo with no apps that holds shared config, git hooks, release and thin wrapper packages in your own scope, and use it from the app repos. Covers the one extra dependency a wrapper needs in a micro-frontend.
+description: Make a repo with no apps that holds shared config, git hooks, release and thin wrapper packages in your own scope, and use it from your app repos.
 ---
 
 # A repo for shared tooling

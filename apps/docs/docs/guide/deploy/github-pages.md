@@ -1,6 +1,6 @@
 ---
 title: Deploy to GitHub Pages
-description: Publish the site folder to GitHub Pages with the deploy-pages workflow, and learn the limits that matter for mfeflow, including the fixed cache time and the project base path.
+description: Publish the site folder to GitHub Pages with the deploy-pages workflow, and learn the limits that matter for mfeflow, such as fixed cache time and base path.
 ---
 
 # Deploy to GitHub Pages

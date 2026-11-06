@@ -1,12 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import cli from '../../../../packages/cli/package.json';
-import { Home } from './Home';
+import { HOME_TITLE, Home } from './Home';
 import { DOCUMENTED_FEATURES, FEATURE_GROUPS } from './content';
 
-vi.mock('@rspress/core/runtime', () => ({ withBase: (url: string) => `/mfeflow${url}` }));
+vi.mock('@rspress/core/runtime', () => ({
+  withBase: (url: string) => `/mfeflow${url}`,
+  Head: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
 
 const ROOT = path.join(import.meta.dirname, '../../../..');
 const FEATURES_DIR = path.join(import.meta.dirname, '../../docs/features');
@@ -84,13 +88,28 @@ describe('home page', () => {
     expect(html).toContain('23 more features');
   });
 
-  it('embeds JSON-LD for the source code', () => {
+  it('sets a descriptive page title with matching og and twitter titles', () => {
+    expect(HOME_TITLE).toBe('mfeflow: React micro-frontend CLI for Module Federation 2');
+    expect(html.match(/<title>/g)).toHaveLength(1);
+    expect(html).toContain(`<title>${HOME_TITLE}</title>`);
+    expect(html).toContain(`<meta property="og:title" content="${HOME_TITLE}"`);
+    expect(html).toContain(`<meta name="twitter:title" content="${HOME_TITLE}"`);
+  });
+
+  it('embeds JSON-LD for the source code and the application, with no ratings', () => {
     const raw = html.match(/<script type="application\/ld\+json">(.*?)<\/script>/)?.[1] ?? '';
     const data: unknown = JSON.parse(raw.replaceAll('&quot;', '"'));
     expect(data).toMatchObject({
-      '@type': 'SoftwareSourceCode',
+      '@type': ['SoftwareSourceCode', 'SoftwareApplication'],
       programmingLanguage: 'TypeScript',
       codeRepository: 'https://github.com/mfeflow/mfeflow',
+      applicationCategory: 'DeveloperApplication',
+      operatingSystem: 'macOS, Linux, Windows',
+      softwareVersion: cli.version,
+      url: 'https://mfeflow.github.io/mfeflow',
+      downloadUrl: 'https://www.npmjs.com/package/mfeflow',
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
     });
+    expect(raw).not.toMatch(/aggregateRating|review/i);
   });
 });

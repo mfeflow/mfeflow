@@ -1,6 +1,6 @@
 ---
 title: Third-party features
-description: How anyone can publish mfeflow features as static JSON, why they are data and not code, and what the rules and safeguards are. A short overview with links to the full guide.
+description: How anyone can publish mfeflow features as static JSON, why they are data and not code, and what the rules and safeguards are. A short overview with links.
 ---
 
 # Third-party features

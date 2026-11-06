@@ -1,6 +1,6 @@
 ---
 title: Project structure
-description: A tour of every file in a new mfeflow project, which ones you edit, which ones a feature manages, and what mfeflow.json, mfeflow.app.json and the registry folder do.
+description: A tour of every file in a new mfeflow project, which ones you edit, which ones a feature manages, and what mfeflow.json and mfeflow.app.json do.
 ---
 
 # Project structure

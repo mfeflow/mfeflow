@@ -14,9 +14,33 @@ export function generatedCodes() {
   );
 }
 
+const DESCRIPTION_MAX = 150;
+
+/** Plain text of at most about 150 characters, cut at a word boundary. */
+export function clampDescription(text, max = DESCRIPTION_MAX) {
+  const plain = text.replaceAll('`', '').replace(/\s+/g, ' ').trim();
+  if (plain.length <= max) return plain;
+  return `${plain.slice(0, max).replace(/\s+\S*$/, '')}…`;
+}
+
+/** A YAML string the way prettier writes it: single quotes unless the text has an apostrophe. */
+export function yamlString(text) {
+  if (text.includes("'") && !text.includes('"')) return `"${text}"`;
+  return `'${text.replaceAll("'", "''")}'`;
+}
+
+export function errorFrontmatter(code, fix) {
+  const { title } = ERROR_CATALOGUE[code];
+  const lines = [
+    `title: ${yamlString(`MFEFLOW_${code}: ${title}`)}`,
+    `description: ${yamlString(clampDescription(`${title}. ${fix}`))}`,
+  ];
+  return `---\n${lines.join('\n')}\n---\n\n`;
+}
+
 export function errorPage(code) {
   const { title, fix } = ERROR_CATALOGUE[code];
-  return `# MFEFLOW_${code}\n\n${title}.\n\n## Fix\n\n${fix}\n`;
+  return `${errorFrontmatter(code, fix)}# MFEFLOW_${code}\n\n${title}.\n\n## Fix\n\n${fix}\n`;
 }
 
 /** Writes the generated pages under `dir` and returns their codes. */

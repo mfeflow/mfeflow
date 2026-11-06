@@ -1,6 +1,6 @@
 ---
 title: Build with Vite
-description: Create an mfeflow project that builds with Vite and @module-federation/vite instead of Rsbuild, move an existing project over with upgrade --bundler, and what differs between the two.
+description: Create an mfeflow project that builds with Vite and @module-federation/vite instead of Rsbuild, move an existing one with upgrade --bundler, and what differs.
 ---
 
 # Build with Vite

@@ -1,6 +1,6 @@
 ---
 title: Develop locally
-description: Run the shell and every remote with mfeflow dev, point one remote at a server you already run, override a remote from the browser, and use doctor to find and fix problems.
+description: Run the shell and every remote with mfeflow dev, point one remote at a server you already run, override a remote from the browser, and fix problems with doctor.
 ---
 
 # Develop locally

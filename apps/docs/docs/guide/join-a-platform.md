@@ -1,6 +1,6 @@
 ---
 title: Join an existing platform with a remote
-description: Make a repo of one or more remotes with no shell, for a team whose platform already has a deployed shell. Covers init --kind remote, the shell address, running a remote against the deployed shell, and what the repo does not do.
+description: Make a repo of remotes with no shell, for a team whose platform already has a deployed shell. Covers init --kind remote and running against the deployed shell.
 ---
 
 # Join an existing platform with a remote

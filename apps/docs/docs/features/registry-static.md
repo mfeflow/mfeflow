@@ -1,5 +1,5 @@
 ---
-title: registry-static - deploy and roll back remotes on a folder or bucket
+title: 'registry-static: deploy and roll back on a folder'
 description: Add scripts and a deploy workflow that publish your remotes to a static host and roll back by moving a pointer.
 ---
 

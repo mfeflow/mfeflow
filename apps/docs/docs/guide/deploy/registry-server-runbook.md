@@ -1,6 +1,6 @@
 ---
 title: Run the registry server
-description: A how-to for the person who runs the mfeflow registry server - start it, back up the SQLite file, rotate tokens, kill a remote, recover from a halted rollout and upgrade the server.
+description: A how-to for whoever runs the mfeflow registry server. Start it, back up the SQLite file, rotate tokens, kill a remote, recover a halted rollout and upgrade.
 ---
 
 # Run the registry server

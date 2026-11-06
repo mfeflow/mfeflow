@@ -4,8 +4,16 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DOCS_URL, SCHEMA_ALIASES, SCHEMA_URLS } from '@mfeflow/contracts';
 import { ERROR_CATALOGUE } from '@mfeflow/core';
+import cli from '../../../packages/cli/package.json';
 import config from '../rspress.config';
-import { emitErrorPages, errorPage, generatedCodes } from './emit-error-pages.mjs';
+import { breadcrumbList, breadcrumbScript, LLMS_SUMMARY, renderLlmsTxt } from '../seo';
+import {
+  clampDescription,
+  emitErrorPages,
+  errorPage,
+  generatedCodes,
+  yamlString,
+} from './emit-error-pages.mjs';
 import { emitSchemas, schemaPath, urlPath } from './emit-schemas.mjs';
 
 const DOCS_DIR = path.join(import.meta.dirname, '../docs');
@@ -58,6 +66,8 @@ describe('schemas', () => {
   });
 });
 
+const unquote = (value) => value.slice(1, -1).replaceAll("''", "'");
+
 describe('error pages', () => {
   it('has a page for every code in the error catalogue', async () => {
     const missing = [];
@@ -65,9 +75,32 @@ describe('error pages', () => {
       const page = await fs
         .readFile(path.join(DOCS_DIR, 'errors', `${code}.md`), 'utf8')
         .catch(() => '');
-      if (!page.startsWith(`# MFEFLOW_${code}\n`)) missing.push(code);
+      if (!page.replace(/^---\n[\s\S]*?\n---\n\n/, '').startsWith(`# MFEFLOW_${code}\n`))
+        missing.push(code);
     }
     expect(missing).toEqual([]);
+  });
+
+  it('titles every page with the code and the catalogue title, and keeps descriptions short', async () => {
+    for (const [code, { title }] of Object.entries(ERROR_CATALOGUE)) {
+      const page = await fs.readFile(path.join(DOCS_DIR, 'errors', `${code}.md`), 'utf8');
+      const meta = /^---\ntitle: (.+)\ndescription: (.+)\n---\n/.exec(page);
+      expect(meta, code).not.toBeNull();
+      expect(unquote(meta[1]), code).toBe(`MFEFLOW_${code}: ${title}`);
+      expect(unquote(meta[2]).length, code).toBeLessThanOrEqual(151);
+    }
+  });
+
+  it('quotes YAML strings the way prettier does', () => {
+    expect(yamlString('a: b')).toBe("'a: b'");
+    expect(yamlString("it's")).toBe('"it\'s"');
+  });
+
+  it('clamps long text at a word boundary', () => {
+    expect(clampDescription('short `text`')).toBe('short text');
+    const clamped = clampDescription('word '.repeat(60));
+    expect(clamped.length).toBeLessThanOrEqual(151);
+    expect(clamped.endsWith('word…')).toBe(true);
   });
 
   it('has no page for a code the catalogue lacks', async () => {
@@ -109,9 +142,10 @@ describe('generated error pages', () => {
 });
 
 describe('site', () => {
-  it('serves under the path of DOCS_URL, with llms.txt on', () => {
+  it('serves under the path of DOCS_URL, with clean URLs and a custom llms.txt', () => {
     expect(config.base).toBe('/mfeflow/');
-    expect(config.llms).toBe(true);
+    expect(config.route?.cleanUrls).toBe(true);
+    expect(config.llms).toEqual({ llmsTxt: renderLlmsTxt });
   });
 
   it('keeps the unregistered domain out of the pages', async () => {
@@ -266,5 +300,72 @@ describe('deploy pages', () => {
   it('say that hosting is the reader choice, on the overview', async () => {
     const overview = await fs.readFile(path.join(DOCS_DIR, 'guide/deploy/index.md'), 'utf8');
     expect(overview).toContain('stays out of how you host them');
+  });
+});
+
+const file = (name) => path.join(DOCS_DIR, name);
+
+describe('breadcrumbs', () => {
+  it('lists the home page, the page itself and its title, with absolute URLs', () => {
+    const list = breadcrumbList('/guide/quickstart', file('guide/quickstart.md'));
+    expect(list['@type']).toBe('BreadcrumbList');
+    expect(list.itemListElement.map((i) => i.position)).toEqual([1, 2]);
+    expect(list.itemListElement[0]).toMatchObject({ name: 'mfeflow', item: `${DOCS_URL}/` });
+    expect(list.itemListElement.at(-1)).toMatchObject({
+      name: expect.stringContaining('Quickstart'),
+      item: `${DOCS_URL}/guide/quickstart`,
+    });
+  });
+
+  it('adds a parent only when that parent is a real page', () => {
+    const deploy = breadcrumbList('/guide/deploy/own-server', file('guide/deploy/own-server.md'));
+    expect(deploy.itemListElement.map((i) => i.item)).toEqual([
+      `${DOCS_URL}/`,
+      `${DOCS_URL}/guide/deploy/`,
+      `${DOCS_URL}/guide/deploy/own-server`,
+    ]);
+  });
+
+  it('has none for the home page or the 404 page, and escapes < in the script', () => {
+    expect(breadcrumbList('/', file('index.mdx'))).toBeUndefined();
+    expect(breadcrumbScript('/404', file('index.mdx'))).toBeUndefined();
+    const script = breadcrumbScript('/guide/quickstart', file('guide/quickstart.md'));
+    expect(script).toMatch(/^<script type="application\/ld\+json">\{.*\}<\/script>$/);
+  });
+});
+
+const page = (routePath, title) => ({
+  routePath,
+  link: `${DOCS_URL}${routePath}.md`,
+  title,
+  description: `About ${title}`,
+  frontmatter: {},
+  lang: 'en',
+  version: '',
+});
+
+describe('llms.txt', () => {
+  const out = renderLlmsTxt({
+    title: 'mfeflow',
+    sections: [
+      { title: 'Guide', pages: [page('/guide/quickstart', 'Quickstart')] },
+      {
+        title: 'Reference',
+        pages: [page('/errors/E101', 'MFEFLOW_E101'), page('/reference/cli', 'CLI')],
+      },
+    ],
+  });
+
+  it('opens with the summary, which names the version, license, bundlers and limits', () => {
+    expect(out.startsWith(`# mfeflow\n\n> ${LLMS_SUMMARY}\n`)).toBe(true);
+    for (const fact of [cli.version, 'MIT', 'Rsbuild', 'Vite', 'Module Federation 2', 'not for']) {
+      expect(LLMS_SUMMARY).toContain(fact);
+    }
+  });
+
+  it('lists the error pages last, in their own section', () => {
+    expect(out.indexOf('## Error codes')).toBeGreaterThan(out.indexOf('## Reference'));
+    expect(out.slice(out.indexOf('## Error codes'))).toContain('MFEFLOW_E101');
+    expect(out.slice(0, out.indexOf('## Error codes'))).not.toContain('MFEFLOW_E101');
   });
 });

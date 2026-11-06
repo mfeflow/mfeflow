@@ -1,6 +1,6 @@
 ---
 title: Deploy to Cloudflare
-description: Host the shell and remotes on Cloudflare Workers static assets with wrangler, set cache headers and environments, and optionally keep remotes and the registry index in R2.
+description: Host the shell and remotes on Cloudflare Workers static assets with wrangler, set cache headers and environments, and optionally keep remotes in R2.
 ---
 
 # Deploy to Cloudflare

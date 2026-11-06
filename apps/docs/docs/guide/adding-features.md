@@ -1,6 +1,6 @@
 ---
 title: Add features
-description: How to add, preview and configure mfeflow features with the add command, including the dry-run diff, feature options, presets, atomic rollback and third-party registries.
+description: Add, preview and configure features with the add command, including the dry-run diff, options, presets, atomic rollback and third-party registries.
 ---
 
 # Add features

@@ -1,6 +1,6 @@
 ---
 title: mfeflow.json reference
-description: Every field of mfeflow.json, the file where the CLI records a project's apps, features, copied-file hashes, registries and budget overrides, with types, rules and an example.
+description: Every field of mfeflow.json, where the CLI records a project's apps, features, copied-file hashes, registries and budget overrides, with types and an example.
 ---
 
 # mfeflow.json reference
