@@ -1,5 +1,12 @@
 # @mfeflow/runtime
 
+## 0.8.0
+
+### Patch Changes
+
+- Updated dependencies [[`d7e7ec2`](https://github.com/mfeflow/mfeflow/commit/d7e7ec2f9d5813ef42efe9aea68f5de4475def01), [`9cd08ea`](https://github.com/mfeflow/mfeflow/commit/9cd08eaf684dc3155de4bb43db89a89099d735ba), [`f8b4209`](https://github.com/mfeflow/mfeflow/commit/f8b42097e580a484dc8ab7465a7e3119f2be7254), [`cc9b8d2`](https://github.com/mfeflow/mfeflow/commit/cc9b8d2ffb44c6f4ff28db3cc67fb8e876a97114)]:
+  - @mfeflow/contracts@0.8.0
+
 ## 0.7.0
 
 ### Patch Changes
