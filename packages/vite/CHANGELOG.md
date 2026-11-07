@@ -1,5 +1,12 @@
 # @mfeflow/vite
 
+## 0.9.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @mfeflow/bundler-shared@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes

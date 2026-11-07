@@ -1,5 +1,18 @@
 # mfeflow
 
+## 0.9.0
+
+### Minor Changes
+
+- [#108](https://github.com/mfeflow/mfeflow/pull/108) [`c9d813c`](https://github.com/mfeflow/mfeflow/commit/c9d813c82a2d121b5edbba1883a1cf4201efd8e9) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - Add `mfeflow mcp`, a stdio MCP server that lets a coding agent inspect a project, run doctor and validate, and plan changes with a diff before applying them. Promote and rollback tools are only offered with `--allow-registry-writes`.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @mfeflow/contracts@0.9.0
+  - @mfeflow/core@0.9.0
+  - @mfeflow/registry@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes
