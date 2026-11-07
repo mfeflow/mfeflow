@@ -190,7 +190,8 @@ async function checkedAgainst(cwd: string, value: string): Promise<string> {
     return real;
   };
   const real = await inside(file);
-  const beside = path.join(path.dirname(real), 'mf-manifest.json');
+  // The CLI reads a registry index's shell manifest from shell/mf-manifest.json beside it.
+  const beside = path.join(path.dirname(real), 'shell', 'mf-manifest.json');
   if (
     await fs.stat(beside).then(
       () => true,

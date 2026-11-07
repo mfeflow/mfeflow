@@ -336,6 +336,22 @@ describe('doctor against', () => {
     expect(cli.seen).toEqual([]);
   });
 
+  it('refuses an index whose shell manifest is a symlink to a file outside the project', async () => {
+    const root = await project();
+    const outside = await tempDir('mfeflow-mcp-outside-');
+    dirs.push(outside);
+    await fs.writeFile(path.join(outside, 'mf-manifest.json'), '{}');
+    await fs.writeFile(path.join(root, 'index.json'), '{}');
+    await fs.symlink(outside, path.join(root, 'shell'));
+    const cli = stubCli(() => ({ ok: true, command: 'doctor' }));
+    const result = await call(await connect({ main: cli.main }), 'mfeflow_doctor', {
+      cwd: root,
+      against: 'index.json',
+    });
+    expect(result.isError).toBe(true);
+    expect(cli.seen).toEqual([]);
+  });
+
   it('passes a file inside the project as its real path', async () => {
     const root = await project();
     await fs.writeFile(path.join(root, 'shell.json'), '{}');
