@@ -298,8 +298,8 @@ Version 0.8.0 is on npm. Phases 02 to 06 are released, and 0.8.0 added Vite and 
 
 | Phase | What                                                                                                          | State                            |
 | ----- | ------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| 05    | Registry with deploy, promote, rollback, status and rollouts                                                  | Released in 0.6.0                |
-| 06    | Upgrade, adopt an existing app, polyrepo layouts                                                              | Released in 0.6.0                |
+| 05    | Registry with deploy, promote, rollback, status and rollouts                                                  | Released in 0.5.0 and 0.6.0      |
+| 06    | Upgrade, adopt an existing app, polyrepo layouts                                                              | Released in 0.5.0 and 0.6.0      |
 | 12    | Vite as a second bundler (`--bundler vite`)                                                                   | Released in 0.8.0                |
 | 14-16 | Shell only, remotes only (`--kind remote`), tooling repo (`--kind tooling`)                                   | Released in 0.8.0                |
 | 13    | First users: [live demo](https://mfeflow.github.io/examples/), quickstart, comparison pages, talking to teams | In progress                      |
