@@ -1,5 +1,12 @@
 # @mfeflow/registry
 
+## 0.9.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @mfeflow/contracts@0.9.0
+
 ## 0.8.0
 
 ### Patch Changes

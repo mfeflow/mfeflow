@@ -1,6 +1,6 @@
 {
   "name": "@mfeflow/bundler-shared",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Bundler-agnostic Module Federation 2.0 settings shared by the mfeflow presets (@mfeflow/rsbuild and @mfeflow/vite): singletons, federation options, head scripts and runtime config.",
   "keywords": [
     "micro-frontend",
