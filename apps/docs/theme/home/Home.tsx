@@ -3,6 +3,7 @@ import { DOCS_URL } from '@mfeflow/contracts';
 import { CopyCommand } from './CopyCommand';
 import {
   CHANGELOG_URL,
+  DEMO_URL,
   DESCRIPTION,
   DOCUMENTED_FEATURES,
   FEATURE_GROUPS,
@@ -93,6 +94,9 @@ export function Home() {
             <CopyCommand command={INSTALL_COMMAND} />
             <a className="mf-btn" href={withBase('/guide/quickstart')}>
               Read the docs
+            </a>
+            <a className="mf-btn" href={DEMO_URL}>
+              Live demo
             </a>
           </div>
           <p className="mf-facts">TypeScript · Rsbuild 2 or Vite 8 · pnpm · Turborepo · oxlint</p>

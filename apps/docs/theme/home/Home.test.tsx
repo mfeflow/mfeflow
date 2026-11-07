@@ -60,6 +60,11 @@ describe('home page', () => {
     expect(html).toContain('href="/mfeflow/guide/quickstart"');
   });
 
+  it('links to the live demo', () => {
+    expect(html).toContain('href="https://mfeflow.github.io/examples/"');
+    expect(html).toContain('Live demo');
+  });
+
   it('links a feature chip only when its page exists', () => {
     const pages = fs
       .readdirSync(FEATURES_DIR)

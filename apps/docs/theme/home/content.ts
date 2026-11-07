@@ -3,6 +3,7 @@ import cli from '../../../../packages/cli/package.json';
 export const VERSION: string = cli.version;
 export const INSTALL_COMMAND = 'pnpm create mfeflow my-platform';
 export const REPO_URL = 'https://github.com/mfeflow/mfeflow';
+export const DEMO_URL = 'https://mfeflow.github.io/examples/';
 export const NPM_URL = 'https://www.npmjs.com/package/mfeflow';
 export const CHANGELOG_URL =
   'https://github.com/mfeflow/mfeflow/blob/main/packages/cli/CHANGELOG.md';

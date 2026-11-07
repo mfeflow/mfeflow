@@ -24,6 +24,8 @@
 
 ## Try it
 
+See it first: the [live demo](https://mfeflow.github.io/examples/) is the ecommerce example (a shell and three remotes) on GitHub Pages.
+
 A React micro-frontend platform: a shell, your remotes, and the checks that keep them working together. You need Node 22.12 or newer.
 
 ```bash
@@ -294,20 +296,20 @@ The shell and catalog sit right at their limits. An earlier target of +35 KB for
 
 Version 0.8.0 is on npm. Phases 02 to 06 are released, and 0.8.0 added Vite and the new project kinds.
 
-| Phase | What                                                                        | State             |
-| ----- | --------------------------------------------------------------------------- | ----------------- |
-| 05    | Registry with deploy, promote, rollback, status and rollouts                | Released in 0.6.0 |
-| 06    | Upgrade, adopt an existing app, polyrepo layouts                            | Released in 0.6.0 |
-| 12    | Vite as a second bundler (`--bundler vite`)                                 | Released in 0.8.0 |
-| 14-16 | Shell only, remotes only (`--kind remote`), tooling repo (`--kind tooling`) | Released in 0.8.0 |
-| 13    | First users: a live demo, comparison pages, talking to teams                | In progress       |
-| Later | An MCP server                                                               | Planned           |
+| Phase | What                                                                                                          | State                            |
+| ----- | ------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| 05    | Registry with deploy, promote, rollback, status and rollouts                                                  | Released in 0.6.0                |
+| 06    | Upgrade, adopt an existing app, polyrepo layouts                                                              | Released in 0.6.0                |
+| 12    | Vite as a second bundler (`--bundler vite`)                                                                   | Released in 0.8.0                |
+| 14-16 | Shell only, remotes only (`--kind remote`), tooling repo (`--kind tooling`)                                   | Released in 0.8.0                |
+| 13    | First users: [live demo](https://mfeflow.github.io/examples/), quickstart, comparison pages, talking to teams | In progress                      |
+| 10    | MCP server: `mfeflow mcp` for Claude Code, Cursor, Codex and VS Code                                          | Built, ships in the next release |
 
 What is still open:
 
 - There is no `mfeflow remove`. Adding a feature is tested. Removing one is not supported.
 - The generated GitHub Actions workflow has not yet run on a fresh GitHub repository.
-- The MCP server does not exist yet.
+- `mfeflow mcp` is merged but not on npm yet; it ships in the next release. It has not been tried with each client end to end.
 - `upgrade` does not work inside a polyrepo yet. It also merges two ways (hash, diff, prompt); a three-way merge is planned.
 - `adopt` reads only literal configs. A config built by a function or read from the environment is listed as not carried over. It supports pnpm and npm projects, not yarn or bun. A folder with only a remote and no shell is refused.
 - The `hybrid` layout, a platform monorepo with team repos next to it, is not built. `ci-github` and `env-t3` cannot be added to a polyrepo yet.
