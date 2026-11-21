@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react';
 import { federation, type ModuleFederationOptions } from '@module-federation/vite';
 import {
   assertAsyncBoundary,
+  applyBaseHeadScript,
   commonRemoteOptions,
   commonShellOptions,
   installedVersionFrom,
@@ -29,6 +30,7 @@ export {
   appVersion,
   assertAsyncBoundary,
   installedVersionFrom,
+  normalizeBasePath,
   packageNameOf,
   resolvableFrom,
   runtimeConfigEnv,
@@ -161,8 +163,10 @@ export function createShellConfig(o: ShellOptions): UserConfig {
   const require = createRequire(path.join(cwd, 'package.json'));
   if (o.eager === false) assertAsyncBoundary(path.join(cwd, 'src/index.ts'));
   const env = o.env ?? process.env;
+  const base = applyBaseHeadScript(o.basePath, o.registryUrl, env);
   return {
     root: cwd,
+    ...(base === '/' ? {} : { base }),
     // Client-side routing: unknown paths get index.html.
     appType: 'spa',
     envPrefix: 'PUBLIC_',
@@ -171,7 +175,7 @@ export function createShellConfig(o: ShellOptions): UserConfig {
       federationPlugin(shellFederationOptions(o, resolvableFrom(cwd), (s) => require.resolve(s))),
       pluginShellDefines(o, cwd),
       pluginHeadScripts(),
-      pluginRuntimeConfig(cwd, env),
+      pluginRuntimeConfig(cwd, env, base),
     ],
     build: { target: 'esnext' },
     server: listen(o.port),

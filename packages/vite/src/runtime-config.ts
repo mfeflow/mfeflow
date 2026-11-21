@@ -9,11 +9,12 @@ import { runtimeConfigEnv, runtimeConfigEnvs, runtimeConfigHandler } from '@mfef
 export function pluginRuntimeConfig(
   cwd: string,
   env: Readonly<Record<string, string | undefined>>,
+  base = '/',
 ): Plugin {
   const handler =
     runtimeConfigEnvs(cwd).length === 0
       ? undefined
-      : runtimeConfigHandler(cwd, runtimeConfigEnv(env));
+      : runtimeConfigHandler(cwd, runtimeConfigEnv(env), base);
   return {
     name: 'mfeflow:runtime-config',
     configureServer(server) {

@@ -171,6 +171,62 @@ describe('createShellConfig', () => {
     );
   });
 
+  describe('with a base path', () => {
+    afterEach(resetHeadScriptsForTests);
+
+    it('sets no base and no head script when none is given, as before', () => {
+      const c = createShellConfig({ name: 'shell', port: 4300, cwd, env: {} });
+      expect(c).not.toHaveProperty('base');
+      expect(headScriptTags()).toEqual([]);
+    });
+
+    it('sets Vite base, hands the base to the page, and serves the config under it', () => {
+      const c = createShellConfig({
+        name: 'shell',
+        cwd,
+        env: { MFE_ENV: 'prod' },
+        basePath: 'demo',
+        registryUrl: 'envs/prod/index.json',
+      });
+      expect(c.base).toBe('/demo/');
+      expect(headScriptTags()).toEqual([
+        {
+          tag: 'script',
+          injectTo: 'head-prepend',
+          children: expect.stringContaining('"/demo/envs/prod/index.json"') as string,
+        },
+      ]);
+    });
+
+    it('reads MFEFLOW_BASE_PATH when the option is not given', () => {
+      const c = createShellConfig({ name: 'shell', cwd, env: { MFEFLOW_BASE_PATH: '/demo' } });
+      expect(c.base).toBe('/demo/');
+    });
+
+    it('does not tie the default registry to MFE_ENV, and reads MFEFLOW_REGISTRY_URL', () => {
+      createShellConfig({
+        name: 'shell',
+        cwd,
+        env: { MFE_ENV: 'prod', MFEFLOW_BASE_PATH: '/demo' },
+      });
+      expect(headScriptTags()[0]?.children).toContain('"/demo/registry/index.json"');
+      createShellConfig({
+        name: 'shell',
+        cwd,
+        env: { MFEFLOW_BASE_PATH: '/demo', MFEFLOW_REGISTRY_URL: 'envs/prod/index.json' },
+      });
+      expect(headScriptTags()).toHaveLength(1);
+      expect(headScriptTags()[0]?.children).toContain('"/demo/envs/prod/index.json"');
+    });
+
+    it('drops the base script when the config is loaded again without a base', () => {
+      createShellConfig({ name: 'shell', cwd, env: {}, basePath: '/demo/' });
+      expect(headScriptTags()).toHaveLength(1);
+      createShellConfig({ name: 'shell', cwd, env: {} });
+      expect(headScriptTags()).toEqual([]);
+    });
+  });
+
   it('checks the async boundary with eager: false', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mfeflow-vite-eager-'));
     fs.mkdirSync(path.join(dir, 'src'));
@@ -219,6 +275,18 @@ describe('pluginRuntimeConfig', () => {
     };
     Reflect.apply(handler, {}, [
       { url: '/config/runtime-config.json', method: 'GET' } as IncomingMessage,
+      res as unknown as ServerResponse,
+      () => undefined,
+    ]);
+    expect(body).toBe('{"a":1}');
+
+    const under = pluginRuntimeConfig(dir, {}, '/demo/');
+    callHook(under.configureServer, { middlewares: { use } });
+    const based: unknown = use.mock.calls[2]?.[0];
+    if (typeof based !== 'function') throw new Error('no handler');
+    body = '';
+    Reflect.apply(based, {}, [
+      { url: '/demo/config/runtime-config.json', method: 'GET' } as IncomingMessage,
       res as unknown as ServerResponse,
       () => undefined,
     ]);
