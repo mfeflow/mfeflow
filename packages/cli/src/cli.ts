@@ -13,6 +13,7 @@ import {
   VALIDATE_ARGS,
 } from './commands/doctor';
 import { BUDGET_ARGS, runBudget } from './commands/budget';
+import { BUILD_ARGS, BUILD_CHILD_ENV, runBuild } from './commands/build';
 import {
   DEPLOY_ARGS,
   PROMOTE_ARGS,
@@ -300,6 +301,20 @@ export const COMMANDS: readonly Command[] = [
     run: runDev,
   },
   {
+    name: 'build',
+    summary: 'build every remote, then the shell, with the bundler each app installed',
+    usage: 'mfeflow build [options]',
+    args: BUILD_ARGS,
+    examples: [
+      'mfeflow build',
+      'mfeflow build --only shell,catalog',
+      'mfeflow build --concurrency 2',
+      'mfeflow build --json',
+      'cd apps/catalog && mfeflow build   # inside an app: just that app',
+    ],
+    run: runBuild,
+  },
+  {
     name: 'test',
     summary: "run the project's tests with its own vitest, at the root or for some apps",
     usage: 'mfeflow test [--only a,b] [-- <vitest args>]',
@@ -377,6 +392,8 @@ function fail(error: unknown, rt: Runtime, json: boolean, verbose: boolean): num
       ? new MfeflowError('E107', stripVTControlCharacters(error.message))
       : error;
   if (isMfeflowError(mfe)) {
+    const quiet = !json && rt.io.env[BUILD_CHILD_ENV] === '1' && mfe.code === 'MFEFLOW_E310';
+    if (quiet) return exitCodeFor(mfe);
     if (json) rt.io.stdout(JSON.stringify(failure(mfe), null, 2));
     else rt.io.stderr(mfe.format());
     if (verbose && mfe.cause !== undefined)

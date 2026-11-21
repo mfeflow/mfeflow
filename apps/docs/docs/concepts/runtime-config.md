@@ -35,7 +35,7 @@ export const runtimeConfigSchema = z.object({
 
 ## Which keys does the shell read itself?
 
-Two optional keys tell the shell where to find the registry index. Without them it uses `/registry/index.json` on its own origin.
+Two optional keys tell the shell where to find the registry index. Without them it uses `/registry/index.json` on its own origin, or the index the build chose under a base path.
 
 | Key               | Meaning                                                                    |
 | ----------------- | -------------------------------------------------------------------------- |
@@ -70,7 +70,7 @@ If the file cannot be loaded, the promise rejects and the shell reports the fail
 
 ## Which file does each environment get?
 
-The request is always for `/config/runtime-config.json`. What answers it differs.
+The request is always for `/config/runtime-config.json`, or `<base>config/runtime-config.json` when the shell was built with a base path (see [GitHub Pages](/guide/deploy/github-pages)). What answers it differs.
 
 | Where                                | Who answers                                                                                                                                    |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |

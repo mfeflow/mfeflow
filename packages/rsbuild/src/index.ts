@@ -7,6 +7,7 @@ import {
   assertAsyncBoundary,
   commonRemoteOptions,
   commonShellOptions,
+  applyBaseHeadScript,
   installedVersionFrom,
   resolvableFrom,
   shellDefines,
@@ -33,6 +34,7 @@ export {
   appVersion,
   assertAsyncBoundary,
   installedVersionFrom,
+  normalizeBasePath,
   packageNameOf,
   resolvableFrom,
   sharedPackages,
@@ -124,7 +126,9 @@ export function createShellConfig(o: ShellOptions): RsbuildConfig {
   const cwd = o.cwd ?? process.cwd();
   const require = createRequire(path.join(cwd, 'package.json'));
   if (o.eager === false) assertAsyncBoundary(path.join(cwd, 'src/index.ts'));
-  const setup = runtimeConfigSetup(cwd, o.env ?? process.env);
+  const env = o.env ?? process.env;
+  const base = applyBaseHeadScript(o.basePath, o.registryUrl, env);
+  const setup = runtimeConfigSetup(cwd, env, base);
   const headScripts = headScriptTags();
   return {
     plugins: [
@@ -140,6 +144,7 @@ export function createShellConfig(o: ShellOptions): RsbuildConfig {
       define: shellDefines(o, cwd, resolvableFrom(cwd)),
     },
     server: {
+      ...(base === '/' ? {} : { base }),
       historyApiFallback: true,
       ...(o.port === undefined ? {} : { port: o.port }),
       ...(setup === undefined ? {} : { setup }),

@@ -476,6 +476,15 @@ describe('registrySourcesFromConfig', () => {
     });
   });
 
+  it('defaults to the index the build chose under a base path', () => {
+    Reflect.set(globalThis, '__MFE_REGISTRY_URL__', '/demo/envs/prod/index.json');
+    try {
+      expect(registrySourcesFromConfig({}).urls).toEqual(['/demo/envs/prod/index.json']);
+    } finally {
+      Reflect.deleteProperty(globalThis, '__MFE_REGISTRY_URL__');
+    }
+  });
+
   it('reads the URLs and origins, dropping anything that is not a string URL', () => {
     expect(
       registrySourcesFromConfig({

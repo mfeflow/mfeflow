@@ -70,6 +70,18 @@ export interface ShellOptions {
    * write `remoteEntry`.
    */
   snapshot?: boolean;
+  /**
+   * The path the shell is served under, such as `/demo/` for `https://acme.github.io/demo/`. Slashes
+   * are added where missing. Default: `MFEFLOW_BASE_PATH`, else `/`. It sets the asset prefix, and the
+   * shell's runtime config URL, default registry URL and links follow it.
+   */
+  basePath?: string;
+  /**
+   * The registry index the shell loads without a `registryUrls` config. Default:
+   * `MFEFLOW_REGISTRY_URL`, else `<base>registry/index.json`. A value without a leading `/` is under
+   * the base, so `envs/prod/index.json` is the file `mfeflow deploy` writes for `prod`.
+   */
+  registryUrl?: string;
   cwd?: string;
   env?: Readonly<Record<string, string | undefined>>;
 }

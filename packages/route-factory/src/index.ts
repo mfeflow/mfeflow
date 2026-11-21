@@ -61,7 +61,8 @@ export interface LinkConfig {
   /**
    * Where the shell is served: `''` (default) at the origin's root, `'/app'` under a path, or a
    * full URL for links that leave the page. A function is read on every call, so it can come from
-   * runtime config that loads after the links are created.
+   * runtime config that loads after the links are created. Default: the base path the shell was
+   * built with (`basePath` in `createShellConfig`), read on every call, and `''` at the root.
    */
   base?: string | (() => string);
 }
@@ -71,6 +72,13 @@ export interface Links<S extends RouteSets> {
   href: <Id extends LinkId<S>>(id: Id, ...args: LinkArgs<TemplateOf<S, Id>>) => string;
   /** The same without the base, for a router that has its own `basename`. */
   path: <Id extends LinkId<S>>(id: Id, ...args: LinkArgs<TemplateOf<S, Id>>) => string;
+}
+
+/** The base path the shell's `<head>` set (`window.__MFE_BASE_PATH__`, such as `/demo/`), without the last slash. */
+function shellBase(): string {
+  const value: unknown = Reflect.get(globalThis, '__MFE_BASE_PATH__');
+  if (typeof value !== 'string' || value === '') return '';
+  return trimEnd(value.startsWith('/') ? value : `/${value}`);
 }
 
 function trimEnd(base: string): string {
@@ -124,7 +132,7 @@ export function createLinks<const S extends RouteSets>(sets: S, config: LinkConf
       throw new Error(`route-factory: unknown route "${id}"`);
     const { path, search } = split(template);
     const base = withBase
-      ? trimEnd(typeof config.base === 'function' ? config.base() : (config.base ?? ''))
+      ? trimEnd(typeof config.base === 'function' ? config.base() : (config.base ?? shellBase()))
       : '';
     const inner = fillPath(path, options?.params, 'route-factory', id);
     const joined = `${base}${set.mount}${inner === '/' && set.mount !== '' ? '' : inner}`;

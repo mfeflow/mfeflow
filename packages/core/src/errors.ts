@@ -199,6 +199,18 @@ export const ERROR_CATALOGUE = {
     title: 'The shell to check against could not be read',
     fix: 'Pass --against a registry index, a deployed shell mf-manifest.json or a local file of either. A URL must be https (http only for localhost) and under 1 MB.',
   },
+  E308: {
+    title: 'The bundler is not installed in an app',
+    fix: "Run `pnpm install`. mfeflow uses the bundler the app installed (@rsbuild/core or vite in the app's package.json) and never brings its own.",
+  },
+  E309: {
+    title: 'An app has no config file for its bundler',
+    fix: 'Add rsbuild.config.ts or vite.config.ts to the app to match "bundler" in mfeflow.json (Rsbuild when the field is left out), or change that field.',
+  },
+  E310: {
+    title: 'An app did not build',
+    fix: "Read the bundler's output above for the cause, fix it, and run `mfeflow build` again. `mfeflow build --only <app>` builds one app.",
+  },
   E311: {
     title: 'A tool this command runs is not installed or not set up',
     fix: "Install the package the message names in the project (`pnpm add -D <package>`), or add the feature that sets it up (`mfeflow add testing`, `mfeflow add lint-oxlint`, `mfeflow add tsconfig`). mfeflow runs the project's own copy and never ships one.",

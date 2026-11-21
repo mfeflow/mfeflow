@@ -253,6 +253,31 @@ export interface DevResult {
   interrupted: boolean;
 }
 
+export type BuildStatus = 'built' | 'failed' | 'skipped' | 'missing' | 'stopped';
+
+export interface BuildApp {
+  name: string;
+  kind: 'shell' | 'remote';
+  /** `skipped`: not started because an earlier app failed. `missing`: the folder is not on disk. `stopped`: ended by Ctrl+C. */
+  status: BuildStatus;
+  /** Wall time of the build; null when it did not run. */
+  ms: number | null;
+  /** Gzip KB of the JS a visitor loads first, as `budget` reads it; null when not built or not measurable. */
+  kb: number | null;
+}
+
+export interface BuildResult {
+  ok: boolean;
+  command: 'build';
+  root: string;
+  /** How many apps were built at once. */
+  concurrency: number;
+  apps: BuildApp[];
+  findings: Finding[];
+  /** Stopped with Ctrl+C or a termination signal. */
+  interrupted: boolean;
+}
+
 /** One run of a project tool: an app's `tsc`, the root `vitest`, the project's `oxlint`. */
 export interface ToolRun {
   /** The app, package or `root` it ran for. */
@@ -319,6 +344,8 @@ export interface DeployResult {
   uploads: PlannedUpload[];
   uploaded: string[];
   skipped: string[];
+  /** Files of the build that were not uploaded, with the reason. */
+  leftOut: { file: string; reason: string }[];
   /** The registry/envs file written to match the host; null when none was. */
   localEntry: string | null;
   /** The index the run would write. Only for a dry run. */
@@ -340,6 +367,8 @@ export interface StatusRemote {
   /** Versions on the host newer than `version` that no environment points at; null when the host cannot list. */
   unreferenced: string[] | null;
   drift: string[];
+  /** Facts that are not drift, such as a remote with no file in `registry/`. */
+  notes?: string[];
   /** Server mode with a token: the remote was killed and is not in the served index. */
   killed?: boolean;
   /** Server mode with a token: a percentage rollout is running. */
@@ -426,6 +455,7 @@ export type CliResult =
   | ReportResult
   | BudgetResult
   | DevResult
+  | BuildResult
   | ToolResult
   | DeployResult
   | StatusResult
@@ -603,6 +633,24 @@ function checkBudget(c: Check, value: Obj): void {
   });
 }
 
+function checkBuild(c: Check, value: Obj): void {
+  c.string(value, 'root', '');
+  c.boolean(value, 'interrupted', '');
+  if (typeof value.concurrency !== 'number') c.add('concurrency', 'must be a number');
+  c.objects(value, 'apps', '', (app, p) => {
+    c.string(app, 'name', p);
+    if (app.kind !== 'shell' && app.kind !== 'remote') c.add(`${p}kind`, 'must be shell or remote');
+    if (!['built', 'failed', 'skipped', 'missing', 'stopped'].includes(String(app.status))) {
+      c.add(`${p}status`, 'must be built, failed, skipped, missing or stopped');
+    }
+    for (const key of ['ms', 'kb']) {
+      if (app[key] !== null && typeof app[key] !== 'number')
+        c.add(`${p}${key}`, 'must be a number or null');
+    }
+  });
+  checkFindings(c, value);
+}
+
 function checkFindings(c: Check, value: Obj): void {
   c.objects(value, 'findings', '', (f, p) => {
     for (const key of ['code', 'message', 'fix', 'docs']) c.string(f, key, p);
@@ -615,6 +663,9 @@ function checkDeploy(c: Check, value: Obj): void {
   for (const key of ['fromEnv', 'servedBefore', 'previous', 'rolledBackFrom', 'localEntry']) {
     if (value[key] !== null && typeof value[key] !== 'string') c.add(key, 'must be text or null');
   }
+  c.objects(value, 'leftOut', '', (l, p) => {
+    for (const key of ['file', 'reason']) c.string(l, key, p);
+  });
   c.texts(value, 'uploaded', '');
   c.texts(value, 'skipped', '');
   c.texts(value, 'warnings', '');
@@ -814,6 +865,9 @@ export function validateResult(value: unknown): Issue[] {
       });
       if (!isObj(value.overrides)) c.add('overrides', 'must be an object');
       break;
+    case 'build':
+      checkBuild(c, value);
+      break;
     case 'test':
     case 'lint':
     case 'typecheck':
@@ -865,7 +919,7 @@ export function validateResult(value: unknown): Issue[] {
     default:
       c.add(
         'command',
-        'must be init, adopt, add, upgrade, features, registry, doctor, validate, check-compat, budget, dev, test, lint, typecheck, deploy, promote, rollback, status, rollout, kill, restore or mcp',
+        'must be init, adopt, add, upgrade, features, registry, doctor, validate, check-compat, budget, dev, build, test, lint, typecheck, deploy, promote, rollback, status, rollout, kill, restore or mcp',
       );
   }
   return c.issues;
@@ -873,8 +927,8 @@ export function validateResult(value: unknown): Issue[] {
 
 /** Exit code for a result that printed normally: findings decide for the checks, Ctrl+C is 130. */
 export function exitOf(result: CliResult): number {
+  if ('interrupted' in result && result.interrupted) return EXIT.cancelled;
   if ('findings' in result) return exitForFindings(result.findings);
-  if (result.ok && 'interrupted' in result && result.interrupted) return EXIT.cancelled;
-  if (!result.ok && 'runs' in result) return result.interrupted ? EXIT.cancelled : EXIT.build;
+  if (!result.ok && 'runs' in result) return EXIT.build;
   return result.ok ? EXIT.ok : EXIT.unexpected;
 }

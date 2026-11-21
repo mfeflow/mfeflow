@@ -6,6 +6,7 @@ export type {
   AddResult,
   AdoptResult,
   BudgetResult,
+  BuildResult,
   DevResult,
   DeployResult,
   CliResult,

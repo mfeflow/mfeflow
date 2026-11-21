@@ -105,6 +105,14 @@ describe('runtimeConfigHandler', () => {
     expect(ask(dev, RUNTIME_CONFIG_URL).body).toContain('edited');
   });
 
+  it('answers the config under the base path too, and still at the root', () => {
+    config({ 'runtime-config.dev.json': '{"environment":"dev"}' });
+    const handler = runtimeConfigHandler(cwd, 'dev', '/demo/');
+    expect(ask(handler, '/demo/config/runtime-config.json?v=1')).toMatchObject({ status: 200 });
+    expect(ask(handler, RUNTIME_CONFIG_URL)).toMatchObject({ status: 200 });
+    expect(ask(handler, '/other/config/runtime-config.json').nexted).toBe(true);
+  });
+
   it('answers HEAD without a body and passes every other request on', () => {
     config({ 'runtime-config.dev.json': '{}' });
     const handler = runtimeConfigHandler(cwd, 'dev');

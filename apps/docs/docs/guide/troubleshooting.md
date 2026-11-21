@@ -108,6 +108,8 @@ The CLI prints a code like `MFEFLOW_E102`, the cause, a fix, and a link. These a
 | A bundle is over its budget                   | E304 | See [CI and budgets](/guide/ci-and-budgets)            |
 | There is no build output to measure           | E305 | Run `pnpm build` first                                 |
 | A dev server could not start                  | E306 | Run `pnpm install`, or free the port                   |
+| The bundler is not installed in an app        | E308 | Run `pnpm install`                                     |
+| An app did not build                          | E310 | Read the bundler's output, fix it, build again         |
 
 Every code has its own page. Browse the full list in [Error codes](/reference/errors).
 

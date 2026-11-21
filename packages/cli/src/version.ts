@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import path from 'node:path';
 
 export interface PackageJson {
   name: string;
@@ -23,4 +24,10 @@ export function readPackageJson(): PackageJson {
   const pkg: unknown = require('../package.json');
   if (!isPackageJson(pkg)) throw new Error('package.json is missing a name or version');
   return pkg;
+}
+
+/** The `mfeflow` executable of this package, which `mfeflow build` starts once per app. */
+export function cliBinPath(): string {
+  const require = createRequire(import.meta.url);
+  return path.join(path.dirname(require.resolve('../package.json')), 'bin', 'mfeflow.js');
 }
