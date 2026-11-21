@@ -63,12 +63,12 @@ The two are not exclusive in principle. mfeflow uses Turborepo for its tasks and
 
 ## Coming from Nx `host` and `remote`
 
-If your workspace uses `withModuleFederation`, Nx 24 asks you to rewrite the federation config by hand. Nx's guide does that and keeps your bundler. mfeflow is another option: it gives you `mfeflow dev` to start the shell and remotes together, a registry with rollback, and fallbacks when a remote is down. `mfeflow adopt` does not read Nx's `withModuleFederation` configs yet. That work is planned, and until it ships, Nx's guide is the path to follow.
+If your workspace uses `withModuleFederation`, Nx 24 moves it to a plain `ModuleFederationPlugin` config. `nx migrate` runs that step for you, and the guide covers the manual way. Either way you keep your bundler. mfeflow is another option: it gives you `mfeflow dev` to start the shell and remotes together, a registry with rollback, and fallbacks when a remote is down. `mfeflow adopt` does not read Nx's `withModuleFederation` configs yet. That work is planned, and until it ships, Nx's guide is the path to follow.
 
 ## What we have not checked
 
 - Whether the `consumer` and `provider` generators stay in Nx 24. The Nx 24 notes name only `host` and `remote` as removed, but no page says outright that the other two remain.
-- Whether Nx has a codemod to move from `host` and `remote` to `consumer` and `provider`. We found none, but did not read every page.
+- How well `nx migrate` handles a real workspace. Nx's guide says that when you upgrade with `nx migrate`, "its Module Federation migration already ran these steps". We have not run it.
 - How Nx behaves in production. We read documentation only.
 - Server-side rendering in Nx. The documentation says it is not first-class.
 - The current Nx Cloud price. The pricing page contradicts itself, so we quote none.
