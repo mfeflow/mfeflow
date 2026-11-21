@@ -177,11 +177,11 @@ describe('mfeflow typecheck', () => {
     expect(c.exit).toBe(EXIT.usage);
   });
 
-  it('refuses with E310 naming the package when tsc is not installed', async () => {
+  it('refuses with E311 naming the package when tsc is not installed', async () => {
     const root = await project(['vitest', 'oxlint']);
     const { rt, exit } = await run(['typecheck', '--cwd', root]);
     expect(exit).toBe(EXIT.build);
-    expect(rt.io.err.join('\n')).toMatch(/MFEFLOW_E310.*typescript is not installed/);
+    expect(rt.io.err.join('\n')).toMatch(/MFEFLOW_E311.*typescript is not installed/);
     expect(rt.dev.procs).toHaveLength(0);
   });
 
@@ -348,11 +348,11 @@ describe('mfeflow test', () => {
     expect(rt.io.out).toContain('some output');
   });
 
-  it('refuses with E310 when vitest is not set up or not installed', async () => {
+  it('refuses with E311 when vitest is not set up or not installed', async () => {
     const root = await project(['oxlint', 'tsc']);
     const missing = await run(['test', '--cwd', root]);
     expect(missing.exit).toBe(EXIT.build);
-    expect(missing.rt.io.err.join('\n')).toMatch(/E310.*vitest is not installed/);
+    expect(missing.rt.io.err.join('\n')).toMatch(/E311.*vitest is not installed/);
     await fs.rm(path.join(root, 'vitest.config.ts'));
     for (const app of ['shell', 'catalog', 'cart']) {
       // oxlint-disable-next-line no-await-in-loop -- three small files
@@ -360,7 +360,7 @@ describe('mfeflow test', () => {
     }
     const noConfig = await run(['test', '--cwd', root]);
     expect(noConfig.exit).toBe(EXIT.build);
-    expect(noConfig.rt.io.err.join('\n')).toMatch(/E310.*vitest is not set up/);
+    expect(noConfig.rt.io.err.join('\n')).toMatch(/E311.*vitest is not set up/);
   });
 
   it('--dry-run prints the command', async () => {
@@ -403,12 +403,12 @@ describe('mfeflow lint', () => {
     expect(rt.dev.procs[0]?.spec.args).toEqual(['--type-aware', '--deny-warnings', 'apps/cart']);
   });
 
-  it('exits 5 on findings and E310 names oxlint when it is missing', async () => {
+  it('exits 5 on findings and E311 names oxlint when it is missing', async () => {
     const root = await project();
     expect((await run(['lint', '--cwd', root], 1)).exit).toBe(EXIT.build);
     const bare = await project(['vitest', 'tsc']);
     const { rt, exit } = await run(['lint', '--cwd', bare]);
     expect(exit).toBe(EXIT.build);
-    expect(rt.io.err.join('\n')).toMatch(/E310.*oxlint is not installed/);
+    expect(rt.io.err.join('\n')).toMatch(/E311.*oxlint is not installed/);
   });
 });

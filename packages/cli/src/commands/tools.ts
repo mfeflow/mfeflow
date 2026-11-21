@@ -143,7 +143,7 @@ async function binary(tool: ToolName, from: string, root: string, what: string):
   const where = posix(path.relative(root, from));
   const place = where === '.' ? 'the project root' : `${where} or above it, up to the project root`;
   throw new MfeflowError(
-    'E310',
+    'E311',
     `${TOOL_PACKAGE[tool]} is not installed: no node_modules/.bin/${tool} in ${place}. \`mfeflow ${what}\` runs the project's own copy.`,
   );
 }
@@ -218,7 +218,7 @@ const planTest: Plan = async (view, args, extra, cwd) => {
   const found = withConfig.filter((u) => u !== undefined);
   if (found.length === 0) {
     throw new MfeflowError(
-      'E310',
+      'E311',
       'vitest is not set up: there is no vitest.config in the project root or in the apps. Add it with `mfeflow add testing`.',
     );
   }

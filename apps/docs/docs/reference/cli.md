@@ -301,7 +301,7 @@ Ctrl+C stops everything and exits with code 130. See [Develop locally](/guide/de
 
 ## test, lint and typecheck
 
-Three wrappers that run the same tools the generated scripts run, from the project's own install: `node_modules/.bin` of the app or of a folder above it, up to the project root. mfeflow never ships a copy, so the version is the one your lockfile has. A tool that is not installed, or a `vitest` without a config, is E310 and names the package.
+Three wrappers that run the same tools the generated scripts run, from the project's own install: `node_modules/.bin` of the app or of a folder above it, up to the project root. mfeflow never ships a copy, so the version is the one your lockfile has. A tool that is not installed, or a `vitest` without a config, is E311 and names the package.
 
 | Command     | Runs                                  | Where                                                                                                                       |
 | ----------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |

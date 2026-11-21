@@ -199,7 +199,7 @@ export const ERROR_CATALOGUE = {
     title: 'The shell to check against could not be read',
     fix: 'Pass --against a registry index, a deployed shell mf-manifest.json or a local file of either. A URL must be https (http only for localhost) and under 1 MB.',
   },
-  E310: {
+  E311: {
     title: 'A tool this command runs is not installed or not set up',
     fix: "Install the package the message names in the project (`pnpm add -D <package>`), or add the feature that sets it up (`mfeflow add testing`, `mfeflow add lint-oxlint`, `mfeflow add tsconfig`). mfeflow runs the project's own copy and never ships one.",
   },
