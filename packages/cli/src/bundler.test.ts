@@ -171,11 +171,12 @@ describe('configOf', () => {
 describe('resolveFromApp', () => {
   it('finds the package the app installed, as the ESM file its exports name', async () => {
     const target = await app('rsbuild', { packages: { '@rsbuild/core': fakeRsbuild } });
-    expect(await resolveFromApp(target, '@rsbuild/core')).toBe(
+    // realpath on both sides: Windows temp folders can come back in their short 8.3 form.
+    expect(await fs.realpath(await resolveFromApp(target, '@rsbuild/core'))).toBe(
       await fs.realpath(path.join(target.dir, 'node_modules/@rsbuild/core/index.js')),
     );
     const vite = await app('vite', { packages: { vite: fakeVite } });
-    expect(await resolveFromApp(vite, 'vite')).toBe(
+    expect(await fs.realpath(await resolveFromApp(vite, 'vite'))).toBe(
       await fs.realpath(path.join(vite.dir, 'node_modules/vite/index.js')),
     );
   });
