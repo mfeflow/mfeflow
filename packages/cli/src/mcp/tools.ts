@@ -2,15 +2,19 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isPrivateHost, redactUrl, shellSourceProblem } from '@mfeflow/contracts';
+import { isSecretName, redactUrl, redactUrlsIn, shellSourceProblem } from '@mfeflow/contracts';
 import {
   findProjectRoot,
   loadProject,
   messageOf,
   isMfeflowError,
+  isThirdPartyFeature,
   MfeflowError,
+  PrivateTargetError,
+  type FetchLike,
 } from '@mfeflow/core';
 import { z } from 'zod';
+import type { NetGuard } from '../net-guard';
 import { readPackageJson } from '../version';
 import { runCli, type CliMain, type CliRun } from './capture';
 import { explainCode, explainLog } from './errors';
@@ -41,6 +45,7 @@ export interface ToolContext {
   main: CliMain;
   plans: PlanStore;
   env: Readonly<Record<string, string | undefined>>;
+  net: NetGuard;
 }
 
 const cwdField = z
@@ -130,10 +135,10 @@ async function cli(
   ctx: ToolContext,
   cwd: string,
   argv: readonly string[],
-  guardFetch?: (url: string) => void,
+  fetchImpl?: FetchLike,
 ): Promise<{ result: Obj } | { error: ToolOutput }> {
   return resultOf(
-    await runCli(ctx.main, [...argv, '--json', '--cwd', cwd], cwd, ctx.env, guardFetch),
+    await runCli(ctx.main, [...argv, '--json', '--cwd', cwd], cwd, ctx.env, fetchImpl),
   );
 }
 
@@ -159,22 +164,23 @@ async function configuredHost(cwd: string): Promise<string> {
   return host;
 }
 
-const refusePrivateUrl = (url: string): void => {
-  if (isPrivateHost(new URL(url).hostname)) {
-    throw new MfeflowError('E405', `${redactUrl(url)} is a loopback or private address`);
-  }
-};
-
 /**
  * `against` is treated like a shell address read from a committed file: no credentials, no
  * loopback or private host, and a file only from inside the project folder.
  */
-async function checkedAgainst(cwd: string, value: string): Promise<string> {
+async function checkedAgainst(ctx: ToolContext, cwd: string, value: string): Promise<string> {
   if (value.startsWith('-')) throw new PlanRefused('against must not start with a dash');
   const why = shellSourceProblem(value);
   if (why !== undefined) throw new PlanRefused(`against ${why}`);
   if (/^https?:\/\//i.test(value)) {
-    refusePrivateUrl(value);
+    try {
+      await ctx.net.check(value);
+    } catch (error) {
+      if (error instanceof PrivateTargetError) throw error;
+      throw new MfeflowError('E307', redactUrlsIn(`${value}: ${messageOf(error)}`), {
+        cause: error,
+      });
+    }
     return value;
   }
   const file = value.toLowerCase().startsWith('file:') ? fileURLToPath(value) : value;
@@ -216,6 +222,26 @@ function report(result: Obj, detailed: boolean): Obj {
     : pick(result, ['ok', 'command', 'root', 'summary', 'against', 'findings']);
 }
 
+/**
+ * Every string inside `value`, however deep, with URLs (whole or embedded in text) redacted, and the
+ * value of any secret-looking key (token, password, apiKey...) replaced; other values are kept.
+ */
+function redactStrings(value: unknown): unknown {
+  if (typeof value === 'string') return redactUrlsIn(redactUrl(value));
+  if (Array.isArray(value)) return value.map(redactStrings);
+  if (isObj(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        isSecretName(key) && (typeof item === 'string' || typeof item === 'number')
+          ? '***'
+          : redactStrings(item),
+      ]),
+    );
+  }
+  return value;
+}
+
 function redactedProject(project: Awaited<ReturnType<typeof loadProject>>): Obj {
   const registries = project.registries
     ? Object.fromEntries(
@@ -230,8 +256,15 @@ function redactedProject(project: Awaited<ReturnType<typeof loadProject>>): Obj 
         ]),
       )
     : undefined;
+  const features = Object.fromEntries(
+    Object.entries(project.features).map(([feature, entry]) => [
+      feature,
+      entry.options === undefined ? entry : { ...entry, options: redactStrings(entry.options) },
+    ]),
+  );
   return {
     ...project,
+    features,
     ...(registries ? { registries } : {}),
     ...(registry ? { registry } : {}),
     ...(project.shell === undefined ? {} : { shell: redactUrl(project.shell) }),
@@ -344,12 +377,12 @@ function readTools(ctx: ToolContext): Tool[] {
       },
       async (args) => {
         const against = args.against?.trim();
-        const checked = against ? await checkedAgainst(args.cwd, against) : undefined;
+        const checked = against ? await checkedAgainst(ctx, args.cwd, against) : undefined;
         const out = await cli(
           ctx,
           args.cwd,
           checked ? ['doctor', '--against', checked] : ['doctor'],
-          refusePrivateUrl,
+          ctx.net.fetch,
         );
         return 'error' in out
           ? out.error
@@ -584,7 +617,8 @@ function writeTools(ctx: ToolContext): Tool[] {
           argv: [...argv, '--yes'],
           hashes: await hashTargets(root, [...planPaths(plan), 'mfeflow.json']),
           diff,
-          ...(args.kind === 'add_feature'
+          ...(args.kind === 'add_feature' ||
+          (args.kind === 'init' && args.features?.some((f) => isThirdPartyFeature(f)))
             ? {
                 verify: {
                   argv: [...argv, '--dry-run'],
@@ -758,10 +792,12 @@ function registryTools(ctx: ToolContext): Tool[] {
         const out = await cli(ctx, args.cwd, [...argv, '--dry-run']);
         if ('error' in out) return out.error;
         if (out.result.ok !== true) return { isError: true, data: out.result };
-        const pinned =
-          args.kind === 'rollback' && !args.version && typeof out.result.version === 'string'
-            ? [...argv, '--to', out.result.version]
-            : argv;
+        const seen = typeof out.result.version === 'string' ? out.result.version : undefined;
+        let pinned = argv;
+        if (seen !== undefined) {
+          if (args.kind === 'promote') pinned = [...argv, '--expect-version', seen];
+          else if (!args.version) pinned = [...argv, '--to', seen];
+        }
         const root = typeof out.result.root === 'string' ? out.result.root : args.cwd;
         const entry = typeof out.result.localEntry === 'string' ? [out.result.localEntry] : [];
         const stored = ctx.plans.add({

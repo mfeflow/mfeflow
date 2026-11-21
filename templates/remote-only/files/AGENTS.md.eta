@@ -6,7 +6,7 @@ Guidance for coding agents working in this repo.
 - Package manager: pnpm (via corepack). Never npm or yarn. Versions live in the `catalog` of
   `pnpm-workspace.yaml`; add dependencies there and reference them as `catalog:`.
 - `pnpm dev` runs every remote. `pnpm build` builds all of them.
-- Before finishing: `pnpm doctor` (and `pnpm validate`, `pnpm check-compat`, `pnpm budget` after a build) must exit 0.
+- Before finishing: `pnpm run doctor` (and `pnpm run validate`, `pnpm run check-compat`, `pnpm run budget` after a build) must exit 0.
 - TypeScript 7, strict. Relative imports have no file extension (`./plan`, not `./plan.js`).
 - Each remote is deployed on its own. A remote must not import from another remote or from the shell.
 - A remote's public surface is `src/exposed/`. Everything else is private to it.

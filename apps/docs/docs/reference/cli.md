@@ -348,6 +348,7 @@ A walk-through with output is in [Deploy and roll back a remote](/guide/deploy-a
 | ---------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `--env <env>`                | deploy, rollback, status  | The environment. `status` defaults to every env on the host and every folder in `registry/envs` but `dev` |
 | `--from <env>`, `--to <env>` | promote                   | Copy the pointer from one environment to another                                                          |
+| `--expect-version <v>`       | promote                   | Refuse (E510) unless the source environment serves this version. `mfeflow mcp` sets it from the plan      |
 | `--to <version>`             | rollback                  | Go back to this version, which must be in the history. Default: the previous one                          |
 | `--force`                    | rollback                  | Roll back although the schema, route or compat checks fail. The files must still exist                    |
 | `--version <v>`              | deploy                    | Default: the remote's `package.json` version                                                              |

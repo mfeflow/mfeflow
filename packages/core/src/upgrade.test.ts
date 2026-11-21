@@ -357,6 +357,15 @@ describe('planUpgrade', () => {
     expect(after).not.toContain('4.1.0');
   });
 
+  it('carries the minimumReleaseAgeExclude block pnpm wrote through a workspace edit', async () => {
+    const block = 'minimumReleaseAgeExclude:\n  - "@mfeflow/core@0.5.0"\n  - mfeflow@0.5.0\n';
+    const onDisk = { ...OLD, 'pnpm-workspace.yaml': `${WORKSPACE}${block}` };
+    const up = await planUpgrade(projectOf(OLD), input(onDisk));
+    const after = up.plan.changes.find((c) => c.path === 'pnpm-workspace.yaml')?.after ?? '';
+    expect(after).toContain('react: 19.0.0');
+    expect(after).toContain(block.trimEnd());
+  });
+
   it('adds only missing tasks to turbo.json', async () => {
     const up = await planUpgrade(project(), input(OLD));
     const after = parse(up.plan.changes.find((c) => c.path === 'turbo.json')?.after);

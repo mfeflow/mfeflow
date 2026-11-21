@@ -74,3 +74,31 @@ export function storybookSurvivesBuild(project: string, combo: Combo): string | 
   }
   return undefined;
 }
+
+/** After `pnpm build` of a repo of remotes: each remote built a federation manifest and entry, on the bundler the repo records. */
+export function remoteRepoChecks(project: string, combo: Combo): string | undefined {
+  const parsed: unknown = JSON.parse(fs.readFileSync(path.join(project, 'mfeflow.json'), 'utf8'));
+  const field: unknown =
+    typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'bundler') : '';
+  const expected = combo.bundler;
+  const recorded = typeof field === 'string' && field !== '' ? field : 'rsbuild';
+  if (recorded !== expected) return `mfeflow.json records bundler ${recorded}, not ${expected}`;
+  const wrongConfig = expected === 'vite' ? 'rsbuild.config.ts' : 'vite.config.ts';
+  const rightConfig = expected === 'vite' ? 'vite.config.ts' : 'rsbuild.config.ts';
+  if (fs.existsSync(path.join(project, 'apps/shell')))
+    return 'a repo of remotes has an apps/shell folder';
+  const apps = REMOTE_NAMES.slice(0, combo.remotes);
+  const found = fs.readdirSync(path.join(project, 'apps')).toSorted();
+  if (found.join(',') !== apps.toSorted().join(','))
+    return `apps/ holds ${found.join(', ')}, expected ${apps.join(', ')}`;
+  for (const app of apps) {
+    const dir = path.join(project, 'apps', app);
+    if (!fs.existsSync(path.join(dir, rightConfig))) return `apps/${app} has no ${rightConfig}`;
+    if (fs.existsSync(path.join(dir, wrongConfig)))
+      return `apps/${app} has a ${wrongConfig} on a ${expected} repo`;
+    for (const file of ['mf-manifest.json', 'remoteEntry.js']) {
+      if (!fs.existsSync(path.join(dir, 'dist', file))) return `apps/${app}/dist has no ${file}`;
+    }
+  }
+  return undefined;
+}

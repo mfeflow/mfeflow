@@ -37,6 +37,7 @@ export {
   isPrivateHost,
   isRegistryProtocol,
   redactUrl,
+  isSecretName,
   redactUrlsIn,
   registryIndexUrl,
   registryTemplateProblem,

@@ -1,5 +1,6 @@
 import {
   findProjectRoot,
+  isThirdPartyFeature,
   loadProject,
   MfeflowError,
   renderDiff,
@@ -17,9 +18,10 @@ import {
   repeated,
   splitList,
   text,
+  typed,
   type Globals,
 } from '../args';
-import { hasNoApps, noApps } from '../noapps';
+import { assertNoBundlerFlag, hasNoApps, noApps } from '../noapps';
 import { planReport, type UpgradeFileReport, type UpgradeResult } from '../output';
 import { withProjectChange } from '../pipeline';
 import type { Runtime } from '../runtime';
@@ -352,7 +354,7 @@ function assertTrusted(
 ): void {
   const untrusted = new Set(
     Object.keys(features)
-      .filter((name) => name.startsWith('@'))
+      .filter(isThirdPartyFeature)
       .map((name) => name.slice(0, name.indexOf('/')))
       .filter((namespace) => namespace in (registries ?? {}) && !trusted.has(namespace)),
   );
@@ -506,6 +508,7 @@ export async function runUpgrade(
   const root = await findProjectRoot(globals.cwd);
   const project = await loadProject(root);
   if (hasNoApps(project) && project.topology !== 'polyrepo') {
+    assertNoBundlerFlag(typed(args, 'bundler'));
     return noAppsUpgrade(rt, globals, root, project.cli);
   }
   const acceptChanged = acceptChangedOf(raw);

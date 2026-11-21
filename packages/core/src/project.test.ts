@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { hashContent } from './hash';
+import { hashContent, hashTracked } from './hash';
 import { emptyPlan, type Plan } from './plan';
 import {
   findDiverged,
@@ -199,6 +199,32 @@ describe('recordPlan', () => {
     expect(next.files).toBeUndefined();
   });
 
+  it('records a nested pnpm-workspace.yaml by its content without the pnpm list', () => {
+    const before = 'packages:\n  - a\n';
+    const after = 'packages:\n  - a\n  - b\n';
+    const withList = (text: string) => `${text}minimumReleaseAgeExclude:\n  - x@1.0.0\n`;
+    const next = recordPlan(
+      {
+        ...project,
+        files: { 'sub/pnpm-workspace.yaml': hashTracked('sub/pnpm-workspace.yaml', before) },
+      },
+      {
+        ...emptyPlan(),
+        changes: [
+          {
+            path: 'sub/pnpm-workspace.yaml',
+            action: 'patch',
+            before: withList(before),
+            after: withList(after),
+            track: false,
+            trust: 'first-party',
+          },
+        ],
+      },
+    );
+    expect(next.files?.['sub/pnpm-workspace.yaml']).toBe(hashContent(after));
+  });
+
   it('records a feature without options', () => {
     const next = recordPlan(project, {
       ...emptyPlan(),
@@ -223,6 +249,40 @@ describe('findDiverged', () => {
     expect(found).toEqual([
       { path: 'edited.ts', state: 'modified' },
       { path: 'gone.ts', state: 'missing' },
+    ]);
+  });
+
+  it('does not report pnpm-workspace.yaml after pnpm adds minimumReleaseAgeExclude', async () => {
+    const written = 'packages:\n  - apps/*\ncatalog:\n  react: 19.3.1\n';
+    await fs.writeFile(
+      path.join(root, 'pnpm-workspace.yaml'),
+      `${written}minimumReleaseAgeExclude:\n  - mfeflow@0.9.0\n`,
+    );
+    const files = { 'pnpm-workspace.yaml': hashContent(written) };
+    expect(await findDiverged(root, { ...project, files })).toEqual([]);
+  });
+
+  it('still reports a real edit to pnpm-workspace.yaml next to the pnpm list', async () => {
+    const written = 'packages:\n  - apps/*\n';
+    await fs.writeFile(
+      path.join(root, 'pnpm-workspace.yaml'),
+      `${written}extra: 1\nminimumReleaseAgeExclude:\n  - mfeflow@0.9.0\n`,
+    );
+    const files = { 'pnpm-workspace.yaml': hashContent(written) };
+    expect(await findDiverged(root, { ...project, files })).toEqual([
+      { path: 'pnpm-workspace.yaml', state: 'modified' },
+    ]);
+  });
+
+  it('keeps the raw hash for other files, even if they mention the key', async () => {
+    const written = 'a\n';
+    await fs.writeFile(
+      path.join(root, 'notes.yaml'),
+      `${written}minimumReleaseAgeExclude:\n  - x\n`,
+    );
+    const files = { 'notes.yaml': hashContent(written) };
+    expect(await findDiverged(root, { ...project, files })).toEqual([
+      { path: 'notes.yaml', state: 'modified' },
     ]);
   });
 
