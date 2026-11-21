@@ -2,10 +2,12 @@ export {
   BASE_PATH_GLOBAL,
   BASE_SCRIPT_NAME,
   REGISTRY_URL_GLOBAL,
+  applyBaseHeadScript,
   baseHeadScript,
   defaultRegistryUrlFor,
   normalizeBasePath,
   resolveBasePath,
+  resolveRegistryUrl,
 } from './base';
 export {
   appVersion,
@@ -20,7 +22,12 @@ export {
   type RemoteOptions,
   type ShellOptions,
 } from './federation';
-export { headScripts, registerHeadScript, resetHeadScriptsForTests } from './head-scripts';
+export {
+  headScripts,
+  registerHeadScript,
+  resetHeadScriptsForTests,
+  unregisterHeadScript,
+} from './head-scripts';
 export {
   RUNTIME_CONFIG_URL,
   runtimeConfigEnv,

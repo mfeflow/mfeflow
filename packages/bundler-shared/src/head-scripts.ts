@@ -12,6 +12,11 @@ export function registerHeadScript(name: string, source: string): void {
   scripts.set(name, source);
 }
 
+/** Removes a registered script, for a config that no longer needs it when it is loaded again. */
+export function unregisterHeadScript(name: string): void {
+  scripts.delete(name);
+}
+
 /** The registered script sources, in the order they were first registered. */
 export function headScripts(): string[] {
   return [...scripts.values()];

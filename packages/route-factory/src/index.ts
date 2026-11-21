@@ -77,7 +77,8 @@ export interface Links<S extends RouteSets> {
 /** The base path the shell's `<head>` set (`window.__MFE_BASE_PATH__`, such as `/demo/`), without the last slash. */
 function shellBase(): string {
   const value: unknown = Reflect.get(globalThis, '__MFE_BASE_PATH__');
-  return typeof value === 'string' ? trimEnd(value) : '';
+  if (typeof value !== 'string' || value === '') return '';
+  return trimEnd(value.startsWith('/') ? value : `/${value}`);
 }
 
 function trimEnd(base: string): string {

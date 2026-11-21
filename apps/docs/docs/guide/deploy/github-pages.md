@@ -24,17 +24,21 @@ A project site lives under the repository name, for example `https://acme.github
 A base path is the part of the address after the host: `/demo/` for `https://acme.github.io/demo/`. Give it to the shell's build with an environment variable, so no code changes between a root site and a project site:
 
 ```sh
-MFEFLOW_BASE_PATH=/demo/ MFE_ENV=prod pnpm --dir apps/shell build
+MFEFLOW_BASE_PATH=/demo/ MFEFLOW_REGISTRY_URL=envs/prod/index.json pnpm --dir apps/shell build
 ```
 
-You can also write it in the shell's config as the `basePath` option of the shell preset. The option wins over the variable. Missing slashes are added, so `demo` and `/demo/` mean the same. A full URL or a path with dots, a question mark or a hash is an error.
+You can also write it in the shell's config as the base path option of the shell preset. The option wins over the variable. Missing slashes are added, so `demo` and `/demo/` mean the same. A full URL, a dot segment, a question mark, a hash, or a character that needs percent-encoding (a space, a percent sign, a non-ASCII letter) is an error.
 
 The build then does four things:
 
 - The scripts and styles load from under `/demo/`. Rsbuild gets an asset prefix and Vite gets its `base`.
 - The shell fetches its runtime config from `/demo/config/runtime-config.json`.
-- With `MFE_ENV` set at build time, the shell looks for the registry at `/demo/envs/prod/index.json`, the file that deploy writes. Without it the shell looks under `/demo/registry/`. A registry address in the runtime config wins over both.
+- The shell looks for the registry under the base, at `/demo/registry/index.json`. The paragraph below points it at the file deploy writes.
 - The generated router and nav read the path without the base and link with it. The links from route-factory use the base the shell was built with, so links between remotes carry it too.
+
+Deploy writes the index to `envs/prod/index.json`, so build the shell with `MFEFLOW_REGISTRY_URL=envs/prod/index.json`. The shell preset has a matching option. A value without a leading slash is under the base. A registry address in the runtime config wins over both.
+
+The build does not read `MFE_ENV` for this. The dev server uses it to pick the runtime config, and Docker, Cloudflare and own-server layouts serve `registry/index.json`.
 
 Without a base path, none of this changes: the same files and the same URLs as before. Remotes need nothing, because they load from the address in the registry.
 
@@ -68,11 +72,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      # The shell again, for /demo/. MFE_ENV=prod makes /demo/envs/prod/index.json its default registry.
+      # The shell again, for /demo/, with the registry index that deploy writes.
       - run: pnpm --dir apps/shell build
         env:
           MFEFLOW_BASE_PATH: /demo/
-          MFE_ENV: prod
+          MFEFLOW_REGISTRY_URL: envs/prod/index.json
       - name: Assemble the site
         run: |
           mkdir site

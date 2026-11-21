@@ -4,20 +4,18 @@ import type { Plugin, PluginOption, UserConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { federation, type ModuleFederationOptions } from '@module-federation/vite';
 import {
-  BASE_SCRIPT_NAME,
   assertAsyncBoundary,
-  baseHeadScript,
+  applyBaseHeadScript,
   commonRemoteOptions,
   commonShellOptions,
   installedVersionFrom,
-  resolveBasePath,
   resolvableFrom,
   shellDefines,
   type CommonFederationOptions,
   type RemoteOptions,
   type ShellOptions,
 } from '@mfeflow/bundler-shared';
-import { pluginHeadScripts, registerHeadScript } from './head-scripts';
+import { pluginHeadScripts } from './head-scripts';
 import { pluginRuntimeConfig } from './runtime-config';
 
 export { pluginHeadScripts, registerHeadScript } from './head-scripts';
@@ -162,8 +160,7 @@ export function createShellConfig(o: ShellOptions): UserConfig {
   const require = createRequire(path.join(cwd, 'package.json'));
   if (o.eager === false) assertAsyncBoundary(path.join(cwd, 'src/index.ts'));
   const env = o.env ?? process.env;
-  const base = resolveBasePath(o.basePath, env);
-  if (base !== '/') registerHeadScript(BASE_SCRIPT_NAME, baseHeadScript(base, env));
+  const base = applyBaseHeadScript(o.basePath, o.registryUrl, env);
   return {
     root: cwd,
     ...(base === '/' ? {} : { base }),

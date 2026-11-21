@@ -88,7 +88,7 @@ export interface LoadRegistryOptions {
  */
 export const REGISTRY_GLOBAL = '__MFE_REGISTRY__';
 
-/** The default index URL at the root of a host. Under a base path the default is `defaultRegistryUrl()`. */
+/** The default index URL for a shell served at the root of a host; root-relative, so wrong under a base path. Use `defaultRegistryUrl()`, which follows the base. */
 export const DEFAULT_REGISTRY_URL = '/registry/index.json';
 
 /** Reported once when the primary index failed and a later URL served the shell. */

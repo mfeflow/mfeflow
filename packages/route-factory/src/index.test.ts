@@ -85,6 +85,15 @@ describe('links.href', () => {
     }
   });
 
+  it('adds the leading slash to a base path that was set by hand without one', () => {
+    Reflect.set(globalThis, '__MFE_BASE_PATH__', 'demo');
+    try {
+      expect(createLinks({ cart }).href('cart.home')).toBe('/demo/cart');
+    } finally {
+      Reflect.deleteProperty(globalThis, '__MFE_BASE_PATH__');
+    }
+  });
+
   it('reads the base on every call, so runtime config can load later', () => {
     let base = '';
     const late = createLinks({ cart }, { base: () => base });

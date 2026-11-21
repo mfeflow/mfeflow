@@ -170,6 +170,7 @@ describe('createShellConfig', () => {
         cwd,
         env: { MFE_ENV: 'prod' },
         basePath: 'demo',
+        registryUrl: 'envs/prod/index.json',
       });
       expect(c.base).toBe('/demo/');
       expect(headScriptTags()).toEqual([
@@ -184,6 +185,29 @@ describe('createShellConfig', () => {
     it('reads MFEFLOW_BASE_PATH when the option is not given', () => {
       const c = createShellConfig({ name: 'shell', cwd, env: { MFEFLOW_BASE_PATH: '/demo' } });
       expect(c.base).toBe('/demo/');
+    });
+
+    it('does not tie the default registry to MFE_ENV, and reads MFEFLOW_REGISTRY_URL', () => {
+      createShellConfig({
+        name: 'shell',
+        cwd,
+        env: { MFE_ENV: 'prod', MFEFLOW_BASE_PATH: '/demo' },
+      });
+      expect(headScriptTags()[0]?.children).toContain('"/demo/registry/index.json"');
+      createShellConfig({
+        name: 'shell',
+        cwd,
+        env: { MFEFLOW_BASE_PATH: '/demo', MFEFLOW_REGISTRY_URL: 'envs/prod/index.json' },
+      });
+      expect(headScriptTags()).toHaveLength(1);
+      expect(headScriptTags()[0]?.children).toContain('"/demo/envs/prod/index.json"');
+    });
+
+    it('drops the base script when the config is loaded again without a base', () => {
+      createShellConfig({ name: 'shell', cwd, env: {}, basePath: '/demo/' });
+      expect(headScriptTags()).toHaveLength(1);
+      createShellConfig({ name: 'shell', cwd, env: {} });
+      expect(headScriptTags()).toEqual([]);
     });
   });
 

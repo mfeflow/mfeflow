@@ -14,6 +14,13 @@ afterEach(() => {
   Reflect.deleteProperty(globalThis, REGISTRY_URL_GLOBAL);
 });
 
+describe('the global names', () => {
+  it('match the literals the bundler presets write and @mfeflow/route-factory reads', () => {
+    expect(BASE_PATH_GLOBAL).toBe('__MFE_BASE_PATH__');
+    expect(REGISTRY_URL_GLOBAL).toBe('__MFE_REGISTRY_URL__');
+  });
+});
+
 describe('without a base path', () => {
   it('changes nothing', () => {
     expect(basePath()).toBe('/');

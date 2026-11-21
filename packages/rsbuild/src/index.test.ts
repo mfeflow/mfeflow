@@ -284,14 +284,15 @@ describe('createShellConfig with a base path', () => {
     expect(slash.server).toEqual(config.server);
   });
 
-  it('sets the asset prefix and the server base, and hands the base to the page', () => {
+  it('sets the server base (Rsbuild derives the asset prefix from it), and hands the base to the page', () => {
     const config = createShellConfig({
       name: 'shell',
       cwd,
       env: { MFE_ENV: 'prod' },
       basePath: 'demo',
+      registryUrl: 'envs/prod/index.json',
     });
-    expect(config.output).toEqual({ assetPrefix: '/demo/' });
+    expect(config.output).toBeUndefined();
     expect(config.server).toMatchObject({ base: '/demo/', historyApiFallback: true });
     expect(config.html?.tags).toEqual([
       {
@@ -305,7 +306,27 @@ describe('createShellConfig with a base path', () => {
 
   it('reads MFEFLOW_BASE_PATH when the option is not given', () => {
     const config = createShellConfig({ name: 'shell', cwd, env: { MFEFLOW_BASE_PATH: '/demo' } });
-    expect(config.output).toEqual({ assetPrefix: '/demo/' });
+    expect(config.server).toMatchObject({ base: '/demo/' });
+  });
+
+  it('does not tie the default registry to MFE_ENV, and reads MFEFLOW_REGISTRY_URL', () => {
+    createShellConfig({ name: 'shell', cwd, env: { MFE_ENV: 'prod', MFEFLOW_BASE_PATH: '/demo' } });
+    expect(headScriptTags()[0]?.children).toContain('"/demo/registry/index.json"');
+    createShellConfig({
+      name: 'shell',
+      cwd,
+      env: { MFEFLOW_BASE_PATH: '/demo', MFEFLOW_REGISTRY_URL: 'envs/prod/index.json' },
+    });
+    expect(headScriptTags()).toHaveLength(1);
+    expect(headScriptTags()[0]?.children).toContain('"/demo/envs/prod/index.json"');
+  });
+
+  it('drops the base script when the config is loaded again without a base', () => {
+    createShellConfig({ name: 'shell', cwd, env: {}, basePath: '/demo/' });
+    expect(headScriptTags()).toHaveLength(1);
+    const again = createShellConfig({ name: 'shell', cwd, env: {} });
+    expect(headScriptTags()).toEqual([]);
+    expect(again.html).toBeUndefined();
   });
 });
 

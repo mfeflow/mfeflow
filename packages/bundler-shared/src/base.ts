@@ -6,12 +6,17 @@ export const REGISTRY_URL_GLOBAL = '__MFE_REGISTRY_URL__';
 /** The name of the head script that sets both globals. */
 export const BASE_SCRIPT_NAME = 'mfeflow:base';
 
+import { registerHeadScript, unregisterHeadScript } from './head-scripts';
+
+const SEGMENT = /^[A-Za-z0-9._~!$&'()*+,;=:@-]+$/;
+
 type Env = Readonly<Record<string, string | undefined>>;
 
 /**
  * `demo`, `/demo`, `demo/` and `/demo//` all become `/demo/`; nothing, an empty string and `/` become
- * `/`. A base is a path on the shell's own origin, so a URL, a query, a fragment, a backslash or a
- * `.`/`..` segment throws.
+ * `/`. A base is a path on the shell's own origin, written as it appears in a URL, so a URL, a query,
+ * a fragment, a backslash, a `.`/`..` segment, or a character that would need percent-encoding (a
+ * space, `%`, `<`, a non-ASCII letter) throws.
  */
 export function normalizeBasePath(input: string | undefined): string {
   const value = (input ?? '').trim();
@@ -23,6 +28,10 @@ export function normalizeBasePath(input: string | undefined): string {
   const segments = value.split('/').filter((segment) => segment !== '');
   if (segments.some((segment) => segment === '.' || segment === '..'))
     throw new Error(`mfeflow: basePath "${value}" must not contain . or .. segments`);
+  if (segments.some((segment) => !SEGMENT.test(segment)))
+    throw new Error(
+      `mfeflow: basePath "${value}" may only use letters, digits and . _ ~ - ! $ & ' ( ) * + , ; = : @ between slashes; a character that needs percent-encoding is not allowed`,
+    );
   return segments.length === 0 ? '/' : `/${segments.join('/')}/`;
 }
 
@@ -32,18 +41,56 @@ export function resolveBasePath(basePath: string | undefined, env: Env): string 
 }
 
 /**
- * Where the shell looks for the registry index under a base path: `<base>envs/<env>/index.json`, the
- * file `mfeflow deploy` writes, when the build names its environment with `MFE_ENV`; otherwise
- * `<base>registry/index.json`.
+ * The registry index URL a build sets on purpose: the `registryUrl` option, else `MFEFLOW_REGISTRY_URL`,
+ * else nothing. A value without a leading `/` is under the base (`envs/prod/index.json` becomes
+ * `/demo/envs/prod/index.json`); `/x` and `https://...` are used as written.
  */
-export function defaultRegistryUrlFor(base: string, env: Env): string {
-  const name = env.MFE_ENV;
-  return name === undefined || name === ''
-    ? `${base}registry/index.json`
-    : `${base}envs/${name}/index.json`;
+export function resolveRegistryUrl(
+  base: string,
+  registryUrl: string | undefined,
+  env: Env,
+): string | undefined {
+  const value = (registryUrl ?? env.MFEFLOW_REGISTRY_URL ?? '').trim();
+  if (value === '') return undefined;
+  if (value.startsWith('/') || /^[a-z][a-z0-9+.-]*:/i.test(value)) return value;
+  return `${base}${value}`;
+}
+
+/** Where the shell looks for the registry index when nothing says otherwise: `<base>registry/index.json`. */
+export function defaultRegistryUrlFor(base: string): string {
+  return `${base}registry/index.json`;
+}
+
+/** JSON that is safe inside an inline `<script>`: no `</script>`, no line-separator characters. */
+function scriptJson(value: string): string {
+  return JSON.stringify(value)
+    .replaceAll('<', '\\u003c')
+    .replaceAll('\u2028', '\\u2028')
+    .replaceAll('\u2029', '\\u2029');
 }
 
 /** The inline script that hands the base path and the default registry URL to the page. */
-export function baseHeadScript(base: string, env: Env): string {
-  return `window.${BASE_PATH_GLOBAL}=${JSON.stringify(base)};window.${REGISTRY_URL_GLOBAL}=${JSON.stringify(defaultRegistryUrlFor(base, env))};`;
+export function baseHeadScript(base: string, registryUrl: string): string {
+  return `window.${BASE_PATH_GLOBAL}=${scriptJson(base)};window.${REGISTRY_URL_GLOBAL}=${scriptJson(registryUrl)};`;
+}
+
+/**
+ * Registers the head script that sets the base globals, or removes it when the build has neither a base
+ * nor a registry URL, so a config that is loaded again (dev server restart) never keeps a stale base.
+ * Returns the base path.
+ */
+export function applyBaseHeadScript(
+  basePath: string | undefined,
+  registryUrl: string | undefined,
+  env: Env,
+): string {
+  const base = resolveBasePath(basePath, env);
+  const chosen = resolveRegistryUrl(base, registryUrl, env);
+  if (base === '/' && chosen === undefined) unregisterHeadScript(BASE_SCRIPT_NAME);
+  else
+    registerHeadScript(
+      BASE_SCRIPT_NAME,
+      baseHeadScript(base, chosen ?? defaultRegistryUrlFor(base)),
+    );
+  return base;
 }

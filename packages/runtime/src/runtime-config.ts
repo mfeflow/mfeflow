@@ -2,7 +2,7 @@ import { runtimeConfigUrl } from './base';
 
 /** Where the shell keeps the runtime config once loaded: `globalThis[RUNTIME_CONFIG_KEY]`. */
 export const RUNTIME_CONFIG_KEY = '__MFE_RUNTIME_CONFIG__';
-/** The file the shell fetches at the root of a host: `public/config/runtime-config.json`, or the one for the environment in a deployment. Under a base path it is `runtimeConfigUrl()`. */
+/** The file the shell fetches at the root of a host: `public/config/runtime-config.json`, or the one for the environment in a deployment. Root-relative, so wrong under a base path; use `runtimeConfigUrl()`, which follows the base. */
 export const RUNTIME_CONFIG_URL = '/config/runtime-config.json';
 
 export type RuntimeConfigValues = Record<string, unknown>;
