@@ -2,6 +2,8 @@
 
 export type Validator = 'zod' | 'valibot' | 'arktype';
 export type Bundler = 'rsbuild' | 'vite';
+/** `app` is a shell with remotes; `remote` is a repo of remotes only (`--kind remote`). */
+export type Kind = 'app' | 'remote';
 
 export interface Combo {
   id: string;
@@ -30,6 +32,7 @@ export interface Combo {
   formsValidator: Validator;
   remotes: 0 | 1 | 3;
   bundler: Bundler;
+  kind: Kind;
 }
 
 export interface Step {
@@ -66,6 +69,7 @@ type Flags = Partial<
     | 'validator'
     | 'formsValidator'
     | 'bundler'
+    | 'kind'
   >
 >;
 
@@ -94,11 +98,13 @@ function make(flags: Flags, remotes: 0 | 1 | 3): Combo {
     validator: 'zod' as Validator,
     formsValidator: 'zod' as Validator,
     bundler: 'rsbuild' as Bundler,
+    kind: 'app' as Kind,
     ...flags,
   };
   const parts = [
     // First, so the CI filters on "-env", "-testing", "-ci" and "-r3" still match.
     combo.bundler === 'vite' ? 'vite' : '',
+    combo.kind === 'remote' ? 'remote' : '',
     combo.lint ? 'lint' : '',
     combo.url ? 'url' : '',
     combo.hooks ? 'hooks' : '',
@@ -220,6 +226,8 @@ export function combinations(): Combo[] {
   out.push(make({ ...vite, ...base, ci: true, gtm: true, otel: true, ...platform }, 3));
   out.push(make({ ...vite, ...base, ci: true, ...ui, storybook: true }, 3));
   out.push(make({ ...vite, ...everything }, 3));
+  // A repo of remotes with no shell (`--kind remote`), on Vite.
+  out.push(make({ ...vite, kind: 'remote' }, 3));
   return out;
 }
 
@@ -259,12 +267,14 @@ export function featuresOf(combo: Combo): string[] {
 
 /** The preset `mfeflow init` replays: an empty feature list is only expressible this way. */
 export function presetOf(combo: Combo): {
+  kind?: 'remote';
   remotes: string[];
   features: string[];
   bundler?: Bundler;
   options?: Record<string, Record<string, string>>;
 } {
   return {
+    ...(combo.kind === 'remote' ? { kind: 'remote' as const } : {}),
     remotes: REMOTE_NAMES.slice(0, combo.remotes),
     ...(combo.bundler === 'rsbuild' ? {} : { bundler: combo.bundler }),
     features: featuresOf(combo),

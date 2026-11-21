@@ -112,6 +112,21 @@ describe('applyPlan', () => {
     expect(error.code).toBe('MFEFLOW_E211');
   });
 
+  it('sees the list pnpm appends to pnpm-workspace.yaml between plan and apply (E211)', async () => {
+    const before = 'packages:\n  - apps/*\n';
+    await fs.writeFile(
+      at('pnpm-workspace.yaml'),
+      `${before}minimumReleaseAgeExclude:\n  - mfeflow@0.9.0\n`,
+    );
+    const error = await rejection(
+      applyPlan(planOf(patch('pnpm-workspace.yaml', before, `${before}catalog:\n  a: 1\n`)), {
+        root,
+      }),
+    );
+    expect(error.code).toBe('MFEFLOW_E211');
+    expect(await read('pnpm-workspace.yaml')).toContain('minimumReleaseAgeExclude');
+  });
+
   it('refuses when a patched file changed since the plan, and writes nothing (E211)', async () => {
     await fs.writeFile(at('edit.txt'), 'user edit\n');
     const error = await rejection(

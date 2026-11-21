@@ -131,7 +131,7 @@ The base URL comes from `apiUrl` in the runtime config, read on every call, so o
   Log the error body yourself once you have decided it is safe.
 
 - `body` is parsed JSON, or text cut to 4096 characters.
-- Start a request inside the span's callback to get it into a trace, as shown in [starting a trace from a click](/features/telemetry-otel#starting-a-trace-from-a-click).
+- Start a request inside the span's callback to get it into a trace, as shown in [starting a trace from a click](/features/telemetry-otel#start-a-trace-from-a-click).
 - Add a line to `Responses` for every endpoint you call. An unlisted endpoint answers `unknown`.
 
 ## Reference

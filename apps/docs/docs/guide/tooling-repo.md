@@ -139,6 +139,7 @@ With the package in the `shared` option of the shell and both remotes, the secon
 ## What is not supported yet
 
 - `mfeflow upgrade` does nothing in a tooling repo. It prints `This project has no apps, so there is nothing to upgrade. Update the mfeflow packages in package.json by hand.`
+- `--bundler` is refused (E107) in `init --kind tooling` and in `upgrade`, because there are no apps to bundle; the packages build with `tsc`. A `bundler` set in a shared preset is ignored instead, and the summary says `preset bundler vite ignored: a tooling repo has no apps`, so one team preset can serve app and tooling repos.
 - `ci-github` is refused (E107). The repo already has a `ci.yml` that builds and validates, and the other steps of that feature are about apps.
 - Features that need an app are refused with [E216](/errors/E216). That includes `env-t3` and `analytics-gtm`, which write into a shell. A tooling repo takes `lint-oxlint`, `git-hooks`, `commit-prompt` and `release`.
 - `release` is accepted but adds nothing, because the repo already versions and publishes with Changesets.

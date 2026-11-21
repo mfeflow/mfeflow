@@ -13,7 +13,7 @@
     "test": "vitest run --coverage",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "ci": "pnpm format:check && pnpm build && pnpm lint && pnpm typecheck && pnpm test",
+    "ci": "pnpm format:check && node scripts/sync-feature-pins.mjs --check && pnpm build && pnpm lint && pnpm typecheck && pnpm test",
     "changeset": "changeset",
     "check:pack": "node scripts/check-pack.mjs",
     "release": "changeset publish",

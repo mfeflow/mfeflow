@@ -552,7 +552,7 @@ export class RegistryService {
 
   private async promoteOnce(actor: string | null, raw: unknown): Promise<MoveResult> {
     const body = asBody(raw);
-    rejectUnknown(body, ['from', 'to', 'remote', 'rollout']);
+    rejectUnknown(body, ['from', 'to', 'remote', 'rollout', 'expectVersion']);
     const rolloutPlan = rolloutOf(body.rollout);
     const from = envOf(body, 'from');
     const to = envOf(body, 'to');
@@ -562,6 +562,12 @@ export class RegistryService {
     const served = source?.remotes.find((r) => r.name === name);
     if (served === undefined || served.killed)
       throw new ApiError(404, 'not_deployed', `${name} is not deployed to ${from}`);
+    const expected = optionalField(body, 'expectVersion');
+    if (expected !== undefined && expected !== served.version)
+      throw conflict(
+        'conflict',
+        `${from} serves ${name}@${served.version}, not ${expected} as expected`,
+      );
     const record = await this.storage.getVersion(from, name, served.version);
     if (record === undefined)
       throw conflict('version_missing', `${name}@${served.version} has no record in ${from}`);

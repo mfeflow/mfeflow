@@ -399,6 +399,37 @@ describe('mfeflow promote', () => {
     expect(after['envs/staging/index.json']).toBe(staging['envs/staging/index.json']);
   });
 
+  it('goes ahead when --expect-version matches and refuses with E510 when the source moved', async () => {
+    const f = await project();
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    await f.run('deploy', 'catalog', '--env', 'staging');
+    const stale = await f.fail(
+      'promote',
+      'catalog',
+      '--from',
+      'staging',
+      '--to',
+      'prod',
+      '--expect-version',
+      '0.9.0',
+    );
+    expect(stale.result.error.code).toBe('MFEFLOW_E510');
+    expect(stale.result.error.message).toContain('catalog@1.0.0');
+    expect(await f.served('prod')).toBeUndefined();
+    const { code, result } = await f.run(
+      'promote',
+      'catalog',
+      '--from',
+      'staging',
+      '--to',
+      'prod',
+      '--expect-version',
+      '1.0.0',
+    );
+    expect(code).toBe(0);
+    expect(result).toMatchObject({ version: '1.0.0', published: true });
+  });
+
   it('does nothing when prod already serves that version', async () => {
     const f = await project();
     await buildRemote(f.root, 'catalog', '1.0.0');

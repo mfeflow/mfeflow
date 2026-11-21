@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "0.6.1",
+  "version": "0.6.3",
   "description": "The shell, the remotes, the registry and the workspace around them.",
   "files": [
     {
@@ -208,7 +208,7 @@
   "dependencies": [
     {
       "name": "turbo",
-      "range": "2.11.10",
+      "range": "2.11.11",
       "target": "root",
       "dev": true
     },
@@ -225,7 +225,7 @@
     },
     {
       "name": "@module-federation/enhanced",
-      "range": "2.9.2",
+      "range": "2.9.3",
       "target": "shell"
     },
     {
@@ -249,7 +249,7 @@
     },
     {
       "name": "@rsbuild/core",
-      "range": "2.3.0",
+      "range": "2.3.2",
       "target": "shell",
       "dev": true,
       "when": {
@@ -267,7 +267,7 @@
     },
     {
       "name": "vite",
-      "range": "8.3.5",
+      "range": "8.3.8",
       "target": "shell",
       "dev": true,
       "when": {
@@ -294,7 +294,7 @@
     },
     {
       "name": "@module-federation/enhanced",
-      "range": "2.9.2",
+      "range": "2.9.3",
       "target": "remotes"
     },
     {
@@ -318,7 +318,7 @@
     },
     {
       "name": "@rsbuild/core",
-      "range": "2.3.0",
+      "range": "2.3.2",
       "target": "remotes",
       "dev": true,
       "when": {
@@ -336,7 +336,7 @@
     },
     {
       "name": "vite",
-      "range": "8.3.5",
+      "range": "8.3.8",
       "target": "remotes",
       "dev": true,
       "when": {
