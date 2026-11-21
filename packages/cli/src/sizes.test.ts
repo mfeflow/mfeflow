@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { kb, remoteSizes } from './sizes';
+import { builtKb, kb, remoteSizes } from './sizes';
 import { removeDir, tempDir } from './testing';
 
 const dirs: string[] = [];
@@ -80,5 +80,29 @@ describe('remoteSizes', () => {
       metaData: { remoteEntry: { name: '../../../etc/hosts', path: '' } },
     });
     expect(await remoteSizes(dir)).toBeUndefined();
+  });
+});
+
+describe('builtKb', () => {
+  it('is the entry of a remote, the same bytes budget reads', async () => {
+    const dir = await dist(
+      { 'static/js/entry.js': 2048 },
+      { metaData: { remoteEntry: { name: 'entry.js', path: 'static/js' } }, exposes: [] },
+    );
+    expect(await builtKb('remote', dir)).toBe(kb((await remoteSizes(dir))?.entryBytes ?? 0));
+    expect(await builtKb('remote', dir)).toBeGreaterThan(1.5);
+  });
+
+  it('is the scripts a shell loads first', async () => {
+    const dir = await dist({ 'a.js': 3072 }, {});
+    await fs.writeFile(path.join(dir, 'index.html'), '<script src="/a.js"></script>');
+    expect(await builtKb('shell', dir)).toBeGreaterThan(2.5);
+  });
+
+  it('is null where nothing is built', async () => {
+    const dir = await tempDir();
+    dirs.push(dir);
+    expect(await builtKb('shell', dir)).toBeNull();
+    expect(await builtKb('remote', dir)).toBeNull();
   });
 });

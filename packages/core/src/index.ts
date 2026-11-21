@@ -77,6 +77,7 @@ export {
 export { renderTemplate, substitute, type TemplateData } from './templates';
 export { RUNTIME_CONFIG_FILE, runtimeConfigFiles } from './runtime-config';
 export { applyTransform, dotenvKeys, schemaKeys, type SchemaKey } from './transforms';
+export { isInside } from './adopt/disk';
 export {
   detectFederation,
   planAdoption,

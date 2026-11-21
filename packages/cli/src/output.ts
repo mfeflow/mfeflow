@@ -253,6 +253,31 @@ export interface DevResult {
   interrupted: boolean;
 }
 
+export type BuildStatus = 'built' | 'failed' | 'skipped' | 'missing' | 'stopped';
+
+export interface BuildApp {
+  name: string;
+  kind: 'shell' | 'remote';
+  /** `skipped`: not started because an earlier app failed. `missing`: the folder is not on disk. `stopped`: ended by Ctrl+C. */
+  status: BuildStatus;
+  /** Wall time of the build; null when it did not run. */
+  ms: number | null;
+  /** Gzip KB of the JS a visitor loads first, as `budget` reads it; null when not built or not measurable. */
+  kb: number | null;
+}
+
+export interface BuildResult {
+  ok: boolean;
+  command: 'build';
+  root: string;
+  /** How many apps were built at once. */
+  concurrency: number;
+  apps: BuildApp[];
+  findings: Finding[];
+  /** Stopped with Ctrl+C or a termination signal. */
+  interrupted: boolean;
+}
+
 export interface PlannedUpload {
   key: string;
   bytes: number;
@@ -396,6 +421,7 @@ export type CliResult =
   | ReportResult
   | BudgetResult
   | DevResult
+  | BuildResult
   | DeployResult
   | StatusResult
   | RolloutCommandResult
@@ -570,6 +596,24 @@ function checkBudget(c: Check, value: Obj): void {
   c.objects(value, 'findings', '', (f, p) => {
     for (const key of ['code', 'message', 'fix', 'docs']) c.string(f, key, p);
   });
+}
+
+function checkBuild(c: Check, value: Obj): void {
+  c.string(value, 'root', '');
+  c.boolean(value, 'interrupted', '');
+  if (typeof value.concurrency !== 'number') c.add('concurrency', 'must be a number');
+  c.objects(value, 'apps', '', (app, p) => {
+    c.string(app, 'name', p);
+    if (app.kind !== 'shell' && app.kind !== 'remote') c.add(`${p}kind`, 'must be shell or remote');
+    if (!['built', 'failed', 'skipped', 'missing', 'stopped'].includes(String(app.status))) {
+      c.add(`${p}status`, 'must be built, failed, skipped, missing or stopped');
+    }
+    for (const key of ['ms', 'kb']) {
+      if (app[key] !== null && typeof app[key] !== 'number')
+        c.add(`${p}${key}`, 'must be a number or null');
+    }
+  });
+  checkFindings(c, value);
 }
 
 function checkFindings(c: Check, value: Obj): void {
@@ -786,6 +830,9 @@ export function validateResult(value: unknown): Issue[] {
       });
       if (!isObj(value.overrides)) c.add('overrides', 'must be an object');
       break;
+    case 'build':
+      checkBuild(c, value);
+      break;
     case 'deploy':
     case 'promote':
     case 'rollback':
@@ -816,7 +863,7 @@ export function validateResult(value: unknown): Issue[] {
     default:
       c.add(
         'command',
-        'must be init, adopt, add, upgrade, features, registry, doctor, validate, check-compat, budget, dev, deploy, promote, rollback, status, rollout, kill, restore or mcp',
+        'must be init, adopt, add, upgrade, features, registry, doctor, validate, check-compat, budget, dev, build, deploy, promote, rollback, status, rollout, kill, restore or mcp',
       );
   }
   return c.issues;
@@ -824,7 +871,7 @@ export function validateResult(value: unknown): Issue[] {
 
 /** Exit code for a result that printed normally: findings decide for the checks, Ctrl+C is 130. */
 export function exitOf(result: CliResult): number {
+  if ('interrupted' in result && result.interrupted) return EXIT.cancelled;
   if ('findings' in result) return exitForFindings(result.findings);
-  if (result.ok && 'interrupted' in result && result.interrupted) return EXIT.cancelled;
   return result.ok ? EXIT.ok : EXIT.unexpected;
 }

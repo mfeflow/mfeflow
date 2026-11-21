@@ -30,6 +30,7 @@ Run the command with `--help` for the options and examples of one command.
 | `check-compat`                                   | Check each remote's shared ranges against its shells                              |
 | `budget`                                         | Measure built JavaScript against the cost model                                   |
 | `dev`                                            | Run the shell and every remote with a dev registry                                |
+| `build`                                          | Build every remote, then the shell, with the bundler each app installed           |
 | `deploy <remote>`                                | Upload a remote's build to a static registry host and point an environment at it  |
 | `promote <remote>`                               | Point one environment at the version another serves; no upload                    |
 | `rollback <remote>`                              | Point an environment back at an earlier version; no rebuild                       |
@@ -114,7 +115,7 @@ mfeflow init parts --kind remote --scope @acme --remotes cart,checkout --shell h
 mfeflow init acme-tooling --kind tooling --scope @acme --packages tsconfig,oxlint-config
 ```
 
-In a project with no apps, `dev`, `budget`, `validate`, `check-compat` and `upgrade` print one line and exit 0. `doctor` prints the same line and then the checks that still apply, such as the hashes of the copied files.
+In a project with no apps, `dev`, `build`, `budget`, `validate`, `check-compat` and `upgrade` print one line and exit 0. `doctor` prints the same line and then the checks that still apply, such as the hashes of the copied files.
 
 ## adopt
 
@@ -298,6 +299,26 @@ Runs the shell and every remote with a dev registry that follows the project. A 
 
 Ctrl+C stops everything and exits with code 130. See [Develop locally](/guide/development).
 
+## build
+
+Builds the project's apps for production: every remote first, then the shell, because the shell's types may need the remotes. It drives the bundler each app installed (`@rsbuild/core`, or `vite` when `mfeflow.json` says `"bundler": "vite"`) through its JavaScript API, loads the app's own `rsbuild.config.ts` or `vite.config.ts` as you wrote it, and never brings a bundler of its own. `NODE_ENV` is `production` unless you set it, and `MFE_ENV` and the rest of your environment pass through. Rsbuild reads the `.env` files as `rsbuild build` does.
+
+```bash
+mfeflow build
+mfeflow build --only shell,catalog
+cd apps/catalog && mfeflow build
+```
+
+| Flag                | Default          | Meaning                                                       |
+| ------------------- | ---------------- | ------------------------------------------------------------- |
+| `--only <a,b>`      | every app        | Build only these apps                                         |
+| `--concurrency <n>` | 4, or fewer CPUs | How many apps to build at once. The remotes share this limit  |
+| `--dist <dir>`      | `dist`           | Build output folder inside each app, where the sizes are read |
+
+Each app builds in its own process, and every line it prints starts with its name. The first failure stops new apps from starting; the ones already running finish. The command ends with a table of each app's status, time and gzip size of the JS a visitor loads first (the number [`budget`](#budget) reports for the same build), and exits with code 5 if an app failed. An app that was not started because of that shows as `skipped`; an app in `mfeflow.json` that is not on disk shows as `missing` and is [E112](/errors/E112). Every app's bundler is looked up before the first build starts, so a missing install is [E308](/errors/E308) at once, naming the package and the app, and a config file that does not match `bundler` is [E309](/errors/E309). A failed build is [E310](/errors/E310).
+
+Inside an app's folder (or any folder in it) it builds only that app, in the same process, with the bundler's own output. `--only` is an error there. Ctrl+C stops the running builds and exits with code 130. `--dry-run` prints the order and builds nothing. With `--json` the output of the builds goes to stderr and stdout holds one document.
+
 ## mcp
 
 Starts an MCP server on stdin and stdout, for a coding agent to inspect a project and plan changes. It is started by the agent's config, not by hand. It prints nothing else on stdout, and ends when its input closes.
@@ -414,5 +435,6 @@ The success documents have these shapes. Each has `ok` and `command`.
 | `doctor`, `validate`, `check-compat` | `root`, `summary` (`errors`, `warnings`, `skipped`, `fixed`), `checks[]`, `findings[]`                                |
 | `budget`                             | `root`, `model`, `shells[]`, `remotes[]`, `findings[]`                                                                |
 | `dev`                                | `root`, `registry`, `apps[]`, `overrides`, `dryRun`, `interrupted`                                                    |
+| `build`                              | `root`, `concurrency`, `apps[]` (`name`, `kind`, `status`, `ms`, `kb`), `findings[]`, `interrupted`                   |
 
 The plan in the `init` and `add` output lists features, changes (path and action), dependencies, scripts, warnings and `skipped`: the parts of a feature that target a shell the repo does not have (`feature`, `kind`, `name`, `target`). Older documents have no `skipped` key. Output shapes are part of the public API. See [Versions and upgrades](/guide/upgrading).

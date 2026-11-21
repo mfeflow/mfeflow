@@ -78,3 +78,13 @@ export async function remoteSizes(dist: string): Promise<RemoteSize | undefined>
   }
   return { entryBytes, exposes };
 }
+
+/**
+ * The KB of JS a built app loads first, the number `budget` reports: the scripts of a shell's
+ * `index.html`, or the entry of a remote. Null when the app is not built where `dist` says.
+ */
+export async function builtKb(kind: 'shell' | 'remote', dist: string): Promise<number | null> {
+  const bytes =
+    kind === 'shell' ? (await shellInitial(dist))?.bytes : (await remoteSizes(dist))?.entryBytes;
+  return bytes === undefined ? null : kb(bytes);
+}
