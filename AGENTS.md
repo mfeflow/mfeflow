@@ -11,6 +11,8 @@ Guidance for coding agents working in this repo.
 - TypeScript 7 (native compiler). Linting is oxlint with type-aware rules
   (oxlint-tsgolint); there is no ESLint in this repo.
 - Every dependency is on its latest stable version; Dependabot keeps it there.
+  Dependabot only bumps the catalog: run `node scripts/sync-feature-pins.mjs` after a
+  bump, so the versions features and templates install follow (`pnpm run ci` checks it).
 - Commits and PR titles follow Conventional Commits.
 - Any change to a published package needs a changeset (`pnpm changeset`).
 - Tests sit next to the code as `*.test.ts`; coverage must stay at or above 80%.

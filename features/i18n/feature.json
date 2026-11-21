@@ -1,6 +1,6 @@
 {
   "name": "i18n",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Translations with @mfeflow/i18n: the shell starts one i18next instance and sets lang and dir; each remote loads its own messages from its own deploy, so a translation ships with the remote that uses it. Sample messages in English and Arabic (right to left) and a language switcher you own.",
   "requires": ["core", "tsconfig"],
   "files": [
@@ -86,12 +86,12 @@
     },
     {
       "name": "i18next",
-      "range": "26.5.12",
+      "range": "26.7.2",
       "target": "shell"
     },
     {
       "name": "react-i18next",
-      "range": "17.1.9",
+      "range": "17.1.13",
       "target": "shell"
     },
     {
@@ -101,12 +101,12 @@
     },
     {
       "name": "i18next",
-      "range": "26.5.12",
+      "range": "26.7.2",
       "target": "remotes"
     },
     {
       "name": "react-i18next",
-      "range": "17.1.9",
+      "range": "17.1.13",
       "target": "remotes"
     }
   ],

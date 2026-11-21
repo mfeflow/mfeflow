@@ -1,6 +1,6 @@
 {
   "name": "lint-oxlint",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "oxlint with type-aware rules on TypeScript 7 (@mfeflow/oxlint-config), and Prettier.",
   "requires": ["core", "tsconfig"],
   "files": [
@@ -26,19 +26,19 @@
     },
     {
       "name": "oxlint",
-      "range": "1.90.0",
+      "range": "1.93.0",
       "target": "root",
       "dev": true
     },
     {
       "name": "oxlint-tsgolint",
-      "range": "7.0.2005",
+      "range": "7.0.2007",
       "target": "root",
       "dev": true
     },
     {
       "name": "prettier",
-      "range": "3.9.10",
+      "range": "3.10.1",
       "target": "root",
       "dev": true
     }
