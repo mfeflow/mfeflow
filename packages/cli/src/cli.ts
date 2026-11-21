@@ -13,7 +13,7 @@ import {
   VALIDATE_ARGS,
 } from './commands/doctor';
 import { BUDGET_ARGS, runBudget } from './commands/budget';
-import { BUILD_ARGS, runBuild } from './commands/build';
+import { BUILD_ARGS, BUILD_CHILD_ENV, runBuild } from './commands/build';
 import {
   DEPLOY_ARGS,
   PROMOTE_ARGS,
@@ -351,6 +351,8 @@ function fail(error: unknown, rt: Runtime, json: boolean, verbose: boolean): num
       ? new MfeflowError('E107', stripVTControlCharacters(error.message))
       : error;
   if (isMfeflowError(mfe)) {
+    const quiet = !json && rt.io.env[BUILD_CHILD_ENV] === '1' && mfe.code === 'MFEFLOW_E310';
+    if (quiet) return exitCodeFor(mfe);
     if (json) rt.io.stdout(JSON.stringify(failure(mfe), null, 2));
     else rt.io.stderr(mfe.format());
     if (verbose && mfe.cause !== undefined)

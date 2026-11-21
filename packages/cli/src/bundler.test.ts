@@ -67,10 +67,17 @@ const fakeRsbuild = {
     exports: { '.': { default: './index.js' }, './package.json': './package.json' },
   }),
   'index.js': `
+import fs from 'node:fs';
 const log = (globalThis.__bundlerCalls ??= []);
-export async function loadConfig(o) { log.push(['loadConfig', o, process.env.NODE_ENV, process.env.RSPACK_UNSAFE_FAST_DROP]); return { content: { marker: 1 } }; }
+export async function loadConfig(o) { log.push(['loadConfig', o, process.env.NODE_ENV, process.env.RSPACK_UNSAFE_FAST_DROP]); globalThis.__seenEnv = process.env.FROM_DOTENV; return { content: { marker: 1 } }; }
 export async function createRsbuild(o) {
-  log.push(['createRsbuild', o]);
+  log.push(['createRsbuild', { cwd: o.cwd, loadEnv: o.loadEnv }]);
+  if (o.loadEnv) {
+    log.push(['loadEnv']);
+    const file = o.cwd + '/.env.production';
+    if (fs.existsSync(file)) process.env.FROM_DOTENV = fs.readFileSync(file, 'utf8').trim();
+  }
+  await o.config();
   return { build: async () => { if (globalThis.__failBuild) throw new Error(globalThis.__failBuild); return { close: async () => { log.push(['close']); } }; } };
 }
 `,
@@ -181,7 +188,7 @@ describe('resolveFromApp', () => {
     expect(missing.message).toContain('@mfeflow-test/no-such-bundler is not installed for x');
   });
 
-  it('does not turn another resolution error into E308', async () => {
+  it('turns another resolution error into E308 with the real reason', async () => {
     const target = await app('vite', {
       packages: {
         vite: {
@@ -189,9 +196,10 @@ describe('resolveFromApp', () => {
         },
       },
     });
-    await expect(resolveFromApp(target, 'vite')).rejects.toMatchObject({
-      code: 'ERR_PACKAGE_PATH_NOT_EXPORTED',
-    });
+    const refused = await refusal(resolveFromApp(target, 'vite'));
+    expect(refused.code).toBe('MFEFLOW_E308');
+    expect(refused.message).toContain('vite could not be resolved for x');
+    expect(refused.message).toContain('not defined by "exports"');
   });
 });
 
@@ -226,10 +234,31 @@ describe('loadBundler with Rsbuild', () => {
     expect(adapter.bundler).toBe('rsbuild');
     await adapter.build(target);
     expect(calls()).toEqual([
-      ['loadConfig', { cwd: target.dir, command: 'build' }, 'production', 'true'],
-      ['createRsbuild', { cwd: target.dir, rsbuildConfig: { marker: 1 }, loadEnv: true }],
+      ['createRsbuild', { cwd: target.dir, loadEnv: true }],
+      ['loadEnv'],
+      [
+        'loadConfig',
+        {
+          cwd: target.dir,
+          path: path.join(target.dir, 'rsbuild.config.ts'),
+          command: 'build',
+        },
+        'production',
+        'true',
+      ],
       ['close'],
     ]);
+  });
+
+  it('loads the config after the .env files, so a config can read them', async () => {
+    const target = await app('rsbuild', {
+      configs: ['rsbuild.config.ts'],
+      packages: { '@rsbuild/core': fakeRsbuild },
+    });
+    await write(path.join(target.dir, '.env.production'), 'from-dotenv');
+    await (await loadBundler(target)).build(target);
+    expect(Reflect.get(globalThis, '__seenEnv')).toBe('from-dotenv');
+    delete process.env.FROM_DOTENV;
   });
 
   it('keeps a NODE_ENV the user set', async () => {
@@ -239,7 +268,7 @@ describe('loadBundler with Rsbuild', () => {
       packages: { '@rsbuild/core': fakeRsbuild },
     });
     await (await loadBundler(target)).build(target);
-    expect(calls()[0]).toEqual(['loadConfig', expect.anything(), 'staging', 'true']);
+    expect(calls()[2]).toEqual(['loadConfig', expect.anything(), 'staging', 'true']);
   });
 
   it('does not print Rsbuild`s own build error twice, but prints any other', async () => {

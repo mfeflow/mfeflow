@@ -225,6 +225,43 @@ describe('mfeflow build at the project root', () => {
     expect(rt.io.out).toEqual(['remotes: catalog, cart', 'shell: shell']);
   });
 
+  it('keeps a missing app missing under --dry-run, with its finding and exit code', async () => {
+    const root = await project();
+    await fs.rm(path.join(root, 'apps/cart/package.json'));
+    const rt = testRuntime();
+    expect(await main(['build', '--dry-run', '--json', '--cwd', root], rt)).toBe(3);
+    const result = JSON.parse(rt.io.out.join('')) as BuildResult;
+    expect(result.apps.map((a) => [a.name, a.status])).toEqual([
+      ['shell', 'skipped'],
+      ['catalog', 'skipped'],
+      ['cart', 'missing'],
+    ]);
+    expect(result.findings[0]).toMatchObject({ code: 'MFEFLOW_E112', app: 'cart' });
+    expect(rt.dev.procs).toHaveLength(0);
+  });
+
+  it('tells each child the parent prints the build error summary', async () => {
+    const root = await project();
+    const { rt, done } = await start(root, 1, '--only', 'shell');
+    expect(rt.dev.procs[0]?.spec.env).toMatchObject({ MFEFLOW_BUILD_CHILD: '1' });
+    rt.dev.procs[0]?.exit(0);
+    await done;
+  });
+
+  it('records a child that exits 0 after Ctrl+C as built, and the others as stopped', async () => {
+    const root = await project();
+    const { rt, done } = await start(root, 2, '--concurrency', '2');
+    const [first, second] = rt.dev.procs;
+    if (first === undefined || second === undefined) throw new Error('no processes');
+    first.stop = () => Promise.resolve();
+    rt.dev.interrupt();
+    first.exit(0);
+    expect(await done).toBe(130);
+    const out = rt.io.out.join('\n');
+    expect(out).toMatch(/catalog\s+remote\s+built/);
+    expect(out).toMatch(/cart\s+remote\s+stopped/);
+  });
+
   it('prints one valid JSON document on stdout and the build lines on stderr', async () => {
     const root = await project();
     const rt = testRuntime();
@@ -321,6 +358,36 @@ describe('mfeflow build inside an app folder', () => {
     expect(rt.io.err.join('\n')).toContain('MFEFLOW_E309');
   });
 
+  it('plans the build and runs nothing with --dry-run', async () => {
+    const root = await project();
+    const rt = testRuntime();
+    expect(await main(['build', '--dry-run', '--cwd', path.join(root, 'apps/catalog')], rt)).toBe(
+      0,
+    );
+    expect(rt.bundler.built).toEqual([]);
+    expect(rt.io.out).toEqual(['would build catalog with rsbuild, writing to dist']);
+    const json = testRuntime();
+    expect(
+      await main(['build', '--dry-run', '--json', '--cwd', path.join(root, 'apps/catalog')], json),
+    ).toBe(0);
+    expect((JSON.parse(json.io.out.join('')) as BuildResult).apps[0]?.status).toBe('skipped');
+    expect(json.bundler.built).toEqual([]);
+  });
+
+  it('stays quiet about E310 when the parent build started it, and says it otherwise', async () => {
+    const root = await project();
+    const dir = path.join(root, 'apps/catalog');
+    const child = testRuntime();
+    child.io = { ...child.io, env: { MFEFLOW_BUILD_CHILD: '1' } };
+    child.bundler.buildFails = new Error('Rspack build failed.');
+    expect(await main(['build', '--cwd', dir], child)).toBe(5);
+    expect(child.io.err.join('\n')).not.toContain('MFEFLOW_E310');
+    const alone = testRuntime();
+    alone.bundler.buildFails = new Error('Rspack build failed.');
+    expect(await main(['build', '--cwd', dir], alone)).toBe(5);
+    expect(alone.io.err.join('\n')).toContain('MFEFLOW_E310');
+  });
+
   it('refuses --only, which is a root option', async () => {
     const root = await project();
     const rt = testRuntime();
@@ -354,6 +421,10 @@ describe('appContaining', () => {
     expect(appContaining(apps, path.join('/p', 'apps', 'a'))?.name).toBe('a');
     expect(appContaining(apps, path.join('/p', 'apps', 'a', 'src'))?.name).toBe('a');
     expect(appContaining(apps, path.join('/p', 'apps', 'ab', 'src'))?.name).toBe('ab');
+  });
+
+  it('counts a folder whose name starts with two dots as inside', () => {
+    expect(appContaining(apps, path.join('/p', 'apps', 'a', '..cache'))?.name).toBe('a');
   });
 
   it('is undefined at the project root and outside it', () => {

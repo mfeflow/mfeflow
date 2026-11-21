@@ -139,7 +139,7 @@ export function fakeDev(): FakeDev {
         },
         stop: () => {
           proc.stopped = true;
-          proc.exit(0);
+          proc.exit(null);
           return Promise.resolve();
         },
       };

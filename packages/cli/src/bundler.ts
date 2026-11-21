@@ -43,10 +43,10 @@ export const BUNDLER_PACKAGES: Record<Bundler, string> = {
 const EXTENSIONS = ['ts', 'mts', 'cts', 'js', 'mjs', 'cjs'];
 
 interface RsbuildModule {
-  loadConfig(options: { cwd: string; command: string }): Promise<{ content: unknown }>;
+  loadConfig(options: { cwd: string; path: string; command: string }): Promise<unknown>;
   createRsbuild(options: {
     cwd: string;
-    rsbuildConfig: unknown;
+    config: () => Promise<unknown>;
     loadEnv: boolean;
   }): Promise<{ build(): Promise<{ close(): Promise<void> }> }>;
 }
@@ -142,7 +142,11 @@ export async function resolveFromApp(app: BundlerApp, name: string): Promise<str
         { cause: error },
       );
     }
-    throw error;
+    throw new MfeflowError(
+      'E308',
+      `${name} could not be resolved for ${app.name}: ${messageOf(error)}`,
+      { cause: error },
+    );
   }
   const pkg: unknown = JSON.parse(await fs.readFile(manifest, 'utf8'));
   return path.resolve(path.dirname(manifest), entryOf(isDict(pkg) ? pkg : {}));
@@ -219,10 +223,10 @@ export async function loadBundler(app: BundlerApp): Promise<BundlerAdapter> {
       productionEnv();
       process.env.RSPACK_UNSAFE_FAST_DROP ||= 'true';
       try {
-        const config = await rsbuild.loadConfig({ cwd: target.dir, command: 'build' });
+        // As `rsbuild build` does: Rsbuild loads the .env files, then calls this, so the config sees them.
         const instance = await rsbuild.createRsbuild({
           cwd: target.dir,
-          rsbuildConfig: config.content,
+          config: () => rsbuild.loadConfig({ cwd: target.dir, path: configFile, command: 'build' }),
           loadEnv: true,
         });
         const result = await instance.build();

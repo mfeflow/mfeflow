@@ -298,4 +298,20 @@ describe('the build result', () => {
     expect(exitOf({ ...build, ok: false, findings: [finding] })).toBe(5);
     expect(exitOf({ ...build, ok: false, interrupted: true, findings: [finding] })).toBe(130);
   });
+
+  it('exits 130 for any interrupted result, and leaves results that were not interrupted alone', () => {
+    const dev = {
+      ok: true,
+      command: 'dev' as const,
+      root: '/p',
+      registry: '/p/r.json',
+      apps: [],
+      overrides: {},
+      dryRun: false,
+      interrupted: true,
+    };
+    expect(exitOf(dev)).toBe(130);
+    expect(exitOf({ ...dev, interrupted: false })).toBe(0);
+    expect(exitOf({ ...dev, ok: false, interrupted: false })).toBe(1);
+  });
 });

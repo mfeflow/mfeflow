@@ -1,7 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { bundlerOf } from '@mfeflow/contracts';
-import { findProjectRoot, isMfeflowError, MfeflowError, messageOf } from '@mfeflow/core';
+import { findProjectRoot, isInside, isMfeflowError, MfeflowError, messageOf } from '@mfeflow/core';
 import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals, splitList } from '../args';
 import { realBundlerHost, type BundlerApp, type BundlerHost } from '../bundler';
@@ -35,6 +35,9 @@ export const BUILD_ARGS = {
   ...GLOBAL_ARGS,
 } as const satisfies ArgsDef;
 
+/** Set by the parent build, so a child leaves the error summary to the parent. */
+export const BUILD_CHILD_ENV = 'MFEFLOW_BUILD_CHILD';
+
 export const defaultConcurrency = (): number => Math.min(4, os.availableParallelism());
 
 function concurrencyOf(args: Record<string, unknown>): number {
@@ -49,10 +52,7 @@ function concurrencyOf(args: Record<string, unknown>): number {
 
 /** The app whose folder holds `cwd`, the deepest one if they nest. Undefined at the project root. */
 export function appContaining(apps: readonly AppView[], cwd: string): AppView | undefined {
-  const inside = apps.filter((app) => {
-    const relative = path.relative(app.dir, cwd);
-    return !relative.startsWith('..') && !path.isAbsolute(relative);
-  });
+  const inside = apps.filter((app) => isInside(app.dir, cwd));
   return inside.toSorted((a, b) => b.dir.length - a.dir.length)[0];
 }
 
@@ -129,7 +129,7 @@ async function buildInChild(
         command: process.execPath,
         args: [cliBinPath(), 'build', '--dist', dist],
         cwd: app.dir,
-        env: color ? { FORCE_COLOR: '1' } : {},
+        env: color ? { FORCE_COLOR: '1', [BUILD_CHILD_ENV]: '1' } : { [BUILD_CHILD_ENV]: '1' },
       });
     } catch (error) {
       lines.line(app.name, `could not start: ${messageOf(error)}`);
@@ -147,10 +147,10 @@ async function buildInChild(
     });
   });
   const ms = Date.now() - started;
-  if (run.interrupted) {
-    record(run, app, 'stopped', ms, null);
-  } else if (outcome === 0) {
+  if (outcome === 0) {
     record(run, app, 'built', ms, await builtKb(app.kind, path.join(app.dir, dist)));
+  } else if (run.interrupted) {
+    record(run, app, 'stopped', ms, null);
   } else {
     run.stop = true;
     record(run, app, 'failed', ms, null);
@@ -226,8 +226,22 @@ async function buildHere(
   concurrency: number,
   root: string,
   bundler: BundlerApp['bundler'],
+  dryRun: boolean,
 ): Promise<BuildResult> {
   const target: BundlerApp = { name: app.name, dir: app.dir, bundler };
+  if (dryRun) {
+    const planned: BuildResult = {
+      ok: true,
+      command: 'build',
+      root,
+      concurrency,
+      apps: [{ name: app.name, kind: app.kind, status: 'skipped', ms: null, kb: null }],
+      findings: [],
+      interrupted: false,
+    };
+    if (!json) rt.io.stdout(`would build ${app.name} with ${bundler}, writing to ${dist}`);
+    return planned;
+  }
   const started = Date.now();
   const adapter = await bundlers.load(target);
   try {
@@ -290,7 +304,17 @@ export async function runBuild(
     if (!here.present) {
       throw new MfeflowError('E112', `${here.name} (${here.rel}) has no package.json`);
     }
-    return buildHere(rt, here, bundlers, dist, globals.json, concurrency, root, bundler);
+    return buildHere(
+      rt,
+      here,
+      bundlers,
+      dist,
+      globals.json,
+      concurrency,
+      root,
+      bundler,
+      globals.dryRun,
+    );
   }
 
   const known = view.apps.map((a) => a.name);
@@ -361,7 +385,16 @@ export async function runBuild(
       }
     }
     return empty(
-      selected.map((a) => ({ name: a.name, kind: a.kind, status: 'skipped', ms: null, kb: null })),
+      selected.map(
+        (a): BuildApp =>
+          run.apps.get(a.name) ?? {
+            name: a.name,
+            kind: a.kind,
+            status: 'skipped',
+            ms: null,
+            kb: null,
+          },
+      ),
       run.findings,
     );
   }

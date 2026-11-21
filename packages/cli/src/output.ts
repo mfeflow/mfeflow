@@ -864,9 +864,7 @@ export function validateResult(value: unknown): Issue[] {
 
 /** Exit code for a result that printed normally: findings decide for the checks, Ctrl+C is 130. */
 export function exitOf(result: CliResult): number {
-  if ('command' in result && result.command === 'build' && result.interrupted)
-    return EXIT.cancelled;
+  if ('interrupted' in result && result.interrupted) return EXIT.cancelled;
   if ('findings' in result) return exitForFindings(result.findings);
-  if (result.ok && 'interrupted' in result && result.interrupted) return EXIT.cancelled;
   return result.ok ? EXIT.ok : EXIT.unexpected;
 }
