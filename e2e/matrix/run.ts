@@ -4,6 +4,7 @@
 //   node e2e/matrix/run.ts [id...]    run these (default: all)
 // MATRIX_DIR picks where projects are generated (default: the OS temp folder); node_modules goes after each.
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -106,7 +107,9 @@ if (process.argv.includes('--list')) {
   fs.mkdirSync(base, { recursive: true });
   const failures: string[] = [];
   for (const combo of selection()) {
-    const work = fs.mkdtempSync(path.join(base, `mfeflow-matrix-${combo.id}-`));
+    // A short folder name: the longest ids pushed pnpm's state files past Windows' 260-character path limit.
+    const short = createHash('sha256').update(combo.id).digest('hex').slice(0, 8);
+    const work = fs.mkdtempSync(path.join(base, `mfm-${short}-`));
     const started = Date.now();
     console.log(`\n=== ${combo.id}`);
     // oxlint-disable-next-line no-await-in-loop -- one project on disk at a time keeps the disk small
