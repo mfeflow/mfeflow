@@ -315,7 +315,7 @@ What is still open:
 - `adopt` reads only literal configs. A config built by a function or read from the environment is listed as not carried over. It supports pnpm and npm projects, not yarn or bun. A folder with only a remote and no shell is refused.
 - The `hybrid` layout, a platform monorepo with team repos next to it, is not built. `ci-github` and `env-t3` cannot be added to a polyrepo yet.
 - `check-compat --against` compares the shell's manifest. Other cross-repo checks are not built.
-- A Vite shell has not been run on a real Windows machine yet, only in CI. Vite with `--kind remote` or `--kind tooling` is not tested.
+- A Vite shell has not been run on a real Windows machine yet, only in CI. Vite remotes (`--kind remote --bundler vite`) are built in the matrix, and the tooling repo is built by `scripts/smoke-tooling.mjs`; `--kind tooling` refuses `--bundler`, since it has no apps.
 - In a tooling repo, an app that uses a wrapper package such as `@acme/theme` must also list `@mfeflow/theme` itself, or the remotes get their own copy. A preset fix is planned.
 
 This section is the status board. Update it in the same pull request that starts or finishes a phase.

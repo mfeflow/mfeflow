@@ -116,6 +116,15 @@ describe('chooseToolingPackages', () => {
 });
 
 describe('the catalogue', () => {
+  it('has exactly the folders of templates/tooling', async () => {
+    const folders = (
+      await fs.readdir(path.join(REPO, 'templates/tooling'), { withFileTypes: true })
+    )
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+    expect(TOOLING_PACKAGES.map((entry) => entry.name).toSorted()).toEqual(folders.toSorted());
+  });
+
   it('lists a package after every package it needs', () => {
     const seen = new Set<string>();
     for (const entry of TOOLING_PACKAGES) {

@@ -17,9 +17,10 @@ import {
   repeated,
   splitList,
   text,
+  typed,
   type Globals,
 } from '../args';
-import { hasNoApps, noApps } from '../noapps';
+import { assertNoBundlerFlag, hasNoApps, noApps } from '../noapps';
 import { planReport, type UpgradeFileReport, type UpgradeResult } from '../output';
 import { withProjectChange } from '../pipeline';
 import type { Runtime } from '../runtime';
@@ -506,6 +507,7 @@ export async function runUpgrade(
   const root = await findProjectRoot(globals.cwd);
   const project = await loadProject(root);
   if (hasNoApps(project) && project.topology !== 'polyrepo') {
+    assertNoBundlerFlag(typed(args, 'bundler'));
     return noAppsUpgrade(rt, globals, root, project.cli);
   }
   const acceptChanged = acceptChangedOf(raw);
