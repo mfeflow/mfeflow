@@ -9,15 +9,34 @@ export function normalizeEol(content: string): string {
 }
 
 const isBlank = (line: string) => line.trim() === '';
+
+/** `text` without a trailing YAML comment (` # ...`), found by a plain scan. */
+function withoutComment(text: string): string {
+  for (let i = 1; i < text.length; i += 1) {
+    if (text[i] === '#' && (text[i - 1] === ' ' || text[i - 1] === '\t'))
+      return text.slice(0, i).trimEnd();
+  }
+  return text;
+}
+
+/** The lines of `content`, each keeping its own `\n` (the last one may have none). */
+function linesOf(content: string): string[] {
+  const lines: string[] = [];
+  let from = 0;
+  while (from < content.length) {
+    const at = content.indexOf('\n', from);
+    const to = at === -1 ? content.length : at + 1;
+    lines.push(content.slice(from, to));
+    from = to;
+  }
+  return lines;
+}
 const bracketDepth = (text: string) =>
   (text.match(/[[{]/g)?.length ?? 0) - (text.match(/[\]}]/g)?.length ?? 0);
 
 /** How many lines from `start` belong to the value of the key on `lines[start]`. */
 function valueLength(lines: string[], start: number): number {
-  const rest = (lines[start] ?? '')
-    .slice(PNPM_KEY.length)
-    .trimEnd()
-    .replace(/\s+#.*$/, '');
+  const rest = withoutComment((lines[start] ?? '').slice(PNPM_KEY.length).trimEnd());
   let end = start + 1;
   if (rest.trim().startsWith('[') || rest.trim().startsWith('{')) {
     let depth = bracketDepth(rest);
@@ -40,7 +59,7 @@ function valueLength(lines: string[], start: number): number {
  */
 export function withoutPnpmWrittenKeys(content: string): string {
   if (!content.includes(PNPM_KEY)) return content;
-  const lines = content.match(/[^\n]*\n|[^\n]+$/g) ?? [];
+  const lines = linesOf(content);
   const kept: string[] = [];
   for (let i = 0; i < lines.length;) {
     if (!lines[i]?.startsWith(PNPM_KEY)) {
