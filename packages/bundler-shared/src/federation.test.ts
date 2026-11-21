@@ -42,6 +42,7 @@ describe('commonRemoteOptions', () => {
       shared: { react: { singleton: true } },
       manifest: true,
       dts: { generateTypes: true, consumeTypes: false },
+      dev: { disableDynamicRemoteTypeHints: true },
     });
     expect(o).not.toHaveProperty('experiments');
   });

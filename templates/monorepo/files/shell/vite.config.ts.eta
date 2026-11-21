@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { mergeConfig, type Plugin } from 'vite';
-import { createShellConfig, pluginRestartOn } from '@mfeflow/vite';
+import { createShellConfig, mergeConfig, pluginRestartOn, type Plugin } from '@mfeflow/vite';
 
 <% if (it.topology === 'polyrepo') { %>interface DevRemote {
   name: string;

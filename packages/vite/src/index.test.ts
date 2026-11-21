@@ -21,6 +21,7 @@ vi.mock('@mfeflow/bundler-shared', async (importOriginal) => {
 import {
   createRemoteConfig,
   createShellConfig,
+  mergeConfig,
   pluginRestartOn,
   pluginRuntimeConfig,
   registerHeadScript,
@@ -80,9 +81,15 @@ describe('federation options', () => {
       name: 'cart',
       filename: REMOTE_ENTRY,
       manifest: true,
+      dev: { disableDynamicRemoteTypeHints: true },
       // The shell provides the Module Federation runtime; remotes do not bundle their own.
       experiments: { externalRuntime: true },
     });
+  });
+
+  it('re-exports mergeConfig from the Vite it was built against', async () => {
+    const vite = await import('vite');
+    expect(mergeConfig).toBe(vite.mergeConfig);
   });
 
   it('writes Windows runtime plugin paths with forward slashes, so the generated import parses', () => {

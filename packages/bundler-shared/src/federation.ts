@@ -83,6 +83,7 @@ export interface CommonFederationOptions {
         consumeTypes: false | { typesOnBuild: true; abortOnError: boolean };
       };
   runtimePlugins?: string[];
+  dev?: { disableDynamicRemoteTypeHints: true };
 }
 
 /** Module Federation options for a remote, before bundler-specific settings. */
@@ -100,6 +101,9 @@ export function commonRemoteOptions(
     shared: sharedSingletons(canResolve, o.shared, versionOf),
     manifest: true,
     dts: o.types === false ? false : { generateTypes: true, consumeTypes: false },
+    // The type-hints client opens a websocket to the dts dev server from the page. The shell never
+    // consumes types in dev, so it only adds console errors (and fails outright on Windows runners).
+    dev: { disableDynamicRemoteTypeHints: true },
   };
 }
 
