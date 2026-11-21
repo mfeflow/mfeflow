@@ -11,7 +11,12 @@ afterEach(async () => {
 });
 
 async function bin(dir: string, name: string): Promise<string> {
-  const file = path.join(dir, 'node_modules', '.bin', name);
+  const file = path.join(
+    dir,
+    'node_modules',
+    '.bin',
+    `${name}${process.platform === 'win32' ? '.cmd' : ''}`,
+  );
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, '');
   return file;
@@ -54,7 +59,12 @@ describe('resolveTool', () => {
   it('is undefined for a folder that is a directory called like the tool', async () => {
     const root = await tempDir();
     dirs.push(root);
-    await fs.mkdir(path.join(root, 'node_modules', '.bin', 'tsc'), { recursive: true });
+    await fs.mkdir(
+      path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'tsc.cmd' : 'tsc'),
+      {
+        recursive: true,
+      },
+    );
     expect(await resolveTool('tsc', root, root)).toBeUndefined();
   });
 

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { EXIT, main, validateResult, type ToolResult } from '..';
 import { passThrough } from './tools';
 import { removeDir, tempDir, testRuntime, type TestRuntime } from '../testing';
+import { quoteForCmd } from '../tools';
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -11,6 +12,8 @@ afterEach(async () => {
 });
 
 const BIN = process.platform === 'win32' ? '.cmd' : '';
+// On Windows the tools are .cmd shims that run through cmd.exe, so each argument is quoted for it.
+const sent = (args: string[]) => (process.platform === 'win32' ? args.map(quoteForCmd) : args);
 
 async function bin(dir: string, name: string): Promise<void> {
   const file = path.join(dir, 'node_modules', '.bin', `${name}${BIN}`);
@@ -98,7 +101,9 @@ describe('mfeflow typecheck', () => {
       'apps/catalog',
       'apps/shell',
     ]);
-    expect(rt.dev.procs.every((p) => p.spec.args.join(' ') === '--noEmit')).toBe(true);
+    expect(rt.dev.procs.every((p) => p.spec.args.join(' ') === sent(['--noEmit']).join(' '))).toBe(
+      true,
+    );
     expect(rt.dev.procs.every((p) => path.basename(p.spec.command).startsWith('tsc'))).toBe(true);
     expect(rt.io.out).toContain('shell   | some output');
     expect(rt.io.out.at(-1)).toMatch(/^mfeflow: typecheck: .*shell ok .*tooling ok /);
@@ -139,7 +144,7 @@ describe('mfeflow typecheck', () => {
       '--pretty',
       'false',
     ]);
-    expect(rt.dev.procs[0]?.spec.args).toEqual(['--noEmit', '--pretty', 'false']);
+    expect(rt.dev.procs[0]?.spec.args).toEqual(sent(['--noEmit', '--pretty', 'false']));
   });
 
   it('exits 5 when a check fails and says which', async () => {
@@ -264,7 +269,7 @@ describe('mfeflow typecheck', () => {
     expect(rt.dev.procs).toHaveLength(1);
     expect(rt.dev.procs[0]?.spec).toMatchObject({
       command: 'pnpm',
-      args: ['run', 'typecheck', '--pretty'],
+      args: sent(['run', 'typecheck', '--pretty']),
       cwd: path.join(root, 'apps/cart'),
     });
     const dry = await run(['typecheck', '--cwd', root, '--only', 'cart', '--dry-run']);
@@ -357,26 +362,22 @@ describe('mfeflow test', () => {
   it('maps --only to vitest projects named by each app package', async () => {
     const root = await project();
     const { rt } = await run(['test', '--cwd', root, '--only', 'shell,cart']);
-    expect(rt.dev.procs[0]?.spec.args).toEqual([
-      'run',
-      '--project',
-      '@app/shell',
-      '--project',
-      '@app/cart',
-    ]);
+    expect(rt.dev.procs[0]?.spec.args).toEqual(
+      sent(['run', '--project', '@app/shell', '--project', '@app/cart']),
+    );
   });
 
   it('inside an app folder runs that app project only', async () => {
     const root = await project();
     const { rt } = await run(['test', '--cwd', path.join(root, 'apps/catalog')]);
-    expect(rt.dev.procs[0]?.spec.args).toEqual(['run', '--project', '@app/catalog']);
+    expect(rt.dev.procs[0]?.spec.args).toEqual(sent(['run', '--project', '@app/catalog']));
     expect(rt.dev.procs[0]?.spec.cwd).toBe(root);
   });
 
   it('passes the arguments after -- through', async () => {
     const root = await project();
     const { rt } = await run(['test', '--cwd', root, '--', '--coverage', '-t', 'cart total']);
-    expect(rt.dev.procs[0]?.spec.args).toEqual(['run', '--coverage', '-t', 'cart total']);
+    expect(rt.dev.procs[0]?.spec.args).toEqual(sent(['run', '--coverage', '-t', 'cart total']));
   });
 
   it('exits 5 when tests fail, and reports the exit code in JSON', async () => {
@@ -403,7 +404,7 @@ describe('mfeflow test', () => {
       'apps/cart',
       'apps/shell',
     ]);
-    expect(rt.dev.procs[0]?.spec.args).toEqual(['run']);
+    expect(rt.dev.procs[0]?.spec.args).toEqual(sent(['run']));
     expect(rt.io.out.some((l) => l.startsWith('shell | '))).toBe(true);
   });
 
@@ -459,7 +460,7 @@ describe('mfeflow test', () => {
   it('passes an argument with spaces through as one argument', async () => {
     const root = await project();
     const { rt } = await run(['test', '--cwd', root, '--', '-t', 'adds an item']);
-    expect(rt.dev.procs[0]?.spec.args).toEqual(['run', '-t', 'adds an item']);
+    expect(rt.dev.procs[0]?.spec.args).toEqual(sent(['run', '-t', 'adds an item']));
   });
 
   it('--dry-run prints the command', async () => {
@@ -476,7 +477,7 @@ describe('mfeflow lint', () => {
     const { rt, exit } = await run(['lint', '--cwd', root]);
     expect(exit).toBe(EXIT.ok);
     expect(rt.dev.procs[0]?.spec).toMatchObject({
-      args: ['--type-aware', '--deny-warnings'],
+      args: sent(['--type-aware', '--deny-warnings']),
       cwd: root,
     });
     expect(rt.dev.procs[0]?.spec.command).toBe(
@@ -487,19 +488,17 @@ describe('mfeflow lint', () => {
   it('limits the paths with --only and passes the rest through', async () => {
     const root = await project();
     const { rt } = await run(['lint', '--cwd', root, '--only', 'shell,cart', '--', '--fix']);
-    expect(rt.dev.procs[0]?.spec.args).toEqual([
-      '--type-aware',
-      '--deny-warnings',
-      'apps/shell',
-      'apps/cart',
-      '--fix',
-    ]);
+    expect(rt.dev.procs[0]?.spec.args).toEqual(
+      sent(['--type-aware', '--deny-warnings', 'apps/shell', 'apps/cart', '--fix']),
+    );
   });
 
   it('inside an app folder lints that folder', async () => {
     const root = await project();
     const { rt } = await run(['lint', '--cwd', path.join(root, 'apps/cart')]);
-    expect(rt.dev.procs[0]?.spec.args).toEqual(['--type-aware', '--deny-warnings', 'apps/cart']);
+    expect(rt.dev.procs[0]?.spec.args).toEqual(
+      sent(['--type-aware', '--deny-warnings', 'apps/cart']),
+    );
   });
 
   it('exits 5 on findings and E311 names oxlint when it is missing', async () => {
