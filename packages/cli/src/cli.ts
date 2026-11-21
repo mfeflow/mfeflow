@@ -13,6 +13,7 @@ import {
   VALIDATE_ARGS,
 } from './commands/doctor';
 import { BUDGET_ARGS, runBudget } from './commands/budget';
+import { BUILD_ARGS, runBuild } from './commands/build';
 import {
   DEPLOY_ARGS,
   PROMOTE_ARGS,
@@ -290,6 +291,20 @@ export const COMMANDS: readonly Command[] = [
       'mfeflow dev --dry-run',
     ],
     run: runDev,
+  },
+  {
+    name: 'build',
+    summary: 'build every remote, then the shell, with the bundler each app installed',
+    usage: 'mfeflow build [options]',
+    args: BUILD_ARGS,
+    examples: [
+      'mfeflow build',
+      'mfeflow build --only shell,catalog',
+      'mfeflow build --concurrency 2',
+      'mfeflow build --json',
+      'cd apps/catalog && mfeflow build   # inside an app: just that app',
+    ],
+    run: runBuild,
   },
   {
     name: 'mcp',

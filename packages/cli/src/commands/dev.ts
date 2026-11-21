@@ -9,6 +9,7 @@ import { inspectProject, readText, type AppView, type ProjectView } from '../ins
 import { hasNoApps, noApps } from '../noapps';
 import type { DevApp, DevResult } from '../output';
 import { DEFAULT_WAIT, realDevHost, type DevHost, type DevProcess } from '../proc';
+import { Prefixer, wantsColor } from '../prefixed';
 import type { Runtime } from '../runtime';
 
 export const DEV_ARGS = {
@@ -31,7 +32,6 @@ export const DEV_ARGS = {
   ...GLOBAL_ARGS,
 } as const satisfies ArgsDef;
 
-const PALETTE = [36, 35, 33, 32, 34, 91] as const;
 const REGISTRY_DIR = '.mfeflow';
 const REGISTRY_FILE = 'dev-registry.json';
 
@@ -47,26 +47,24 @@ async function writeIfChanged(file: string, text: string): Promise<boolean> {
 
 class Session {
   private readonly running = new Map<string, DevProcess>();
-  private readonly buffers = new Map<string, string>();
   private stopping = false;
   private readonly failed = new Set<string>();
   private finish: (() => void) | undefined;
   readonly done = new Promise<void>((resolve) => {
     this.finish = resolve;
   });
-  private readonly width: number;
   private readonly color: boolean;
+  private readonly lines: Prefixer;
 
   constructor(
     private readonly host: DevHost,
     io: Pick<Runtime['io'], 'env' | 'interactive'>,
-    private readonly out: (text: string) => void,
+    out: (text: string) => void,
     private readonly registryFile: string,
-    private readonly names: readonly string[],
+    names: readonly string[],
   ) {
-    this.width = Math.max(...names.map((n) => n.length), 4);
-    this.color =
-      io.env.NO_COLOR === undefined && (io.interactive || io.env.FORCE_COLOR !== undefined);
+    this.color = wantsColor(io);
+    this.lines = new Prefixer(names, this.color, out);
   }
 
   get hasFailed(): boolean {
@@ -81,28 +79,8 @@ class Session {
     return [...this.running.keys()];
   }
 
-  prefix(name: string): string {
-    const index = Math.max(0, this.names.indexOf(name));
-    const label = name.padEnd(this.width);
-    const code = PALETTE[index % PALETTE.length] ?? 36;
-    return this.color ? `\u001B[${String(code)}m${label} |\u001B[0m ` : `${label} | `;
-  }
-
   line(name: string, text: string): void {
-    this.out(`${this.prefix(name)}${text}`);
-  }
-
-  private feed(name: string, chunk: string): void {
-    const text = (this.buffers.get(name) ?? '') + chunk;
-    const lines = text.split(/\r?\n/);
-    this.buffers.set(name, lines.pop() ?? '');
-    for (const line of lines) if (line.trim() !== '') this.line(name, line);
-  }
-
-  private flush(name: string): void {
-    const rest = this.buffers.get(name) ?? '';
-    this.buffers.delete(name);
-    if (rest.trim() !== '') this.line(name, rest);
+    this.lines.line(name, text);
   }
 
   start(app: AppView, packageManager: string): void {
@@ -118,10 +96,10 @@ class Session {
     this.running.set(app.name, child);
     this.failed.delete(app.name);
     child.onOutput((chunk) => {
-      this.feed(app.name, chunk);
+      this.lines.feed(app.name, chunk);
     });
     child.onExit((code) => {
-      this.flush(app.name);
+      this.lines.flush(app.name);
       if (this.running.get(app.name) !== child) return;
       this.running.delete(app.name);
       if (!this.stopping) {
@@ -137,7 +115,7 @@ class Session {
     if (child === undefined) return;
     this.running.delete(name);
     await child.stop();
-    this.flush(name);
+    this.lines.flush(name);
   }
 
   async stopAll(): Promise<void> {

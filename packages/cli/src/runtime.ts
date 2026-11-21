@@ -1,5 +1,6 @@
 import { configDirOf, type FetchLike } from '@mfeflow/core';
 import { assetRoots, type AssetRoots } from './assets';
+import { realBundlerHost, type BundlerHost } from './bundler';
 import { processIo, type Io } from './io';
 import { realDevHost, type DevHost } from './proc';
 import { clackPrompter, type Prompter } from './prompter';
@@ -17,6 +18,8 @@ export interface Runtime {
   configDir: string;
   /** Processes, signals and file watching for `mfeflow dev`. Defaults to the real ones. */
   dev?: DevHost;
+  /** Finds and drives the bundler each app installed, for `mfeflow build`. Defaults to the real ones. */
+  bundler?: BundlerHost;
   /** `fetch` for S3 hosts. Tests stand in for the network. */
   hostFetch?: typeof fetch;
   /** `fetch` for the registry server in server mode. Tests point it at a server on 127.0.0.1. */
@@ -34,5 +37,6 @@ export function realRuntime(io: Io = processIo()): Runtime {
     roots: assetRoots(),
     configDir: configDirOf(io.env),
     dev: realDevHost(),
+    bundler: realBundlerHost(),
   };
 }

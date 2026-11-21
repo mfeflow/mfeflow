@@ -1,6 +1,6 @@
 import { emptyPlan } from '@mfeflow/core';
 import { describe, expect, it } from 'vitest';
-import { planReport, validateResult, type InitResult } from './output';
+import { exitOf, planReport, validateResult, type BuildResult, type InitResult } from './output';
 
 const plan = {
   features: [{ name: 'core', version: '0.1.0' }],
@@ -241,5 +241,61 @@ describe('validateResult', () => {
     ]);
     expect(validateResult({ ...init, dryRun: true, written: [], diff: 'd' })).toEqual([]);
     expect(validateResult({ ...init, diff: 3 }).map((i) => i.path)).toEqual(['diff']);
+  });
+});
+
+describe('the build result', () => {
+  const build: BuildResult = {
+    ok: true,
+    command: 'build',
+    root: '/x',
+    concurrency: 2,
+    apps: [{ name: 'shell', kind: 'shell', status: 'built', ms: 1200, kb: 40.2 }],
+    findings: [],
+    interrupted: false,
+  };
+
+  it('is accepted by validateResult', () => {
+    expect(validateResult(build)).toEqual([]);
+    expect(
+      validateResult({
+        ...build,
+        apps: [{ name: 'a', kind: 'remote', status: 'skipped', ms: null, kb: null }],
+      }),
+    ).toEqual([]);
+  });
+
+  it('names what is wrong', () => {
+    const bad = {
+      ...build,
+      root: 1,
+      concurrency: 'two',
+      interrupted: 'no',
+      apps: [{ name: 'a', kind: 'both', status: 'done', ms: '1', kb: undefined }],
+    };
+    expect(validateResult(bad).map((i) => i.path)).toEqual([
+      'root',
+      'interrupted',
+      'concurrency',
+      'apps[0].kind',
+      'apps[0].status',
+      'apps[0].ms',
+      'apps[0].kb',
+    ]);
+  });
+
+  it('exits 0 when built, 5 on an E3xx finding and 130 when interrupted', () => {
+    expect(exitOf(build)).toBe(0);
+    const finding = {
+      code: 'MFEFLOW_E310',
+      severity: 'error' as const,
+      check: 'build',
+      message: 'm',
+      fix: 'f',
+      docs: 'd',
+      fixable: false,
+    };
+    expect(exitOf({ ...build, ok: false, findings: [finding] })).toBe(5);
+    expect(exitOf({ ...build, ok: false, interrupted: true, findings: [finding] })).toBe(130);
   });
 });

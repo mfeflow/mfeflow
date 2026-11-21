@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { isMfeflowError, type MfeflowError } from '@mfeflow/core';
 import { assetRoots } from './assets';
+import type { BundlerApp, BundlerHost } from './bundler';
 import type { Io } from './io';
 import type { DevHost, DevProcess, DevSpec, WaitPolicy } from './proc';
 import type { Prompter } from './prompter';
@@ -164,10 +165,47 @@ export function fakeDev(): FakeDev {
   };
 }
 
+export interface FakeBundler extends BundlerHost {
+  /** Apps whose bundler was looked up, in order. */
+  checked: string[];
+  /** Apps built in this process, in order. */
+  built: BundlerApp[];
+  /** Per app name: what `check` throws. */
+  checkFails: Map<string, Error>;
+  /** What `build` throws, when set. */
+  buildFails: Error | undefined;
+}
+
+export function fakeBundler(): FakeBundler {
+  const fake: FakeBundler = {
+    checked: [],
+    built: [],
+    checkFails: new Map(),
+    buildFails: undefined,
+    check: (app) => {
+      fake.checked.push(app.name);
+      const refusal = fake.checkFails.get(app.name);
+      return refusal ? Promise.reject(refusal) : Promise.resolve();
+    },
+    load: (app) =>
+      Promise.resolve({
+        bundler: app.bundler,
+        build: (target) => {
+          fake.built.push(target);
+          return fake.buildFails ? Promise.reject(fake.buildFails) : Promise.resolve();
+        },
+        dev: () => Promise.reject(new Error('not used')),
+        preview: () => Promise.reject(new Error('not used')),
+      }),
+  };
+  return fake;
+}
+
 export type TestRuntime = Runtime & {
   io: Io & Recorded;
   system: System & SystemCalls;
   dev: FakeDev;
+  bundler: FakeBundler;
 };
 
 export function testRuntime(
@@ -185,6 +223,7 @@ export function testRuntime(
     roots: assetRoots(),
     configDir: path.join(os.tmpdir(), `mfeflow-config-${randomUUID()}`),
     dev: fakeDev(),
+    bundler: fakeBundler(),
     ...rest,
   };
 }

@@ -68,6 +68,9 @@ Every error the CLI prints has a code like MFEFLOW_E102, a cause, a fix and a li
 | [E305](/errors/E305) | There is no build output to measure           |
 | [E306](/errors/E306) | A dev server could not start                  |
 | [E307](/errors/E307) | The shell to check against could not be read  |
+| [E308](/errors/E308) | The bundler is not installed in an app        |
+| [E309](/errors/E309) | An app has no config file for its bundler     |
+| [E310](/errors/E310) | An app did not build                          |
 
 ## Registry (E4xx, exit code 6)
 
