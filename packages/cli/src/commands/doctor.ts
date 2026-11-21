@@ -188,7 +188,7 @@ async function againstOf(
 }
 
 const fetchFor = (rt: Runtime, fromProject: boolean): Runtime['fetch'] =>
-  fromProject ? (rt.publicFetch ?? rt.fetch) : rt.fetch;
+  fromProject ? (rt.publicFetch ?? rt.fetch) : (rt.againstFetch ?? rt.fetch);
 
 export async function runDoctor(
   rt: Runtime,

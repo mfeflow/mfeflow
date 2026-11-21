@@ -2,9 +2,10 @@ import dns from 'node:dns/promises';
 import http from 'node:http';
 import https from 'node:https';
 import net from 'node:net';
-import { Readable } from 'node:stream';
+import { Readable, type Transform } from 'node:stream';
+import zlib from 'node:zlib';
 import { isPrivateHost, redactUrl } from '@mfeflow/contracts';
-import { PrivateTargetError, type FetchLike } from '@mfeflow/core';
+import { messageOf, MfeflowError, PrivateTargetError, type FetchLike } from '@mfeflow/core';
 
 export type Resolver = (host: string) => Promise<string[]>;
 
@@ -37,10 +38,17 @@ function refuse(url: string): never {
   throw new PrivateTargetError(`${redactUrl(url)} is a loopback or private address`);
 }
 
+const decoders: Record<string, () => Transform> = {
+  gzip: zlib.createGunzip,
+  'x-gzip': zlib.createGunzip,
+  deflate: zlib.createInflate,
+  br: zlib.createBrotliDecompress,
+};
+
 function request(
   target: URL,
   addresses: readonly string[],
-  signal: AbortSignal | undefined,
+  init: Parameters<FetchLike>[1],
 ): Promise<Response> {
   const entries = addresses.map((address) => ({ address, family: net.isIP(address) }));
   const lookup: net.LookupFunction = (_host, options, done) => {
@@ -50,26 +58,46 @@ function request(
     else done(new Error('no address'), '', 0);
   };
   const client = target.protocol === 'https:' ? https : http;
+  const method = init?.method ?? 'GET';
+  const headers = { 'accept-encoding': 'identity', ...init?.headers };
   return new Promise((resolve, reject) => {
     const req = client.request(
       target,
-      { method: 'GET', lookup, ...(signal ? { signal } : {}) },
+      { method, headers, lookup, ...(init?.signal ? { signal: init.signal } : {}) },
       (res) => {
-        const headers = new Headers();
+        const answer = new Headers();
         for (const [key, value] of Object.entries(res.headers)) {
           for (const one of Array.isArray(value) ? value : [value]) {
-            if (one !== undefined) headers.append(key, one);
+            if (one !== undefined) answer.append(key, one);
           }
         }
         const status = res.statusCode ?? 502;
-        if (noBody.has(status)) {
-          res.resume();
-          resolve(new Response(null, { status, headers }));
-          return;
+        const encoding = (res.headers['content-encoding'] ?? '').toLowerCase().trim();
+        const decode = decoders[encoding];
+        if (decode) {
+          answer.delete('content-encoding');
+          answer.delete('content-length');
         }
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node's web stream type is the same stream
-        const body = Readable.toWeb(res) as ReadableStream<Uint8Array>;
-        resolve(new Response(body, { status, headers }));
+        try {
+          if (noBody.has(status) || method === 'HEAD') {
+            res.resume();
+            resolve(new Response(null, { status, headers: answer }));
+            return;
+          }
+          const source: Readable = decode ? res.pipe(decode()) : res;
+          if (decode) res.once('error', (error) => source.destroy(error));
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Node's web stream type is the same stream
+          const body = Readable.toWeb(source) as ReadableStream<Uint8Array>;
+          resolve(new Response(body, { status, headers: answer }));
+        } catch (error) {
+          res.destroy();
+          reject(
+            new MfeflowError(
+              'E401',
+              `${redactUrl(target.href)} answered with status ${String(status)}: ${messageOf(error)}`,
+            ),
+          );
+        }
       },
     );
     req.once('error', reject);
@@ -87,14 +115,26 @@ export function createNetGuard(options: NetGuardOptions = {}): NetGuard {
   const exempt = new Set((options.exempt ?? []).map((entry) => entry.toLowerCase()));
   const skip = (name: string): boolean => exempt.has(bare(name).toLowerCase());
 
+  async function lookup(url: string, host: string): Promise<string[]> {
+    let found: string[];
+    try {
+      found = (await resolve(host)).map(normalized);
+    } catch (error) {
+      throw new MfeflowError('E401', `${redactUrl(url)} could not be reached: ${messageOf(error)}`);
+    }
+    if (found.length === 0) {
+      throw new MfeflowError('E401', `${redactUrl(url)} could not be reached: it did not resolve`);
+    }
+    return found;
+  }
+
   /** The addresses to connect to, or undefined when the host is a literal that needs no lookup. */
   async function addressesOf(url: string): Promise<string[] | undefined> {
     const host = bare(new URL(url).hostname);
     if (skip(host)) return undefined;
     if (isPrivateHost(host)) refuse(url);
     if (net.isIP(host) !== 0) return undefined;
-    const addresses = (await resolve(host)).map(normalized);
-    if (addresses.length === 0) throw new PrivateTargetError(`${redactUrl(url)} did not resolve`);
+    const addresses = await lookup(url, host);
     if (addresses.some((address) => !skip(address) && isPrivateHost(address))) refuse(url);
     return addresses;
   }
@@ -106,7 +146,7 @@ export function createNetGuard(options: NetGuardOptions = {}): NetGuard {
     fetch: async (url, init) => {
       const addresses = await addressesOf(url);
       if (addresses === undefined) return fetch(url, init);
-      return request(new URL(url), addresses, init?.signal);
+      return request(new URL(url), addresses, init);
     },
   };
 }

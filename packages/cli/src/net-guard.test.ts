@@ -1,4 +1,5 @@
 import http from 'node:http';
+import zlib from 'node:zlib';
 import type { AddressInfo } from 'node:net';
 import { describe, expect, it } from 'vitest';
 import { createNetGuard } from './net-guard';
@@ -47,11 +48,21 @@ describe('net guard check', () => {
     await expect(guard.check('https://93.184.216.34/x')).resolves.toBeUndefined();
   });
 
-  it('refuses a name that does not resolve to anything', async () => {
+  it('treats a name that resolves to nothing as unreachable, not private', async () => {
     const guard = createNetGuard({ resolve: resolvesTo() });
     await expect(guard.check('https://empty.example.com/x')).rejects.toMatchObject({
-      code: 'MFEFLOW_E405',
+      code: 'MFEFLOW_E401',
     });
+  });
+
+  it('turns a DNS failure into the coded unreachable error', async () => {
+    const guard = createNetGuard({
+      resolve: () => Promise.reject(new Error('getaddrinfo ENOTFOUND nope.example.com')),
+    });
+    const failed = { code: 'MFEFLOW_E401' };
+    await expect(guard.check('https://nope.example.com/x')).rejects.toThrow(/ENOTFOUND/);
+    await expect(guard.check('https://nope.example.com/x')).rejects.toMatchObject(failed);
+    await expect(guard.fetch('https://nope.example.com/x')).rejects.toMatchObject(failed);
   });
 });
 
@@ -126,5 +137,89 @@ describe('net guard fetch', () => {
     } finally {
       await new Promise((done) => server.close(done));
     }
+  });
+});
+
+describe('net guard fetch against real servers', () => {
+  async function serve(
+    handler: http.RequestListener,
+    run: (url: string) => Promise<void>,
+  ): Promise<void> {
+    const server = http.createServer(handler);
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+    try {
+      const { port } = server.address() as AddressInfo;
+      await run(`http://pinned.test:${String(port)}/x`);
+    } finally {
+      server.closeAllConnections();
+      await new Promise((done) => server.close(done));
+    }
+  }
+  const guard = createNetGuard({ exempt: ['127.0.0.1'], resolve: resolvesTo('127.0.0.1') });
+
+  it('rejects instead of crashing on a status Response cannot hold', async () => {
+    await serve(
+      (_req, res) => res.writeHead(999).end('x'),
+      async (url) => {
+        await expect(guard.fetch(url)).rejects.toMatchObject({ code: 'MFEFLOW_E401' });
+      },
+    );
+  });
+
+  it('sends the method and headers it was given, and asks for an uncompressed body', async () => {
+    let seen: http.IncomingHttpHeaders = {};
+    let method = '';
+    await serve(
+      (req, res) => {
+        seen = req.headers;
+        method = req.method ?? '';
+        res.end('ok');
+      },
+      async (url) => {
+        await guard.fetch(url, { method: 'POST', headers: { 'x-probe': 'yes' } });
+      },
+    );
+    expect(method).toBe('POST');
+    expect(seen['x-probe']).toBe('yes');
+    expect(seen['accept-encoding']).toBe('identity');
+  });
+
+  it.each([
+    ['gzip', zlib.gzipSync],
+    ['deflate', zlib.deflateSync],
+    ['br', zlib.brotliCompressSync],
+  ])('decompresses a %s answer a server sends anyway', async (encoding, compress) => {
+    await serve(
+      (_req, res) => {
+        const packed = compress(Buffer.from('{"hello":"world"}'));
+        res.writeHead(200, { 'content-encoding': encoding, 'content-length': packed.length });
+        res.end(packed);
+      },
+      async (url) => {
+        const response = await guard.fetch(url);
+        expect(response.headers?.get('content-encoding')).toBeNull();
+        expect(response.headers?.get('content-length')).toBeNull();
+        expect(await response.text()).toBe('{"hello":"world"}');
+      },
+    );
+  });
+
+  it('closes the connection when the caller cancels an unread body', async () => {
+    let closed!: () => void;
+    const gone = new Promise<void>((done) => {
+      closed = done;
+    });
+    await serve(
+      (_req, res) => {
+        res.on('close', closed);
+        res.writeHead(500);
+        res.write('partial');
+      },
+      async (url) => {
+        const response = await guard.fetch(url);
+        await response.body?.cancel();
+        await gone;
+      },
+    );
   });
 });

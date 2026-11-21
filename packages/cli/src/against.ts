@@ -39,7 +39,10 @@ async function readSource(
       loopback: true,
       blockPrivate,
     });
-    if (!response.ok) throw new Error(`answered ${String(response.status)}`);
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new Error(`answered ${String(response.status)}`);
+    }
     text = await readCappedText(response, MAX_BYTES, () => new Error('is larger than 1 MB'));
   } else {
     text = await fs.readFile(path.resolve(cwd, source), 'utf8');

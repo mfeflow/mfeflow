@@ -25,7 +25,7 @@ export async function runCli(
   argv: readonly string[],
   cwd: string,
   env: Readonly<Record<string, string | undefined>> = process.env,
-  fetchImpl?: FetchLike,
+  guarded?: FetchLike,
 ): Promise<CliRun> {
   const out: string[] = [];
   const err: string[] = [];
@@ -36,7 +36,8 @@ export async function runCli(
     env,
     interactive: false,
   });
-  const rt: Runtime = fetchImpl ? { ...base, fetch: fetchImpl, publicFetch: fetchImpl } : base;
+  // Only addresses an agent or a committed file supplied go through the guard; registries keep `fetch`.
+  const rt: Runtime = guarded ? { ...base, publicFetch: guarded, againstFetch: guarded } : base;
   const code = await main(argv, rt);
   const stdout = out.join('\n');
   return { code, stdout, stderr: err.join('\n'), json: parse(stdout) };

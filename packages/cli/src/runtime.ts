@@ -15,6 +15,8 @@ export interface Runtime {
   fetch: FetchLike;
   /** `fetch` for a URL read from a committed file: refuses a name that resolves to a private address. Absent means `fetch`. */
   publicFetch?: FetchLike;
+  /** `fetch` for a `--against` address a person or agent typed, when it must not be trusted. Absent means `fetch`. */
+  againstFetch?: FetchLike;
   roots: AssetRoots;
   /** Where per-user settings live, like the registries the user trusts. */
   configDir: string;
