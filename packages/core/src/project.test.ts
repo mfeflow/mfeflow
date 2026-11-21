@@ -226,6 +226,16 @@ describe('findDiverged', () => {
     ]);
   });
 
+  it('does not report pnpm-workspace.yaml after pnpm adds minimumReleaseAgeExclude', async () => {
+    const written = 'packages:\n  - apps/*\ncatalog:\n  react: 19.3.1\n';
+    await fs.writeFile(
+      path.join(root, 'pnpm-workspace.yaml'),
+      `${written}minimumReleaseAgeExclude:\n  - mfeflow@0.9.0\n`,
+    );
+    const files = { 'pnpm-workspace.yaml': hashContent(written) };
+    expect(await findDiverged(root, { ...project, files })).toEqual([]);
+  });
+
   it('returns nothing for a project without hashes', async () => {
     expect(await findDiverged(root, project)).toEqual([]);
   });
