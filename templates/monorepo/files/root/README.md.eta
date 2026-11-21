@@ -35,13 +35,13 @@ pnpm mfeflow add <feature>           # see `pnpm mfeflow features`
 ## Check it
 
 ```sh
-pnpm doctor              # singletons, compatibility, config, drift; `pnpm doctor --fix` repairs the safe ones
-pnpm validate            # mfeflow.json, every mfeflow.app.json and every registry entry
-pnpm check-compat        # each remote's shared ranges against its shell
-pnpm budget              # after `pnpm build`: first-load JS per shell and remote
+pnpm run doctor          # singletons, compatibility, config, drift; `pnpm run doctor --fix` repairs the safe ones
+pnpm run validate        # mfeflow.json, every mfeflow.app.json and every registry entry
+pnpm run check-compat    # each remote's shared ranges against its shell
+pnpm run budget          # after `pnpm build`: first-load JS per shell and remote
 ```
 
-Each is a root script for the `mfeflow` CLI in your devDependencies (`pnpm mfeflow <command>` runs it directly). All of them take `--json` and exit non-zero on errors, so they can run in CI. `pnpm budget` checks each remote's entry
+Each is a root script for the `mfeflow` CLI in your devDependencies (`pnpm mfeflow <command>` runs it directly). All of them take `--json` and exit non-zero on errors, so they can run in CI. `pnpm run budget` checks each remote's entry
 against the 10 KB a remote may add; set `budget.baselineKb` in `mfeflow.json` (your pages built as one app) to check
 the shell against baseline + 32 KB too.
 

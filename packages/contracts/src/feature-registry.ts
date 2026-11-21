@@ -220,6 +220,8 @@ export function isPrivateHost(hostname: string): boolean {
 
 const SECRET_PARAM =
   /token|key|sig|auth|passw|secret|credential|x-amz-|(?:^|[_-])(?:jwt|bearer|session|pat|access|code)(?:$|[_-])/i;
+/** True when a setting or parameter called `name` probably holds a secret (token, key, password...). */
+export const isSecretName = (name: string): boolean => SECRET_PARAM.test(name);
 const URL_PARTS = /^([a-z][a-z0-9+.-]*:\/\/)([^/?#@]*@)?([^?#]*)(\?[^#]*)?(#.*)?$/i;
 
 function safeDecode(value: string): string {

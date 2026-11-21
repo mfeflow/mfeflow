@@ -85,7 +85,7 @@ jobs:
       - run: node scripts/smoke.mjs
         env:
           SMOKE_BUNDLER: vite
-      # Generates a tooling repo (four packages, lint and git hooks), installs, builds, typechecks and lints it.
+      # Generates a tooling repo (every tooling package, lint and git hooks), installs, builds, typechecks and lints it.
       - run: node scripts/smoke-tooling.mjs
 
   # Generates a polyrepo, installs and builds each repo on its own with the platform packages

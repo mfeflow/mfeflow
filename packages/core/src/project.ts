@@ -8,7 +8,7 @@ import {
 } from '@mfeflow/contracts';
 import { MfeflowError, messageOf } from './errors';
 import { readIfExists, realFs, writeFileAtomic, type FsOps } from './fs';
-import { hashContent } from './hash';
+import { hashTracked } from './hash';
 import { resolveInRoot } from './paths';
 import type { Plan } from './plan';
 
@@ -92,9 +92,10 @@ export function recordPlan(project: MfeflowProject, plan: Plan): MfeflowProject 
   for (const change of plan.changes) {
     const recorded = files[change.path];
     if (change.action === 'delete') delete files[change.path];
-    else if (change.after !== null && change.track) files[change.path] = hashContent(change.after);
-    else if (change.after !== null && recorded === hashContent(change.before ?? ''))
-      files[change.path] = hashContent(change.after);
+    else if (change.after !== null && change.track)
+      files[change.path] = hashTracked(change.path, change.after);
+    else if (change.after !== null && recorded === hashTracked(change.path, change.before ?? ''))
+      files[change.path] = hashTracked(change.path, change.after);
   }
   const features = { ...project.features };
   for (const f of plan.features) {
@@ -126,7 +127,7 @@ export async function findDiverged(
       async ([file, hash]): Promise<DivergedFile | undefined> => {
         const content = await readIfExists(ops, resolveInRoot(root, file));
         if (content === undefined) return { path: file, state: 'missing' };
-        return hashContent(content) === hash ? undefined : { path: file, state: 'modified' };
+        return hashTracked(file, content) === hash ? undefined : { path: file, state: 'modified' };
       },
     ),
   );

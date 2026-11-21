@@ -187,6 +187,9 @@ async function againstOf(
   };
 }
 
+const fetchFor = (rt: Runtime, fromProject: boolean): Runtime['fetch'] =>
+  fromProject ? (rt.publicFetch ?? rt.fetch) : (rt.againstFetch ?? rt.fetch);
+
 export async function runDoctor(
   rt: Runtime,
   args: Record<string, unknown>,
@@ -205,7 +208,7 @@ export async function runDoctor(
       against = found.shown;
       const shell = await loadShell(found.source, {
         cwd: globals.cwd,
-        fetch: rt.fetch,
+        fetch: fetchFor(rt, found.fromProject),
         fromProject: found.fromProject,
       });
       return DOCTOR_CHECKS.map((check) =>
@@ -246,7 +249,7 @@ export async function runCheckCompat(
             ? undefined
             : await loadShell(found.source, {
                 cwd: globals.cwd,
-                fetch: rt.fetch,
+                fetch: fetchFor(rt, found.fromProject),
                 fromProject: found.fromProject,
               }),
         ),

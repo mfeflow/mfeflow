@@ -7,6 +7,7 @@ import {
   getHttps,
   indexedVersion,
   integrityOf,
+  PrivateTargetError,
   registryUrl,
   type FetchLike,
   type FetchResponse,
@@ -487,5 +488,23 @@ describe('secrets in URLs stay out of errors', () => {
     expect(down.message).not.toContain('hunter2');
     const missing = await rejection(fetchFeatureIndex('@acme', secret, notFound));
     expect(missing.message).not.toContain('hunter2');
+  });
+});
+
+describe('getHttps with a guarded fetch', () => {
+  it('lets the refusal of a private address through as E405, not as the caller code', async () => {
+    const refusing: FetchLike = () =>
+      Promise.reject(
+        new PrivateTargetError('https://rebind.example/x is a loopback or private address'),
+      );
+    const error = await rejection(getHttps('https://rebind.example/x', refusing, 'E109'));
+    expect(error).toBeInstanceOf(PrivateTargetError);
+    expect(error).toMatchObject({ code: 'MFEFLOW_E405' });
+  });
+
+  it('still wraps any other fetch failure in the caller code', async () => {
+    const broken: FetchLike = () => Promise.reject(new Error('socket hang up'));
+    const error = await rejection(getHttps('https://example.com/x', broken, 'E109'));
+    expect(error).toMatchObject({ code: 'MFEFLOW_E109' });
   });
 });
