@@ -21,6 +21,9 @@ import { pluginRuntimeConfig } from './runtime-config';
 export { pluginHeadScripts, registerHeadScript } from './head-scripts';
 export { pluginRuntimeConfig } from './runtime-config';
 export { pluginRestartOn } from './restart';
+// Re-exported so a config file reads both from the same Vite as the preset, even when a linked
+// @mfeflow/vite resolves its own copy (two copies make TypeScript compare Plugin types forever).
+export { mergeConfig, type Plugin, type PluginOption, type UserConfig } from 'vite';
 export {
   DEFAULT_SINGLETONS,
   RUNTIME_CONFIG_URL,

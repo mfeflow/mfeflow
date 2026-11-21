@@ -42,8 +42,15 @@ describe('commonRemoteOptions', () => {
       shared: { react: { singleton: true } },
       manifest: true,
       dts: { generateTypes: true, consumeTypes: false },
+      dev: { disableDynamicRemoteTypeHints: true },
     });
     expect(o).not.toHaveProperty('experiments');
+  });
+
+  it('keeps the dts type-hints client only when asked for', () => {
+    const base = { name: 'cart', exposes: { './A': './a' } };
+    expect(commonRemoteOptions(base, only()).dev).toEqual({ disableDynamicRemoteTypeHints: true });
+    expect(commonRemoteOptions({ ...base, typeHints: true }, only())).not.toHaveProperty('dev');
   });
 
   it('turns types off on request and refuses an empty exposes', () => {

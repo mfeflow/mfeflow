@@ -115,6 +115,7 @@ describe('remoteFederationOptions', () => {
       exposes: { './App': './src/App.tsx' },
       manifest: true,
       dts: { generateTypes: true, consumeTypes: false },
+      dev: { disableDynamicRemoteTypeHints: true },
       experiments: {
         externalRuntime: true,
         optimization: { disableRemote: true, target: 'web' },

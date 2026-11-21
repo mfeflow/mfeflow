@@ -30,6 +30,11 @@ export interface RemoteOptions {
    * consuming remotes is stripped from the build (smaller entry).
    */
   consumesRemotes?: boolean;
+  /**
+   * Show live type hints from this remote in the page during dev. Default false: the shell does not
+   * consume types in dev, and the hints client only opens a websocket to the dts dev server.
+   */
+  typeHints?: boolean;
   /** App directory. Default `process.cwd()`. */
   cwd?: string;
 }
@@ -95,6 +100,7 @@ export interface CommonFederationOptions {
         consumeTypes: false | { typesOnBuild: true; abortOnError: boolean };
       };
   runtimePlugins?: string[];
+  dev?: { disableDynamicRemoteTypeHints: boolean };
 }
 
 /** Module Federation options for a remote, before bundler-specific settings. */
@@ -112,6 +118,9 @@ export function commonRemoteOptions(
     shared: sharedSingletons(canResolve, o.shared, versionOf),
     manifest: true,
     dts: o.types === false ? false : { generateTypes: true, consumeTypes: false },
+    // The type-hints client opens a websocket to the dts dev server from the page. The shell never
+    // consumes types in dev, so by default it only adds console errors (and fails on Windows runners).
+    ...(o.typeHints === true ? {} : { dev: { disableDynamicRemoteTypeHints: true } }),
   };
 }
 

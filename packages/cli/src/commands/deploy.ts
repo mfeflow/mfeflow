@@ -31,6 +31,7 @@ import {
   readShellManifest,
   remoteApp,
   shellVersions,
+  summarizeLeftOut,
   uploadableFiles,
   writeLocalEntry,
   type Committed,
@@ -70,6 +71,15 @@ const HOST_ARGS = {
   },
 } as const satisfies ArgsDef;
 
+const LOCAL_ENTRY_ARG = {
+  'local-entry': {
+    type: 'boolean',
+    default: true,
+    description:
+      'Write registry/envs/<env>/<remote>.json after the command (--no-local-entry leaves the working tree alone)',
+  },
+} as const satisfies ArgsDef;
+
 export const DEPLOY_ARGS = {
   env: { type: 'string', description: 'Environment to deploy to', valueHint: 'env' },
   version: {
@@ -87,16 +97,13 @@ export const DEPLOY_ARGS = {
     default: true,
     description: 'Move the index to the new version (--no-publish uploads the files and stops)',
   },
-  'include-types': {
-    type: 'boolean',
-    description: 'Also upload the generated types (@mf-types), which only type consumers read',
-  },
-  'local-entry': {
+  types: {
     type: 'boolean',
     default: true,
     description:
-      'Write registry/envs/<env>/<remote>.json after the deploy (--no-local-entry leaves the working tree alone)',
+      'Upload the generated types (@mf-types) the manifest names (--no-types leaves them out)',
   },
+  ...LOCAL_ENTRY_ARG,
   ...ROLLOUT_ARGS,
   ...HOST_ARGS,
   ...GLOBAL_ARGS,
@@ -105,6 +112,7 @@ export const DEPLOY_ARGS = {
 export const PROMOTE_ARGS = {
   from: { type: 'string', description: 'Environment to copy the version from', valueHint: 'env' },
   to: { type: 'string', description: 'Environment to point at it', valueHint: 'env' },
+  ...LOCAL_ENTRY_ARG,
   ...ROLLOUT_ARGS,
   ...HOST_ARGS,
   ...GLOBAL_ARGS,
@@ -122,6 +130,7 @@ export const ROLLBACK_ARGS = {
     description:
       'Roll back even if the schema, route or compatibility checks fail (the files must still exist)',
   },
+  ...LOCAL_ENTRY_ARG,
   ...HOST_ARGS,
   ...GLOBAL_ARGS,
 } as const satisfies ArgsDef;
@@ -181,7 +190,7 @@ async function finish(s: Session, facts: Facts, done: Committed): Promise<Deploy
   return result;
 }
 
-export function formatDeploy(result: DeployResult): string {
+export function formatDeploy(result: DeployResult, verbose = false): string {
   const lines: string[] = [];
   const target = `${result.remote}@${result.version}`;
   const route =
@@ -200,16 +209,13 @@ export function formatDeploy(result: DeployResult): string {
     lines.push('Would upload, in order:');
     for (const u of result.uploads) lines.push(`  ${u.key} (${String(u.bytes)} bytes, ${u.guard})`);
     if (result.leftOut.length > 0) {
-      lines.push('Not uploaded:');
-      for (const l of result.leftOut) lines.push(`  ${l.file} (${l.reason})`);
+      lines.push(`Left out: ${summarizeLeftOut(result.leftOut)}`);
+      if (verbose) for (const l of result.leftOut) lines.push(`  ${l.file} (${l.reason})`);
     }
     lines.push('Dry run: nothing was written.');
     return lines.join('\n');
   }
-  const left =
-    result.leftOut.length === 0
-      ? ''
-      : `, ${String(result.leftOut.length)} left out (${result.leftOut.map((l) => l.file).join(', ')})`;
+  const left = result.leftOut.length === 0 ? '' : `, left out: ${summarizeLeftOut(result.leftOut)}`;
   const files = `${String(result.uploaded.length)} uploaded, ${String(result.skipped.length)} already there${left}`;
   if (result.rollout !== undefined) {
     const r = result.rollout;
@@ -234,6 +240,7 @@ export function formatDeploy(result: DeployResult): string {
   } else {
     lines.push(`${result.env} already serves ${target}. Nothing to do.`);
   }
+  if (verbose) for (const l of result.leftOut) lines.push(`  left out: ${l.file} (${l.reason})`);
   return lines.join('\n');
 }
 
@@ -276,7 +283,7 @@ export async function runDeploy(
   const server = openServer(rt, args);
   if (server !== undefined) {
     const result = await deployViaServer(rt, args, raw, DEPLOY_ARGS, server);
-    if (args.json !== true) rt.io.stdout(formatDeploy(result));
+    if (args.json !== true) rt.io.stdout(formatDeploy(result, args.verbose === true));
     return result;
   }
   refuseRolloutFlags(args);
@@ -293,7 +300,7 @@ export async function runDeploy(
     );
   const dist = text(args, 'dist') ?? 'dist';
   const read = await readBuild(path.join(app.dir, dist), `${app.rel}/${dist}`);
-  const upload = uploadableFiles(read.files, { withTypes: args['include-types'] === true });
+  const upload = uploadableFiles(read.files, { withoutTypes: args.types === false });
   const build: Build = { ...read, files: upload.files };
   const noPublish = args.publish === false;
   await confirm(s, `Deploy ${app.name}@${version} to ${env} on ${s.hostLabel}?`, globals.dryRun);
@@ -316,7 +323,7 @@ export async function runDeploy(
     },
     done,
   );
-  if (!globals.json) rt.io.stdout(formatDeploy(result));
+  if (!globals.json) rt.io.stdout(formatDeploy(result, globals.verbose));
   return result;
 }
 
@@ -448,7 +455,7 @@ export async function runPromote(
   const server = openServer(rt, args);
   if (server !== undefined) {
     const result = await promoteViaServer(rt, args, raw, PROMOTE_ARGS, server);
-    if (args.json !== true) rt.io.stdout(formatDeploy(result));
+    if (args.json !== true) rt.io.stdout(formatDeploy(result, args.verbose === true));
     return result;
   }
   refuseRolloutFlags(args);
@@ -490,10 +497,17 @@ export async function runPromote(
   });
   const result = await finish(
     s,
-    { command: 'promote', env: to, fromEnv: from, remote: app.name, version },
+    {
+      command: 'promote',
+      env: to,
+      fromEnv: from,
+      remote: app.name,
+      version,
+      writeEntry: args['local-entry'] !== false,
+    },
     done,
   );
-  if (!globals.json) rt.io.stdout(formatDeploy(result));
+  if (!globals.json) rt.io.stdout(formatDeploy(result, globals.verbose));
   return result;
 }
 
@@ -506,7 +520,7 @@ export async function runRollback(
   const server = openServer(rt, args);
   if (server !== undefined) {
     const result = await rollbackViaServer(rt, args, raw, ROLLBACK_ARGS, server);
-    if (args.json !== true) rt.io.stdout(formatDeploy(result));
+    if (args.json !== true) rt.io.stdout(formatDeploy(result, args.verbose === true));
     return result;
   }
   const globals = readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive);
@@ -570,7 +584,17 @@ export async function runRollback(
         },
       ),
   });
-  const result = await finish(s, { command: 'rollback', env, remote: app.name, version: to }, done);
-  if (!globals.json) rt.io.stdout(formatDeploy(result));
+  const result = await finish(
+    s,
+    {
+      command: 'rollback',
+      env,
+      remote: app.name,
+      version: to,
+      writeEntry: args['local-entry'] !== false,
+    },
+    done,
+  );
+  if (!globals.json) rt.io.stdout(formatDeploy(result, globals.verbose));
   return result;
 }

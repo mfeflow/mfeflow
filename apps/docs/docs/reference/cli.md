@@ -323,24 +323,24 @@ mfeflow status --env prod
 
 A walk-through with output is in [Deploy and roll back a remote](/guide/deploy-and-rollback).
 
-| Flag                         | Commands                  | Does                                                                                                      |
-| ---------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `--env <env>`                | deploy, rollback, status  | The environment. `status` defaults to every env on the host and every folder in `registry/envs` but `dev` |
-| `--from <env>`, `--to <env>` | promote                   | Copy the pointer from one environment to another                                                          |
-| `--to <version>`             | rollback                  | Go back to this version, which must be in the history. Default: the previous one                          |
-| `--force`                    | rollback                  | Roll back although the schema, route or compat checks fail. The files must still exist                    |
-| `--version <v>`              | deploy                    | Default: the remote's `package.json` version                                                              |
-| `--dist <dir>`               | deploy                    | Build folder inside the remote. Default `dist`                                                            |
-| `--no-publish`               | deploy                    | Upload the files, leave the index where it is. `status` then shows drift                                  |
-| `--no-local-entry`           | deploy                    | Do not write `registry/envs/<env>/<remote>.json`; the working tree stays clean (for CI and static hosts)  |
-| `--include-types`            | deploy                    | Also upload `@mf-types`; by default it, `mf-stats.json` and the remote's `index.html` are left out        |
-| `--host <spec>`              | all                       | `file:<dir>` or `s3://<bucket>[/prefix]`. Default `registry.host` in `mfeflow.json`                       |
-| `--base-url <url>`           | deploy, promote, rollback | https URL (http only on localhost) the host serves from. Default `registry.baseUrl`                       |
-| `--shell-manifest <file>`    | deploy, promote, rollback | The shell's deployed `mf-manifest.json`. Default `envs/<env>/shell/` on the host                          |
+| Flag                         | Commands                  | Does                                                                                                                |
+| ---------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `--env <env>`                | deploy, rollback, status  | The environment. `status` defaults to every env on the host and every folder in `registry/envs` but `dev`           |
+| `--from <env>`, `--to <env>` | promote                   | Copy the pointer from one environment to another                                                                    |
+| `--to <version>`             | rollback                  | Go back to this version, which must be in the history. Default: the previous one                                    |
+| `--force`                    | rollback                  | Roll back although the schema, route or compat checks fail. The files must still exist                              |
+| `--version <v>`              | deploy                    | Default: the remote's `package.json` version                                                                        |
+| `--dist <dir>`               | deploy                    | Build folder inside the remote. Default `dist`                                                                      |
+| `--no-publish`               | deploy                    | Upload the files, leave the index where it is. `status` then shows drift                                            |
+| `--no-local-entry`           | deploy, promote, rollback | Do not write `registry/envs/<env>/<remote>.json`; the working tree stays clean (for CI and static hosts)            |
+| `--no-types`                 | deploy                    | Leave `@mf-types` out of the upload. By default it is uploaded; `mf-stats.json` and the root `index.html` never are |
+| `--host <spec>`              | all                       | `file:<dir>` or `s3://<bucket>[/prefix]`. Default `registry.host` in `mfeflow.json`                                 |
+| `--base-url <url>`           | deploy, promote, rollback | https URL (http only on localhost) the host serves from. Default `registry.baseUrl`                                 |
+| `--shell-manifest <file>`    | deploy, promote, rollback | The shell's deployed `mf-manifest.json`. Default `envs/<env>/shell/` on the host                                    |
 
 S3 settings come from `MFEFLOW_S3_ENDPOINT`, `MFEFLOW_S3_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`, and are never printed. `--dry-run` prints the plan as data and writes nothing. Without `--yes`, a terminal asks before anything moves. A failed gate exits with 7 and one of E501 to E505. The other deploy errors are E506 to E512.
 
-`--json` prints `{ ok, command, dryRun, env, fromEnv, host, remote, version, servedBefore, published, previous, rolledBackFrom, uploads, uploaded, skipped, leftOut, localEntry, warnings, findings }` for the first three, with `index` added for a dry run. `status` prints `{ ok, command: "status", host, envs: [{ env, published, generatedAt, remotes }], findings }`. `leftOut` is a list of `{ file, reason }` for the build files that were not uploaded. A successful deploy, promote or rollback also writes `registry/envs/<env>/<remote>.json`, so git records what is served. Not for `dev`: `mfeflow dev` reads that folder. `deploy --no-local-entry` skips the write.
+`--json` prints `{ ok, command, dryRun, env, fromEnv, host, remote, version, servedBefore, published, previous, rolledBackFrom, uploads, uploaded, skipped, leftOut, localEntry, warnings, findings }` for the first three, with `index` added for a dry run. `status` prints `{ ok, command: "status", host, envs: [{ env, published, generatedAt, remotes }], findings }`. `leftOut` is a list of `{ file, reason }` for the build files that were not uploaded. A successful deploy, promote or rollback also writes `registry/envs/<env>/<remote>.json`, so git records what is served. Not for `dev`: `mfeflow dev` reads that folder. `--no-local-entry` skips the write.
 
 ## Server mode
 

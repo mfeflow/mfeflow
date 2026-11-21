@@ -308,6 +308,8 @@ export interface StatusRemote {
   /** Versions on the host newer than `version` that no environment points at; null when the host cannot list. */
   unreferenced: string[] | null;
   drift: string[];
+  /** Facts that are not drift, such as a remote with no file in `registry/`. */
+  notes?: string[];
   /** Server mode with a token: the remote was killed and is not in the served index. */
   killed?: boolean;
   /** Server mode with a token: a percentage rollout is running. */
@@ -582,10 +584,9 @@ function checkDeploy(c: Check, value: Obj): void {
   for (const key of ['fromEnv', 'servedBefore', 'previous', 'rolledBackFrom', 'localEntry']) {
     if (value[key] !== null && typeof value[key] !== 'string') c.add(key, 'must be text or null');
   }
-  if (value.leftOut !== undefined)
-    c.objects(value, 'leftOut', '', (l, p) => {
-      for (const key of ['file', 'reason']) c.string(l, key, p);
-    });
+  c.objects(value, 'leftOut', '', (l, p) => {
+    for (const key of ['file', 'reason']) c.string(l, key, p);
+  });
   c.texts(value, 'uploaded', '');
   c.texts(value, 'skipped', '');
   c.texts(value, 'warnings', '');
