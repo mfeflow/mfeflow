@@ -253,6 +253,31 @@ export interface DevResult {
   interrupted: boolean;
 }
 
+/** One run of a project tool: an app's `tsc`, the root `vitest`, the project's `oxlint`. */
+export interface ToolRun {
+  /** The app, package or `root` it ran for. */
+  name: string;
+  tool: 'vitest' | 'oxlint' | 'tsc';
+  /** The command as typed, without the folder the tool was found in. */
+  command: string;
+  /** Folder it ran in, relative to the project root. */
+  cwd: string;
+  ok: boolean;
+  /** Null when the process could not start or was stopped. */
+  exitCode: number | null;
+  durationMs: number;
+}
+
+export interface ToolResult {
+  ok: boolean;
+  command: 'test' | 'lint' | 'typecheck';
+  root: string;
+  dryRun: boolean;
+  runs: ToolRun[];
+  /** Stopped with Ctrl+C or a termination signal. */
+  interrupted: boolean;
+}
+
 export interface PlannedUpload {
   key: string;
   bytes: number;
@@ -392,6 +417,7 @@ export type CliResult =
   | ReportResult
   | BudgetResult
   | DevResult
+  | ToolResult
   | DeployResult
   | StatusResult
   | RolloutCommandResult
@@ -779,6 +805,22 @@ export function validateResult(value: unknown): Issue[] {
       });
       if (!isObj(value.overrides)) c.add('overrides', 'must be an object');
       break;
+    case 'test':
+    case 'lint':
+    case 'typecheck':
+      c.string(value, 'root', '');
+      c.boolean(value, 'dryRun', '');
+      c.boolean(value, 'interrupted', '');
+      c.objects(value, 'runs', '', (run, p) => {
+        for (const key of ['name', 'command', 'cwd']) c.string(run, key, p);
+        if (!['vitest', 'oxlint', 'tsc'].includes(String(run.tool)))
+          c.add(`${p}tool`, 'must be vitest, oxlint or tsc');
+        c.boolean(run, 'ok', p);
+        if (run.exitCode !== null && typeof run.exitCode !== 'number')
+          c.add(`${p}exitCode`, 'must be a number or null');
+        if (typeof run.durationMs !== 'number') c.add(`${p}durationMs`, 'must be a number');
+      });
+      break;
     case 'deploy':
     case 'promote':
     case 'rollback':
@@ -809,7 +851,7 @@ export function validateResult(value: unknown): Issue[] {
     default:
       c.add(
         'command',
-        'must be init, adopt, add, upgrade, features, registry, doctor, validate, check-compat, budget, dev, deploy, promote, rollback, status, rollout, kill, restore or mcp',
+        'must be init, adopt, add, upgrade, features, registry, doctor, validate, check-compat, budget, dev, test, lint, typecheck, deploy, promote, rollback, status, rollout, kill, restore or mcp',
       );
   }
   return c.issues;
@@ -819,5 +861,6 @@ export function validateResult(value: unknown): Issue[] {
 export function exitOf(result: CliResult): number {
   if ('findings' in result) return exitForFindings(result.findings);
   if (result.ok && 'interrupted' in result && result.interrupted) return EXIT.cancelled;
+  if (!result.ok && 'runs' in result) return result.interrupted ? EXIT.cancelled : EXIT.build;
   return result.ok ? EXIT.ok : EXIT.unexpected;
 }

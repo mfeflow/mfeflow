@@ -19,6 +19,8 @@ export type {
   RegistryStatus,
   ReportResult,
   StatusResult,
+  ToolResult,
+  ToolRun,
   UpgradeFileReport,
   UpgradeResult,
 } from './output';

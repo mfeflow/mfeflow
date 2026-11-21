@@ -52,7 +52,7 @@ export function exitCodesText(): string {
     `  ${String(EXIT.usage)}    bad command line (MFEFLOW_E107)`,
     `  ${String(EXIT.project)}    project or config problem (MFEFLOW_E1xx)`,
     `  ${String(EXIT.feature)}    feature problem (MFEFLOW_E2xx)`,
-    `  ${String(EXIT.build)}    build or runtime problem (MFEFLOW_E3xx)`,
+    `  ${String(EXIT.build)}    build or runtime problem (MFEFLOW_E3xx), or a failed mfeflow test, lint or typecheck`,
     `  ${String(EXIT.registry)}    feature registry problem (MFEFLOW_E4xx)`,
     `  ${String(EXIT.deploy)}    deploy problem (MFEFLOW_E5xx)`,
     `  ${String(EXIT.upgrade)}    upgrade problem, or files that need a decision (MFEFLOW_E6xx)`,
