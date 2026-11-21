@@ -12,6 +12,7 @@ import {
   type Fixture,
 } from '../deploy-testing';
 import { scriptedPrompter, testRuntime } from '../testing';
+import { formatDeploy } from './deploy';
 
 const open: Fixture[] = [];
 afterEach(async () => {
@@ -472,6 +473,136 @@ describe('mfeflow promote', () => {
     expect(missing.result.error.code).toBe('MFEFLOW_E508');
     const same = await f.fail('promote', 'catalog', '--from', 'prod', '--to', 'prod');
     expect(same.code).toBe(2);
+  });
+});
+
+describe('what a deploy uploads and writes', () => {
+  async function extras(root: string): Promise<void> {
+    const dist = path.join(root, 'apps/catalog/dist');
+    await fs.mkdir(path.join(dist, '@mf-types'), { recursive: true });
+    await fs.writeFile(path.join(dist, 'mf-stats.json'), '{}');
+    await fs.writeFile(path.join(dist, 'index.html'), '<html></html>');
+    await fs.writeFile(path.join(dist, '@mf-types.zip'), 'zip');
+    await fs.writeFile(path.join(dist, '@mf-types/apis.d.ts'), 'export {}');
+  }
+
+  it('uploads the types by default and leaves out stats and the dev page, and says so', async () => {
+    const f = await project();
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    await extras(f.root);
+    const { code, result } = await f.run('deploy', 'catalog', '--env', 'prod');
+    expect(code).toBe(0);
+    expect(result.uploaded).toEqual([
+      'catalog/1.0.0/@mf-types.zip',
+      'catalog/1.0.0/@mf-types/apis.d.ts',
+      'catalog/1.0.0/mf-manifest.json',
+      'catalog/1.0.0/remoteEntry.js',
+      'catalog/1.0.0/static/js/App.js',
+      'envs/prod/index.json',
+    ]);
+    expect(result.leftOut.map((l: { file: string }) => l.file)).toEqual([
+      'index.html',
+      'mf-stats.json',
+    ]);
+  });
+
+  it('leaves the types out with --no-types', async () => {
+    const f = await project();
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    await extras(f.root);
+    const { result } = await f.run('deploy', 'catalog', '--env', 'prod', '--no-types');
+    expect(result.uploaded).not.toContain('catalog/1.0.0/@mf-types.zip');
+    expect(result.uploaded).not.toContain('catalog/1.0.0/@mf-types/apis.d.ts');
+    expect(result.leftOut.map((l: { file: string }) => l.file)).toEqual([
+      '@mf-types.zip',
+      '@mf-types/apis.d.ts',
+      'index.html',
+      'mf-stats.json',
+    ]);
+  });
+
+  it('groups the left-out files by reason in a dry run, and names them with --verbose', async () => {
+    const f = await project();
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    await extras(f.root);
+    const args = ['deploy', 'catalog', '--env', 'prod', '--dry-run', '--no-types'];
+    const { result } = await f.run(...args);
+    expect(result.uploads.map((u: { key: string }) => u.key)).not.toContain(
+      'catalog/1.0.0/mf-stats.json',
+    );
+    expect(result.leftOut).toHaveLength(4);
+    const quiet = formatDeploy(result);
+    expect(quiet).toContain('Left out: 2 generated type files, 1 dev page, 1 bundle stats file');
+    expect(quiet).not.toContain('apis.d.ts');
+    const loud = formatDeploy(result, true);
+    expect(loud).toContain('@mf-types/apis.d.ts');
+    expect(loud).toContain('mf-stats.json');
+  });
+
+  it('counts the left-out files in the summary of a real deploy', async () => {
+    const f = await project();
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    await extras(f.root);
+    const rt = testRuntime();
+    const code = await main(
+      [
+        'deploy',
+        'catalog',
+        '--env',
+        'prod',
+        '--yes',
+        '--host',
+        `file:${f.site}`,
+        '--base-url',
+        BASE_URL,
+        '--cwd',
+        f.root,
+      ],
+      rt,
+    );
+    expect(code).toBe(0);
+    expect(rt.io.out.join('')).toContain('left out: 1 dev page, 1 bundle stats file');
+  });
+
+  it('writes no registry entry with --no-local-entry; promote and rollback keep the tree clean too', async () => {
+    const f = await project();
+    const before = await f.localTree();
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    await f.run('deploy', 'catalog', '--env', 'staging', '--no-local-entry');
+    await buildRemote(f.root, 'catalog', '2.0.0');
+    const second = await f.run('deploy', 'catalog', '--env', 'staging', '--no-local-entry');
+    expect(second.result).toMatchObject({ published: true, localEntry: null });
+    expect(await f.localTree()).toEqual(before);
+    const promote = await f.run(
+      'promote',
+      'catalog',
+      '--from',
+      'staging',
+      '--to',
+      'prod',
+      '--no-local-entry',
+    );
+    expect(promote.code).toBe(0);
+    expect(promote.result).toMatchObject({ localEntry: null, leftOut: [] });
+    expect((await f.served('prod'))?.version).toBe('2.0.0');
+    const back = await f.run('rollback', 'catalog', '--env', 'staging', '--no-local-entry');
+    expect(back.code).toBe(0);
+    expect(back.result).toMatchObject({ localEntry: null, leftOut: [] });
+    expect((await f.served('staging'))?.version).toBe('1.0.0');
+    expect(await f.localTree()).toEqual(before);
+  });
+
+  it('still writes the registry entry by default, for deploy, promote and rollback', async () => {
+    const f = await project();
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    const { result } = await f.run('deploy', 'catalog', '--env', 'staging');
+    expect(result.localEntry).toBe('registry/envs/staging/catalog.json');
+    await buildRemote(f.root, 'catalog', '2.0.0');
+    await f.run('deploy', 'catalog', '--env', 'staging');
+    const promote = await f.run('promote', 'catalog', '--from', 'staging', '--to', 'prod');
+    expect(promote.result.localEntry).toBe('registry/envs/prod/catalog.json');
+    const back = await f.run('rollback', 'catalog', '--env', 'staging');
+    expect(back.result.localEntry).toBe('registry/envs/staging/catalog.json');
   });
 });
 

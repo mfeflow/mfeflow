@@ -53,6 +53,29 @@ Dry run: nothing was written.
 
 The files go first and the index goes last. The version comes from the remote's `package.json`.
 
+## How the version is picked
+
+The version names the folder the files go to: `catalog/1.0.0/mf-manifest.json`. mfeflow takes it from `--version`, and without that flag from the `version` field of the remote's `package.json`. It never bumps anything for you. If the field is missing, the command stops with [E507](../errors/E507).
+
+A new project starts with `"version": "0.0.0"`. If you never change it, every deploy lands in `catalog/0.0.0/`. A file that is already there with the same content is skipped, and a file with different content stops the deploy with [E511](../errors/E511). So set a version per deploy. In CI, pass something unique, such as the commit:
+
+```sh
+mfeflow deploy catalog --env prod --version "0.0.0-$GITHUB_SHA"
+```
+
+Old versions stay on the host, which is what makes a rollback possible.
+
+## What is uploaded
+
+A deploy uploads the whole build folder (`dist/` by default) except two files the shell never reads:
+
+- `mf-stats.json`, the bundle statistics. Analysis tools read it, not the shell.
+- the remote's root `index.html`. It is a standalone dev page; the shell loads `mf-manifest.json`, `remoteEntry.js` and the assets the manifest names, never `index.html`. (An `index.html` in a sub-folder is uploaded.)
+
+The generated types (`@mf-types.zip`, `@mf-types.d.ts` and the `@mf-types/` folder) are uploaded, because the manifest names them and a shell that builds with remote types fetches them from the deployed URL. If nothing consumes them, `--no-types` leaves them out.
+
+`--dry-run` prints one line, such as `Left out: 303 generated type files, 1 bundle stats file`. `--verbose` lists the files, and `--json` lists them with the reason in `leftOut`.
+
 ## 3. Deploy to staging
 
 Run it again without `--dry-run`:
@@ -70,6 +93,8 @@ Files: 4 uploaded, 0 already there
 staging now serves catalog@1.0.0 (first deploy).
 Wrote registry/envs/staging/catalog.json.
 ```
+
+To leave the working tree alone, as in CI, add `--no-local-entry`. The line `Wrote registry/envs/staging/catalog.json.` then does not appear and no file in the repo changes. The host and its index are unaffected: `promote` and `rollback` read them, not the file in `registry/`. The file is only a record for git. `status` compares it with the host and reports drift when it exists and differs. When the file does not exist, `status` does not call that drift: it prints a note that the remote is not tracked in the repo. `promote` and `rollback` take `--no-local-entry` too.
 
 The warning means the shell's own manifest was not on the host. Shared versions were checked against your workspace instead. To check against the deployed shell, copy its `mf-manifest.json` to `envs/staging/shell/` on the host, or pass `--shell-manifest <file>`.
 

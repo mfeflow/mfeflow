@@ -31,9 +31,12 @@ import {
   readShellManifest,
   remoteApp,
   shellVersions,
+  summarizeLeftOut,
+  uploadableFiles,
   writeLocalEntry,
   type Committed,
   type Build,
+  type LeftOut,
   type Planned,
   type Session,
 } from '../publish';
@@ -69,6 +72,15 @@ const HOST_ARGS = {
   },
 } as const satisfies ArgsDef;
 
+const LOCAL_ENTRY_ARG = {
+  'local-entry': {
+    type: 'boolean',
+    default: true,
+    description:
+      'Write registry/envs/<env>/<remote>.json after the command (--no-local-entry leaves the working tree alone)',
+  },
+} as const satisfies ArgsDef;
+
 export const DEPLOY_ARGS = {
   env: { type: 'string', description: 'Environment to deploy to', valueHint: 'env' },
   version: {
@@ -86,6 +98,13 @@ export const DEPLOY_ARGS = {
     default: true,
     description: 'Move the index to the new version (--no-publish uploads the files and stops)',
   },
+  types: {
+    type: 'boolean',
+    default: true,
+    description:
+      'Upload the generated types (@mf-types) the manifest names (--no-types leaves them out)',
+  },
+  ...LOCAL_ENTRY_ARG,
   ...ROLLOUT_ARGS,
   ...HOST_ARGS,
   ...GLOBAL_ARGS,
@@ -94,6 +113,7 @@ export const DEPLOY_ARGS = {
 export const PROMOTE_ARGS = {
   from: { type: 'string', description: 'Environment to copy the version from', valueHint: 'env' },
   to: { type: 'string', description: 'Environment to point at it', valueHint: 'env' },
+  ...LOCAL_ENTRY_ARG,
   'expect-version': {
     type: 'string',
     description: 'Refuse (E510) unless the source environment serves this version',
@@ -116,6 +136,7 @@ export const ROLLBACK_ARGS = {
     description:
       'Roll back even if the schema, route or compatibility checks fail (the files must still exist)',
   },
+  ...LOCAL_ENTRY_ARG,
   ...HOST_ARGS,
   ...GLOBAL_ARGS,
 } as const satisfies ArgsDef;
@@ -131,6 +152,8 @@ interface Facts {
   fromEnv?: string;
   remote: string;
   version: string;
+  leftOut?: LeftOut[];
+  writeEntry?: boolean;
 }
 
 async function finish(s: Session, facts: Facts, done: Committed): Promise<DeployResult> {
@@ -143,7 +166,7 @@ async function finish(s: Session, facts: Facts, done: Committed): Promise<Deploy
   let localEntry: string | null = null;
   // registry/envs/dev is the registry `mfeflow dev` serves from; a CDN address there would break local dev.
   const local = facts.env !== 'dev';
-  if (moved && local && after !== undefined)
+  if (moved && local && facts.writeEntry !== false && after !== undefined)
     localEntry = await writeLocalEntry(s.view.root, facts.env, after);
   const notes =
     moved && !local ? ['registry/envs/dev was not written: `mfeflow dev` reads it'] : [];
@@ -164,6 +187,7 @@ async function finish(s: Session, facts: Facts, done: Committed): Promise<Deploy
     uploads: failed ? [] : describeUploads(plan),
     uploaded: done.applied?.uploaded ?? [],
     skipped: done.applied?.skipped ?? [],
+    leftOut: facts.leftOut ?? [],
     localEntry,
     warnings: [...warnings, ...notes],
     findings: gateFindings(plan, facts.remote),
@@ -172,7 +196,7 @@ async function finish(s: Session, facts: Facts, done: Committed): Promise<Deploy
   return result;
 }
 
-export function formatDeploy(result: DeployResult): string {
+export function formatDeploy(result: DeployResult, verbose = false): string {
   const lines: string[] = [];
   const target = `${result.remote}@${result.version}`;
   const route =
@@ -190,10 +214,15 @@ export function formatDeploy(result: DeployResult): string {
   if (result.dryRun) {
     lines.push('Would upload, in order:');
     for (const u of result.uploads) lines.push(`  ${u.key} (${String(u.bytes)} bytes, ${u.guard})`);
+    if (result.leftOut.length > 0) {
+      lines.push(`Left out: ${summarizeLeftOut(result.leftOut)}`);
+      if (verbose) for (const l of result.leftOut) lines.push(`  ${l.file} (${l.reason})`);
+    }
     lines.push('Dry run: nothing was written.');
     return lines.join('\n');
   }
-  const files = `${String(result.uploaded.length)} uploaded, ${String(result.skipped.length)} already there`;
+  const left = result.leftOut.length === 0 ? '' : `, left out: ${summarizeLeftOut(result.leftOut)}`;
+  const files = `${String(result.uploaded.length)} uploaded, ${String(result.skipped.length)} already there${left}`;
   if (result.rollout !== undefined) {
     const r = result.rollout;
     const later =
@@ -217,6 +246,7 @@ export function formatDeploy(result: DeployResult): string {
   } else {
     lines.push(`${result.env} already serves ${target}. Nothing to do.`);
   }
+  if (verbose) for (const l of result.leftOut) lines.push(`  left out: ${l.file} (${l.reason})`);
   return lines.join('\n');
 }
 
@@ -259,7 +289,7 @@ export async function runDeploy(
   const server = openServer(rt, args);
   if (server !== undefined) {
     const result = await deployViaServer(rt, args, raw, DEPLOY_ARGS, server);
-    if (args.json !== true) rt.io.stdout(formatDeploy(result));
+    if (args.json !== true) rt.io.stdout(formatDeploy(result, args.verbose === true));
     return result;
   }
   refuseRolloutFlags(args);
@@ -275,7 +305,9 @@ export async function runDeploy(
       `${app.name} has no version: pass --version or set one in its package.json`,
     );
   const dist = text(args, 'dist') ?? 'dist';
-  const build = await readBuild(path.join(app.dir, dist), `${app.rel}/${dist}`);
+  const read = await readBuild(path.join(app.dir, dist), `${app.rel}/${dist}`);
+  const upload = uploadableFiles(read.files, { withoutTypes: args.types === false });
+  const build: Build = { ...read, files: upload.files };
   const noPublish = args.publish === false;
   await confirm(s, `Deploy ${app.name}@${version} to ${env} on ${s.hostLabel}?`, globals.dryRun);
   const done = await commit(s, {
@@ -285,8 +317,19 @@ export async function runDeploy(
     noPublish,
     plan: () => deployPlan(s, app.mfe.value, build, version, env, text(args, 'shell-manifest')),
   });
-  const result = await finish(s, { command: 'deploy', env, remote: app.name, version }, done);
-  if (!globals.json) rt.io.stdout(formatDeploy(result));
+  const result = await finish(
+    s,
+    {
+      command: 'deploy',
+      env,
+      remote: app.name,
+      version,
+      leftOut: upload.leftOut,
+      writeEntry: args['local-entry'] !== false,
+    },
+    done,
+  );
+  if (!globals.json) rt.io.stdout(formatDeploy(result, globals.verbose));
   return result;
 }
 
@@ -418,7 +461,7 @@ export async function runPromote(
   const server = openServer(rt, args);
   if (server !== undefined) {
     const result = await promoteViaServer(rt, args, raw, PROMOTE_ARGS, server);
-    if (args.json !== true) rt.io.stdout(formatDeploy(result));
+    if (args.json !== true) rt.io.stdout(formatDeploy(result, args.verbose === true));
     return result;
   }
   refuseRolloutFlags(args);
@@ -461,10 +504,17 @@ export async function runPromote(
   });
   const result = await finish(
     s,
-    { command: 'promote', env: to, fromEnv: from, remote: app.name, version },
+    {
+      command: 'promote',
+      env: to,
+      fromEnv: from,
+      remote: app.name,
+      version,
+      writeEntry: args['local-entry'] !== false,
+    },
     done,
   );
-  if (!globals.json) rt.io.stdout(formatDeploy(result));
+  if (!globals.json) rt.io.stdout(formatDeploy(result, globals.verbose));
   return result;
 }
 
@@ -477,7 +527,7 @@ export async function runRollback(
   const server = openServer(rt, args);
   if (server !== undefined) {
     const result = await rollbackViaServer(rt, args, raw, ROLLBACK_ARGS, server);
-    if (args.json !== true) rt.io.stdout(formatDeploy(result));
+    if (args.json !== true) rt.io.stdout(formatDeploy(result, args.verbose === true));
     return result;
   }
   const globals = readGlobals(args, rt.io.env, rt.io.cwd, rt.io.interactive);
@@ -541,7 +591,17 @@ export async function runRollback(
         },
       ),
   });
-  const result = await finish(s, { command: 'rollback', env, remote: app.name, version: to }, done);
-  if (!globals.json) rt.io.stdout(formatDeploy(result));
+  const result = await finish(
+    s,
+    {
+      command: 'rollback',
+      env,
+      remote: app.name,
+      version: to,
+      writeEntry: args['local-entry'] !== false,
+    },
+    done,
+  );
+  if (!globals.json) rt.io.stdout(formatDeploy(result, globals.verbose));
   return result;
 }
