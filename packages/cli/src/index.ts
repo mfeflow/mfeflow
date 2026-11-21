@@ -21,6 +21,7 @@ export type {
   StatusResult,
   ToolResult,
   ToolRun,
+  ToolSkip,
   UpgradeFileReport,
   UpgradeResult,
 } from './output';

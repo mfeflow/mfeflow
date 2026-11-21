@@ -170,7 +170,7 @@ describe('mfeflow typecheck', () => {
     const root = await project();
     const a = await run(['typecheck', '--cwd', root, '--only', 'nope']);
     expect(a.exit).toBe(EXIT.usage);
-    expect(a.rt.io.err.join('\n')).toContain('no such app');
+    expect(a.rt.io.err.join('\n')).toContain('no such target');
     const b = await run(['typecheck', '--cwd', root, '--jobs', '0']);
     expect(b.exit).toBe(EXIT.usage);
     const c = await run(['typecheck', '--cwd', root, '--bogus']);
@@ -205,6 +205,7 @@ describe('mfeflow typecheck', () => {
       path.join(root, 'pnpm-workspace.yaml'),
       'packages:\n  - apps/*\n  - packages/*\n',
     );
+    await fs.writeFile(path.join(pkg, 'tsconfig.json'), '{}');
     await bin(pkg, 'tsc');
     const { rt } = await run(['typecheck', '--cwd', root, '--only', '@app/ui']);
     expect(rt.dev.procs.map((p) => rel(root, p.spec.cwd))).toEqual(['packages/ui']);
@@ -238,6 +239,75 @@ describe('mfeflow typecheck', () => {
     expect(exit).toBe(EXIT.ok);
     expect(rt.dev.procs).toHaveLength(0);
     expect(rt.io.out.join('\n')).toContain('no app or package');
+  });
+
+  it('skips an app without a tsconfig.json and says so, in the summary and in JSON', async () => {
+    const root = await project();
+    await fs.rm(path.join(root, 'apps/cart/tsconfig.json'));
+    const { rt, exit } = await run(['typecheck', '--cwd', root, '--json', '--only', 'shell,cart']);
+    expect(exit).toBe(EXIT.ok);
+    const doc = JSON.parse(rt.io.out[0] ?? '') as ToolResult;
+    expect(validateResult(doc)).toEqual([]);
+    expect(doc.runs.map((r) => r.name)).toEqual(['shell']);
+    expect(doc.skipped).toEqual([{ name: 'cart', reason: 'no tsconfig.json' }]);
+    expect(rt.io.err).toContain('mfeflow: skipped cart (no tsconfig.json)');
+  });
+
+  it('runs the typecheck script through the package manager when it is not plain tsc --noEmit', async () => {
+    const root = await project();
+    const file = path.join(root, 'apps/cart/package.json');
+    const pkg = JSON.parse(await fs.readFile(file, 'utf8')) as { scripts?: Record<string, string> };
+    pkg.scripts = { ...pkg.scripts, typecheck: 'tsc -b --noEmit' };
+    await fs.writeFile(file, JSON.stringify(pkg));
+    await fs.rm(path.join(root, 'apps/cart/tsconfig.json'));
+    const { rt } = await run(['typecheck', '--cwd', root, '--only', 'cart', '--', '--pretty']);
+    expect(rt.dev.procs).toHaveLength(1);
+    expect(rt.dev.procs[0]?.spec).toMatchObject({
+      command: 'pnpm',
+      args: ['run', 'typecheck', '--pretty'],
+      cwd: path.join(root, 'apps/cart'),
+    });
+    const dry = await run(['typecheck', '--cwd', root, '--only', 'cart', '--dry-run']);
+    expect(dry.rt.io.out).toEqual(['cart: pnpm run typecheck in apps/cart']);
+  });
+
+  it('prefers the app when a workspace package has the same name, and mentions it', async () => {
+    const root = await project();
+    const pkg = path.join(root, 'packages', 'twin');
+    await fs.mkdir(pkg, { recursive: true });
+    await fs.writeFile(
+      path.join(pkg, 'package.json'),
+      JSON.stringify({ name: 'shell', scripts: { typecheck: 'tsc --noEmit' } }),
+    );
+    await fs.writeFile(path.join(pkg, 'tsconfig.json'), '{}');
+    await fs.writeFile(
+      path.join(root, 'pnpm-workspace.yaml'),
+      'packages:\n  - apps/*\n  - packages/*\n',
+    );
+    const { rt } = await run(['typecheck', '--cwd', root, '--only', 'shell']);
+    expect(rt.dev.procs.map((p) => rel(root, p.spec.cwd))).toEqual(['apps/shell']);
+    expect(rt.io.out.join('\n')).toContain(
+      'skipped shell (packages/twin has the same name as an app',
+    );
+  });
+
+  it('selects the app when the command runs in a folder named like a parent path', async () => {
+    const root = await project();
+    const odd = path.join(root, 'apps/shell', '..legacy');
+    await fs.mkdir(odd);
+    const { rt } = await run(['typecheck', '--cwd', odd]);
+    expect(rt.dev.procs.map((p) => rel(root, p.spec.cwd))).toEqual(['apps/shell']);
+  });
+
+  it('starts nothing for a spawn that fails, and fails the run with the reason', async () => {
+    const root = await project();
+    const rt = testRuntime();
+    rt.dev.failSpawn = () => new Error('spawn EACCES');
+    const exit = await main(['typecheck', '--cwd', root, '--json', '--only', 'shell'], rt);
+    expect(exit).toBe(EXIT.build);
+    const doc = JSON.parse(rt.io.out[0] ?? '') as ToolResult;
+    expect(validateResult(doc)).toEqual([]);
+    expect(doc.runs[0]).toMatchObject({ ok: false, exitCode: null, error: 'spawn EACCES' });
   });
 
   it('prints one valid JSON document, with the tool output on stderr', async () => {
@@ -363,6 +433,35 @@ describe('mfeflow test', () => {
     expect(noConfig.rt.io.err.join('\n')).toMatch(/E311.*vitest is not set up/);
   });
 
+  it('reports apps without a vitest config instead of dropping them', async () => {
+    const root = await project();
+    await fs.rm(path.join(root, 'vitest.config.ts'));
+    await fs.rm(path.join(root, 'apps/cart/vitest.config.ts'));
+    const { rt } = await run(['test', '--cwd', root, '--json', '--only', 'shell,cart']);
+    const doc = JSON.parse(rt.io.out[0] ?? '') as ToolResult;
+    expect(validateResult(doc)).toEqual([]);
+    expect(doc.runs.map((r) => r.name)).toEqual(['shell']);
+    expect(doc.skipped).toEqual([{ name: 'cart', reason: 'no vitest config' }]);
+    expect(rt.io.err).toContain('mfeflow: skipped cart (no vitest config)');
+  });
+
+  it('fails with E311 naming the selected apps when none of them has a config', async () => {
+    const root = await project();
+    await fs.rm(path.join(root, 'vitest.config.ts'));
+    await fs.rm(path.join(root, 'apps/cart/vitest.config.ts'));
+    const { rt, exit } = await run(['test', '--cwd', root, '--only', 'cart']);
+    expect(exit).toBe(EXIT.build);
+    const message = rt.io.err.join('\n');
+    expect(message).toMatch(/E311.*vitest is not set up.*in cart\./);
+    expect(message).not.toContain('shell');
+  });
+
+  it('passes an argument with spaces through as one argument', async () => {
+    const root = await project();
+    const { rt } = await run(['test', '--cwd', root, '--', '-t', 'adds an item']);
+    expect(rt.dev.procs[0]?.spec.args).toEqual(['run', '-t', 'adds an item']);
+  });
+
   it('--dry-run prints the command', async () => {
     const root = await project();
     const { rt } = await run(['test', '--cwd', root, '--dry-run', '--only', 'cart']);
@@ -410,5 +509,18 @@ describe('mfeflow lint', () => {
     const { rt, exit } = await run(['lint', '--cwd', bare]);
     expect(exit).toBe(EXIT.build);
     expect(rt.io.err.join('\n')).toMatch(/E311.*oxlint is not installed/);
+  });
+});
+
+describe('--only with nothing in it', () => {
+  it.each(['typecheck', 'test', 'lint'])('%s refuses an empty list with E107', async (command) => {
+    const root = await project();
+    for (const value of ['', ',', ' , ']) {
+      // oxlint-disable-next-line no-await-in-loop -- one after the other
+      const { rt, exit } = await run([command, '--cwd', root, '--only', value]);
+      expect(exit).toBe(EXIT.usage);
+      expect(rt.io.err.join('\n')).toMatch(/E107.*--only needs at least one name/);
+      expect(rt.dev.procs).toHaveLength(0);
+    }
   });
 });

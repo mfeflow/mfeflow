@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { messageOf } from '@mfeflow/core';
 import type { DevHost, DevProcess } from './proc';
 import type { ToolRun } from './output';
 
@@ -12,7 +13,7 @@ export const TOOL_PACKAGE: Record<ToolName, string> = {
   tsc: 'typescript',
 };
 
-async function isFile(file: string): Promise<boolean> {
+export async function isFile(file: string): Promise<boolean> {
   try {
     return (await fs.stat(file)).isFile();
   } catch {
@@ -46,6 +47,25 @@ export async function resolveTool(
   }
 }
 
+const CMD_META = /([()\][%!^"`<>&|;, *?])/g;
+
+/**
+ * One argument for a command line that cmd.exe will parse (the `.cmd` shims run through a shell):
+ * quoted for the program, then every cmd metacharacter escaped with `^`. A shim hands its arguments
+ * on to node through a second cmd parse, so they are escaped twice, as cross-spawn does.
+ */
+export function quoteForCmd(arg: string): string {
+  const quoted = `"${arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\*)$/, '$1$1')}"`;
+  return quoted.replace(CMD_META, '^$1').replace(CMD_META, '^$1');
+}
+
+/** Whether `spawnDev` runs `command` through cmd.exe: the same test it makes. */
+export function runsInShell(command: string, platform: NodeJS.Platform): boolean {
+  return (
+    platform === 'win32' && (!path.win32.isAbsolute(command) || /\.(?:cmd|bat)$/i.test(command))
+  );
+}
+
 export interface Target {
   name: string;
   tool: ToolName;
@@ -67,6 +87,7 @@ export interface RunOptions {
   width: number | undefined;
   jobs: number;
   env: Record<string, string | undefined>;
+  platform?: NodeJS.Platform;
 }
 
 export interface RunOutcome {
@@ -87,23 +108,47 @@ export async function runTargets(
   const label = (target: Target): string =>
     width === undefined ? '' : `${target.name.padEnd(width)} | `;
 
+  const platform = options.platform ?? process.platform;
+  const failed = (target: Target, started: number, error?: string): ToolRun => ({
+    name: target.name,
+    tool: target.tool,
+    command: target.display,
+    cwd: target.rel,
+    ok: false,
+    exitCode: null,
+    durationMs: Math.round(performance.now() - started),
+    ...(error === undefined ? {} : { error }),
+  });
+
   const runOne = (target: Target): Promise<void> =>
     new Promise((resolve) => {
       const started = performance.now();
-      const child = host.spawn({ command: target.bin, args: target.args, cwd: target.cwd, env });
+      const args = runsInShell(target.bin, platform) ? target.args.map(quoteForCmd) : target.args;
+      let child: DevProcess;
+      try {
+        child = host.spawn({ command: target.bin, args, cwd: target.cwd, env });
+      } catch (error) {
+        const message = messageOf(error);
+        out(`${label(target)}could not start: ${message}`);
+        runs.set(target, failed(target, started, message));
+        resolve();
+        return;
+      }
       live.add(child);
-      let buffer = '';
+      const buffers = { stdout: '', stderr: '' };
       let ended = false;
-      const feed = (chunk: string): void => {
-        const lines = (buffer + chunk).split(/\r?\n/);
-        buffer = lines.pop() ?? '';
-        for (const line of lines) if (line.trim() !== '') out(`${label(target)}${line}`);
+      const emit = (line: string): void => {
+        out(line === '' ? label(target).trimEnd() : `${label(target)}${line}`);
       };
-      child.onOutput(feed);
+      child.onOutput((chunk, stream = 'stdout') => {
+        const lines = (buffers[stream] + chunk).split(/\r?\n/);
+        buffers[stream] = lines.pop() ?? '';
+        for (const line of lines) emit(line);
+      });
       child.onExit((code) => {
         if (ended) return;
         ended = true;
-        feed('\n');
+        for (const rest of [buffers.stdout, buffers.stderr]) if (rest !== '') emit(rest);
         live.delete(child);
         runs.set(target, {
           name: target.name,
@@ -129,7 +174,7 @@ export async function runTargets(
 
   const stopListening = host.onInterrupt(() => {
     state.interrupted = true;
-    for (const child of live) void child.stop();
+    for (const child of live) child.stop().catch(() => {});
   });
   try {
     await Promise.all(Array.from({ length: Math.max(1, options.jobs) }, worker));

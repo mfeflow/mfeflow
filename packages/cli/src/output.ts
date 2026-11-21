@@ -266,6 +266,14 @@ export interface ToolRun {
   /** Null when the process could not start or was stopped. */
   exitCode: number | null;
   durationMs: number;
+  /** Why the process could not start. */
+  error?: string;
+}
+
+/** An app or package a tool command did not run for, and why. */
+export interface ToolSkip {
+  name: string;
+  reason: string;
 }
 
 export interface ToolResult {
@@ -274,6 +282,7 @@ export interface ToolResult {
   root: string;
   dryRun: boolean;
   runs: ToolRun[];
+  skipped: ToolSkip[];
   /** Stopped with Ctrl+C or a termination signal. */
   interrupted: boolean;
 }
@@ -819,6 +828,11 @@ export function validateResult(value: unknown): Issue[] {
         if (run.exitCode !== null && typeof run.exitCode !== 'number')
           c.add(`${p}exitCode`, 'must be a number or null');
         if (typeof run.durationMs !== 'number') c.add(`${p}durationMs`, 'must be a number');
+        if (run.error !== undefined && typeof run.error !== 'string')
+          c.add(`${p}error`, 'must be a string');
+      });
+      c.objects(value, 'skipped', '', (skip, p) => {
+        for (const key of ['name', 'reason']) c.string(skip, key, p);
       });
       break;
     case 'deploy':

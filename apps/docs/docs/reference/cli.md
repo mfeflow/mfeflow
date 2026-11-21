@@ -317,7 +317,9 @@ Three wrappers that run the same tools the generated scripts run, from the proje
 
 Inside an app folder each command acts on that app. `typecheck` prints every line with the app's name in front. With `--dry-run` the commands are printed and nothing runs. The tool's own output goes to stdout, or to stderr with `--json`, so stdout holds one document.
 
-If a tool exits with anything but 0, mfeflow exits with 5 and the summary line names the app. Ctrl+C stops the tools and exits with 130. With `--json`, `runs[]` has one entry per tool process: `name`, `tool`, `command`, `cwd`, `ok`, `exitCode` (null when it could not start) and `durationMs`.
+If a tool exits with anything but 0, mfeflow exits with 5 and the summary line names the app. Ctrl+C stops the tools and exits with 130. With `--json`, `runs[]` has one entry per tool process: `name`, `tool`, `command`, `cwd`, `ok`, `exitCode` (null when it could not start), `durationMs` and, when the process could not be started, `error`. `skipped[]` lists what was left out, each with `name` and `reason`.
+
+`typecheck` runs `tsc --noEmit` only where the folder has a `tsconfig.json`; an app or package whose `typecheck` script is anything other than plain `tsc --noEmit` is checked by running that script through the project's package manager. `test` without a root vitest config skips the apps that have none and prints which. An empty `--only` is E107. A package with the same name as an app is left out, so the name means the app.
 
 ## mcp
 

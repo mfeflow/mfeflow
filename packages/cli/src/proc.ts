@@ -5,7 +5,8 @@ import path from 'node:path';
 
 export interface DevProcess {
   readonly pid: number | undefined;
-  onOutput(listener: (chunk: string) => void): void;
+  /** `stream` says which pipe the chunk came from; a process with one output may leave it out. */
+  onOutput(listener: (chunk: string, stream?: 'stdout' | 'stderr') => void): void;
   onExit(listener: (code: number | null) => void): void;
   /** Ends the process and everything it started. Resolves once it is gone. */
   stop(): Promise<void>;
@@ -182,9 +183,13 @@ export function wrap(child: ChildProcess, killer: TreeKiller): DevProcess {
   return {
     pid: child.pid,
     onOutput(listener) {
-      for (const stream of [child.stdout, child.stderr]) {
-        stream?.on('data', (chunk: Buffer) => {
-          listener(chunk.toString('utf8'));
+      const pipes = [
+        ['stdout', child.stdout],
+        ['stderr', child.stderr],
+      ] as const;
+      for (const [name, pipe] of pipes) {
+        pipe?.on('data', (chunk: Buffer) => {
+          listener(chunk.toString('utf8'), name);
         });
       }
     },

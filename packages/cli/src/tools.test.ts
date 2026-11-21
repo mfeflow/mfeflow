@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FakeProc } from './testing';
 import { fakeDev, removeDir, tempDir } from './testing';
-import { resolveTool, runTargets, type Target } from './tools';
+import { quoteForCmd, resolveTool, runsInShell, runTargets, type Target } from './tools';
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -132,6 +132,7 @@ describe('runTargets', () => {
     await done;
     expect(lines).toEqual([
       'shell | error TS2322: bad',
+      'shell |',
       'shell | second line',
       'a     | tail without newline',
     ]);
@@ -197,5 +198,117 @@ describe('runTargets', () => {
     await until(() => host.procs.length === 2);
     host.procs[1]?.exit(0);
     expect((await done).runs).toHaveLength(2);
+  });
+});
+
+describe('quoteForCmd', () => {
+  it('quotes and escapes every metacharacter twice for a .cmd shim', () => {
+    expect(quoteForCmd('plain')).toBe('^^^"plain^^^"');
+    expect(quoteForCmd('adds an item')).toBe('^^^"adds^^^ an^^^ item^^^"');
+    expect(quoteForCmd('a&b|c')).toBe('^^^"a^^^&b^^^|c^^^"');
+    expect(quoteForCmd('a^b')).toBe('^^^"a^^^^b^^^"');
+    expect(quoteForCmd('50%')).toBe('^^^"50^^^%^^^"');
+    expect(quoteForCmd('(x)<y>')).toBe('^^^"^^^(x^^^)^^^<y^^^>^^^"');
+  });
+
+  it('escapes a quote with a backslash, and doubles backslashes before it', () => {
+    expect(quoteForCmd('say "hi"')).toBe('^^^"say^^^ \\^^^"hi\\^^^"^^^"');
+    expect(quoteForCmd('a\\"b')).toBe('^^^"a\\\\\\^^^"b^^^"');
+  });
+
+  it('doubles trailing backslashes so they do not escape the closing quote', () => {
+    expect(quoteForCmd('C:\\dir\\')).toBe('^^^"C:\\dir\\\\^^^"');
+  });
+
+  it('turns an empty argument into an empty quoted string', () => {
+    expect(quoteForCmd('')).toBe('^^^"^^^"');
+  });
+});
+
+describe('runsInShell', () => {
+  it('is true on Windows for shims and bare commands, false for an .exe and on POSIX', () => {
+    expect(runsInShell('C:\\p\\node_modules\\.bin\\vitest.cmd', 'win32')).toBe(true);
+    expect(runsInShell('pnpm', 'win32')).toBe(true);
+    expect(runsInShell('C:\\p\\oxlint.exe', 'win32')).toBe(false);
+    expect(runsInShell('/p/node_modules/.bin/vitest', 'linux')).toBe(false);
+    expect(runsInShell('pnpm', 'darwin')).toBe(false);
+  });
+});
+
+describe('runTargets arguments and output', () => {
+  const one = (args: string[], command = '/bin/a'): Target => ({
+    ...targets('a')[0]!,
+    bin: command,
+    args,
+  });
+  const options = (
+    host: ReturnType<typeof fakeDev>,
+    lines: string[],
+    platform?: NodeJS.Platform,
+  ) => ({
+    host,
+    out: (l: string) => lines.push(l),
+    width: undefined,
+    jobs: 1,
+    env: {},
+    ...(platform === undefined ? {} : { platform }),
+  });
+
+  it('quotes the arguments of a shim on Windows and leaves POSIX alone', async () => {
+    const args = ['run', '-t', 'adds an item', 'a&b'];
+    const win = fakeDev();
+    const first = runTargets([one(args, 'C:\\p\\vitest.cmd')], options(win, [], 'win32'));
+    await until(() => win.procs.length === 1);
+    expect(win.procs[0]?.spec.args).toEqual(args.map(quoteForCmd));
+    win.procs[0]?.exit(0);
+    await first;
+
+    const posix = fakeDev();
+    const second = runTargets([one(args)], options(posix, [], 'linux'));
+    await until(() => posix.procs.length === 1);
+    expect(posix.procs[0]?.spec.args).toEqual(args);
+    posix.procs[0]?.exit(0);
+    await second;
+  });
+
+  it('keeps a line buffer per stream and keeps blank lines', async () => {
+    const host = fakeDev();
+    const lines: string[] = [];
+    const done = runTargets(targets('a'), { ...options(host, lines), width: 1 });
+    await until(() => host.procs.length === 1);
+    host.procs[0]?.print('out one ', 'stdout');
+    host.procs[0]?.print('err one\n', 'stderr');
+    host.procs[0]?.print('end\n\n\nlast', 'stdout');
+    host.procs[0]?.print('tail', 'stderr');
+    host.procs[0]?.exit(0);
+    await done;
+    expect(lines).toEqual(['a | err one', 'a | out one end', 'a |', 'a |', 'a | last', 'a | tail']);
+  });
+
+  it('records a spawn that throws as a failed run and still runs the others', async () => {
+    const host = fakeDev();
+    host.failSpawn = (spec) => (spec.cwd === '/work/a' ? new Error('spawn EACCES') : undefined);
+    const lines: string[] = [];
+    const done = runTargets(targets('a', 'b'), { ...options(host, lines), width: 1 });
+    await until(() => host.procs.length === 1);
+    host.procs[0]?.exit(0);
+    const { runs, interrupted } = await done;
+    expect(interrupted).toBe(false);
+    expect(runs.map((r) => [r.name, r.ok, r.exitCode, r.error])).toEqual([
+      ['a', false, null, 'spawn EACCES'],
+      ['b', true, 0, undefined],
+    ]);
+    expect(lines).toContain('a | could not start: spawn EACCES');
+  });
+
+  it('stops the children that run when a later spawn throws and Ctrl+C follows', async () => {
+    const host = fakeDev();
+    host.failSpawn = (spec) => (spec.cwd === '/work/b' ? new Error('boom') : undefined);
+    const done = runTargets(targets('a', 'b'), { ...options(host, []), jobs: 2 });
+    await until(() => host.procs.length === 1);
+    host.interrupt();
+    const { runs } = await done;
+    expect(host.procs[0]?.stopped).toBe(true);
+    expect(runs.map((r) => r.name)).toEqual(['a', 'b']);
   });
 });
