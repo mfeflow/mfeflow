@@ -23,7 +23,7 @@ export {
   type AppFileName,
   type AppFileText,
 } from './app-file';
-export { hashContent } from './hash';
+export { hashContent, hashTracked } from './hash';
 export { inOrder } from './sequence';
 export { realFs, symlinkedPrefix, writeFileAtomic, type FsOps } from './fs';
 export {
@@ -99,6 +99,7 @@ export {
   fetchRemoteText,
   isProtectedPath,
   listLocalFeatures,
+  isThirdPartyFeature,
   loadFeature,
   parseFeature,
   addTrusted,
@@ -120,6 +121,7 @@ export {
   registryUrl,
   resolveFeature,
   resolveOptions,
+  PrivateTargetError,
   type FetchLike,
   type FetchResponse,
   type LoadedFeature,

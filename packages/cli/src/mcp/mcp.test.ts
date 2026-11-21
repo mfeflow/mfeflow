@@ -6,7 +6,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterEach, describe, expect, it } from 'vitest';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { main } from '../cli';
+import type { NetGuardOptions } from '../net-guard';
 import { BASE_URL, buildRemote, fixture, type Fixture } from '../deploy-testing';
 import { readTree, removeDir, tempDir, testRuntime } from '../testing';
 import { runCli, type CliMain } from './capture';
@@ -38,6 +41,7 @@ async function connect(
     now?: () => number;
     maxText?: number;
     main?: CliMain;
+    net?: NetGuardOptions;
   } = {},
 ): Promise<Client> {
   const server = createMcpServer({
@@ -45,6 +49,7 @@ async function connect(
     allowRegistryWrites: options.registry === true,
     ...(options.now ? { now: options.now } : {}),
     ...(options.maxText ? { maxText: options.maxText } : {}),
+    ...(options.net ? { net: options.net } : {}),
   });
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'test', version: '1' });
@@ -368,28 +373,97 @@ describe('doctor against', () => {
     ]);
   });
 
-  it('refuses a request to a private address that a public host redirects to', async () => {
+  it('refuses a public name that resolves to a private address', async () => {
     const root = await project();
-    const seen: string[] = [];
-    const guarded = await runCli(
-      (argv, rt) => {
-        try {
-          void rt.fetch('https://127.0.0.1/x', {});
-        } catch (error) {
-          seen.push(String(error));
-        }
-        rt.io.stdout(JSON.stringify({ ok: true, argv }));
-        return Promise.resolve(0);
-      },
-      ['doctor'],
-      root,
-      {},
-      (url) => {
-        if (new URL(url).hostname === '127.0.0.1') throw new Error('private');
-      },
-    );
-    expect(guarded.code).toBe(0);
-    expect(seen.join()).toContain('private');
+    const cli = stubCli(() => ({ ok: true, command: 'doctor' }));
+    const client = await connect({
+      main: cli.main,
+      net: { resolve: () => Promise.resolve(['93.184.216.34', '127.0.0.1']) },
+    });
+    const result = await call(client, 'mfeflow_doctor', {
+      cwd: root,
+      against: 'https://127.0.0.1.nip.io/mf-manifest.json',
+    });
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.data)).toContain('E405');
+    expect(cli.seen).toEqual([]);
+  });
+
+  it('reports a name that does not resolve as an unreachable shell (E307), not a raw error', async () => {
+    const root = await project();
+    const cli = stubCli(() => ({ ok: true, command: 'doctor' }));
+    const client = await connect({
+      main: cli.main,
+      net: { resolve: () => Promise.reject(new Error('getaddrinfo ENOTFOUND nope.example.com')) },
+    });
+    const result = await call(client, 'mfeflow_doctor', {
+      cwd: root,
+      against: 'https://nope.example.com/mf-manifest.json',
+    });
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.data)).toContain('E307');
+    expect(JSON.stringify(result.data)).toContain('ENOTFOUND');
+    expect(cli.seen).toEqual([]);
+  });
+
+  it('guards only the against address; the fetch used for trusted registries stays as it was', async () => {
+    const root = await project();
+    const server = http.createServer((_req, res) => res.end('{}'));
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+    try {
+      const { port } = server.address() as AddressInfo;
+      const local = `http://127.0.0.1:${String(port)}/x`;
+      const outcome: Record<string, string> = {};
+      const probe: CliMain = async (_argv, rt) => {
+        const attempt = async (name: string, fetchImpl: typeof rt.fetch | undefined) => {
+          try {
+            await fetchImpl?.(local);
+            outcome[name] = 'reached';
+          } catch (error) {
+            outcome[name] = (error as { code?: string }).code ?? 'failed';
+          }
+        };
+        await attempt('registry', rt.fetch);
+        await attempt('against', rt.againstFetch);
+        await attempt('shell', rt.publicFetch);
+        rt.io.stdout(JSON.stringify({ ok: true, command: 'doctor' }));
+        return 0;
+      };
+      const client = await connect({
+        main: probe,
+        net: { resolve: () => Promise.resolve(['10.0.0.5']) },
+      });
+      const result = await call(client, 'mfeflow_doctor', { cwd: root });
+      expect(result.isError).toBe(false);
+      expect(outcome).toEqual({
+        registry: 'reached',
+        against: 'MFEFLOW_E405',
+        shell: 'MFEFLOW_E405',
+      });
+    } finally {
+      await new Promise((done) => server.close(done));
+    }
+  });
+
+  it('refuses a 302 from a local host to a private address through the real request path', async () => {
+    const root = await project();
+    const server = http.createServer((_req, res) => {
+      res.writeHead(302, { location: 'https://10.0.0.5/mf-manifest.json' }).end();
+    });
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+    try {
+      const { port } = server.address() as AddressInfo;
+      const client = await connect({ net: { exempt: ['127.0.0.1'] } });
+      const result = await call(client, 'mfeflow_doctor', {
+        cwd: root,
+        against: `http://127.0.0.1:${String(port)}/mf-manifest.json`,
+      });
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.data)).toContain('E405');
+      expect(JSON.stringify(result.data)).toContain('10.0.0.5');
+    } finally {
+      await new Promise((done) => server.close(done));
+    }
   });
 });
 
@@ -400,6 +474,17 @@ describe('inspect redaction', () => {
     const json = JSON.parse(await fs.readFile(file, 'utf8')) as Record<string, unknown>;
     json.registries = { '@acme': 'https://reg.example.com/{name}.json?token=sekret123' };
     json.shell = 'https://shell.example.com/mf-manifest.json';
+    json.features = {
+      ...(json.features as Record<string, unknown>),
+      'registry-static': {
+        version: '1.0.0',
+        options: {
+          host: 'https://user:pw@bucket.example.com/x',
+          nested: { urls: ['https://cdn.example.com/a?token=nestedsekret', 'plain text'] },
+          port: 8080,
+        },
+      },
+    };
     await fs.writeFile(file, JSON.stringify(json, null, 2));
     const result = await call(await connect(), 'mfeflow_inspect_project', {
       cwd: root,
@@ -407,7 +492,41 @@ describe('inspect redaction', () => {
     });
     expect(result.isError).toBe(false);
     expect(result.text).not.toContain('sekret123');
+    expect(result.text).not.toContain('nestedsekret');
+    expect(result.text).not.toContain('user:pw');
+    expect(result.text).toContain('plain text');
+    expect(result.text).toContain('8080');
     expect(JSON.stringify(result.data)).toContain('@acme');
+  });
+});
+
+describe('inspect redaction of embedded and keyed secrets', () => {
+  it('hides a URL inside a longer string and the value of a secret-looking key', async () => {
+    const root = await project();
+    const file = path.join(root, 'mfeflow.json');
+    const json = JSON.parse(await fs.readFile(file, 'utf8')) as Record<string, unknown>;
+    json.features = {
+      ...(json.features as Record<string, unknown>),
+      'registry-static': {
+        version: '1.0.0',
+        options: {
+          note: 'upload with curl https://bucket.example.com/x?token=embeddedsekret now',
+          apiKey: 'plainkeysekret',
+          nested: { password: 'pwsekret', retries: 3, label: 'visible' },
+        },
+      },
+    };
+    await fs.writeFile(file, JSON.stringify(json, null, 2));
+    const result = await call(await connect(), 'mfeflow_inspect_project', {
+      cwd: root,
+      response_format: 'detailed',
+    });
+    expect(result.isError).toBe(false);
+    for (const secret of ['embeddedsekret', 'plainkeysekret', 'pwsekret']) {
+      expect(result.text).not.toContain(secret);
+    }
+    expect(result.text).toContain('visible');
+    expect(result.text).toContain('upload with curl');
   });
 });
 
@@ -668,6 +787,57 @@ describe('plan and apply', () => {
     expect(applied.isError).toBe(true);
     expect(JSON.stringify(applied.data)).toContain('no longer what was planned');
     expect(cli.seen.some((argv) => argv.includes('--yes'))).toBe(false);
+  });
+
+  it('refuses an init with a third-party feature whose dry run changed since the plan', async () => {
+    const root = await project();
+    let version = 'one';
+    const cli = stubCli(() => ({
+      ok: true,
+      command: 'init',
+      root,
+      plan: { changes: [{ path: 'a.txt', action: 'create' }] },
+      diff: `+${version}`,
+    }));
+    const client = await connect({ main: cli.main });
+    const plan = await call(client, 'mfeflow_plan', {
+      cwd: root,
+      kind: 'init',
+      name: 'fresh',
+      features: ['@acme/thing'],
+    });
+    version = 'two';
+    const applied = await call(client, 'mfeflow_apply_plan', {
+      cwd: root,
+      plan_id: plan.data.plan_id,
+    });
+    expect(applied.isError).toBe(true);
+    expect(JSON.stringify(applied.data)).toContain('no longer what was planned');
+    expect(cli.seen.some((argv) => argv.includes('--yes'))).toBe(false);
+  });
+
+  it('does not repeat a dry run for an init with only built-in features', async () => {
+    const root = await project();
+    const cli = stubCli(() => ({
+      ok: true,
+      command: 'init',
+      root,
+      plan: { changes: [] },
+      diff: '',
+    }));
+    const client = await connect({ main: cli.main });
+    const plan = await call(client, 'mfeflow_plan', {
+      cwd: root,
+      kind: 'init',
+      name: 'fresh',
+      features: ['i18n'],
+    });
+    const applied = await call(client, 'mfeflow_apply_plan', {
+      cwd: root,
+      plan_id: plan.data.plan_id,
+    });
+    expect(applied.isError).toBe(false);
+    expect(cli.seen.filter((argv) => argv.includes('--dry-run'))).toHaveLength(1);
   });
 
   it('refuses an expired plan', async () => {
@@ -1031,6 +1201,27 @@ describe('registry tools', () => {
     expect(applied.isError).toBe(true);
     expect(JSON.stringify(applied.data)).toContain('no longer what was planned');
     expect(cli.seen.some((argv) => argv.includes('--yes'))).toBe(false);
+  });
+
+  it('pins a promote to the source version it planned and passes the pin on apply', async () => {
+    const root = await hostedProject();
+    const cli = stubCli(() => moveDoc('0.9.0', '1.4.0'));
+    const client = await connect({ registry: true, main: cli.main });
+    const plan = await call(client, 'mfeflow_registry_plan', {
+      cwd: root,
+      kind: 'promote',
+      remote: 'catalog',
+      from: 'staging',
+      to: 'prod',
+    });
+    expect(plan.data.command).toContain('--expect-version 1.4.0');
+    const applied = await call(client, 'mfeflow_registry_apply', {
+      cwd: root,
+      plan_id: plan.data.plan_id,
+    });
+    expect(applied.isError).toBe(false);
+    const real = cli.seen.find((argv) => argv.includes('--yes'));
+    expect(real).toEqual(expect.arrayContaining(['--expect-version', '1.4.0']));
   });
 
   it('makes no plan when the dry run fails a gate', async () => {

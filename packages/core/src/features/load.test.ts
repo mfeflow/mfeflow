@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { rejection, thrown } from '../testing';
-import { listLocalFeatures, loadFeature, parseFeature } from './load';
+import { isThirdPartyFeature, listLocalFeatures, loadFeature, parseFeature } from './load';
 import { THIRD_PARTY_KEYS } from './policy';
 import { integrityOf, type FetchLike } from './remote';
 
@@ -592,5 +592,12 @@ describe('loadFeature (remote) integrity and index', () => {
       trusted: true,
     });
     expect(loaded.manifest.name).toBe('@acme/segment');
+  });
+});
+
+describe('isThirdPartyFeature', () => {
+  it('is true only for a namespaced name', () => {
+    expect(isThirdPartyFeature('@acme/segment')).toBe(true);
+    expect(isThirdPartyFeature('analytics')).toBe(false);
   });
 });

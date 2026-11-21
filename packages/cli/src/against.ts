@@ -2,7 +2,14 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isRegistryProtocol, redactUrlsIn } from '@mfeflow/contracts';
-import { getHttps, messageOf, MfeflowError, readCappedText, type FetchLike } from '@mfeflow/core';
+import {
+  getHttps,
+  messageOf,
+  MfeflowError,
+  PrivateTargetError,
+  readCappedText,
+  type FetchLike,
+} from '@mfeflow/core';
 
 const MAX_BYTES = 1_000_000;
 const SHELL_MANIFEST = 'shell/mf-manifest.json';
@@ -32,7 +39,10 @@ async function readSource(
       loopback: true,
       blockPrivate,
     });
-    if (!response.ok) throw new Error(`answered ${String(response.status)}`);
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new Error(`answered ${String(response.status)}`);
+    }
     text = await readCappedText(response, MAX_BYTES, () => new Error('is larger than 1 MB'));
   } else {
     text = await fs.readFile(path.resolve(cwd, source), 'utf8');
@@ -89,6 +99,7 @@ export async function loadShell(
         options.fromProject === true,
       );
     } catch (error) {
+      if (error instanceof PrivateTargetError) throw error;
       return fail(from === source ? source : `${source} (${from})`, messageOf(error), error);
     }
   };

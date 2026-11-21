@@ -123,12 +123,38 @@ describe('init --kind', () => {
     [['--topology', 'polyrepo'], /one repo/],
     [['--remotes', 'cart'], /no apps/],
     [['--remotes', ''], /no apps/],
+    [['--bundler', 'vite'], /no apps to bundle/],
+    [['--bundler', 'rsbuild'], /no apps to bundle/],
+    [['--bundler', ''], /no apps to bundle/],
   ])('refuses %j next to --kind tooling', async (flags, message) => {
     const cwd = await workspace();
     const { code, err } = await tooling(cwd, ...flags);
     expect(code).toBe(2);
     expect(err).toMatch(message);
     expect(await fs.readdir(cwd)).toEqual([]);
+  });
+
+  it.each([
+    ['vite', true],
+    ['rsbuild', false],
+  ])('ignores the bundler %s of a shared preset', async (bundler, noted) => {
+    const cwd = await workspace();
+    const preset = path.join(cwd, 'preset.json');
+    await fs.writeFile(preset, JSON.stringify({ kind: 'tooling', scope: '@acme', bundler }));
+    const { code, out, err } = await run(cwd, [
+      'init',
+      't',
+      '--preset',
+      preset,
+      '--yes',
+      '--no-install',
+    ]);
+    expect(code).toBe(0);
+    expect(err).toBe('');
+    expect(out.includes(`preset bundler ${bundler} ignored: a tooling repo has no apps`)).toBe(
+      noted,
+    );
+    expect(await json(path.join(cwd, 't', 'mfeflow.json'))).not.toHaveProperty('bundler');
   });
 
   it('still refuses --org outside polyrepo and tooling', async () => {
@@ -392,6 +418,15 @@ describe('commands in a project with no apps', () => {
     expect(out).toBe('This project has no apps, so there is no size to measure.');
   });
 
+  it.each([['vite'], ['rsbuild'], ['']])('upgrade --bundler %j is refused', async (value) => {
+    const root = await toolingRoot();
+    const before = await readTree(root);
+    const { code, err } = await run(root, ['upgrade', '--bundler', value, '--dry-run']);
+    expect(code).toBe(2);
+    expect(err).toMatch(/no apps to bundle/);
+    expect(await readTree(root)).toEqual(before);
+  });
+
   it('upgrade --dry-run prints one line, exits 0 and changes nothing', async () => {
     const root = await toolingRoot();
     const before = await readTree(root);
@@ -503,7 +538,8 @@ describe('mfeflow add in a tooling repo', () => {
       const { code, err } = await add(root, name);
       expect(code).toBe(2);
       expect(err).toContain('MFEFLOW_E216');
-      expect(err).toContain(`--features ${name}: needs an app (`);
+      expect(err).toContain(`${name}: needs an app (`);
+      expect(err).not.toContain('--features');
       expect(err).toContain('a tooling repo has none');
       expect(await readTree(root)).toEqual(before);
     },
@@ -515,7 +551,8 @@ describe('mfeflow add in a tooling repo', () => {
     const { code, err } = await add(root, 'ci-github');
     expect(code).toBe(2);
     expect(err).toContain('MFEFLOW_E107');
-    expect(err).toContain('--features ci-github: not in a tooling repo');
+    expect(err).toContain('ci-github: not in a tooling repo');
+    expect(err).not.toContain('--features');
     expect(await readTree(root)).toEqual(before);
   });
 
@@ -530,7 +567,7 @@ describe('mfeflow add in a tooling repo', () => {
       '--no-install',
     ]);
     expect(code).toBe(2);
-    expect(err).toContain('--features theming:');
+    expect(err).toContain('theming: needs an app');
     expect(await readTree(root)).toEqual(before);
   });
 
