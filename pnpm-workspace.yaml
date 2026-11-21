@@ -76,6 +76,3 @@ overrides:
 # Dependencies allowed to run install scripts.
 allowBuilds:
   lefthook: true
-
-minimumReleaseAgeExclude:
-  - i18next@26.5.12
