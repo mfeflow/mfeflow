@@ -1,32 +1,77 @@
 import { createHash } from 'node:crypto';
 
+const WORKSPACE_BASENAME = 'pnpm-workspace.yaml';
+const PNPM_KEY = 'minimumReleaseAgeExclude:';
+
 /** Line endings differ between checkouts (autocrlf); the hash must not. */
 export function normalizeEol(content: string): string {
   return content.replace(/\r\n/g, '\n');
 }
 
-/**
- * pnpm appends `minimumReleaseAgeExclude` to pnpm-workspace.yaml on an install that approves freshly
- * published packages. It is pnpm's key, not an edit, so the hash leaves it out.
- */
-function withoutPnpmWrittenKeys(content: string): string {
-  if (!content.includes('minimumReleaseAgeExclude:')) return content;
-  const kept: string[] = [];
-  let inKey = false;
-  for (const line of content.split('\n')) {
-    if (line.startsWith('minimumReleaseAgeExclude:')) {
-      inKey = true;
-      continue;
-    }
-    if (inKey && /^\s+\S/.test(line)) continue;
-    inKey = false;
-    kept.push(line);
+const isBlank = (line: string) => line.trim() === '';
+const bracketDepth = (text: string) =>
+  (text.match(/[[{]/g)?.length ?? 0) - (text.match(/[\]}]/g)?.length ?? 0);
+
+/** How many lines from `start` belong to the value of the key on `lines[start]`. */
+function valueLength(lines: string[], start: number): number {
+  const rest = (lines[start] ?? '')
+    .slice(PNPM_KEY.length)
+    .trimEnd()
+    .replace(/\s+#.*$/, '');
+  let end = start + 1;
+  if (rest.trim().startsWith('[') || rest.trim().startsWith('{')) {
+    let depth = bracketDepth(rest);
+    while (depth > 0 && end < lines.length) depth += bracketDepth(lines[end++] ?? '');
+    return end - start;
   }
-  return kept.join('\n');
+  if (rest.trim() !== '') return 1;
+  while (end < lines.length) {
+    const line = lines[end] ?? '';
+    if (!isBlank(line) && !/^\s/.test(line) && !/^-(\s|$)/.test(line)) break;
+    end += 1;
+  }
+  return end - start;
 }
 
-/** `sha256-<hex>` of the content with LF line endings, without keys pnpm writes by itself. */
+/**
+ * `content` without the top-level `minimumReleaseAgeExclude` key, which pnpm appends to
+ * pnpm-workspace.yaml when it approves freshly published packages. Everything else is untouched,
+ * so a file without the key keeps its hash.
+ */
+export function withoutPnpmWrittenKeys(content: string): string {
+  if (!content.includes(PNPM_KEY)) return content;
+  const lines = content.match(/[^\n]*\n|[^\n]+$/g) ?? [];
+  const kept: string[] = [];
+  for (let i = 0; i < lines.length;) {
+    if (!lines[i]?.startsWith(PNPM_KEY)) {
+      kept.push(lines[i++] ?? '');
+      continue;
+    }
+    let end = i + valueLength(lines, i);
+    while (end > i + 1 && isBlank(lines[end - 1] ?? '') && end < lines.length) end -= 1;
+    i = end;
+    if (lines.slice(i).every(isBlank)) {
+      while (kept.length > 0 && isBlank(kept.at(-1) ?? '')) kept.pop();
+      i = lines.length;
+    }
+  }
+  return kept.join('');
+}
+
+/** `sha256-<hex>` of the content with LF line endings. */
 export function hashContent(content: string): string {
-  const text = withoutPnpmWrittenKeys(normalizeEol(content));
-  return `sha256-${createHash('sha256').update(text).digest('hex')}`;
+  return `sha256-${createHash('sha256').update(normalizeEol(content)).digest('hex')}`;
+}
+
+const isWorkspaceFile = (file: string) => file.split(/[\\/]/).at(-1) === WORKSPACE_BASENAME;
+
+/**
+ * The hash mfeflow records for a file and compares against to see if someone edited it. Like
+ * `hashContent`, except pnpm-workspace.yaml (at any depth) leaves out the keys pnpm writes by itself.
+ * Not for the stale-write guard in `applyPlan`, which must see every byte that changed.
+ */
+export function hashTracked(file: string, content: string): string {
+  return hashContent(
+    isWorkspaceFile(file) ? withoutPnpmWrittenKeys(normalizeEol(content)) : content,
+  );
 }

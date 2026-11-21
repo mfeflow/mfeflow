@@ -7,7 +7,7 @@ import { isMap, parseDocument } from 'yaml';
 import { MfeflowError, messageOf } from './errors';
 import type { LoadedFeature } from './features/load';
 import { resolveFeature } from './features/resolve';
-import { hashContent, normalizeEol } from './hash';
+import { hashTracked, normalizeEol } from './hash';
 import { asRecord, editJsonObject, parseJsonObject } from './json';
 import { PlanBuilder, type FileChange, type Plan, type PlanFeature, type ReadFile } from './plan';
 import type { MfeflowProject } from './project';
@@ -401,14 +401,14 @@ function judge(
     return USER_DATA.test(file) ? 'leave' : 'create';
   }
   if (sameText(disk, incoming)) {
-    return recorded !== undefined && recorded !== hashContent(disk) ? 'matching' : 'leave';
+    return recorded !== undefined && recorded !== hashTracked(file, disk) ? 'matching' : 'leave';
   }
   if (USER_DATA.test(file)) return 'leave';
-  if (kept !== undefined) return kept === hashContent(incoming) ? 'leave' : 'edited';
+  if (kept !== undefined) return kept === hashTracked(file, incoming) ? 'leave' : 'edited';
   // The new version generates what the old one did: there is nothing incoming to decide about.
-  if (recorded !== undefined && recorded === hashContent(incoming)) return 'leave';
+  if (recorded !== undefined && recorded === hashTracked(file, incoming)) return 'leave';
   if (recorded === undefined) return 'untracked';
-  if (recorded !== hashContent(disk)) return 'edited';
+  if (recorded !== hashTracked(file, disk)) return 'edited';
   if (ENV_KEY_FILES.test(file)) {
     const lost = lostKeys(file, disk, incoming);
     if (lost === undefined || lost.missing.length > 0) return 'edited-by-cli';
@@ -764,7 +764,7 @@ async function leaveOldBundler(
     // oxlint-disable-next-line no-await-in-loop -- reading in order keeps the plan deterministic
     const disk = await read(file);
     if (disk === undefined) continue;
-    if (recorded[file] === hashContent(disk)) {
+    if (recorded[file] === hashTracked(file, disk)) {
       // oxlint-disable-next-line no-await-in-loop -- ordered edits keep the plan deterministic
       await builder.delete(file);
     } else {
@@ -902,16 +902,17 @@ export async function planUpgrade(
   };
   const files = { ...project.files };
   const kept = { ...project.kept };
-  for (const file of compared.matching) files[file] = hashContent(fresh.files.get(file) ?? '');
+  for (const file of compared.matching)
+    files[file] = hashTracked(file, fresh.files.get(file) ?? '');
   for (const entry of compared.diverged) {
     if (entry.decision === 'accept') {
-      files[entry.path] = hashContent(entry.incoming);
+      files[entry.path] = hashTracked(entry.path, entry.incoming);
       delete kept[entry.path];
     }
   }
   for (const entry of compared.kept) {
-    files[entry.path] = hashContent(entry.yours);
-    kept[entry.path] = hashContent(entry.incoming);
+    files[entry.path] = hashTracked(entry.path, entry.yours);
+    kept[entry.path] = hashTracked(entry.path, entry.incoming);
   }
   const next: MfeflowProject = { ...target, cli: input.toVersion };
   if (Object.keys(files).length > 0) next.files = files;
