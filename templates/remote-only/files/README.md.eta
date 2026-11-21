@@ -36,10 +36,10 @@ shell's repo as well.
 ## Check it
 
 ```sh
-pnpm doctor              # config, singletons, drift; compatibility when the shell address is known
-pnpm validate            # mfeflow.json and every mfeflow.app.json
-pnpm check-compat        # each remote's shared ranges against the deployed shell
-pnpm budget              # after `pnpm build`: first-load JS per remote
+pnpm run doctor          # config, singletons, drift; compatibility when the shell address is known
+pnpm run validate        # mfeflow.json and every mfeflow.app.json
+pnpm run check-compat    # each remote's shared ranges against the deployed shell
+pnpm run budget          # after `pnpm build`: first-load JS per remote
 ```
 
 The shell's address is the `shell` field of `mfeflow.json` (set with `mfeflow init --shell`). Without it, `doctor` warns that the
