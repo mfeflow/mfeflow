@@ -316,6 +316,12 @@ export async function resolveInitOptions(
   if (tooling && (typed(args, 'remotes') !== undefined || preset.remotes !== undefined)) {
     throw new MfeflowError('E107', '--kind tooling has no apps, so it takes no --remotes');
   }
+  if (tooling && (text(args, 'bundler') !== undefined || preset.bundler !== undefined)) {
+    throw new MfeflowError(
+      'E107',
+      '--kind tooling has no apps to bundle, so it takes no --bundler (its packages build with tsc)',
+    );
+  }
   // No prompt: Rsbuild stays the default, so scripted inits that answer every question keep working.
   const bundler = bundlerOf(text(args, 'bundler') ?? preset.bundler) ?? 'rsbuild';
   const { canPrompt } = globals;

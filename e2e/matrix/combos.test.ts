@@ -128,11 +128,24 @@ describe('the Vite set', () => {
       'vite-lint-url-env-testing-ci-gtm-otel-bus-routes-http-r3',
       'vite-lint-url-env-testing-ci-theme-i18n-tw-shadcn-sb-r3',
       'vite-lint-url-hooks-env-testing-ci-gtm-otel-bus-routes-http-theme-i18n-tw-shadcn-forms-query-clarity-sb-commit-r3',
+      'vite-remote-r3',
     ]);
     expect(new Set(combinations().map((c) => c.id)).size).toBe(combinations().length);
     expect(presetOf(vite[0]!)).toEqual({ remotes: ['catalog'], features: [], bundler: 'vite' });
     expect(vite.filter(runsE2e)).toHaveLength(4);
     expect(vite.filter(runsUiE2e)).toHaveLength(2);
+  });
+
+  it('has one repo of remotes with no shell, whose preset asks for kind remote', () => {
+    const remote = combinations().filter((c) => c.kind === 'remote');
+    expect(remote.map((c) => c.id)).toEqual(['vite-remote-r3']);
+    expect(presetOf(remote[0]!)).toEqual({
+      kind: 'remote',
+      remotes: ['catalog', 'cart', 'checkout'],
+      features: [],
+      bundler: 'vite',
+    });
+    expect(presetOf(find(['bare-r1'])[0]!)).not.toHaveProperty('kind');
   });
 });
 

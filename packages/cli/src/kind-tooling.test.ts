@@ -123,12 +123,34 @@ describe('init --kind', () => {
     [['--topology', 'polyrepo'], /one repo/],
     [['--remotes', 'cart'], /no apps/],
     [['--remotes', ''], /no apps/],
+    [['--bundler', 'vite'], /no apps to bundle/],
+    [['--bundler', 'rsbuild'], /no apps to bundle/],
   ])('refuses %j next to --kind tooling', async (flags, message) => {
     const cwd = await workspace();
     const { code, err } = await tooling(cwd, ...flags);
     expect(code).toBe(2);
     expect(err).toMatch(message);
     expect(await fs.readdir(cwd)).toEqual([]);
+  });
+
+  it('refuses a bundler that comes from a preset too', async () => {
+    const cwd = await workspace();
+    const preset = path.join(cwd, 'preset.json');
+    await fs.writeFile(
+      preset,
+      JSON.stringify({ kind: 'tooling', scope: '@acme', bundler: 'vite' }),
+    );
+    const { code, err } = await run(cwd, [
+      'init',
+      't',
+      '--preset',
+      preset,
+      '--yes',
+      '--no-install',
+    ]);
+    expect(code).toBe(2);
+    expect(err).toMatch(/no apps to bundle/);
+    expect(await fs.readdir(cwd)).toEqual(['preset.json']);
   });
 
   it('still refuses --org outside polyrepo and tooling', async () => {

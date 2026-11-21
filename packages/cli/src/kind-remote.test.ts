@@ -571,6 +571,53 @@ describe('a repo of remotes after init', () => {
   });
 });
 
+describe('init --kind remote --bundler vite', () => {
+  it('records vite and writes vite.config.ts for each remote, with no rsbuild config', async () => {
+    const cwd = await workspace();
+    const { root } = await remoteRepo(cwd, '--remotes', 'cart,checkout', '--bundler', 'vite');
+    const project = await projectOf(root);
+    expect(project).toMatchObject({ repo: 'remote', bundler: 'vite' });
+    expect(validateMfeflowProject(project)).toEqual([]);
+    const tree = await readTree(root);
+    for (const name of ['cart', 'checkout']) {
+      expect(tree).toHaveProperty([`apps/${name}/vite.config.ts`]);
+      expect(tree).not.toHaveProperty([`apps/${name}/rsbuild.config.ts`]);
+      expect(tree[`apps/${name}/vite.config.ts`]).toContain('@mfeflow/vite');
+      expect(tree[`apps/${name}/package.json`]).toContain('@mfeflow/vite');
+    }
+    expect(Object.keys(tree).filter((f) => f.startsWith('apps/shell'))).toEqual([]);
+    expect(project.shell).toBeUndefined();
+  });
+
+  it('does not record a bundler for Rsbuild, and writes rsbuild.config.ts', async () => {
+    const cwd = await workspace();
+    const { root } = await remoteRepo(cwd);
+    expect(await projectOf(root)).not.toHaveProperty('bundler');
+    const tree = await readTree(root);
+    expect(tree).toHaveProperty(['apps/catalog/rsbuild.config.ts']);
+    expect(tree).not.toHaveProperty(['apps/catalog/vite.config.ts']);
+  });
+
+  it('reads the bundler from a preset', async () => {
+    const cwd = await workspace();
+    const preset = path.join(cwd, 'preset.json');
+    await fs.writeFile(preset, JSON.stringify({ kind: 'remote', bundler: 'vite' }));
+    const { code } = await run(cwd, [
+      'init',
+      'r',
+      '--preset',
+      preset,
+      '--scope',
+      '@acme',
+      '--yes',
+      '--no-install',
+    ]);
+    expect(code).toBe(0);
+    const tree = await readTree(path.join(cwd, 'r'));
+    expect(tree).toHaveProperty(['apps/catalog/vite.config.ts']);
+  });
+});
+
 describe('remote-only helpers', () => {
   it('knows a repo of remotes by its repo field alone', () => {
     expect(isRemoteRepo({ repo: 'remote' })).toBe(true);
