@@ -68,6 +68,9 @@ export interface LoadOptions {
   checkIndex?: boolean;
 }
 
+/** True for `@ns/name`: it comes from a registry, not from this project or mfeflow. */
+export const isThirdPartyFeature = (name: string): boolean => name.startsWith('@');
+
 /**
  * Finds a feature by name. `@ns/name` comes from that namespace's registry and
  * is third-party; a plain name comes from the local `features/` folder and is
@@ -75,7 +78,7 @@ export interface LoadOptions {
  */
 export async function loadFeature(name: string, options: LoadOptions): Promise<LoadedFeature> {
   if (!FEATURE_NAME.test(name)) throw new MfeflowError('E201', `"${name}" is not a feature name`);
-  if (name.startsWith('@')) return loadRemote(name, options);
+  if (isThirdPartyFeature(name)) return loadRemote(name, options);
   return loadLocal(name, options);
 }
 

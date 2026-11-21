@@ -2,13 +2,15 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { redactUrl, shellSourceProblem } from '@mfeflow/contracts';
+import { isSecretName, redactUrl, redactUrlsIn, shellSourceProblem } from '@mfeflow/contracts';
 import {
   findProjectRoot,
   loadProject,
   messageOf,
   isMfeflowError,
+  isThirdPartyFeature,
   MfeflowError,
+  PrivateTargetError,
   type FetchLike,
 } from '@mfeflow/core';
 import { z } from 'zod';
@@ -171,7 +173,14 @@ async function checkedAgainst(ctx: ToolContext, cwd: string, value: string): Pro
   const why = shellSourceProblem(value);
   if (why !== undefined) throw new PlanRefused(`against ${why}`);
   if (/^https?:\/\//i.test(value)) {
-    await ctx.net.check(value);
+    try {
+      await ctx.net.check(value);
+    } catch (error) {
+      if (error instanceof PrivateTargetError) throw error;
+      throw new MfeflowError('E307', redactUrlsIn(`${value}: ${messageOf(error)}`), {
+        cause: error,
+      });
+    }
     return value;
   }
   const file = value.toLowerCase().startsWith('file:') ? fileURLToPath(value) : value;
@@ -213,13 +222,21 @@ function report(result: Obj, detailed: boolean): Obj {
     : pick(result, ['ok', 'command', 'root', 'summary', 'against', 'findings']);
 }
 
-/** Every string inside `value`, however deep, passed through `redactUrl`; other values are kept. */
+/**
+ * Every string inside `value`, however deep, with URLs (whole or embedded in text) redacted, and the
+ * value of any secret-looking key (token, password, apiKey...) replaced; other values are kept.
+ */
 function redactStrings(value: unknown): unknown {
-  if (typeof value === 'string') return redactUrl(value);
+  if (typeof value === 'string') return redactUrlsIn(redactUrl(value));
   if (Array.isArray(value)) return value.map(redactStrings);
   if (isObj(value)) {
     return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, redactStrings(item)]),
+      Object.entries(value).map(([key, item]) => [
+        key,
+        isSecretName(key) && (typeof item === 'string' || typeof item === 'number')
+          ? '***'
+          : redactStrings(item),
+      ]),
     );
   }
   return value;
@@ -601,7 +618,7 @@ function writeTools(ctx: ToolContext): Tool[] {
           hashes: await hashTargets(root, [...planPaths(plan), 'mfeflow.json']),
           diff,
           ...(args.kind === 'add_feature' ||
-          (args.kind === 'init' && args.features?.some((f) => f.startsWith('@')))
+          (args.kind === 'init' && args.features?.some((f) => isThirdPartyFeature(f)))
             ? {
                 verify: {
                   argv: [...argv, '--dry-run'],

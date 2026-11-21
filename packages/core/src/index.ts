@@ -99,6 +99,7 @@ export {
   fetchRemoteText,
   isProtectedPath,
   listLocalFeatures,
+  isThirdPartyFeature,
   loadFeature,
   parseFeature,
   addTrusted,

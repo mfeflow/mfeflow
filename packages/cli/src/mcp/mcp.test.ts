@@ -389,6 +389,62 @@ describe('doctor against', () => {
     expect(cli.seen).toEqual([]);
   });
 
+  it('reports a name that does not resolve as an unreachable shell (E307), not a raw error', async () => {
+    const root = await project();
+    const cli = stubCli(() => ({ ok: true, command: 'doctor' }));
+    const client = await connect({
+      main: cli.main,
+      net: { resolve: () => Promise.reject(new Error('getaddrinfo ENOTFOUND nope.example.com')) },
+    });
+    const result = await call(client, 'mfeflow_doctor', {
+      cwd: root,
+      against: 'https://nope.example.com/mf-manifest.json',
+    });
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.data)).toContain('E307');
+    expect(JSON.stringify(result.data)).toContain('ENOTFOUND');
+    expect(cli.seen).toEqual([]);
+  });
+
+  it('guards only the against address; the fetch used for trusted registries stays as it was', async () => {
+    const root = await project();
+    const server = http.createServer((_req, res) => res.end('{}'));
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+    try {
+      const { port } = server.address() as AddressInfo;
+      const local = `http://127.0.0.1:${String(port)}/x`;
+      const outcome: Record<string, string> = {};
+      const probe: CliMain = async (_argv, rt) => {
+        const attempt = async (name: string, fetchImpl: typeof rt.fetch | undefined) => {
+          try {
+            await fetchImpl?.(local);
+            outcome[name] = 'reached';
+          } catch (error) {
+            outcome[name] = (error as { code?: string }).code ?? 'failed';
+          }
+        };
+        await attempt('registry', rt.fetch);
+        await attempt('against', rt.againstFetch);
+        await attempt('shell', rt.publicFetch);
+        rt.io.stdout(JSON.stringify({ ok: true, command: 'doctor' }));
+        return 0;
+      };
+      const client = await connect({
+        main: probe,
+        net: { resolve: () => Promise.resolve(['10.0.0.5']) },
+      });
+      const result = await call(client, 'mfeflow_doctor', { cwd: root });
+      expect(result.isError).toBe(false);
+      expect(outcome).toEqual({
+        registry: 'reached',
+        against: 'MFEFLOW_E405',
+        shell: 'MFEFLOW_E405',
+      });
+    } finally {
+      await new Promise((done) => server.close(done));
+    }
+  });
+
   it('refuses a 302 from a local host to a private address through the real request path', async () => {
     const root = await project();
     const server = http.createServer((_req, res) => {
@@ -441,6 +497,36 @@ describe('inspect redaction', () => {
     expect(result.text).toContain('plain text');
     expect(result.text).toContain('8080');
     expect(JSON.stringify(result.data)).toContain('@acme');
+  });
+});
+
+describe('inspect redaction of embedded and keyed secrets', () => {
+  it('hides a URL inside a longer string and the value of a secret-looking key', async () => {
+    const root = await project();
+    const file = path.join(root, 'mfeflow.json');
+    const json = JSON.parse(await fs.readFile(file, 'utf8')) as Record<string, unknown>;
+    json.features = {
+      ...(json.features as Record<string, unknown>),
+      'registry-static': {
+        version: '1.0.0',
+        options: {
+          note: 'upload with curl https://bucket.example.com/x?token=embeddedsekret now',
+          apiKey: 'plainkeysekret',
+          nested: { password: 'pwsekret', retries: 3, label: 'visible' },
+        },
+      },
+    };
+    await fs.writeFile(file, JSON.stringify(json, null, 2));
+    const result = await call(await connect(), 'mfeflow_inspect_project', {
+      cwd: root,
+      response_format: 'detailed',
+    });
+    expect(result.isError).toBe(false);
+    for (const secret of ['embeddedsekret', 'plainkeysekret', 'pwsekret']) {
+      expect(result.text).not.toContain(secret);
+    }
+    expect(result.text).toContain('visible');
+    expect(result.text).toContain('upload with curl');
   });
 });
 

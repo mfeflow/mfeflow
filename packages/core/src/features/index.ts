@@ -1,4 +1,5 @@
 export {
+  isThirdPartyFeature,
   listLocalFeatures,
   loadFeature,
   parseFeature,
