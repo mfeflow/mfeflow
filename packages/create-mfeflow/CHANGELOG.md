@@ -1,5 +1,12 @@
 # create-mfeflow
 
+## 0.10.0
+
+### Patch Changes
+
+- Updated dependencies [[`b21f171`](https://github.com/mfeflow/mfeflow/commit/b21f17174ee5f02a9cc63423a85552cbaef16855), [`d56b242`](https://github.com/mfeflow/mfeflow/commit/d56b242828281a73ff7d4a03fc8d92fb4903b51c), [`972d09a`](https://github.com/mfeflow/mfeflow/commit/972d09a336929c4d35bd248b7dd84afde641b34f), [`f185788`](https://github.com/mfeflow/mfeflow/commit/f185788af03998b5b1088ecb651eb5dc7159f48e), [`ccbefbb`](https://github.com/mfeflow/mfeflow/commit/ccbefbb4a0d61d036cadd9e3370909bfd9e5399f), [`3b5a1a7`](https://github.com/mfeflow/mfeflow/commit/3b5a1a780710ae6cfcfb03fc69922fbbfcb43951), [`e3b708d`](https://github.com/mfeflow/mfeflow/commit/e3b708d9bd6157f0864a0ad1ffee26707ac8441e), [`b21f171`](https://github.com/mfeflow/mfeflow/commit/b21f17174ee5f02a9cc63423a85552cbaef16855), [`b698891`](https://github.com/mfeflow/mfeflow/commit/b6988913e5355f4dafb9396c665540af5d4013f3), [`38e7915`](https://github.com/mfeflow/mfeflow/commit/38e7915170b1dc9b6ff09aa34d79e4e08c649060), [`b21f171`](https://github.com/mfeflow/mfeflow/commit/b21f17174ee5f02a9cc63423a85552cbaef16855)]:
+  - mfeflow@0.10.0
+
 ## 0.9.0
 
 ### Patch Changes

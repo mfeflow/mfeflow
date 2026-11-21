@@ -1,5 +1,19 @@
 # @mfeflow/core
 
+## 0.10.0
+
+### Minor Changes
+
+- [#127](https://github.com/mfeflow/mfeflow/pull/127) [`3b5a1a7`](https://github.com/mfeflow/mfeflow/commit/3b5a1a780710ae6cfcfb03fc69922fbbfcb43951) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - New command `mfeflow build`. It builds every remote, then the shell, through the bundler each app installed (Rsbuild by default, or Vite): remotes in parallel up to `--concurrency`, one process per app with the app's name in front of each output line, and a table at the end with each app's status, time and JS size (the number `budget` reads). The first failure stops new apps from starting and the command exits 5. `--only a,b` picks apps, inside an app's folder it builds that app, and `--json` prints one result document. The bundler is resolved from the app's own folder, never from the CLI. New errors: E308 (the bundler is not installed in an app, naming the package and the app), E309 (the app has no config file for its bundler) and E310 (an app did not build).
+
+### Patch Changes
+
+- [#121](https://github.com/mfeflow/mfeflow/pull/121) [`ccbefbb`](https://github.com/mfeflow/mfeflow/commit/ccbefbb4a0d61d036cadd9e3370909bfd9e5399f) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - `mfeflow mcp` follow-ups. `mfeflow_doctor` and a `shell` read from `mfeflow.json` now resolve the host name and refuse it if any address is private, loopback or link-local, and connect to the address they checked (E405). A name that does not resolve is reported as unreachable (E307), not as a private address. Registries you trust keep their previous behaviour. The detailed `mfeflow_inspect_project` hides URL credentials and tokens inside feature options, including URLs inside longer text and the values of keys such as `token`, `password` and `apiKey`. `mfeflow_plan` for `init` with a third-party feature repeats its dry run at apply, so a registry change is refused. `mfeflow promote` has a new `--expect-version` flag that refuses (E510) if the source environment serves another version; the MCP apply passes it, and in server mode it is sent to the server too.
+
+- [#120](https://github.com/mfeflow/mfeflow/pull/120) [`b21f171`](https://github.com/mfeflow/mfeflow/commit/b21f17174ee5f02a9cc63423a85552cbaef16855) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - `doctor` no longer warns E117 on `pnpm-workspace.yaml` right after the first install. pnpm adds a `minimumReleaseAgeExclude` list there when it approves freshly published packages; when mfeflow checks whether you edited that one file, it now leaves that list out, so existing projects keep their recorded hashes. Every other file, and the check in `apply` that a file did not change since the plan, still use the full content.
+- Updated dependencies []:
+  - @mfeflow/contracts@0.10.0
+
 ## 0.9.0
 
 ### Patch Changes
