@@ -6,7 +6,7 @@ Guidance for coding agents working in this repo.
   `pnpm-workspace.yaml`; add dependencies there and reference them as `catalog:`.
 - `pnpm dev` runs the shell and every remote. `pnpm build` builds all of them. `pnpm mfeflow dev` does the same with
   per-app logs and picks up new remotes without a restart.
-- Before finishing: `pnpm doctor` (and `pnpm validate`, `pnpm check-compat`, `pnpm budget` after a build) must exit 0.
+- Before finishing: `pnpm run doctor` (and `pnpm run validate`, `pnpm run check-compat`, `pnpm run budget` after a build) must exit 0.
 - TypeScript 7, strict. Relative imports have no file extension (`./plan`, not `./plan.js`).
 - Each remote is deployed on its own. A remote must not import from another remote or from
   the shell; talk through the registry, events or URLs.

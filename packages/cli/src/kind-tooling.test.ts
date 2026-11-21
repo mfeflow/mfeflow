@@ -503,7 +503,8 @@ describe('mfeflow add in a tooling repo', () => {
       const { code, err } = await add(root, name);
       expect(code).toBe(2);
       expect(err).toContain('MFEFLOW_E216');
-      expect(err).toContain(`--features ${name}: needs an app (`);
+      expect(err).toContain(`${name}: needs an app (`);
+      expect(err).not.toContain('--features');
       expect(err).toContain('a tooling repo has none');
       expect(await readTree(root)).toEqual(before);
     },
@@ -515,7 +516,8 @@ describe('mfeflow add in a tooling repo', () => {
     const { code, err } = await add(root, 'ci-github');
     expect(code).toBe(2);
     expect(err).toContain('MFEFLOW_E107');
-    expect(err).toContain('--features ci-github: not in a tooling repo');
+    expect(err).toContain('ci-github: not in a tooling repo');
+    expect(err).not.toContain('--features');
     expect(await readTree(root)).toEqual(before);
   });
 
@@ -530,7 +532,7 @@ describe('mfeflow add in a tooling repo', () => {
       '--no-install',
     ]);
     expect(code).toBe(2);
-    expect(err).toContain('--features theming:');
+    expect(err).toContain('theming: needs an app');
     expect(await readTree(root)).toEqual(before);
   });
 
