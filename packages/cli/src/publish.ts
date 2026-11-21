@@ -401,6 +401,37 @@ async function walk(root: string, rel: string, out: Record<string, Uint8Array>):
   }
 }
 
+export interface LeftOut {
+  file: string;
+  reason: string;
+}
+
+const MF_TYPES = /^@mf-types(\/|\.|$)/;
+
+function reasonToSkip(file: string, withTypes: boolean): string | undefined {
+  if (file === 'mf-stats.json')
+    return 'bundle statistics, read by analysis tools, not by the shell';
+  if (file === 'index.html') return "the remote's standalone dev page, which the shell never loads";
+  if (!withTypes && MF_TYPES.test(file))
+    return 'generated types, used by type consumers only (--include-types uploads them)';
+  return undefined;
+}
+
+/** The files of a build a static host serves to the shell, and what was left out with why. */
+export function uploadableFiles(
+  files: Record<string, Uint8Array>,
+  options: { withTypes?: boolean } = {},
+): { files: Record<string, Uint8Array>; leftOut: LeftOut[] } {
+  const kept: Record<string, Uint8Array> = {};
+  const leftOut: LeftOut[] = [];
+  for (const file of Object.keys(files).toSorted()) {
+    const reason = reasonToSkip(file, options.withTypes === true);
+    if (reason === undefined) kept[file] = files[file] ?? new Uint8Array();
+    else leftOut.push({ file, reason });
+  }
+  return { files: kept, leftOut };
+}
+
 export async function readBuild(dir: string, shown: string): Promise<Build> {
   const files: Record<string, Uint8Array> = {};
   try {

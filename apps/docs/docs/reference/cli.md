@@ -332,13 +332,15 @@ A walk-through with output is in [Deploy and roll back a remote](/guide/deploy-a
 | `--version <v>`              | deploy                    | Default: the remote's `package.json` version                                                              |
 | `--dist <dir>`               | deploy                    | Build folder inside the remote. Default `dist`                                                            |
 | `--no-publish`               | deploy                    | Upload the files, leave the index where it is. `status` then shows drift                                  |
+| `--no-local-entry`           | deploy                    | Do not write `registry/envs/<env>/<remote>.json`; the working tree stays clean (for CI and static hosts)  |
+| `--include-types`            | deploy                    | Also upload `@mf-types`; by default it, `mf-stats.json` and the remote's `index.html` are left out        |
 | `--host <spec>`              | all                       | `file:<dir>` or `s3://<bucket>[/prefix]`. Default `registry.host` in `mfeflow.json`                       |
 | `--base-url <url>`           | deploy, promote, rollback | https URL (http only on localhost) the host serves from. Default `registry.baseUrl`                       |
 | `--shell-manifest <file>`    | deploy, promote, rollback | The shell's deployed `mf-manifest.json`. Default `envs/<env>/shell/` on the host                          |
 
 S3 settings come from `MFEFLOW_S3_ENDPOINT`, `MFEFLOW_S3_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`, and are never printed. `--dry-run` prints the plan as data and writes nothing. Without `--yes`, a terminal asks before anything moves. A failed gate exits with 7 and one of E501 to E505. The other deploy errors are E506 to E512.
 
-`--json` prints `{ ok, command, dryRun, env, fromEnv, host, remote, version, servedBefore, published, previous, rolledBackFrom, uploads, uploaded, skipped, localEntry, warnings, findings }` for the first three, with `index` added for a dry run. `status` prints `{ ok, command: "status", host, envs: [{ env, published, generatedAt, remotes }], findings }`. A successful deploy, promote or rollback also writes `registry/envs/<env>/<remote>.json`, so git records what is served. Not for `dev`: `mfeflow dev` reads that folder.
+`--json` prints `{ ok, command, dryRun, env, fromEnv, host, remote, version, servedBefore, published, previous, rolledBackFrom, uploads, uploaded, skipped, leftOut, localEntry, warnings, findings }` for the first three, with `index` added for a dry run. `status` prints `{ ok, command: "status", host, envs: [{ env, published, generatedAt, remotes }], findings }`. `leftOut` is a list of `{ file, reason }` for the build files that were not uploaded. A successful deploy, promote or rollback also writes `registry/envs/<env>/<remote>.json`, so git records what is served. Not for `dev`: `mfeflow dev` reads that folder. `deploy --no-local-entry` skips the write.
 
 ## Server mode
 

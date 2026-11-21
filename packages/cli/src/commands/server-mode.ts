@@ -24,6 +24,7 @@ import {
   openSession,
   positionals,
   readBuild,
+  uploadableFiles,
   readShellManifest,
   remoteApp,
   shellVersions,
@@ -146,8 +147,16 @@ const gateFindings = (failure: ServerFailure, app: string): Finding[] =>
 
 const nothing = (): Pick<
   DeployResult,
-  'uploads' | 'uploaded' | 'skipped' | 'localEntry' | 'warnings' | 'findings'
-> => ({ uploads: [], uploaded: [], skipped: [], localEntry: null, warnings: [], findings: [] });
+  'uploads' | 'uploaded' | 'skipped' | 'leftOut' | 'localEntry' | 'warnings' | 'findings'
+> => ({
+  uploads: [],
+  uploaded: [],
+  skipped: [],
+  leftOut: [],
+  localEntry: null,
+  warnings: [],
+  findings: [],
+});
 
 function numberOf(value: unknown): number {
   return typeof value === 'number' ? value : 0;
@@ -266,6 +275,7 @@ async function deployInner(
     );
   const dist = text(args, 'dist') ?? 'dist';
   const build = await readBuild(path.join(app.dir, dist), `${app.rel}/${dist}`);
+  const upload = uploadableFiles(build.files, { withTypes: args['include-types'] === true });
   const noPublish = args.publish === false;
   await confirmed(rt, globals, `Deploy ${app.name}@${version} to ${env} on ${client.label}?`);
 
@@ -276,7 +286,7 @@ async function deployInner(
     remote: app.mfe.value,
     version,
     manifest: build.manifest,
-    files: build.files,
+    files: upload.files,
     env,
     baseUrl: base,
     ...(index === undefined ? {} : { currentIndex: index, currentIndexEtag: 'server' }),
@@ -309,6 +319,7 @@ async function deployInner(
     return deployResult(facts, {
       servedBefore: before?.version ?? null,
       uploads: described,
+      leftOut: upload.leftOut,
       warnings: [
         ...warnings,
         'the server runs its own checks on deploy; a dry run does not call it',
@@ -327,7 +338,7 @@ async function deployInner(
     uploaded = applied.uploaded;
     skipped = applied.skipped;
   }
-  const common = { uploads: described, uploaded, skipped };
+  const common = { uploads: described, uploaded, skipped, leftOut: upload.leftOut };
   if (noPublish)
     return deployResult(facts, {
       servedBefore: before?.version ?? null,

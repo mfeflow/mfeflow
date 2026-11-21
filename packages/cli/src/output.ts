@@ -285,6 +285,8 @@ export interface DeployResult {
   uploads: PlannedUpload[];
   uploaded: string[];
   skipped: string[];
+  /** Files of the build that were not uploaded, with the reason. */
+  leftOut: { file: string; reason: string }[];
   /** The registry/envs file written to match the host; null when none was. */
   localEntry: string | null;
   /** The index the run would write. Only for a dry run. */
@@ -580,6 +582,10 @@ function checkDeploy(c: Check, value: Obj): void {
   for (const key of ['fromEnv', 'servedBefore', 'previous', 'rolledBackFrom', 'localEntry']) {
     if (value[key] !== null && typeof value[key] !== 'string') c.add(key, 'must be text or null');
   }
+  if (value.leftOut !== undefined)
+    c.objects(value, 'leftOut', '', (l, p) => {
+      for (const key of ['file', 'reason']) c.string(l, key, p);
+    });
   c.texts(value, 'uploaded', '');
   c.texts(value, 'skipped', '');
   c.texts(value, 'warnings', '');

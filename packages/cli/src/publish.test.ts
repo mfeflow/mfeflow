@@ -14,6 +14,7 @@ import {
   hostFailure,
   normalizeBaseUrl,
   positionals,
+  uploadableFiles,
   type Session,
 } from './publish';
 
@@ -172,5 +173,46 @@ describe('validateResult for the registry commands', () => {
         'envs[0].remotes[0].name',
       ]),
     );
+  });
+});
+
+describe('uploadableFiles', () => {
+  const bytes = new Uint8Array([1]);
+  const build = {
+    'mf-manifest.json': bytes,
+    'remoteEntry.js': bytes,
+    'static/js/App.js': bytes,
+    'static/index.html': bytes,
+    'index.html': bytes,
+    'mf-stats.json': bytes,
+    '@mf-types.zip': bytes,
+    '@mf-types.d.ts': bytes,
+    '@mf-types/catalog/apis.d.ts': bytes,
+    '@mf-types-extra.js': bytes,
+  };
+
+  it('leaves out stats, the dev page and the types, each with a reason', () => {
+    const out = uploadableFiles(build);
+    expect(Object.keys(out.files)).toEqual([
+      '@mf-types-extra.js',
+      'mf-manifest.json',
+      'remoteEntry.js',
+      'static/index.html',
+      'static/js/App.js',
+    ]);
+    expect(out.leftOut.map((l) => l.file)).toEqual([
+      '@mf-types.d.ts',
+      '@mf-types.zip',
+      '@mf-types/catalog/apis.d.ts',
+      'index.html',
+      'mf-stats.json',
+    ]);
+    expect(out.leftOut.every((l) => l.reason !== '')).toBe(true);
+  });
+
+  it('keeps the types with withTypes', () => {
+    const out = uploadableFiles(build, { withTypes: true });
+    expect(out.leftOut.map((l) => l.file)).toEqual(['index.html', 'mf-stats.json']);
+    expect(Object.keys(out.files)).toContain('@mf-types.zip');
   });
 });

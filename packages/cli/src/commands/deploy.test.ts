@@ -444,6 +444,86 @@ describe('mfeflow promote', () => {
   });
 });
 
+describe('what a deploy uploads and writes', () => {
+  async function extras(root: string): Promise<void> {
+    const dist = path.join(root, 'apps/catalog/dist');
+    await fs.mkdir(path.join(dist, '@mf-types'), { recursive: true });
+    await fs.writeFile(path.join(dist, 'mf-stats.json'), '{}');
+    await fs.writeFile(path.join(dist, 'index.html'), '<html></html>');
+    await fs.writeFile(path.join(dist, '@mf-types.zip'), 'zip');
+    await fs.writeFile(path.join(dist, '@mf-types/apis.d.ts'), 'export {}');
+  }
+
+  it('leaves out stats, the dev page and the types, and says so', async () => {
+    const f = await project();
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    await extras(f.root);
+    const { code, result } = await f.run('deploy', 'catalog', '--env', 'prod');
+    expect(code).toBe(0);
+    expect(result.uploaded).toEqual([
+      'catalog/1.0.0/mf-manifest.json',
+      'catalog/1.0.0/remoteEntry.js',
+      'catalog/1.0.0/static/js/App.js',
+      'envs/prod/index.json',
+    ]);
+    expect(result.leftOut.map((l: { file: string }) => l.file)).toEqual([
+      '@mf-types.zip',
+      '@mf-types/apis.d.ts',
+      'index.html',
+      'mf-stats.json',
+    ]);
+  });
+
+  it('shows the left-out files in a dry run', async () => {
+    const f = await project();
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    await extras(f.root);
+    const { result } = await f.run('deploy', 'catalog', '--env', 'prod', '--dry-run');
+    expect(result.uploads.map((u: { key: string }) => u.key)).not.toContain(
+      'catalog/1.0.0/mf-stats.json',
+    );
+    expect(result.leftOut).toHaveLength(4);
+  });
+
+  it('uploads the types with --include-types', async () => {
+    const f = await project();
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    await extras(f.root);
+    const { result } = await f.run('deploy', 'catalog', '--env', 'prod', '--include-types');
+    expect(result.uploaded).toContain('catalog/1.0.0/@mf-types.zip');
+    expect(result.uploaded).toContain('catalog/1.0.0/@mf-types/apis.d.ts');
+    expect(result.uploaded).not.toContain('catalog/1.0.0/mf-stats.json');
+    expect(result.leftOut.map((l: { file: string }) => l.file)).toEqual([
+      'index.html',
+      'mf-stats.json',
+    ]);
+  });
+
+  it('writes no registry entry with --no-local-entry, and promote and rollback still work', async () => {
+    const f = await project();
+    const before = await f.localTree();
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    await f.run('deploy', 'catalog', '--env', 'staging', '--no-local-entry');
+    await buildRemote(f.root, 'catalog', '2.0.0');
+    const second = await f.run('deploy', 'catalog', '--env', 'staging', '--no-local-entry');
+    expect(second.result).toMatchObject({ published: true, localEntry: null });
+    expect(await f.localTree()).toEqual(before);
+    const promote = await f.run('promote', 'catalog', '--from', 'staging', '--to', 'prod');
+    expect(promote.code).toBe(0);
+    expect((await f.served('prod'))?.version).toBe('2.0.0');
+    const back = await f.run('rollback', 'catalog', '--env', 'staging');
+    expect(back.code).toBe(0);
+    expect((await f.served('staging'))?.version).toBe('1.0.0');
+  });
+
+  it('still writes the registry entry by default', async () => {
+    const f = await project();
+    await buildRemote(f.root, 'catalog', '1.0.0');
+    const { result } = await f.run('deploy', 'catalog', '--env', 'prod', '--local-entry');
+    expect(result.localEntry).toBe('registry/envs/prod/catalog.json');
+  });
+});
+
 describe('where the registry lives', () => {
   it('does not write registry/envs/dev, which mfeflow dev reads', async () => {
     const f = await project();
