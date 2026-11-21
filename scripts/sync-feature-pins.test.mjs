@@ -78,6 +78,13 @@ describe('rewrite', () => {
     expect(out).toBe(text.replaceAll('"2.3.0"', '"2.3.2"').replace('"0.6.2"', '"0.6.3"'));
   });
 
+  it('fails loudly when a pin is not written as "name" then "range"', () => {
+    const text = `{\n  "version": "0.1.0",\n  "packages": [{ "name": "vite", "target": "shell", "range": "8.3.5" }]\n}\n`;
+    expect(() => rewrite(text, [{ name: 'vite', from: '8.3.5', to: '8.3.8' }])).toThrow(
+      /right after "name"/,
+    );
+  });
+
   it('refuses a version it cannot bump', () => {
     expect(() => bumpPatch('1.0.0-rc.1')).toThrow(/not a plain/);
     expect(bumpPatch('0.6.9')).toBe('0.6.10');

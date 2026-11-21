@@ -64,7 +64,13 @@ export function rewrite(text, drift) {
   let out = text;
   for (const { name, from, to } of drift) {
     const pin = new RegExp(`("name":\\s*"${escape(name)}",\\s*"range":\\s*")${escape(from)}"`, 'g');
-    out = out.replace(pin, `$1${to}"`);
+    const next = out.replace(pin, `$1${to}"`);
+    if (next === out) {
+      throw new Error(
+        `cannot rewrite ${name} ${from} in place: write "range" right after "name" in that entry`,
+      );
+    }
+    out = next;
   }
   const version = JSON.parse(text).version;
   return out.replace(`"version": "${version}"`, `"version": "${bumpPatch(version)}"`);
