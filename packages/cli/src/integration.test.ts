@@ -127,6 +127,12 @@ describe('mfeflow init --local --yes --no-install', () => {
       }
     }
     expect(tree['apps/shell/rsbuild.config.ts']).toContain('port: 4300');
+    // The shell router and nav work under a base path: routes stay bare, links and the URL are mapped.
+    const app = tree['apps/shell/src/App.tsx'];
+    expect(app).toContain("import { DevOverlay, stripBase, withBase } from '@mfeflow/runtime';");
+    expect(app).toContain('const currentPath = () => stripBase(location.pathname);');
+    expect(app).toContain('href={withBase(route.path)}');
+    expect(app).not.toContain('setPath(location.pathname)');
     expect(tree['apps/cart/rsbuild.config.ts']).toContain(
       "exposes: { './App': './src/exposed/App.tsx' }",
     );

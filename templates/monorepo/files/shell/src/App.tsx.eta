@@ -1,12 +1,15 @@
 import { useEffect, useState, type MouseEvent } from 'react';
-import { DevOverlay } from '@mfeflow/runtime';
+import { DevOverlay, stripBase, withBase } from '@mfeflow/runtime';
 import { routes, type RouteEntry } from './remotes/route-table';
 
+// The shell may be served under a base path (`basePath` in createShellConfig); routes are written without it.
+const currentPath = () => stripBase(location.pathname);
+
 function usePath(): [string, (event: MouseEvent<HTMLAnchorElement>) => void] {
-  const [path, setPath] = useState(location.pathname);
+  const [path, setPath] = useState(currentPath);
   useEffect(() => {
     const onPop = () => {
-      setPath(location.pathname);
+      setPath(currentPath());
     };
     addEventListener('popstate', onPop);
     return () => {
@@ -16,7 +19,7 @@ function usePath(): [string, (event: MouseEvent<HTMLAnchorElement>) => void] {
   const go = (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     history.pushState(null, '', event.currentTarget.href);
-    setPath(location.pathname);
+    setPath(currentPath());
   };
   return [path, go];
 }
@@ -33,7 +36,7 @@ export function App() {
         <strong><%= it.app.name %></strong>
         <nav>
           {routes.map((route) => (
-            <a key={route.path} href={route.path} onClick={go}>
+            <a key={route.path} href={withBase(route.path)} onClick={go}>
               {route.path === '/' ? 'home' : route.path.slice(1)}
             </a>
           ))}

@@ -25,6 +25,7 @@ exports[`planProjectUpgrade on the 0.1.0 fixture > plans the real deltas between
     "delete apps/shell/mfe.json",
     "create apps/shell/mfeflow.app.json",
     "patch apps/shell/package.json",
+    "patch apps/shell/src/App.tsx",
     "patch apps/shell/src/analytics/init.ts",
     "patch apps/shell/src/api/endpoints.ts",
     "create apps/shell/src/assert.ts",
@@ -46,7 +47,7 @@ exports[`planProjectUpgrade on the 0.1.0 fixture > plans the real deltas between
   "features": {
     "analytics-gtm": "0.2.0",
     "ci-github": "0.2.0",
-    "core": "0.6.0",
+    "core": "0.6.1",
     "env-t3": "0.3.0",
     "lint-oxlint": "0.2.0",
     "testing": "0.2.0",
