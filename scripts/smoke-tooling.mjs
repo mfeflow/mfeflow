@@ -1,5 +1,5 @@
 // Generates a tooling repo with this checkout (`mfeflow init --kind tooling --local`): every package
-// of the catalogue (`TOOLING_PACKAGES`) in the team's scope and the lint and git hook features. Then does what a team would: installs it
+// of the catalogue (the folders of `templates/tooling`) in the team's scope and the lint and git hook features. Then does what a team would: installs it
 // (which installs the repo's own git hooks), builds, typechecks, lints and checks the format.
 // Needs `pnpm build` to have run in this repo, and the network (it installs from npm).
 // Usage: node scripts/smoke-tooling.mjs   (SMOKE_DIR=/some/folder keeps the repo there)
@@ -14,18 +14,25 @@ fs.mkdirSync(work, { recursive: true });
 const root = path.join(work, 'tools');
 const cli = path.join(repo, 'packages/cli/bin/mfeflow.js');
 
-/** The names in `TOOLING_PACKAGES`, read from the source: the CLI's dist does not export the list. */
+/** The packages of the catalogue: one folder each in `templates/tooling` (a test keeps it equal to `TOOLING_PACKAGES`). */
 function toolingPackages() {
-  const source = fs.readFileSync(path.join(repo, 'packages/cli/src/tooling-packages.ts'), 'utf8');
-  const start = source.indexOf('export const TOOLING_PACKAGES');
-  const end = source.indexOf('\n];', start);
-  if (start < 0 || end < 0)
-    throw new Error('could not find TOOLING_PACKAGES in tooling-packages.ts');
-  const names = [...source.slice(start, end).matchAll(/\{\s*name: '([^']+)'/g)].map((m) => m[1]);
-  if (names.length === 0) throw new Error('TOOLING_PACKAGES has no packages');
+  const dir = path.join(repo, 'templates/tooling');
+  const names = fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+  if (names.length === 0) throw new Error(`${dir} has no packages`);
   return names;
 }
 const PACKAGES = toolingPackages();
+
+/** Every `./dist/...` file an `exports` map points at, however deeply the conditions nest. */
+function distFilesOf(exportsField) {
+  if (typeof exportsField === 'string')
+    return exportsField.startsWith('./dist/') ? [exportsField] : [];
+  if (exportsField === null || typeof exportsField !== 'object') return [];
+  return Object.values(exportsField).flatMap(distFilesOf);
+}
 
 /** The environment without the GIT_* variables a git hook sets, so git works on the folder it is run in. */
 const env = Object.fromEntries(
@@ -94,11 +101,22 @@ try {
   console.log('ok  the git hooks are installed in the tooling repo');
 
   step('build', 'pnpm', ['build'], root);
-  for (const name of PACKAGES.filter((n) => n !== 'tsconfig' && n !== 'oxlint-config')) {
-    if (!fs.existsSync(path.join(root, 'packages', name, 'dist/index.js')))
-      throw new Error(`packages/${name} has no dist after build`);
+  const built = [];
+  for (const name of PACKAGES) {
+    const dir = path.join(root, 'packages', name);
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+    if (manifest.scripts?.build === undefined) continue;
+    const outputs = distFilesOf(manifest.exports);
+    if (outputs.length === 0)
+      throw new Error(`packages/${name} builds but exports nothing in dist`);
+    for (const file of outputs) {
+      if (!fs.existsSync(path.join(dir, file)))
+        throw new Error(`packages/${name} has no ${file} after build`);
+    }
+    built.push(name);
   }
-  console.log('ok  the wrapper packages built');
+  if (built.length === 0) throw new Error('no package has a build script, nothing was checked');
+  console.log(`ok  built: ${built.join(', ')}`);
 
   step('typecheck', 'pnpm', ['typecheck'], root);
   step('lint', 'pnpm', ['lint'], root);
