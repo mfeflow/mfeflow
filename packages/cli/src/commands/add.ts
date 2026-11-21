@@ -381,7 +381,7 @@ async function addFeatures(
   );
   if (hasNoApps(project) && project.topology !== 'polyrepo') {
     for (const feature of loaded) {
-      const refusal = toolingRefusal(feature);
+      const refusal = toolingRefusal(feature, feature.manifest.name);
       if (refusal) throw refusal;
     }
   }

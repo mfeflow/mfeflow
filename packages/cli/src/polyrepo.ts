@@ -71,17 +71,17 @@ export function appPartOf(feature: LoadedFeature): string | undefined {
 }
 
 /** The one place that decides whether a tooling repo takes a feature: the refusal, or undefined. */
-export function toolingRefusal(feature: LoadedFeature): MfeflowError | undefined {
+export function toolingRefusal(feature: LoadedFeature, label: string): MfeflowError | undefined {
   const name = feature.manifest.name;
   const clash = TOOLING_CLASHES[name];
   if (clash !== undefined) {
-    return new MfeflowError('E107', `--features ${name}: not in a tooling repo, ${clash}`);
+    return new MfeflowError('E107', `${label}: not in a tooling repo, ${clash}`);
   }
   const app = appPartOf(feature);
   if (app !== undefined) {
     return new MfeflowError(
       'E216',
-      `--features ${name}: needs an app (${app}), and a tooling repo has none. Use a repo with apps, or the shell and remote repos of a polyrepo.`,
+      `${label}: needs an app (${app}), and a tooling repo has none. Use a repo with apps, or the shell and remote repos of a polyrepo.`,
     );
   }
   return undefined;
@@ -94,7 +94,7 @@ export async function assertToolingFeatures(
 ): Promise<void> {
   const loaded = await Promise.all(features.map((name) => loadAny(name, { roots: rt.roots })));
   for (const feature of loaded) {
-    const refusal = toolingRefusal(feature);
+    const refusal = toolingRefusal(feature, `--features ${feature.manifest.name}`);
     if (refusal) throw refusal;
   }
 }
