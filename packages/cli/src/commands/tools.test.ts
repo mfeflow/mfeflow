@@ -352,7 +352,7 @@ describe('mfeflow test', () => {
     const { rt, exit } = await run(['test', '--cwd', root]);
     expect(exit).toBe(EXIT.ok);
     expect(rt.dev.procs).toHaveLength(1);
-    expect(rt.dev.procs[0]?.spec).toMatchObject({ args: ['run'], cwd: root });
+    expect(rt.dev.procs[0]?.spec).toMatchObject({ args: sent(['run']), cwd: root });
     expect(rt.dev.procs[0]?.spec.command).toBe(
       path.join(root, 'node_modules/.bin', `vitest${BIN}`),
     );
