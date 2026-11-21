@@ -36,6 +36,14 @@ describe('fetchRuntimeConfig', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('fetches the file under the base path the shell was built with', async () => {
+    Reflect.set(globalThis, '__MFE_BASE_PATH__', '/demo/');
+    fetchMock.mockResolvedValue(Response.json({}));
+    await fetchRuntimeConfig();
+    expect(fetchMock).toHaveBeenCalledWith('/demo/config/runtime-config.json');
+    Reflect.deleteProperty(globalThis, '__MFE_BASE_PATH__');
+  });
+
   it('uses the config the shell already put on globalThis without fetching', async () => {
     Reflect.set(globalThis, RUNTIME_CONFIG_KEY, { environment: 'prod' });
     expect(await fetchRuntimeConfig()).toEqual({ environment: 'prod' });

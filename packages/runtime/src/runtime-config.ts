@@ -1,6 +1,8 @@
+import { runtimeConfigUrl } from './base';
+
 /** Where the shell keeps the runtime config once loaded: `globalThis[RUNTIME_CONFIG_KEY]`. */
 export const RUNTIME_CONFIG_KEY = '__MFE_RUNTIME_CONFIG__';
-/** The file the shell fetches: `public/config/runtime-config.json`, or the one for the environment in a deployment. */
+/** The file the shell fetches at the root of a host: `public/config/runtime-config.json`, or the one for the environment in a deployment. Under a base path it is `runtimeConfigUrl()`. */
 export const RUNTIME_CONFIG_URL = '/config/runtime-config.json';
 
 export type RuntimeConfigValues = Record<string, unknown>;
@@ -34,7 +36,7 @@ async function load(url: string): Promise<RuntimeConfigValues> {
  * (the same rejection for every caller; there is no retry), so each caller decides what to do
  * without it.
  */
-export function fetchRuntimeConfig(url = RUNTIME_CONFIG_URL): Promise<RuntimeConfigValues> {
+export function fetchRuntimeConfig(url = runtimeConfigUrl()): Promise<RuntimeConfigValues> {
   const loaded: unknown = Reflect.get(globalThis, RUNTIME_CONFIG_KEY);
   if (isConfig(loaded)) return Promise.resolve(loaded);
   const existing: unknown = Reflect.get(globalThis, PENDING);

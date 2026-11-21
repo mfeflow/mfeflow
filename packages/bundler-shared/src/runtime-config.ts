@@ -32,13 +32,18 @@ export function runtimeConfigEnvs(cwd: string): string[] {
 }
 
 /**
- * Answers `/config/runtime-config.json` with `runtime-config.<env>.json`, read on every request so an
+ * Answers `/config/runtime-config.json` (and `<base>config/runtime-config.json` under a base path) with `runtime-config.<env>.json`, read on every request so an
  * edit shows on reload. A missing file for the chosen env is a 404 that says which envs exist.
  */
-export function runtimeConfigHandler(cwd: string, env: string) {
+export function runtimeConfigHandler(cwd: string, env: string, base = '/') {
+  const urls = new Set([RUNTIME_CONFIG_URL, `${base}${RUNTIME_CONFIG_URL.slice(1)}`]);
   return (req: IncomingMessage, res: ServerResponse, next: () => void): void => {
     const pathname = (req.url ?? '').split('?')[0];
-    if (pathname !== RUNTIME_CONFIG_URL || (req.method !== 'GET' && req.method !== 'HEAD')) {
+    if (
+      pathname === undefined ||
+      !urls.has(pathname) ||
+      (req.method !== 'GET' && req.method !== 'HEAD')
+    ) {
       next();
       return;
     }

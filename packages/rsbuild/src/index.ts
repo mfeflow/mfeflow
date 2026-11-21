@@ -7,7 +7,10 @@ import {
   assertAsyncBoundary,
   commonRemoteOptions,
   commonShellOptions,
+  BASE_SCRIPT_NAME,
+  baseHeadScript,
   installedVersionFrom,
+  resolveBasePath,
   resolvableFrom,
   shellDefines,
   snapshotEnabled,
@@ -16,7 +19,7 @@ import {
   type ShellOptions as CommonShellOptions,
 } from '@mfeflow/bundler-shared';
 import { pluginMfEsmRuntime } from './esm-runtime';
-import { headScriptTags } from './head-scripts';
+import { headScriptTags, registerHeadScript } from './head-scripts';
 import { runtimeConfigSetup } from './runtime-config';
 
 export { esmTwin, isMfCjs, pluginMfEsmRuntime } from './esm-runtime';
@@ -33,6 +36,7 @@ export {
   appVersion,
   assertAsyncBoundary,
   installedVersionFrom,
+  normalizeBasePath,
   packageNameOf,
   resolvableFrom,
   sharedPackages,
@@ -124,7 +128,10 @@ export function createShellConfig(o: ShellOptions): RsbuildConfig {
   const cwd = o.cwd ?? process.cwd();
   const require = createRequire(path.join(cwd, 'package.json'));
   if (o.eager === false) assertAsyncBoundary(path.join(cwd, 'src/index.ts'));
-  const setup = runtimeConfigSetup(cwd, o.env ?? process.env);
+  const env = o.env ?? process.env;
+  const base = resolveBasePath(o.basePath, env);
+  if (base !== '/') registerHeadScript(BASE_SCRIPT_NAME, baseHeadScript(base, env));
+  const setup = runtimeConfigSetup(cwd, env, base);
   const headScripts = headScriptTags();
   return {
     plugins: [
@@ -139,7 +146,9 @@ export function createShellConfig(o: ShellOptions): RsbuildConfig {
       entry: { index: './src/index.ts' },
       define: shellDefines(o, cwd, resolvableFrom(cwd)),
     },
+    ...(base === '/' ? {} : { output: { assetPrefix: base } }),
     server: {
+      ...(base === '/' ? {} : { base }),
       historyApiFallback: true,
       ...(o.port === undefined ? {} : { port: o.port }),
       ...(setup === undefined ? {} : { setup }),

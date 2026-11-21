@@ -1,4 +1,13 @@
 export {
+  BASE_PATH_GLOBAL,
+  BASE_SCRIPT_NAME,
+  REGISTRY_URL_GLOBAL,
+  baseHeadScript,
+  defaultRegistryUrlFor,
+  normalizeBasePath,
+  resolveBasePath,
+} from './base';
+export {
   appVersion,
   assertAsyncBoundary,
   checkName,

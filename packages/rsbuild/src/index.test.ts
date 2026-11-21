@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { createRsbuild } from '@rsbuild/core';
 import {
   createRemoteConfig,
@@ -18,6 +18,7 @@ import {
   shellFederationOptions,
   snapshotEnabled,
 } from '.';
+import { headScriptTags, resetHeadScriptsForTests } from './head-scripts';
 
 const all = () => true;
 const only =
@@ -259,6 +260,52 @@ describe('createShellConfig', () => {
         cwd: path.resolve(import.meta.dirname, '..'),
       }).plugins,
     ).toHaveLength(2);
+  });
+});
+
+describe('createShellConfig with a base path', () => {
+  const cwd = path.resolve(import.meta.dirname, '..');
+
+  afterEach(resetHeadScriptsForTests);
+
+  it('is byte-identical to the config without one when no base path is given', () => {
+    const config = createShellConfig({ name: 'shell', port: 3000, cwd, env: {} });
+    expect(config.server).toEqual({ historyApiFallback: true, port: 3000 });
+    expect(config.output).toBeUndefined();
+    expect(headScriptTags()).toEqual([]);
+    expect(Object.keys(config).toSorted()).toEqual(['plugins', 'server', 'source']);
+    expect(Object.keys(config.source?.define ?? {}).toSorted()).toEqual([
+      '__MFEFLOW_APP_VERSION__',
+      '__MFEFLOW_SINGLETONS__',
+      '__MFEFLOW_SNAPSHOT__',
+    ]);
+    const slash = createShellConfig({ name: 'shell', port: 3000, cwd, env: {}, basePath: '/' });
+    expect(Object.keys(slash).toSorted()).toEqual(['plugins', 'server', 'source']);
+    expect(slash.server).toEqual(config.server);
+  });
+
+  it('sets the asset prefix and the server base, and hands the base to the page', () => {
+    const config = createShellConfig({
+      name: 'shell',
+      cwd,
+      env: { MFE_ENV: 'prod' },
+      basePath: 'demo',
+    });
+    expect(config.output).toEqual({ assetPrefix: '/demo/' });
+    expect(config.server).toMatchObject({ base: '/demo/', historyApiFallback: true });
+    expect(config.html?.tags).toEqual([
+      {
+        tag: 'script',
+        head: true,
+        append: false,
+        children: expect.stringContaining('"/demo/envs/prod/index.json"') as string,
+      },
+    ]);
+  });
+
+  it('reads MFEFLOW_BASE_PATH when the option is not given', () => {
+    const config = createShellConfig({ name: 'shell', cwd, env: { MFEFLOW_BASE_PATH: '/demo' } });
+    expect(config.output).toEqual({ assetPrefix: '/demo/' });
   });
 });
 

@@ -19,9 +19,10 @@ type ServerSetupFn = Extract<ServerSetup, (...args: never[]) => unknown>;
 export function runtimeConfigSetup(
   cwd: string,
   env: Readonly<Record<string, string | undefined>>,
+  base = '/',
 ): ServerSetupFn | undefined {
   if (runtimeConfigEnvs(cwd).length === 0) return undefined;
-  const handler = runtimeConfigHandler(cwd, runtimeConfigEnv(env));
+  const handler = runtimeConfigHandler(cwd, runtimeConfigEnv(env), base);
   return ({ server }) => {
     server.middlewares.use(handler);
   };

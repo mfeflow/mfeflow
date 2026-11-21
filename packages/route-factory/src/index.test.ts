@@ -72,6 +72,19 @@ describe('links.href', () => {
     expect(under.path('catalog.product', { params: { sku: 'A1' } })).toBe('/catalog/products/A1');
   });
 
+  it('uses the base path the shell was built with when no base is given, and an explicit base wins', () => {
+    const own = createLinks({ cart });
+    expect(own.href('cart.home')).toBe('/cart');
+    Reflect.set(globalThis, '__MFE_BASE_PATH__', '/demo/');
+    try {
+      expect(own.href('cart.home')).toBe('/demo/cart');
+      expect(own.path('cart.home')).toBe('/cart');
+      expect(createLinks({ cart }, { base: '' }).href('cart.home')).toBe('/cart');
+    } finally {
+      Reflect.deleteProperty(globalThis, '__MFE_BASE_PATH__');
+    }
+  });
+
   it('reads the base on every call, so runtime config can load later', () => {
     let base = '';
     const late = createLinks({ cart }, { base: () => base });

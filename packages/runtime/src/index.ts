@@ -1,3 +1,12 @@
+export {
+  basePath,
+  BASE_PATH_GLOBAL,
+  defaultRegistryUrl,
+  REGISTRY_URL_GLOBAL,
+  runtimeConfigUrl,
+  stripBase,
+  withBase,
+} from './base';
 export { composeProviders, withProps, type ProviderComponent } from './providers';
 export { REMOTE_ERROR_EVENT, reportRemoteError, type RemoteErrorReport } from './report';
 export {

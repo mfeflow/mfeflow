@@ -4,17 +4,20 @@ import type { Plugin, PluginOption, UserConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { federation, type ModuleFederationOptions } from '@module-federation/vite';
 import {
+  BASE_SCRIPT_NAME,
   assertAsyncBoundary,
+  baseHeadScript,
   commonRemoteOptions,
   commonShellOptions,
   installedVersionFrom,
+  resolveBasePath,
   resolvableFrom,
   shellDefines,
   type CommonFederationOptions,
   type RemoteOptions,
   type ShellOptions,
 } from '@mfeflow/bundler-shared';
-import { pluginHeadScripts } from './head-scripts';
+import { pluginHeadScripts, registerHeadScript } from './head-scripts';
 import { pluginRuntimeConfig } from './runtime-config';
 
 export { pluginHeadScripts, registerHeadScript } from './head-scripts';
@@ -26,6 +29,7 @@ export {
   appVersion,
   assertAsyncBoundary,
   installedVersionFrom,
+  normalizeBasePath,
   packageNameOf,
   resolvableFrom,
   runtimeConfigEnv,
@@ -158,8 +162,11 @@ export function createShellConfig(o: ShellOptions): UserConfig {
   const require = createRequire(path.join(cwd, 'package.json'));
   if (o.eager === false) assertAsyncBoundary(path.join(cwd, 'src/index.ts'));
   const env = o.env ?? process.env;
+  const base = resolveBasePath(o.basePath, env);
+  if (base !== '/') registerHeadScript(BASE_SCRIPT_NAME, baseHeadScript(base, env));
   return {
     root: cwd,
+    ...(base === '/' ? {} : { base }),
     // Client-side routing: unknown paths get index.html.
     appType: 'spa',
     envPrefix: 'PUBLIC_',
@@ -168,7 +175,7 @@ export function createShellConfig(o: ShellOptions): UserConfig {
       federationPlugin(shellFederationOptions(o, resolvableFrom(cwd), (s) => require.resolve(s))),
       pluginShellDefines(o, cwd),
       pluginHeadScripts(),
-      pluginRuntimeConfig(cwd, env),
+      pluginRuntimeConfig(cwd, env, base),
     ],
     build: { target: 'esnext' },
     server: listen(o.port),

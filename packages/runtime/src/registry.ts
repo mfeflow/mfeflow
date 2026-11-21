@@ -6,6 +6,7 @@ import {
   type RegistryIndexRemote,
 } from '@mfeflow/contracts/entry';
 import { registerRemotes } from '@module-federation/enhanced/runtime';
+import { defaultRegistryUrl } from './base';
 import { rememberRemoteVersions, reportRemoteError } from './report';
 import { fetchRuntimeConfig, RUNTIME_CONFIG_KEY, type RuntimeConfigValues } from './runtime-config';
 
@@ -87,6 +88,7 @@ export interface LoadRegistryOptions {
  */
 export const REGISTRY_GLOBAL = '__MFE_REGISTRY__';
 
+/** The default index URL at the root of a host. Under a base path the default is `defaultRegistryUrl()`. */
 export const DEFAULT_REGISTRY_URL = '/registry/index.json';
 
 /** Reported once when the primary index failed and a later URL served the shell. */
@@ -154,7 +156,7 @@ async function fetchIndex(
  * invalid field is skipped and reported (`MFE_INVALID_REMOTE`); the valid ones stay.
  */
 export async function loadRegistryIndex(
-  source: string | readonly string[] = DEFAULT_REGISTRY_URL,
+  source: string | readonly string[] = defaultRegistryUrl(),
   options: LoadRegistryOptions = {},
 ): Promise<RegistryIndex> {
   const inlined: unknown = Reflect.get(globalThis, REGISTRY_GLOBAL);
@@ -208,7 +210,7 @@ export function registrySourcesFromConfig(config: RuntimeConfigValues): Registry
     const url = URL.canParse(o) ? new URL(o) : undefined;
     return url?.protocol === 'https:' || url?.protocol === 'http:' ? url.origin : [];
   });
-  return { urls: urls.length > 0 ? urls : [DEFAULT_REGISTRY_URL], allowedOrigins };
+  return { urls: urls.length > 0 ? urls : [defaultRegistryUrl()], allowedOrigins };
 }
 
 export interface RegistrySources {
