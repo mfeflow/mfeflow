@@ -362,6 +362,21 @@ async function deployInner(
   );
 }
 
+/** Refuses a promote whose source is not the version `--expect-version` named. */
+export function assertExpectedVersion(
+  args: Record<string, unknown>,
+  from: string,
+  name: string,
+  served: string,
+): void {
+  const expected = typeof args['expect-version'] === 'string' ? args['expect-version'] : undefined;
+  if (expected === undefined || expected === served) return;
+  throw new MfeflowError(
+    'E510',
+    `${from} serves ${name}@${served}, not ${expected} as expected; check \`mfeflow status\` and plan again`,
+  );
+}
+
 async function promoteInner(
   rt: Runtime,
   args: Record<string, unknown>,
@@ -391,6 +406,7 @@ async function promoteInner(
   const source = await client.run(async () => pointer(await client.index(from), name));
   if (source?.version === undefined)
     throw new MfeflowError('E508', `${name} is not deployed to ${from}`);
+  assertExpectedVersion(args, from, name, source.version);
   const target = await client.run(async () => pointer(await client.index(to), name));
   await confirmed(rt, globals, `Point ${to} at ${name}@${source.version} (now in ${from})?`);
   const withVersion = { ...facts, version: source.version };

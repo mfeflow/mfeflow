@@ -41,6 +41,7 @@ import type { Runtime } from '../runtime';
 import { openServer } from '../server-client';
 import {
   deployViaServer,
+  assertExpectedVersion,
   promoteViaServer,
   refuseRolloutFlags,
   rollbackViaServer,
@@ -93,6 +94,11 @@ export const DEPLOY_ARGS = {
 export const PROMOTE_ARGS = {
   from: { type: 'string', description: 'Environment to copy the version from', valueHint: 'env' },
   to: { type: 'string', description: 'Environment to point at it', valueHint: 'env' },
+  'expect-version': {
+    type: 'string',
+    description: 'Refuse (E510) unless the source environment serves this version',
+    valueHint: 'v',
+  },
   ...ROLLOUT_ARGS,
   ...HOST_ARGS,
   ...GLOBAL_ARGS,
@@ -425,6 +431,7 @@ export async function runPromote(
   const app = remoteApp(s.view, name);
   const source = inEnv((await currentIndex(s, from)).index, app.name, from);
   const version = source.version ?? '';
+  assertExpectedVersion(args, from, app.name, version);
   await confirm(
     s,
     `Point ${to} at ${app.name}@${version} (now in ${from}) on ${s.hostLabel}?`,
