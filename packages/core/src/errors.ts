@@ -211,6 +211,10 @@ export const ERROR_CATALOGUE = {
     title: 'An app did not build',
     fix: "Read the bundler's output above for the cause, fix it, and run `mfeflow build` again. `mfeflow build --only <app>` builds one app.",
   },
+  E311: {
+    title: 'A tool this command runs is not installed or not set up',
+    fix: "Install the package the message names in the project (`pnpm add -D <package>`), or add the feature that sets it up (`mfeflow add testing`, `mfeflow add lint-oxlint`, `mfeflow add tsconfig`). mfeflow runs the project's own copy and never ships one.",
+  },
   E401: {
     title: 'Could not fetch from the registry',
     fix: 'Check the URL in "registries" and your network, then try again.',

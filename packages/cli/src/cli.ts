@@ -36,6 +36,14 @@ import {
   runRolloutCommand,
 } from './commands/server-mode';
 import { runStatus, STATUS_ARGS } from './commands/status';
+import {
+  LINT_ARGS,
+  runLint,
+  runTest,
+  runTypecheck,
+  TEST_ARGS,
+  TYPECHECK_ARGS,
+} from './commands/tools';
 import { runUpgrade, UPGRADE_ARGS } from './commands/upgrade';
 import { Cancelled, EXIT, exitCodeFor, reportOf, unexpectedReport, unexpectedText } from './exit';
 import { commandHelp, rootHelp, type CommandHelp } from './help';
@@ -305,6 +313,39 @@ export const COMMANDS: readonly Command[] = [
       'cd apps/catalog && mfeflow build   # inside an app: just that app',
     ],
     run: runBuild,
+  },
+  {
+    name: 'test',
+    summary: "run the project's tests with its own vitest, at the root or for some apps",
+    usage: 'mfeflow test [--only a,b] [-- <vitest args>]',
+    args: TEST_ARGS,
+    examples: [
+      'mfeflow test',
+      'mfeflow test --only catalog',
+      'mfeflow test -- --coverage',
+      'mfeflow test --json',
+    ],
+    run: runTest,
+  },
+  {
+    name: 'lint',
+    summary: 'lint the project with its own oxlint, type-aware, warnings denied',
+    usage: 'mfeflow lint [--only a,b] [-- <oxlint args>]',
+    args: LINT_ARGS,
+    examples: ['mfeflow lint', 'mfeflow lint --only shell', 'mfeflow lint -- --fix'],
+    run: runLint,
+  },
+  {
+    name: 'typecheck',
+    summary: "run the project's own tsc --noEmit in every app, side by side",
+    usage: 'mfeflow typecheck [--only a,b] [--jobs n] [-- <tsc args>]',
+    args: TYPECHECK_ARGS,
+    examples: [
+      'mfeflow typecheck',
+      'mfeflow typecheck --only shell,catalog',
+      'mfeflow typecheck --jobs 2 --json',
+    ],
+    run: runTypecheck,
   },
   {
     name: 'mcp',

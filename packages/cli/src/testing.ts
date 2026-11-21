@@ -90,7 +90,7 @@ export interface FakeProc extends DevProcess {
   spec: DevSpec;
   stopped: boolean;
   /** What the process prints. */
-  print(text: string): void;
+  print(text: string, stream?: 'stdout' | 'stderr'): void;
   /** The process ends by itself. */
   exit(code: number | null): void;
 }
@@ -105,13 +105,15 @@ export interface FakeDev extends DevHost {
   /** Ctrl+C. */
   interrupt(): void;
   waitPolicy: WaitPolicy;
+  /** Makes `spawn` throw for the specs this returns an error for. */
+  failSpawn?: (spec: DevSpec) => Error | undefined;
 }
 
 export function fakeDev(): FakeDev {
   const procs: FakeProc[] = [];
   const listeners = { watch: [] as (() => void)[], interrupt: [] as (() => void)[] };
   const watched: string[][] = [];
-  return {
+  const dev: FakeDev = {
     procs,
     busy: new Set(),
     watched,
@@ -123,7 +125,9 @@ export function fakeDev(): FakeDev {
       for (const listener of listeners.interrupt) listener();
     },
     spawn: (spec) => {
-      const out: ((chunk: string) => void)[] = [];
+      const refusal = dev.failSpawn?.(spec);
+      if (refusal !== undefined) throw refusal;
+      const out: ((chunk: string, stream?: 'stdout' | 'stderr') => void)[] = [];
       const ends: ((code: number | null) => void)[] = [];
       const proc: FakeProc = {
         spec,
@@ -131,8 +135,8 @@ export function fakeDev(): FakeDev {
         pid: 1000 + procs.length,
         onOutput: (listener) => out.push(listener),
         onExit: (listener) => ends.push(listener),
-        print: (text) => {
-          for (const listener of out) listener(text);
+        print: (text, stream) => {
+          for (const listener of out) listener(text, stream);
         },
         exit: (code) => {
           for (const listener of ends) listener(code);
@@ -163,6 +167,7 @@ export function fakeDev(): FakeDev {
       return Promise.resolve(!this.busy.has(port));
     },
   };
+  return dev;
 }
 
 export interface FakeBundler extends BundlerHost {

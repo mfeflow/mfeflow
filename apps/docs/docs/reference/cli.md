@@ -13,31 +13,32 @@ Run the command with `--help` for the options and examples of one command.
 
 ## Commands
 
-| Command                                          | Does                                                                              |
-| ------------------------------------------------ | --------------------------------------------------------------------------------- |
-| `init [dir]`                                     | Create a project: a shell and remotes, in one repo or one repo per team           |
-| `adopt`                                          | Set up mfeflow in an existing Module Federation project; never edits build config |
-| `add remote <name>`                              | Add a remote, its registry entries and a shell route                              |
-| `add shell <name>`                               | Add a shell that routes to every remote                                           |
-| `add team-repo <name>`                           | In a polyrepo shell repo: add a remote in a new repo next to the others           |
-| `add <feature...>`                               | Add features, or `@namespace/feature` from a registry                             |
-| `add env-key <KEY>`                              | Add a typed env key                                                               |
-| `upgrade`                                        | Move the project to the version of mfeflow you run, keeping your edits            |
-| `features [search]`                              | List and search features from mfeflow and your registries                         |
-| `registry add`, `list`, `remove`, `build`        | Configure or build third-party registries                                         |
-| `doctor`                                         | Check singletons, compatibility, config and drift                                 |
-| `validate`                                       | Check `mfeflow.json`, every `mfeflow.app.json` and every registry entry           |
-| `check-compat`                                   | Check each remote's shared ranges against its shells                              |
-| `budget`                                         | Measure built JavaScript against the cost model                                   |
-| `dev`                                            | Run the shell and every remote with a dev registry                                |
-| `build`                                          | Build every remote, then the shell, with the bundler each app installed           |
-| `deploy <remote>`                                | Upload a remote's build to a static registry host and point an environment at it  |
-| `promote <remote>`                               | Point one environment at the version another serves; no upload                    |
-| `rollback <remote>`                              | Point an environment back at an earlier version; no rebuild                       |
-| `status`                                         | What each environment serves, the version before it, and drift                    |
-| `rollout step\|complete\|abort\|status <remote>` | Move or read a percentage rollout (registry server only)                          |
-| `kill <remote>`, `restore <remote>`              | Take a remote out of the served index, or put it back (registry server only)      |
-| `mcp`                                            | Run an MCP server on stdin and stdout for coding agents                           |
+| Command                                          | Does                                                                                |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `init [dir]`                                     | Create a project: a shell and remotes, in one repo or one repo per team             |
+| `adopt`                                          | Set up mfeflow in an existing Module Federation project; never edits build config   |
+| `add remote <name>`                              | Add a remote, its registry entries and a shell route                                |
+| `add shell <name>`                               | Add a shell that routes to every remote                                             |
+| `add team-repo <name>`                           | In a polyrepo shell repo: add a remote in a new repo next to the others             |
+| `add <feature...>`                               | Add features, or `@namespace/feature` from a registry                               |
+| `add env-key <KEY>`                              | Add a typed env key                                                                 |
+| `upgrade`                                        | Move the project to the version of mfeflow you run, keeping your edits              |
+| `features [search]`                              | List and search features from mfeflow and your registries                           |
+| `registry add`, `list`, `remove`, `build`        | Configure or build third-party registries                                           |
+| `doctor`                                         | Check singletons, compatibility, config and drift                                   |
+| `validate`                                       | Check `mfeflow.json`, every `mfeflow.app.json` and every registry entry             |
+| `check-compat`                                   | Check each remote's shared ranges against its shells                                |
+| `budget`                                         | Measure built JavaScript against the cost model                                     |
+| `dev`                                            | Run the shell and every remote with a dev registry                                  |
+| `test`, `lint`, `typecheck`                      | Run the project's own vitest, oxlint and `tsc --noEmit`, with `--only` and `--json` |
+| `build`                                          | Build every remote, then the shell, with the bundler each app installed             |
+| `deploy <remote>`                                | Upload a remote's build to a static registry host and point an environment at it    |
+| `promote <remote>`                               | Point one environment at the version another serves; no upload                      |
+| `rollback <remote>`                              | Point an environment back at an earlier version; no rebuild                         |
+| `status`                                         | What each environment serves, the version before it, and drift                      |
+| `rollout step\|complete\|abort\|status <remote>` | Move or read a percentage rollout (registry server only)                            |
+| `kill <remote>`, `restore <remote>`              | Take a remote out of the served index, or put it back (registry server only)        |
+| `mcp`                                            | Run an MCP server on stdin and stdout for coding agents                             |
 
 This release has no command to remove a feature.
 
@@ -319,6 +320,28 @@ Each app builds in its own process, and every line it prints starts with its nam
 
 Inside an app's folder (or any folder in it) it builds only that app, in the same process, with the bundler's own output. `--only` is an error there. Ctrl+C stops the running builds and exits with code 130. `--dry-run` prints the order and builds nothing. With `--json` the output of the builds goes to stderr and stdout holds one document.
 
+## test, lint and typecheck
+
+Three wrappers that run the same tools the generated scripts run, from the project's own install: `node_modules/.bin` of the app or of a folder above it, up to the project root. mfeflow never ships a copy, so the version is the one your lockfile has. A tool that is not installed, or a `vitest` without a config, is E311 and names the package.
+
+| Command     | Runs                                  | Where                                                                                                                       |
+| ----------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `test`      | `vitest run`                          | The project root, which holds one vitest config with a project per app. Without a root config, in each app that has one     |
+| `lint`      | `oxlint --type-aware --deny-warnings` | The project root                                                                                                            |
+| `typecheck` | `tsc --noEmit`                        | Each app, each workspace package with a `typecheck` script, and the root when it has `typecheck:tooling` (called `tooling`) |
+
+| Flag           | Meaning                                                                                                                                            |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--only <a,b>` | Run for these apps only. `test` passes `--project <package name>` to vitest, `lint` passes the app folders to oxlint, `typecheck` skips the others |
+| `--jobs <n>`   | `typecheck` only: how many apps to check at once. Default 4                                                                                        |
+| `-- <args>`    | Everything after `--` goes to the tool unchanged: `mfeflow test -- --coverage`, `mfeflow lint -- --fix`                                            |
+
+Inside an app folder each command acts on that app. `typecheck` prints every line with the app's name in front. With `--dry-run` the commands are printed and nothing runs. The tool's own output goes to stdout, or to stderr with `--json`, so stdout holds one document.
+
+If a tool exits with anything but 0, mfeflow exits with 5 and the summary line names the app. Ctrl+C stops the tools and exits with 130. With `--json`, `runs[]` has one entry per tool process: `name`, `tool`, `command`, `cwd`, `ok`, `exitCode` (null when it could not start), `durationMs` and, when the process could not be started, `error`. `skipped[]` lists what was left out, each with `name` and `reason`.
+
+`typecheck` runs `tsc --noEmit` only where the folder has a `tsconfig.json`; an app or package whose `typecheck` script is anything other than plain `tsc --noEmit` is checked by running that script through the project's package manager. `test` without a root vitest config skips the apps that have none and prints which. An empty `--only` is E107. A package with the same name as an app is left out, so the name means the app.
+
 ## mcp
 
 Starts an MCP server on stdin and stdout, for a coding agent to inspect a project and plan changes. It is started by the agent's config, not by hand. It prints nothing else on stdout, and ends when its input closes.
@@ -391,18 +414,18 @@ In server mode `deploy` still uploads the build to `--host` first, because the s
 
 ## Exit codes
 
-| Code | Meaning                                               |
-| ---- | ----------------------------------------------------- |
-| 0    | Success                                               |
-| 1    | Unexpected error                                      |
-| 2    | Bad command line (E107, E215)                         |
-| 3    | Project or config problem (E1xx)                      |
-| 4    | Feature problem (E2xx)                                |
-| 5    | Build or runtime problem (E3xx)                       |
-| 6    | Feature registry problem (E4xx)                       |
-| 7    | Deploy problem (E5xx)                                 |
-| 8    | Upgrade problem, or files that need a decision (E6xx) |
-| 130  | Cancelled at a prompt, or Ctrl+C in `dev`             |
+| Code | Meaning                                                                                  |
+| ---- | ---------------------------------------------------------------------------------------- |
+| 0    | Success                                                                                  |
+| 1    | Unexpected error                                                                         |
+| 2    | Bad command line (E107, E215)                                                            |
+| 3    | Project or config problem (E1xx)                                                         |
+| 4    | Feature problem (E2xx)                                                                   |
+| 5    | Build or runtime problem (E3xx), or a tool that `test`, `lint` or `typecheck` ran failed |
+| 6    | Feature registry problem (E4xx)                                                          |
+| 7    | Deploy problem (E5xx)                                                                    |
+| 8    | Upgrade problem, or files that need a decision (E6xx)                                    |
+| 130  | Cancelled at a prompt, or Ctrl+C in `dev`                                                |
 
 For the four check commands, the exit code is the lowest code among the errors found. Warnings do not change it. Every error has a code and a page. See [Error codes](/reference/errors).
 
@@ -436,5 +459,6 @@ The success documents have these shapes. Each has `ok` and `command`.
 | `budget`                             | `root`, `model`, `shells[]`, `remotes[]`, `findings[]`                                                                |
 | `dev`                                | `root`, `registry`, `apps[]`, `overrides`, `dryRun`, `interrupted`                                                    |
 | `build`                              | `root`, `concurrency`, `apps[]` (`name`, `kind`, `status`, `ms`, `kb`), `findings[]`, `interrupted`                   |
+| `test`, `lint`, `typecheck`          | `root`, `dryRun`, `interrupted`, `runs[]` (`name`, `tool`, `command`, `cwd`, `ok`, `exitCode`, `durationMs`)          |
 
 The plan in the `init` and `add` output lists features, changes (path and action), dependencies, scripts, warnings and `skipped`: the parts of a feature that target a shell the repo does not have (`feature`, `kind`, `name`, `target`). Older documents have no `skipped` key. Output shapes are part of the public API. See [Versions and upgrades](/guide/upgrading).

@@ -59,18 +59,19 @@ Every error the CLI prints has a code like MFEFLOW_E102, a cause, a fix and a li
 
 ## Build and runtime (E3xx, exit code 5)
 
-| Code                 | Meaning                                       |
-| -------------------- | --------------------------------------------- |
-| [E301](/errors/E301) | A singleton resolves to more than one version |
-| [E302](/errors/E302) | A remote is not compatible with its shell     |
-| [E303](/errors/E303) | A runtime plugin imports a shared module      |
-| [E304](/errors/E304) | A bundle is over its budget                   |
-| [E305](/errors/E305) | There is no build output to measure           |
-| [E306](/errors/E306) | A dev server could not start                  |
-| [E307](/errors/E307) | The shell to check against could not be read  |
-| [E308](/errors/E308) | The bundler is not installed in an app        |
-| [E309](/errors/E309) | An app has no config file for its bundler     |
-| [E310](/errors/E310) | An app did not build                          |
+| Code                 | Meaning                                                 |
+| -------------------- | ------------------------------------------------------- |
+| [E301](/errors/E301) | A singleton resolves to more than one version           |
+| [E302](/errors/E302) | A remote is not compatible with its shell               |
+| [E303](/errors/E303) | A runtime plugin imports a shared module                |
+| [E304](/errors/E304) | A bundle is over its budget                             |
+| [E305](/errors/E305) | There is no build output to measure                     |
+| [E306](/errors/E306) | A dev server could not start                            |
+| [E307](/errors/E307) | The shell to check against could not be read            |
+| [E308](/errors/E308) | The bundler is not installed in an app                  |
+| [E309](/errors/E309) | An app has no config file for its bundler               |
+| [E310](/errors/E310) | An app did not build                                    |
+| [E311](/errors/E311) | A tool this command runs is not installed or not set up |
 
 ## Registry (E4xx, exit code 6)
 
