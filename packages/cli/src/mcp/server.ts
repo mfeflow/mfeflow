@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { createNetGuard, type NetGuardOptions } from '../net-guard';
 import { readPackageJson } from '../version';
 import type { CliMain } from './capture';
 import { capOutput } from './limits';
@@ -14,12 +15,19 @@ export interface McpOptions {
   /** Tests move the clock to expire a plan. */
   now?: () => number;
   maxText?: number;
+  /** Tests stand in for DNS and exempt a local server from the private-address check. */
+  net?: NetGuardOptions;
 }
 
 export function createMcpServer(options: McpOptions): McpServer {
   const server = new McpServer({ name: 'mfeflow', version: readPackageJson().version });
   const tools = buildTools(
-    { main: options.main, plans: new PlanStore(options.now), env: options.env ?? process.env },
+    {
+      main: options.main,
+      plans: new PlanStore(options.now),
+      env: options.env ?? process.env,
+      net: createNetGuard(options.net),
+    },
     options.allowRegistryWrites,
   );
   for (const tool of tools) {

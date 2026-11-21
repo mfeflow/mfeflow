@@ -12,6 +12,13 @@ import {
 } from '@mfeflow/contracts';
 import { MfeflowError, messageOf } from '../errors';
 
+/** A guarded fetch refused a host whose address is private (E405); callers let it through unchanged. */
+export class PrivateTargetError extends MfeflowError {
+  constructor(detail: string) {
+    super('E405', detail);
+  }
+}
+
 /** The part of `Response` the loader uses, so tests can pass a plain object. */
 export interface FetchResponse {
   ok: boolean;
@@ -25,7 +32,12 @@ export interface FetchResponse {
 
 export type FetchLike = (
   url: string,
-  init?: { signal?: AbortSignal; redirect?: 'follow' | 'manual' },
+  init?: {
+    signal?: AbortSignal;
+    redirect?: 'follow' | 'manual';
+    method?: string;
+    headers?: Record<string, string>;
+  },
 ) => Promise<FetchResponse>;
 
 /** Largest feature.json or index.json a registry may serve; `registry build` refuses to write more. */
@@ -125,6 +137,7 @@ export async function getHttps(
         redirect: 'manual',
       });
     } catch (error) {
+      if (error instanceof PrivateTargetError) throw error;
       return fail(current, messageOf(error), error);
     }
     if (response.url !== undefined && response.url !== '' && !addressOk(response.url)) {
@@ -166,6 +179,7 @@ export async function fetchRemoteText(
     blockPrivate: !trusted,
   });
   if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined);
     const hint = response.status === 404 ? `${name} is not in that registry` : undefined;
     throw new MfeflowError(
       'E401',
@@ -283,6 +297,7 @@ async function readIndex(
     blockPrivate: !trusted,
   });
   if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined);
     if (missingOk && response.status === 404) return undefined;
     const hint = response.status === 404 ? ': this registry has no index.json' : '';
     throw new MfeflowError('E401', `${shown} answered ${String(response.status)}${hint}`);

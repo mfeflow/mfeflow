@@ -1,5 +1,6 @@
 import {
   findProjectRoot,
+  isThirdPartyFeature,
   loadProject,
   MfeflowError,
   renderDiff,
@@ -353,7 +354,7 @@ function assertTrusted(
 ): void {
   const untrusted = new Set(
     Object.keys(features)
-      .filter((name) => name.startsWith('@'))
+      .filter(isThirdPartyFeature)
       .map((name) => name.slice(0, name.indexOf('/')))
       .filter((namespace) => namespace in (registries ?? {}) && !trusted.has(namespace)),
   );

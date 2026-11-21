@@ -2,6 +2,7 @@ import {
   checkIntegrity,
   findProjectRoot,
   inOrder,
+  isThirdPartyFeature,
   loadProject,
   MfeflowError,
   resolveFeature,
@@ -108,7 +109,7 @@ async function addAppParts(
   const untrusted = [
     ...new Set(
       names
-        .filter((n) => n.startsWith('@'))
+        .filter(isThirdPartyFeature)
         .map((n) => n.slice(0, n.indexOf('/')))
         .filter((ns) => ns in (project.registries ?? {}) && !trusted.fetch.has(ns)),
     ),
