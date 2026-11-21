@@ -1,5 +1,12 @@
 # @mfeflow/testing
 
+## 0.10.0
+
+### Patch Changes
+
+- Updated dependencies [[`d56b242`](https://github.com/mfeflow/mfeflow/commit/d56b242828281a73ff7d4a03fc8d92fb4903b51c)]:
+  - @mfeflow/runtime@0.10.0
+
 ## 0.9.0
 
 ### Patch Changes

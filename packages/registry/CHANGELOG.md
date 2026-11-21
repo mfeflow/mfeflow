@@ -1,5 +1,16 @@
 # @mfeflow/registry
 
+## 0.10.0
+
+### Minor Changes
+
+- [#121](https://github.com/mfeflow/mfeflow/pull/121) [`ccbefbb`](https://github.com/mfeflow/mfeflow/commit/ccbefbb4a0d61d036cadd9e3370909bfd9e5399f) Thanks [@speedsharmaai](https://github.com/speedsharmaai)! - `POST /v1/promote` accepts an optional `expectVersion`. If the source environment serves another version, the server answers 409 (`conflict`) and changes nothing, so a promote planned against one version cannot move another.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @mfeflow/contracts@0.10.0
+
 ## 0.9.0
 
 ### Patch Changes
