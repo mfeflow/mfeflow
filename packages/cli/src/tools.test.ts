@@ -11,12 +11,9 @@ afterEach(async () => {
 });
 
 async function bin(dir: string, name: string): Promise<string> {
-  const file = path.join(
-    dir,
-    'node_modules',
-    '.bin',
-    `${name}${process.platform === 'win32' ? '.cmd' : ''}`,
-  );
+  // On Windows the tools are .cmd shims; a name that already has an extension is kept as it is.
+  const shim = process.platform === 'win32' && path.extname(name) === '' ? '.cmd' : '';
+  const file = path.join(dir, 'node_modules', '.bin', `${name}${shim}`);
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, '');
   return file;
