@@ -1,5 +1,5 @@
-// Generates a tooling repo with this checkout (`mfeflow init --kind tooling --local`): four packages
-// in the team's scope and the lint and git hook features. Then does what a team would: installs it
+// Generates a tooling repo with this checkout (`mfeflow init --kind tooling --local`): every package
+// of the catalogue (`TOOLING_PACKAGES`) in the team's scope and the lint and git hook features. Then does what a team would: installs it
 // (which installs the repo's own git hooks), builds, typechecks, lints and checks the format.
 // Needs `pnpm build` to have run in this repo, and the network (it installs from npm).
 // Usage: node scripts/smoke-tooling.mjs   (SMOKE_DIR=/some/folder keeps the repo there)
@@ -13,7 +13,19 @@ const work = process.env.SMOKE_DIR ?? fs.mkdtempSync(path.join(os.tmpdir(), 'mfe
 fs.mkdirSync(work, { recursive: true });
 const root = path.join(work, 'tools');
 const cli = path.join(repo, 'packages/cli/bin/mfeflow.js');
-const PACKAGES = ['tsconfig', 'oxlint-config', 'analytics', 'http'];
+
+/** The names in `TOOLING_PACKAGES`, read from the source: the CLI's dist does not export the list. */
+function toolingPackages() {
+  const source = fs.readFileSync(path.join(repo, 'packages/cli/src/tooling-packages.ts'), 'utf8');
+  const start = source.indexOf('export const TOOLING_PACKAGES');
+  const end = source.indexOf('\n];', start);
+  if (start < 0 || end < 0)
+    throw new Error('could not find TOOLING_PACKAGES in tooling-packages.ts');
+  const names = [...source.slice(start, end).matchAll(/\{\s*name: '([^']+)'/g)].map((m) => m[1]);
+  if (names.length === 0) throw new Error('TOOLING_PACKAGES has no packages');
+  return names;
+}
+const PACKAGES = toolingPackages();
 
 /** The environment without the GIT_* variables a git hook sets, so git works on the folder it is run in. */
 const env = Object.fromEntries(
@@ -82,7 +94,7 @@ try {
   console.log('ok  the git hooks are installed in the tooling repo');
 
   step('build', 'pnpm', ['build'], root);
-  for (const name of ['analytics', 'http']) {
+  for (const name of PACKAGES.filter((n) => n !== 'tsconfig' && n !== 'oxlint-config')) {
     if (!fs.existsSync(path.join(root, 'packages', name, 'dist/index.js')))
       throw new Error(`packages/${name} has no dist after build`);
   }
