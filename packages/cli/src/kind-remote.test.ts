@@ -589,15 +589,6 @@ describe('init --kind remote --bundler vite', () => {
     expect(project.shell).toBeUndefined();
   });
 
-  it('does not record a bundler for Rsbuild, and writes rsbuild.config.ts', async () => {
-    const cwd = await workspace();
-    const { root } = await remoteRepo(cwd);
-    expect(await projectOf(root)).not.toHaveProperty('bundler');
-    const tree = await readTree(root);
-    expect(tree).toHaveProperty(['apps/catalog/rsbuild.config.ts']);
-    expect(tree).not.toHaveProperty(['apps/catalog/vite.config.ts']);
-  });
-
   it('reads the bundler from a preset', async () => {
     const cwd = await workspace();
     const preset = path.join(cwd, 'preset.json');
@@ -613,8 +604,23 @@ describe('init --kind remote --bundler vite', () => {
       '--no-install',
     ]);
     expect(code).toBe(0);
-    const tree = await readTree(path.join(cwd, 'r'));
+    const root = path.join(cwd, 'r');
+    expect(await projectOf(root)).toMatchObject({ repo: 'remote', bundler: 'vite' });
+    const tree = await readTree(root);
     expect(tree).toHaveProperty(['apps/catalog/vite.config.ts']);
+    expect(tree).not.toHaveProperty(['apps/catalog/rsbuild.config.ts']);
+    expect(tree['apps/catalog/package.json']).toContain('@mfeflow/vite');
+  });
+});
+
+describe('init --kind remote with the default bundler', () => {
+  it('does not record a bundler for Rsbuild, and writes rsbuild.config.ts', async () => {
+    const cwd = await workspace();
+    const { root } = await remoteRepo(cwd);
+    expect(await projectOf(root)).not.toHaveProperty('bundler');
+    const tree = await readTree(root);
+    expect(tree).toHaveProperty(['apps/catalog/rsbuild.config.ts']);
+    expect(tree).not.toHaveProperty(['apps/catalog/vite.config.ts']);
   });
 });
 

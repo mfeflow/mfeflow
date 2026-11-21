@@ -125,6 +125,7 @@ describe('init --kind', () => {
     [['--remotes', ''], /no apps/],
     [['--bundler', 'vite'], /no apps to bundle/],
     [['--bundler', 'rsbuild'], /no apps to bundle/],
+    [['--bundler', ''], /no apps to bundle/],
   ])('refuses %j next to --kind tooling', async (flags, message) => {
     const cwd = await workspace();
     const { code, err } = await tooling(cwd, ...flags);
@@ -133,14 +134,14 @@ describe('init --kind', () => {
     expect(await fs.readdir(cwd)).toEqual([]);
   });
 
-  it('refuses a bundler that comes from a preset too', async () => {
+  it.each([
+    ['vite', true],
+    ['rsbuild', false],
+  ])('ignores the bundler %s of a shared preset', async (bundler, noted) => {
     const cwd = await workspace();
     const preset = path.join(cwd, 'preset.json');
-    await fs.writeFile(
-      preset,
-      JSON.stringify({ kind: 'tooling', scope: '@acme', bundler: 'vite' }),
-    );
-    const { code, err } = await run(cwd, [
+    await fs.writeFile(preset, JSON.stringify({ kind: 'tooling', scope: '@acme', bundler }));
+    const { code, out, err } = await run(cwd, [
       'init',
       't',
       '--preset',
@@ -148,9 +149,12 @@ describe('init --kind', () => {
       '--yes',
       '--no-install',
     ]);
-    expect(code).toBe(2);
-    expect(err).toMatch(/no apps to bundle/);
-    expect(await fs.readdir(cwd)).toEqual(['preset.json']);
+    expect(code).toBe(0);
+    expect(err).toBe('');
+    expect(out.includes(`preset bundler ${bundler} ignored: a tooling repo has no apps`)).toBe(
+      noted,
+    );
+    expect(await json(path.join(cwd, 't', 'mfeflow.json'))).not.toHaveProperty('bundler');
   });
 
   it('still refuses --org outside polyrepo and tooling', async () => {
@@ -412,6 +416,15 @@ describe('commands in a project with no apps', () => {
     const { code, out } = await run(root, ['budget']);
     expect(code).toBe(0);
     expect(out).toBe('This project has no apps, so there is no size to measure.');
+  });
+
+  it.each([['vite'], ['rsbuild'], ['']])('upgrade --bundler %j is refused', async (value) => {
+    const root = await toolingRoot();
+    const before = await readTree(root);
+    const { code, err } = await run(root, ['upgrade', '--bundler', value, '--dry-run']);
+    expect(code).toBe(2);
+    expect(err).toMatch(/no apps to bundle/);
+    expect(await readTree(root)).toEqual(before);
   });
 
   it('upgrade --dry-run prints one line, exits 0 and changes nothing', async () => {

@@ -38,6 +38,7 @@ import {
 } from '../options';
 import { planReport, type InitResult, type PlanReport } from '../output';
 import { Cancelled } from '../exit';
+import { assertNoBundlerFlag } from '../noapps';
 import { chooseLocal } from '../local';
 import { createBuilder } from '../pipeline';
 import { coreFor, glueScope } from '../remote-only';
@@ -316,14 +317,12 @@ export async function resolveInitOptions(
   if (tooling && (typed(args, 'remotes') !== undefined || preset.remotes !== undefined)) {
     throw new MfeflowError('E107', '--kind tooling has no apps, so it takes no --remotes');
   }
-  if (tooling && (text(args, 'bundler') !== undefined || preset.bundler !== undefined)) {
-    throw new MfeflowError(
-      'E107',
-      '--kind tooling has no apps to bundle, so it takes no --bundler (its packages build with tsc)',
-    );
-  }
+  if (tooling) assertNoBundlerFlag(typed(args, 'bundler'));
   // No prompt: Rsbuild stays the default, so scripted inits that answer every question keep working.
-  const bundler = bundlerOf(text(args, 'bundler') ?? preset.bundler) ?? 'rsbuild';
+  const presetBundlerIgnored = tooling && preset.bundler !== undefined;
+  const bundler = tooling
+    ? 'rsbuild'
+    : (bundlerOf(text(args, 'bundler') ?? preset.bundler) ?? 'rsbuild');
   const { canPrompt } = globals;
   const { prompter } = rt;
 
@@ -442,7 +441,12 @@ export async function resolveInitOptions(
     remotes,
     features,
     packages: packageChoice.packages,
-    packageNotices: packageChoice.notices,
+    packageNotices: [
+      ...packageChoice.notices,
+      ...(presetBundlerIgnored && preset.bundler !== 'rsbuild'
+        ? [`preset bundler ${String(preset.bundler)} ignored: a tooling repo has no apps`]
+        : []),
+    ],
     ...(shell === undefined ? {} : { shell }),
     featureOptions,
   };
