@@ -2,7 +2,14 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isRegistryProtocol, redactUrlsIn } from '@mfeflow/contracts';
-import { getHttps, messageOf, MfeflowError, readCappedText, type FetchLike } from '@mfeflow/core';
+import {
+  getHttps,
+  messageOf,
+  MfeflowError,
+  PrivateTargetError,
+  readCappedText,
+  type FetchLike,
+} from '@mfeflow/core';
 
 const MAX_BYTES = 1_000_000;
 const SHELL_MANIFEST = 'shell/mf-manifest.json';
@@ -89,6 +96,7 @@ export async function loadShell(
         options.fromProject === true,
       );
     } catch (error) {
+      if (error instanceof PrivateTargetError) throw error;
       return fail(from === source ? source : `${source} (${from})`, messageOf(error), error);
     }
   };

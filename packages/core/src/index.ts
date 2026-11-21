@@ -120,6 +120,7 @@ export {
   registryUrl,
   resolveFeature,
   resolveOptions,
+  PrivateTargetError,
   type FetchLike,
   type FetchResponse,
   type LoadedFeature,

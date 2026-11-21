@@ -14,6 +14,7 @@ export {
   integrityOf,
   readCappedText,
   registryUrl,
+  PrivateTargetError,
   type FetchLike,
   type FetchResponse,
 } from './remote';

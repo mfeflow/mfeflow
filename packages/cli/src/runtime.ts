@@ -1,5 +1,6 @@
 import { configDirOf, type FetchLike } from '@mfeflow/core';
 import { assetRoots, type AssetRoots } from './assets';
+import { createNetGuard } from './net-guard';
 import { processIo, type Io } from './io';
 import { realDevHost, type DevHost } from './proc';
 import { clackPrompter, type Prompter } from './prompter';
@@ -12,6 +13,8 @@ export interface Runtime {
   prompter: Prompter;
   system: System;
   fetch: FetchLike;
+  /** `fetch` for a URL read from a committed file: refuses a name that resolves to a private address. Absent means `fetch`. */
+  publicFetch?: FetchLike;
   roots: AssetRoots;
   /** Where per-user settings live, like the registries the user trusts. */
   configDir: string;
@@ -31,6 +34,7 @@ export function realRuntime(io: Io = processIo()): Runtime {
     prompter: clackPrompter,
     system: createSystem(io),
     fetch: (url, init) => fetch(url, init),
+    publicFetch: createNetGuard().fetch,
     roots: assetRoots(),
     configDir: configDirOf(io.env),
     dev: realDevHost(),

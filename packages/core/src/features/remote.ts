@@ -12,6 +12,13 @@ import {
 } from '@mfeflow/contracts';
 import { MfeflowError, messageOf } from '../errors';
 
+/** A guarded fetch refused a host whose address is private (E405); callers let it through unchanged. */
+export class PrivateTargetError extends MfeflowError {
+  constructor(detail: string) {
+    super('E405', detail);
+  }
+}
+
 /** The part of `Response` the loader uses, so tests can pass a plain object. */
 export interface FetchResponse {
   ok: boolean;
@@ -125,6 +132,7 @@ export async function getHttps(
         redirect: 'manual',
       });
     } catch (error) {
+      if (error instanceof PrivateTargetError) throw error;
       return fail(current, messageOf(error), error);
     }
     if (response.url !== undefined && response.url !== '' && !addressOk(response.url)) {
