@@ -106,9 +106,10 @@ if (process.argv.includes('--list')) {
   fs.mkdirSync(base, { recursive: true });
   const failures: string[] = [];
   for (const combo of selection()) {
-    const work = fs.mkdtempSync(path.join(base, `mfeflow-matrix-${combo.id}-`));
+    // A short folder name: the longest ids pushed pnpm's state files past Windows' 260-character path limit.
+    const work = fs.mkdtempSync(path.join(base, 'mfm-'));
     const started = Date.now();
-    console.log(`\n=== ${combo.id}`);
+    console.log(`\n=== ${combo.id} in ${work}`);
     // oxlint-disable-next-line no-await-in-loop -- one project on disk at a time keeps the disk small
     const failed = await check(combo, work);
     fs.rmSync(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
