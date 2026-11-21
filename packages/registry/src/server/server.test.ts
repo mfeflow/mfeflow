@@ -363,6 +363,23 @@ describe('POST /v1/promote', () => {
     expect(again.body.changed).toBe(false);
   });
 
+  it('refuses with 409 when the source no longer serves the expected version', async () => {
+    await h.deploy(admin, 'cart', '1.0.0', 'staging');
+    await h.deploy(admin, 'cart', '2.0.0', 'staging');
+    const moved = await h.call('POST', '/v1/promote', {
+      token: admin,
+      body: { from: 'staging', to: 'prod', remote: 'cart', expectVersion: '1.0.0' },
+    });
+    expect(moved.status).toBe(409);
+    expect((await h.call('GET', '/v1/index/prod')).status).toBe(404);
+    const same = await h.call('POST', '/v1/promote', {
+      token: admin,
+      body: { from: 'staging', to: 'prod', remote: 'cart', expectVersion: '2.0.0' },
+    });
+    expect(same.status).toBe(200);
+    expect((await prodIndex()).remotes[0]?.version).toBe('2.0.0');
+  });
+
   it('keeps previous and history across promotions', async () => {
     await h.deploy(admin, 'cart', '1.0.0', 'staging');
     await h.call('POST', '/v1/promote', {

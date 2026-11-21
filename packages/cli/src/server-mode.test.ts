@@ -681,3 +681,85 @@ describe('a server that echoes the token back', () => {
     }
   });
 });
+
+describe('promote --expect-version sent to the server', () => {
+  type Reply = { status: number; body: unknown };
+
+  async function promote(
+    answer: (posted: Record<string, unknown>) => Reply,
+  ): Promise<{ code: number; json: Record<string, unknown>; posted: Record<string, unknown>[] }> {
+    const posted: Record<string, unknown>[] = [];
+    const rt = testRuntime();
+    rt.io = fakeIo({
+      env: { MFEFLOW_REGISTRY_URL: 'http://127.0.0.1:1', MFEFLOW_REGISTRY_TOKEN: 'tok' },
+    });
+    rt.serverFetch = (input, init) => {
+      const route = input instanceof Request ? input.url : input.toString();
+      if (route.includes('/v1/index/')) {
+        return Promise.resolve(
+          Response.json({ remotes: [{ name: 'catalog', version: '1.0.0', remote: {} }] }),
+        );
+      }
+      const sent = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as Record<
+        string,
+        unknown
+      >;
+      posted.push(sent);
+      const reply = answer(sent);
+      return Promise.resolve(Response.json(reply.body, { status: reply.status }));
+    };
+    const cwd = await tempDir();
+    try {
+      const code = await main(
+        [
+          'promote',
+          'catalog',
+          '--from',
+          'a',
+          '--to',
+          'b',
+          '--expect-version',
+          '1.0.0',
+          '--json',
+          '--cwd',
+          cwd,
+        ],
+        rt,
+      );
+      return { code, json: parseObject(rt.io.out.join('')), posted };
+    } finally {
+      await removeDir(cwd);
+    }
+  }
+
+  const moved = { ok: true, changed: true, version: '1.0.0', servedBefore: null };
+
+  it('sends expectVersion in the promote request', async () => {
+    const out = await promote(() => ({ status: 200, body: moved }));
+    expect(out.code).toBe(0);
+    expect(out.posted).toEqual([{ from: 'a', to: 'b', remote: 'catalog', expectVersion: '1.0.0' }]);
+  });
+
+  it('maps the server refusing a moved source to E510', async () => {
+    const out = await promote(() => ({
+      status: 409,
+      body: { error: { code: 'conflict', message: 'a serves catalog@2.0.0, not 1.0.0' } },
+    }));
+    expect(out.code).not.toBe(0);
+    expect(JSON.stringify(out.json)).toContain('E510');
+  });
+
+  it('asks again without the field when an older server refuses it', async () => {
+    const out = await promote((sent) =>
+      'expectVersion' in sent
+        ? {
+            status: 400,
+            body: { error: { code: 'bad_request', message: 'unknown field "expectVersion"' } },
+          }
+        : { status: 200, body: moved },
+    );
+    expect(out.code).toBe(0);
+    expect(out.posted).toHaveLength(2);
+    expect(out.posted[1]).not.toHaveProperty('expectVersion');
+  });
+});

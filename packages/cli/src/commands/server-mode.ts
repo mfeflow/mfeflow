@@ -5,6 +5,7 @@ import { applyPlan, artifactPrefix, planDeploy } from '@mfeflow/registry/static'
 import type { ArgsDef } from 'citty';
 import { assertKnownFlags, GLOBAL_ARGS, readGlobals, splitList, text, type Globals } from '../args';
 import { Cancelled } from '../exit';
+import { assertExpectedVersion, expectedVersion } from '../expect-version';
 import { finding, type Finding } from '../findings';
 import { inspectProject } from '../inspect';
 import type {
@@ -29,7 +30,7 @@ import {
   shellVersions,
 } from '../publish';
 import type { Runtime } from '../runtime';
-import type { ServerClient, ServerFailure } from '../server-client';
+import { ServerError, type ServerClient, type ServerFailure } from '../server-client';
 
 export const SERVER_ARGS = {
   'registry-url': {
@@ -362,19 +363,20 @@ async function deployInner(
   );
 }
 
-/** Refuses a promote whose source is not the version `--expect-version` named. */
-export function assertExpectedVersion(
-  args: Record<string, unknown>,
-  from: string,
-  name: string,
-  served: string,
-): void {
-  const expected = typeof args['expect-version'] === 'string' ? args['expect-version'] : undefined;
-  if (expected === undefined || expected === served) return;
-  throw new MfeflowError(
-    'E510',
-    `${from} serves ${name}@${served}, not ${expected} as expected; check \`mfeflow status\` and plan again`,
-  );
+/** Sends the pinned version too; a server that predates the field refuses it, so ask again without. */
+async function postPromote(
+  client: ServerClient,
+  body: Record<string, unknown>,
+  expectVersion: string | undefined,
+): Promise<unknown> {
+  if (expectVersion === undefined) return client.post('/v1/promote', body);
+  try {
+    return await client.post('/v1/promote', { ...body, expectVersion });
+  } catch (error) {
+    if (error instanceof ServerError && error.status === 400 && /expectVersion/.test(error.message))
+      return client.post('/v1/promote', body);
+    throw error;
+  }
 }
 
 async function promoteInner(
@@ -406,6 +408,7 @@ async function promoteInner(
   const source = await client.run(async () => pointer(await client.index(from), name));
   if (source?.version === undefined)
     throw new MfeflowError('E508', `${name} is not deployed to ${from}`);
+  const expectVersion = expectedVersion(args);
   assertExpectedVersion(args, from, name, source.version);
   const target = await client.run(async () => pointer(await client.index(to), name));
   await confirmed(rt, globals, `Point ${to} at ${name}@${source.version} (now in ${from})?`);
@@ -415,19 +418,9 @@ async function promoteInner(
       servedBefore: target?.version ?? null,
       warnings: ['the server runs its own checks on promote; a dry run does not call it'],
     });
+  const body = { from, to, remote: name, ...(rollout === undefined ? {} : { rollout }) };
   return client.run(
-    async () =>
-      fromMoved(
-        withVersion,
-        movedOf(
-          await client.post('/v1/promote', {
-            from,
-            to,
-            remote: name,
-            ...(rollout === undefined ? {} : { rollout }),
-          }),
-        ),
-      ),
+    async () => fromMoved(withVersion, movedOf(await postPromote(client, body, expectVersion))),
     (failure) =>
       deployResult(withVersion, {
         ok: false,

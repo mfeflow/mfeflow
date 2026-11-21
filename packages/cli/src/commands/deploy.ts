@@ -37,11 +37,11 @@ import {
   type Planned,
   type Session,
 } from '../publish';
+import { assertExpectedVersion } from '../expect-version';
 import type { Runtime } from '../runtime';
 import { openServer } from '../server-client';
 import {
   deployViaServer,
-  assertExpectedVersion,
   promoteViaServer,
   refuseRolloutFlags,
   rollbackViaServer,
