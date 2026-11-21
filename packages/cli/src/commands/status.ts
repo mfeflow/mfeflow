@@ -91,13 +91,14 @@ function driftOf(
   env: string,
   remote: RegistryIndexRemote,
   extra: string[] | null,
-): { local: string | null; drift: string[] } {
+): { local: string | null; drift: string[]; notes: string[] } {
   const file = `registry/envs/${env}/${remote.name}.json`;
   const entry = view.registry[env]?.[remote.name];
   const drift: string[] = [];
+  const notes: string[] = [];
   let local: string | null = null;
   if (entry === undefined)
-    drift.push(`${file} is missing; the host serves ${String(remote.version)}`);
+    notes.push(`${file} does not exist: this remote is not tracked in the repo`);
   else if (entry.state !== 'ok') drift.push(`${file} is ${entry.state}`);
   else {
     local = entry.value.version;
@@ -110,7 +111,7 @@ function driftOf(
     drift.push(
       `uploaded but not pointed at: ${extra.join(', ')} (deploy it, or it was uploaded with --no-publish)`,
     );
-  return { local, drift };
+  return { local, drift, notes };
 }
 
 async function envStatus(
@@ -125,7 +126,7 @@ async function envStatus(
   for (const remote of index.remotes) {
     // oxlint-disable-next-line no-await-in-loop -- a few remotes
     const extra = await unreferenced(s, remote.name, remote.version, [...all.values()]);
-    const { local, drift } = driftOf(s.view, env, remote, extra);
+    const { local, drift, notes } = driftOf(s.view, env, remote, extra);
     for (const message of drift)
       findings.push(
         finding('status.drift', 'E512', message, { severity: 'warning', app: remote.name }),
@@ -139,6 +140,7 @@ async function envStatus(
       local,
       unreferenced: extra,
       drift,
+      ...(notes.length === 0 ? {} : { notes }),
     });
   }
   return { env, published: true, generatedAt: index.generatedAt ?? null, remotes };
@@ -161,6 +163,7 @@ export function formatStatus(result: StatusResult): string {
       if (r.rollout != null)
         lines.push(`    rollout: ${r.rollout.candidate} at ${String(r.rollout.percent)}%`);
       for (const d of r.drift) lines.push(`    drift: ${d}`);
+      for (const n of r.notes ?? []) lines.push(`    note: ${n}`);
     }
   }
   if (result.findings.length > 0)

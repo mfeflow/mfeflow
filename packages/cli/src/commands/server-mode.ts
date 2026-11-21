@@ -275,7 +275,7 @@ async function deployInner(
     );
   const dist = text(args, 'dist') ?? 'dist';
   const build = await readBuild(path.join(app.dir, dist), `${app.rel}/${dist}`);
-  const upload = uploadableFiles(build.files, { withTypes: args['include-types'] === true });
+  const upload = uploadableFiles(build.files, { withoutTypes: args.types === false });
   const noPublish = args.publish === false;
   await confirmed(rt, globals, `Deploy ${app.name}@${version} to ${env} on ${client.label}?`);
 

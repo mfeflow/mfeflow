@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { main, type StatusResult } from '..';
 import { buildRemote, fixture, readObject, statusOf, type Fixture } from '../deploy-testing';
 import { testRuntime } from '../testing';
+import { formatStatus } from './status';
 
 const open: Fixture[] = [];
 afterEach(async () => {
@@ -115,15 +116,37 @@ describe('mfeflow status', () => {
     ]);
   });
 
-  it('flags a missing local file', async () => {
+  it('does not call a missing local file drift; it notes that the remote is not tracked', async () => {
     const f = await project();
     await deploy(f, '1.0.0');
     await fs.rm(path.join(f.root, 'registry/envs/prod/catalog.json'));
     const { result } = await f.status('--env', 'prod');
-    expect(result.findings.map((x) => x.message).join('\n')).toContain(
-      'registry/envs/prod/catalog.json is missing',
-    );
-    expect(prod(result)?.remotes[0]).toMatchObject({ local: null });
+    expect(result.findings).toEqual([]);
+    const remote = prod(result)?.remotes[0];
+    expect(remote).toMatchObject({ local: null, drift: [] });
+    expect(remote?.notes?.join(' ')).toContain('not tracked in the repo');
+  });
+
+  it('reports no drift for a remote deployed with --no-local-entry', async () => {
+    const f = await project();
+    await fs.rm(path.join(f.root, 'registry/envs/prod/catalog.json'));
+    await deploy(f, '1.0.0', '--no-local-entry');
+    const { result } = await f.status('--env', 'prod');
+    expect(result.findings).toEqual([]);
+    expect(prod(result)?.remotes.find((r) => r.name === 'catalog')).toMatchObject({
+      local: null,
+      drift: [],
+    });
+  });
+
+  it('shows the note in the text output, not as DRIFT', async () => {
+    const f = await project();
+    await deploy(f, '1.0.0');
+    await fs.rm(path.join(f.root, 'registry/envs/prod/catalog.json'));
+    const { result } = await f.status('--env', 'prod');
+    const text = formatStatus(result);
+    expect(text).toContain('note: registry/envs/prod/catalog.json does not exist');
+    expect(text).not.toContain('DRIFT');
   });
 
   it('does not mind local files for remotes that were never deployed', async () => {

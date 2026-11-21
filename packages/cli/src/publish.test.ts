@@ -14,6 +14,7 @@ import {
   hostFailure,
   normalizeBaseUrl,
   positionals,
+  summarizeLeftOut,
   uploadableFiles,
   type Session,
 } from './publish';
@@ -128,6 +129,7 @@ describe('validateResult for the registry commands', () => {
     uploads: [{ key: 'a', bytes: 1, contentType: 'text/plain', cacheControl: 'x', guard: 'none' }],
     uploaded: ['a'],
     skipped: [],
+    leftOut: [],
     localEntry: null,
     warnings: [],
     findings: [],
@@ -136,6 +138,7 @@ describe('validateResult for the registry commands', () => {
 
   it('accepts good documents and names what is wrong in bad ones', () => {
     expect(validateResult(deploy)).toEqual([]);
+    expect(paths({ ...deploy, leftOut: undefined })).toContain('leftOut');
     expect(validateResult({ ...deploy, command: 'promote', fromEnv: 'staging' })).toEqual([]);
     expect(paths({ ...deploy, version: 1 })).toContain('version');
     expect(paths({ ...deploy, host: undefined })).toContain('host');
@@ -191,15 +194,24 @@ describe('uploadableFiles', () => {
     '@mf-types-extra.js': bytes,
   };
 
-  it('leaves out stats, the dev page and the types, each with a reason', () => {
+  it('keeps the types by default and leaves out stats and the dev page, each with a reason', () => {
     const out = uploadableFiles(build);
-    expect(Object.keys(out.files)).toEqual([
+    expect(Object.keys(out.files).toSorted()).toEqual([
       '@mf-types-extra.js',
+      '@mf-types.d.ts',
+      '@mf-types.zip',
+      '@mf-types/catalog/apis.d.ts',
       'mf-manifest.json',
       'remoteEntry.js',
       'static/index.html',
       'static/js/App.js',
     ]);
+    expect(out.leftOut.map((l) => l.file)).toEqual(['index.html', 'mf-stats.json']);
+    expect(out.leftOut.every((l) => l.reason !== '')).toBe(true);
+  });
+
+  it('leaves the types out with withoutTypes, in code unit order', () => {
+    const out = uploadableFiles(build, { withoutTypes: true });
     expect(out.leftOut.map((l) => l.file)).toEqual([
       '@mf-types.d.ts',
       '@mf-types.zip',
@@ -207,12 +219,27 @@ describe('uploadableFiles', () => {
       'index.html',
       'mf-stats.json',
     ]);
-    expect(out.leftOut.every((l) => l.reason !== '')).toBe(true);
+    expect(Object.keys(out.files)).not.toContain('@mf-types.zip');
+  });
+});
+
+describe('summarizeLeftOut', () => {
+  it('counts the files by reason, singular and plural', () => {
+    const out = uploadableFiles(
+      {
+        'index.html': new Uint8Array(),
+        'mf-stats.json': new Uint8Array(),
+        '@mf-types.zip': new Uint8Array(),
+        '@mf-types/a.d.ts': new Uint8Array(),
+      },
+      { withoutTypes: true },
+    );
+    expect(summarizeLeftOut(out.leftOut)).toBe(
+      '2 generated type files, 1 dev page, 1 bundle stats file',
+    );
   });
 
-  it('keeps the types with withTypes', () => {
-    const out = uploadableFiles(build, { withTypes: true });
-    expect(out.leftOut.map((l) => l.file)).toEqual(['index.html', 'mf-stats.json']);
-    expect(Object.keys(out.files)).toContain('@mf-types.zip');
+  it('is empty when nothing was left out', () => {
+    expect(summarizeLeftOut([])).toBe('');
   });
 });

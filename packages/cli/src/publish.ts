@@ -408,28 +408,51 @@ export interface LeftOut {
 
 const MF_TYPES = /^@mf-types(\/|\.|$)/;
 
-function reasonToSkip(file: string, withTypes: boolean): string | undefined {
-  if (file === 'mf-stats.json')
-    return 'bundle statistics, read by analysis tools, not by the shell';
-  if (file === 'index.html') return "the remote's standalone dev page, which the shell never loads";
-  if (!withTypes && MF_TYPES.test(file))
-    return 'generated types, used by type consumers only (--include-types uploads them)';
+const STATS_REASON = 'bundle statistics, read by analysis tools, not by the shell';
+const PAGE_REASON =
+  "the remote's standalone dev page; the shell loads mf-manifest.json and remoteEntry.js, never index.html";
+const TYPES_REASON = 'generated types, left out by --no-types';
+
+const LABELS = new Map([
+  [STATS_REASON, ['bundle stats file', 'bundle stats files']],
+  [PAGE_REASON, ['dev page', 'dev pages']],
+  [TYPES_REASON, ['generated type file', 'generated type files']],
+]);
+
+function reasonToSkip(file: string, withoutTypes: boolean): string | undefined {
+  if (file === 'mf-stats.json') return STATS_REASON;
+  if (file === 'index.html') return PAGE_REASON;
+  if (withoutTypes && MF_TYPES.test(file)) return TYPES_REASON;
   return undefined;
 }
 
-/** The files of a build a static host serves to the shell, and what was left out with why. */
+const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+/** The files of a build to upload, and what was left out with why, in the order the plan uploads them. */
 export function uploadableFiles(
   files: Record<string, Uint8Array>,
-  options: { withTypes?: boolean } = {},
+  options: { withoutTypes?: boolean } = {},
 ): { files: Record<string, Uint8Array>; leftOut: LeftOut[] } {
   const kept: Record<string, Uint8Array> = {};
   const leftOut: LeftOut[] = [];
-  for (const file of Object.keys(files).toSorted((a, b) => a.localeCompare(b, 'en'))) {
-    const reason = reasonToSkip(file, options.withTypes === true);
-    if (reason === undefined) kept[file] = files[file] ?? new Uint8Array();
+  for (const [file, body] of Object.entries(files)) {
+    const reason = reasonToSkip(file, options.withoutTypes === true);
+    if (reason === undefined) kept[file] = body;
     else leftOut.push({ file, reason });
   }
-  return { files: kept, leftOut };
+  return { files: kept, leftOut: leftOut.toSorted((x, y) => byCodeUnit(x.file, y.file)) };
+}
+
+/** "303 generated type files, 1 bundle stats file": the left-out files counted by reason. */
+export function summarizeLeftOut(leftOut: readonly LeftOut[]): string {
+  const counts = new Map<string, number>();
+  for (const { reason } of leftOut) counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  return [...counts]
+    .map(([reason, n]) => {
+      const [one, many] = LABELS.get(reason) ?? ['file', 'files'];
+      return `${String(n)} ${n === 1 ? one : many}`;
+    })
+    .join(', ');
 }
 
 export async function readBuild(dir: string, shown: string): Promise<Build> {
