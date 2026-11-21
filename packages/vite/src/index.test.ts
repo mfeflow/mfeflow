@@ -87,9 +87,18 @@ describe('federation options', () => {
     });
   });
 
-  it('re-exports mergeConfig from the Vite it was built against', async () => {
-    const vite = await import('vite');
-    expect(mergeConfig).toBe(vite.mergeConfig);
+  it('re-exports mergeConfig, and the shell template takes Vite only from here', () => {
+    expect(typeof mergeConfig).toBe('function');
+    const template = fs.readFileSync(
+      path.resolve(
+        import.meta.dirname,
+        '../../../templates/monorepo/files/shell/vite.config.ts.eta',
+      ),
+      'utf8',
+    );
+    // A second import from 'vite' would bring back two Vite copies under a linked @mfeflow/vite (TS2321).
+    expect(template).not.toMatch(/from 'vite'/);
+    expect(template).toMatch(/from '@mfeflow\/vite'/);
   });
 
   it('writes Windows runtime plugin paths with forward slashes, so the generated import parses', () => {
