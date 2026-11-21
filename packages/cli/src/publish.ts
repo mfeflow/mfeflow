@@ -424,7 +424,7 @@ export function uploadableFiles(
 ): { files: Record<string, Uint8Array>; leftOut: LeftOut[] } {
   const kept: Record<string, Uint8Array> = {};
   const leftOut: LeftOut[] = [];
-  for (const file of Object.keys(files).toSorted()) {
+  for (const file of Object.keys(files).toSorted((a, b) => a.localeCompare(b, 'en'))) {
     const reason = reasonToSkip(file, options.withTypes === true);
     if (reason === undefined) kept[file] = files[file] ?? new Uint8Array();
     else leftOut.push({ file, reason });
